@@ -1,18 +1,18 @@
 # modules/c/postgres
 
-Optional PostgreSQL client GClasses, enabled with `CONFIG_MODULE_POSTGRES=y`. Wraps `libpq` (connection pooling, async queries, result parsing) so yunos can talk to a Postgres database through the usual gobj + event-loop pattern.
+This module gives optional PostgreSQL client GClasses. To enable it, set `CONFIG_MODULE_POSTGRES=y`. The module wraps `libpq` (connection pooling, async queries, result parsing). With it, yunos can talk to a Postgres database through the usual gobj and event-loop pattern.
 
-Used by `yunos/c/dba_postgres`.
+`yunos/c/dba_postgres` uses this module.
 
-> **It does not connect in this version.** The polling of the libpq socket
-> (`PQconnectPoll()`, `PQconsumeInput()`) was written for libuv and is
-> commented out since the port to `yev_loop`, so the gclass never reaches
-> `ST_CONNECTED`. Left as it is by decision until a project needs
-> PostgreSQL: see `TODO.md` §4 and `docs/doc.yuneta.io/modules/postgres.md`.
+> It does not connect in this version. The code that polls the libpq socket
+> (`PQconnectPoll()`, `PQconsumeInput()`) was written for libuv. Since the
+> port to `yev_loop`, that code is commented out, so the gclass never gets to
+> `ST_CONNECTED`. The code stays as it is, by decision, until a project needs
+> PostgreSQL. See `TODO.md` §4 and `docs/doc.yuneta.io/modules/postgres.md`.
 
-**Build host requirements:** the `libpq` client dev headers — `libpq-dev`
+The build host needs the `libpq` client dev headers: `libpq-dev`
 (Debian/Ubuntu) or `libpq-devel` (RHEL/Rocky/Alma). The source includes
-`<libpq-fe.h>` (not `<postgresql/libpq-fe.h>`): the header lives in
-`/usr/include` on RHEL but `/usr/include/postgresql` on Debian, so
-`CMakeLists.txt` adds the right directory from `pg_config --includedir`. That
-keeps the same include working on both distro families.
+`<libpq-fe.h>`, not `<postgresql/libpq-fe.h>`. The header is in
+`/usr/include` on RHEL, but in `/usr/include/postgresql` on Debian. Thus
+`CMakeLists.txt` adds the correct directory from `pg_config --includedir`. As
+a result, the same include works on both distro families.

@@ -1,14 +1,14 @@
 # yunos
 
-Deployable Yuneta services (yunos). Each sub-directory is a self-contained process built on top of the kernel in `kernel/`.
+The deployable Yuneta services (yunos). Each subdirectory is a separate process. It runs on the kernel in `kernel/`.
 
 ## Layout
 
-- **`c/`** — C yunos (agents, brokers, gateways, utilities). See `yunos/c/README.md` for the catalogue.
-- **`js/`** — JavaScript yunos and web applications. Currently: `gui_treedb` — the browser UI for the TreeDB graph database.
+- `c/`: the C yunos (agents, brokers, gateways, utilities). For the catalog, see `yunos/c/README.md`.
+- `js/`: the JavaScript yunos and web applications, a git submodule (`github.com/artgins/yunos-js`). It holds `gui_agent`, the browser UI of the agent, and `gui_treedb`, the browser UI for the TreeDB graph database.
 
 ## Building
 
-All C yunos are built by `yunetas build` and installed into `$YUNETAS_YUNOS/` (i.e. `$YUNETAS_OUTPUTS/yunos/`). JS yunos are built with their own `npm run build` inside each sub-directory.
+`yunetas build` builds all the C yunos. It installs them into `$YUNETAS_YUNOS/` (that is, `$YUNETAS_OUTPUTS/yunos/`). To build a JS yuno, run `npm run build` in its subdirectory.
 
-See the top-level `CLAUDE.md` for the full build workflow.
+For the full build workflow, see the top-level `CLAUDE.md`.

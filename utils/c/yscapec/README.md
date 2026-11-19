@@ -1,6 +1,6 @@
 # yscapec
 
-Escape a file's contents into a C string literal, with configurable line width. Handy when embedding text (JSON config, SQL, HTML, …) directly inside `.c` source.
+`yscapec` writes the contents of a file as a C string literal. You can set the line width. Use it to put text (JSON configuration, SQL, HTML, or other text) directly in a `.c` source file.
 
 ## Usage
 
@@ -8,4 +8,4 @@ Escape a file's contents into a C string literal, with configurable line width. 
 yscapec <file> [--width <n>]
 ```
 
-Output goes to stdout; redirect into a header or source file as needed.
+The tool writes to stdout. To keep the output, redirect it into a header or a source file.

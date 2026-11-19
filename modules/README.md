@@ -1,6 +1,12 @@
 # modules
 
-Optional GClass libraries that extend the Yuneta kernel with domain-specific functionality. Each module is conditionally compiled based on `.config` Kconfig options and produces a static library linked by yunos and utilities that need it.
+The modules are optional GClass libraries. They add domain-specific features to the Yuneta kernel. A Kconfig option in `.config` turns each module on or off. Each enabled module builds a static library. The yunos and utilities that need the module link that library.
+
+To use or remove a module:
+
+1. All modules are enabled by default (`default y` in Kconfig). To disable a module, run `menuconfig`, or edit `.config`.
+2. After you change `.config`, run `yunetas init` and then `yunetas build`.
+3. In the `CMakeLists.txt` of your yuno, link the module with its CMake variable from `project.cmake`. The table in "Link Variables" below gives the variables.
 
 ## Directory Layout
 
@@ -27,19 +33,17 @@ modules/
 | postgres | `CONFIG_MODULE_POSTGRES` | `libyunetas-module-postgres.a` | `C_POSTGRES` |
 | test | `CONFIG_MODULE_TEST` | `libyunetas-module-test.a` | `C_PEPON`, `C_TESTON` |
 
-All modules default to enabled (`default y` in Kconfig). Disable any module with `menuconfig` or by editing `.config`.
-
 ---
 
 ## Console Module
 
-Interactive terminal line-editing with ncurses. Provides the `C_EDITLINE` GClass used by `ycommand` for its interactive mode.
+This module gives interactive line editing in the terminal, with ncurses. It has the `C_EDITLINE` GClass, which `ycommand` uses for its interactive mode.
 
 ### Source Files
 
 | File | Purpose |
 |------|---------|
-| `c_editline.c/.h` | `C_EDITLINE` GClass — line editor with history, completion, scrolling |
+| `c_editline.c/.h` | `C_EDITLINE` GClass: line editor with history, completion, scrolling |
 | `linenoise.c/.h` | Embedded [linenoise](https://github.com/antirez/linenoise) library (line editing engine) |
 | `help_ncurses.c/.h` | Ncurses helper: window open/close, color management |
 | `g_ev_console.c/.h` | Global event declarations for console GClasses |
@@ -47,11 +51,11 @@ Interactive terminal line-editing with ncurses. Provides the `C_EDITLINE` GClass
 
 ### C_EDITLINE GClass
 
-An ncurses-based line editor with command history, key bindings, and color support.
+`C_EDITLINE` is a line editor built on ncurses. It has command history, key bindings, and color support.
 
-**Registration:** `register_c_editline()`
+Registration: `register_c_editline()`
 
-**Attributes:**
+Attributes:
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -65,9 +69,9 @@ An ncurses-based line editor with command history, key bindings, and color suppo
 | `bg_color` | string | `"cyan"` | Background color |
 | `fg_color` | string | `"white"` | Foreground color |
 
-**FSM:** Single state `ST_IDLE`.
+FSM: one state, `ST_IDLE`.
 
-**Events (declared in `g_ev_console.h`):**
+Events (declared in `g_ev_console.h`):
 
 Editline operations:
 `EV_KEYCHAR`, `EV_MOUSE`, `EV_EDITLINE_ENTER`, `EV_EDITLINE_BACKSPACE`, `EV_EDITLINE_DEL_CHAR`, `EV_EDITLINE_MOVE_START`, `EV_EDITLINE_MOVE_END`, `EV_EDITLINE_MOVE_LEFT`, `EV_EDITLINE_MOVE_RIGHT`, `EV_EDITLINE_PREV_HIST`, `EV_EDITLINE_NEXT_HIST`, `EV_EDITLINE_COMPLETE_LINE`, `EV_EDITLINE_DEL_EOL`, `EV_EDITLINE_SWAP_CHAR`, `EV_EDITLINE_DEL_LINE`, `EV_EDITLINE_DEL_PREV_WORD`
@@ -81,7 +85,7 @@ Scrolling:
 Text and UI:
 `EV_COMMAND`, `EV_GETTEXT`, `EV_SETTEXT`, `EV_CLRSCR`, `EV_CLEAR_HISTORY`, `EV_QUIT`, `EV_SET_SELECTED_BUTTON`, `EV_GET_PREV_SELECTED_BUTTON`, `EV_GET_NEXT_SELECTED_BUTTON`
 
-**Helper API:**
+Helper API:
 
 ```c
 int tty_keyboard_init(void);   // Create stdin fd for keyboard input (no echo)
@@ -95,26 +99,26 @@ int get_paint_color(const char *fg_color, const char *bg_color);
 
 ## MQTT Module
 
-Full MQTT protocol implementation supporting v3.1, v3.1.1, and v5.0. Provides both the wire protocol handler (`C_PROT_MQTT2`) and the broker logic (`C_MQTT_BROKER`). Based on Mosquitto code (EPL-2.0 / BSD-3-Clause), refactored for the Yuneta GClass architecture.
+This module is a full implementation of the MQTT protocol, versions v3.1, v3.1.1, and v5.0. It has the wire protocol handler (`C_PROT_MQTT2`) and the broker logic (`C_MQTT_BROKER`). The code is based on Mosquitto (EPL-2.0 / BSD-3-Clause), refactored for the GClass architecture of Yuneta.
 
 ### Source Files
 
 | File | Purpose |
 |------|---------|
-| `c_prot_mqtt2.c/.h` | `C_PROT_MQTT2` GClass — MQTT wire protocol (client and server side) |
-| `c_mqtt_broker.c/.h` | `C_MQTT_BROKER` GClass — broker logic, session management, subscriptions |
+| `c_prot_mqtt2.c/.h` | `C_PROT_MQTT2` GClass: MQTT wire protocol (client and server side) |
+| `c_mqtt_broker.c/.h` | `C_MQTT_BROKER` GClass: broker logic, session management, subscriptions |
 | `mqtt_util.c/.h` | MQTT constants, enums, validation, and utility functions |
 | `tr2q_mqtt.c/.h` | Persistent MQTT message queues backed by TimeRanger2 |
 | `treedb_schema_mqtt_broker.c` | TreeDB schema for broker persistent data model (its graph and the literal, as the schema editor exports them) |
-| `msg2db_schema_alarms.c` | Msg2db schema of the broker's alarm log |
+| `msg2db_schema_alarms.c` | Msg2db schema of the alarm log of the broker |
 
 ### C_PROT_MQTT2 GClass
 
-Handles the MQTT wire protocol: packet framing, encoding/decoding, property parsing (v5), QoS flow, and keep-alive. Works as either client or server side depending on the `iamServer` attribute.
+`C_PROT_MQTT2` handles the MQTT wire protocol: packet framing, encoding/decoding, property parsing (v5), QoS flow, and keep-alive. The `iamServer` attribute selects the side, client or server.
 
-**Registration:** `register_c_prot_mqtt2()`
+Registration: `register_c_prot_mqtt2()`
 
-**FSM States:**
+FSM States:
 
 | State | Description |
 |-------|-------------|
@@ -123,7 +127,7 @@ Handles the MQTT wire protocol: packet framing, encoding/decoding, property pars
 | `ST_WAIT_FRAME_HEADER` | In session, waiting for next packet header |
 | `ST_WAIT_PAYLOAD` | Header received, waiting for payload bytes |
 
-**Events (output):**
+Events (output):
 
 | Event | Description |
 |-------|-------------|
@@ -132,7 +136,7 @@ Handles the MQTT wire protocol: packet framing, encoding/decoding, property pars
 | `EV_MQTT_SUBSCRIBE` | SUBACK received in response to SUBSCRIBE |
 | `EV_MQTT_UNSUBSCRIBE` | UNSUBACK received in response to UNSUBSCRIBE |
 
-**Key Attributes:**
+Key Attributes:
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -161,29 +165,29 @@ Handles the MQTT wire protocol: packet framing, encoding/decoding, property pars
 | `max_keepalive` | integer | 60 | Server keep-alive override (v5) |
 | `max_topic_alias` | integer | 10 | Max topic aliases (v5) |
 
-**Commands:** `help`
+Commands: `help`
 
 ### C_MQTT_BROKER GClass
 
-Broker-level logic: client registration, subscription tree management, message routing, retained message storage, will message handling, session persistence, and alarms.
+`C_MQTT_BROKER` has the logic of the broker: client registration, subscription tree management, message routing, retained message storage, will message handling, session persistence, and alarms.
 
-**Registration:** `register_c_mqtt_broker()`
+Registration: `register_c_mqtt_broker()`
 
-**FSM:** Single state `ST_IDLE`.
+FSM: one state, `ST_IDLE`.
 
-**Key Attributes:**
+Key Attributes:
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `enable_new_clients` | boolean | false | Auto-create clients not in DB |
-| `mqtt_persistent_db` | boolean | true | Must be true: the sessions, clients and retained messages live in the treedb. False is refused at start-up (one CRITICAL, exit as `on_critical_error` says) |
+| `mqtt_persistent_db` | boolean | true | Must be true, because the sessions, clients and retained messages live in the treedb. The broker refuses false at start-up: it logs one CRITICAL and exits as `on_critical_error` says |
 | `mqtt_service` | string | — | Service name (default: yuno_role) |
 | `mqtt_tenant` | string | — | Multi-tenant identifier (default: yuno_name) |
 | `deny_subscribes` | json | — | JSON list of denied topic filters |
-| `on_critical_error` | integer | 2 | Log options of the broker's critical error (2 = exit zero; 0 = stay up, not playing: its commands answer -1 "broker not playing") |
+| `on_critical_error` | integer | 2 | Log options of the critical error of the broker. 2 = exit zero. 0 = stay up, not playing, and its commands answer -1 "broker not playing" |
 | `timeout` | integer | 1000 | Periodic timer interval (ms) |
 
-**Commands:**
+Commands:
 
 | Command | Description |
 |---------|-------------|
@@ -201,7 +205,7 @@ Broker-level logic: client registration, subscription tree management, message r
 
 ### TreeDB Schema (`treedb_mqtt_broker`)
 
-Persistent data model with the following topics:
+The persistent data model has these topics:
 
 | Topic | PKey | Description |
 |-------|------|-------------|
@@ -212,7 +216,7 @@ Persistent data model with the following topics:
 | `retained_msgs` | `id` (topic) | Retained messages by topic |
 | `users` | `id` | User accounts with group memberships |
 
-Alarms schema (`msg2db_alarms`): time-series alarm records per client.
+The alarms schema (`msg2db_alarms`) holds time-series alarm records for each client.
 
 ### MQTT Utility Functions (`mqtt_util.h`)
 
@@ -236,11 +240,11 @@ json_t *new_mqtt_message(hgobj gobj, const char *client_id, const char *topic,
 time_t mqtt_time(void);
 ```
 
-Defines all MQTT protocol constants: message types (`CMD_CONNECT` through `CMD_AUTH`), v3.1.1 CONNACK codes, v5 reason codes, v5 property identifiers, v5 subscription options, and protocol version constants.
+`mqtt_util.h` also defines all the MQTT protocol constants: message types (`CMD_CONNECT` through `CMD_AUTH`), v3.1.1 CONNACK codes, v5 reason codes, v5 property identifiers, v5 subscription options, and protocol version constants.
 
 ### Persistent Queue API (`tr2q_mqtt.h`)
 
-TimeRanger2-backed message queues with inflight/queued separation and MQTT-specific metadata encoded in user flags.
+TimeRanger2 stores these message queues. They keep the inflight and the queued messages apart. They encode the MQTT-specific metadata in the user flags.
 
 ```c
 // Queue lifecycle
@@ -274,7 +278,7 @@ int tr2q_list_msgs(tr2_queue_t *trq);
 int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value);
 ```
 
-**Iteration macros:**
+Iteration macros:
 ```c
 Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg)
 Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, msg, next)
@@ -282,7 +286,7 @@ Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg)
 Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, msg, next)
 ```
 
-**User flag bitmask layout** (16-bit `user_flag` in TimeRanger2 metadata):
+User flag bitmask layout (16-bit `user_flag` in TimeRanger2 metadata):
 
 ```
 Bits 15-12: State     (mqtt_ms_publish_qos0 .. mqtt_ms_queued)
@@ -299,9 +303,10 @@ Bit     0:  Pending   (TR2Q_MSG_PENDING)
 
 ## M-Bus Module
 
-Master of a wired M-Bus (EN 13757-2/-3): reads water, heat, gas and electricity
-meters through a serial M-Bus level converter (`C_UART`, 2400 baud 8E1) or a
-transparent M-Bus to TCP gateway (`C_TCP`). Full reference:
+This module is the master of a wired M-Bus (EN 13757-2/-3). It reads water,
+heat, gas and electricity meters through a serial M-Bus level converter
+(`C_UART`, 2400 baud 8E1), or through a transparent M-Bus to TCP gateway
+(`C_TCP`). The full reference is
 [doc.yuneta.io/mbus](https://doc.yuneta.io/mbus).
 
 ### Source Files
@@ -309,25 +314,25 @@ transparent M-Bus to TCP gateway (`C_TCP`). Full reference:
 | File | Purpose |
 |------|---------|
 | `mbus_telegram.c/.h` | The telegram decoder, no gobj and no state: frames of EN 13757-2, the variable data structure of EN 13757-3 decoded to json (one unit per quantity, stable record ids), the requests of a master |
-| `c_prot_mbus_m.c/.h` | `C_PROT_MBUS_M` GClass — the master: reads each slave by primary or secondary address, multi-telegram readouts with the FCB, retries, one `EV_ON_MESSAGE` per slave read, failures logged on transition; scans of the bus (primary, secondary) and the setting of a primary address |
+| `c_prot_mbus_m.c/.h` | `C_PROT_MBUS_M` GClass, the master. It reads each slave by primary or secondary address, with multi-telegram readouts with the FCB, and retries. It gives one `EV_ON_MESSAGE` for each slave read, and logs failures on transition. It also scans the bus (primary, secondary) and sets a primary address |
 
 ---
 
 ## Postgres Module
 
-Asynchronous PostgreSQL client GClass using libpq non-blocking API, integrated with the Yuneta event loop.
+This module has an asynchronous PostgreSQL client GClass. It uses the non-blocking API of libpq, and it runs in the Yuneta event loop.
 
 ### Source Files
 
 | File | Purpose |
 |------|---------|
-| `c_postgres.c/.h` | `C_POSTGRES` GClass — async PostgreSQL queries |
+| `c_postgres.c/.h` | `C_POSTGRES` GClass: async PostgreSQL queries |
 
 ### C_POSTGRES GClass
 
-**Registration:** `register_c_postgres()`
+Registration: `register_c_postgres()`
 
-**FSM States:**
+FSM States:
 
 | State | Description |
 |-------|-------------|
@@ -336,14 +341,14 @@ Asynchronous PostgreSQL client GClass using libpq non-blocking API, integrated w
 | `ST_CONNECTED` | Connected and ready for queries |
 | `ST_WAIT_DISCONNECTED` | Disconnection in progress |
 
-**Events (input):**
+Events (input):
 
 | Event | Description |
 |-------|-------------|
 | `EV_SEND_QUERY` | Send a SQL query |
 | `EV_CLEAR_QUEUE` | Clear pending query queue |
 
-**Key Attributes:**
+Key Attributes:
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
@@ -354,7 +359,7 @@ Asynchronous PostgreSQL client GClass using libpq non-blocking API, integrated w
 | `timeout_between_connections` | integer | 5000 | Retry interval (ms) |
 | `timeout_response` | integer | 10000 | Query response timeout (ms) |
 
-**Commands:**
+Commands:
 
 | Command | Description |
 |---------|-------------|
@@ -364,65 +369,65 @@ Asynchronous PostgreSQL client GClass using libpq non-blocking API, integrated w
 | `list-queue` | List queue messages |
 | `view-channels` | View channel messages |
 
-**System dependency:** `sudo apt-get install postgresql-server-dev-all libpq-dev`
+System dependency: `sudo apt-get install postgresql-server-dev-all libpq-dev`
 
 ---
 
 ## Test Module
 
-GClasses for traffic testing between client and server yunos. Used by the test suites in `tests/c/`.
+This module has GClasses that test the traffic between client and server yunos. The test suites in `tests/c/` use them.
 
 ### Source Files
 
 | File | Purpose |
 |------|---------|
-| `c_pepon.c/.h` | `C_PEPON` GClass — test server (echo service) |
-| `c_teston.c/.h` | `C_TESTON` GClass — test client (traffic generator) |
+| `c_pepon.c/.h` | `C_PEPON` GClass: test server (echo service) |
+| `c_teston.c/.h` | `C_TESTON` GClass: test client (traffic generator) |
 
 ### C_PEPON GClass
 
-Server-side test GClass that echoes received messages back to the sender.
+`C_PEPON` is a server-side test GClass. It sends each received message back to the sender.
 
-**Registration:** `register_c_pepon()`
+Registration: `register_c_pepon()`
 
-**FSM:** Single state `ST_IDLE`.
+FSM: one state, `ST_IDLE`.
 
-**Key Attributes:**
+Key Attributes:
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `do_echo` | boolean | true | Echo received messages |
 | `timeout` | integer | 2000 | Timer interval (ms) |
 
-**Commands:** `help`, `authzs`
+Commands: `help`, `authzs`
 
 ### C_TESTON GClass
 
-Client-side test GClass that generates traffic for testing.
+`C_TESTON` is a client-side test GClass. It generates traffic for tests.
 
-**Registration:** `register_c_teston()`
+Registration: `register_c_teston()`
 
-**FSM:** Single state `ST_IDLE`.
+FSM: one state, `ST_IDLE`.
 
-**Events (input):**
+Events (input):
 
 | Event | Description |
 |-------|-------------|
 | `EV_START_TRAFFIC` | Begin generating test traffic |
 
-**Key Attributes:**
+Key Attributes:
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `timeout` | integer | 2000 | Timer interval (ms) |
 
-**Commands:** `help`, `authzs`
+Commands: `help`, `authzs`
 
 ---
 
 ## Build Details
 
-Each module follows the same conditional compilation pattern:
+Each module uses the same pattern of conditional compilation:
 
 ```cmake
 if(CONFIG_MODULE_<NAME>)
@@ -434,11 +439,11 @@ else()
 endif()
 ```
 
-When a module is disabled in `.config`, nothing is compiled and its library is not produced. Executables that reference the module's `${*_LIBS}` variable from `project.cmake` will get an empty string, so no link errors occur.
+If a module is disabled in `.config`, the build compiles nothing for it and makes no library. An executable that references the `${*_LIBS}` variable of the module from `project.cmake` gets an empty string. Thus no link error occurs.
 
 ### Link Variables (from `project.cmake`)
 
-| Config option | CMake variable | Library |
+| Configuration option | CMake variable | Library |
 |---------------|---------------|---------|
 | `CONFIG_MODULE_CONSOLE` | `${MODULE_CONSOLE}` | `libyunetas-module-console.a` |
 | `CONFIG_MODULE_MQTT` | `${MODULE_MQTT}` | `libyunetas-module-mqtt.a` |
@@ -451,4 +456,4 @@ When a module is disabled in `.config`, nothing is compiled and its library is n
 
 ## JavaScript Modules
 
-The `modules/js/` directory previously held a fork of [w2ui](https://github.com/vitmalina/w2ui) with added window management. This is now deprecated in favor of the JavaScript implementation in `kernel/js/yunetas-js7/`.
+The `modules/js/` directory held a fork of [w2ui](https://github.com/vitmalina/w2ui) with added window management. This fork is now deprecated. Use the JavaScript framework in `kernel/js/` (`gobj-js` and `gobj-ui`).

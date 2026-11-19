@@ -1,6 +1,6 @@
 # ytests
 
-Runner for Yuneta test suites against a live service. Supports repeat/interval options for soak testing, and the same authentication mechanisms as `ycommand` / `ybatch`.
+`ytests` runs Yuneta test suites against a live service. It has repeat and interval options for soak tests (long tests under continuous load). It uses the same authentication mechanisms as `ycommand` and `ybatch`.
 
 ## Usage
 

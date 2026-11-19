@@ -1,30 +1,50 @@
 # controlcenter
 
-Central management point (yuno) for a fleet of distributed Yuneta nodes.
-`C_CONTROLCENTER` is a **server**: the nodes' agents dial in to it — the
-control center never dials out. Administrators then issue commands and query
-stats against any connected node *through* the control center, which also keeps
-the **scenarios** of the fleet in its own treedb: sets of yunos to watch and
-test together, with the commands of their actions, and the runs of those
-actions.
+`controlcenter` is the yuno that manages a fleet of distributed Yuneta nodes
+from one central point. Its gclass `C_CONTROLCENTER` is a server: the agents
+of the nodes connect to it, and the control center never connects out to them.
+Administrators send commands and stats queries to any connected node through
+the control center. The control center also keeps the scenarios of the fleet
+in its own treedb. A scenario is a set of yunos that you watch and test
+together. It holds the commands of its actions and the runs of those actions.
+
+## Usage
+
+1. Build and install the yuno on a company host. See "Build & deploy" and
+   "Where it runs" below.
+2. Accept the key of each node with `accept-node`, or open an enrollment. See
+   "Each node's key" below.
+3. Send commands to the control center with `ycommand`. `<cc>` is the id of
+   the controlcenter yuno:
+
+   ```bash
+   ycommand -c 'command-yuno id=<cc> service=controlcenter command=list-agents'
+   ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host> cmd2agent="list-yunos"'
+   ```
+
+4. For `command-agent`, give `ycommand` a wait of some seconds (`-w 10`). The
+   node answers after the control center.
+5. To run an action of a scenario, use `run-scenario`. See "Data model:
+   scenarios and their runs" below.
 
 ## How nodes connect
 
 A node connects only when it has an owner (`node_owner` ≠ `none`). Two client
-services on the node dial **out** to the control center over TLS:
+services on the node connect out to the control center over TLS:
 
-- The primary [`yuno_agent`](../yuno_agent/) — a `controlcenter` `C_IEVENT_CLI`
-  service, default endpoint port **1988** (`yunetacontrol.com:1988`).
-- The secondary [`yuno_agent22`](../yuno_agent22/) — its own client, default
-  endpoint port **1989** (`yunetacontrol.ovh:1989`), which additionally exposes
-  PTY-backed remote **consoles** that the control center drives with
+- The primary [`yuno_agent`](../yuno_agent/). Its client is a `controlcenter`
+  `C_IEVENT_CLI` service, with the default endpoint port 1988
+  (`yunetacontrol.com:1988`).
+- The secondary [`yuno_agent22`](../yuno_agent22/). It has its own client,
+  with the default endpoint port 1989 (`yunetacontrol.ovh:1989`). It also
+  exposes remote consoles on a PTY, and the control center drives them with
   `write-tty`.
 
-Both agents trust ONLY the control center's own certificate,
-`/yuneta/agent/certs/controlcenter.crt` (installed with the agent; its key stays
-on the control center's machine), checked against the name
-`yuneta_agent.yuneta.io`. The control center serves that certificate on 1988 and
-1989:
+Both agents trust ONLY the certificate of the control center,
+`/yuneta/agent/certs/controlcenter.crt`. This certificate comes with the
+agent, and its key stays on the machine of the control center. The agents
+test it against the name `yuneta_agent.yuneta.io`. The control center serves
+that certificate on 1988 and 1989:
 
 ```json
 "crypto": {
@@ -33,31 +53,33 @@ on the control center's machine), checked against the name
 }
 ```
 
-Up to 7.30.3 the agents dialled **1994** / **1995** and trusted
-`yuneta_agent.crt`, the certificate every agent serves on its own port. A
-control center keeps serving 1994 and 1995 (with that certificate) for the
-agents of before.
+Up to 7.30.3 the agents connected to 1994 / 1995 and trusted
+`yuneta_agent.crt`. That is the certificate that every agent serves on its own
+port. A control center continues to serve 1994 and 1995, with that
+certificate, for the agents of those versions.
 
-The remote URL is assembled as
+The remote URL has the form
 `tcps://<__sys_machine__>.<__node_owner__>.<__output_url__>`. Both agents
-connect so that control-plane access survives even if one of them is down or
-being upgraded (the two agents upgrade each other, never both at once).
+connect, so the control plane stays reachable when one of them is down or in
+an upgrade. The two agents upgrade each other, and never both at once.
 
-A node is known by its node uuid, and `command-agent` reaches the first agent
-with it. An agent that opens its session with the uuid of an agent in session
-from another host (a copy of a node's disk) is logged as an ERROR:
+The control center knows a node by its node uuid, and `command-agent` goes to
+the first agent with it. An agent can open its session with the uuid of an
+agent that is in session from another host. That happens with a copy of the
+disk of a node. The control center then logs an ERROR:
 *"Two agents with the same node uuid on other hosts"*. Give the copy its own
 uuid with `yuneta-node-uuid`.
 
 ## Each node's key (7.30.10+)
 
-The agents present their own pair as the client certificate of their link
-(1988/1989 with `"ssl_verify_mode": "request"`). The control center pins each
-node uuid to the key an operator accepted. The `nodes` topic of its treedb
-keeps the keys, and the commands are `list-nodes`, `accept-node` and
-`refuse-node` (permission `manage-nodes`). With `enforce_node_keys`, a node
-that presents another key, or that is not accepted, is dropped. Without it,
-the keys are only recorded, so the running nodes can be accepted first.
+The agents present their own key pair as the client certificate of their link
+(1988/1989 with `"ssl_verify_mode": "request"`). The control center binds each
+node uuid to the key that an operator accepted. The `nodes` topic of its
+treedb keeps the keys. The commands are `list-nodes`, `accept-node` and
+`refuse-node`, with the permission `manage-nodes`. With `enforce_node_keys`,
+the control center drops a node that presents another key, or that is not
+accepted. Without it, the control center only records the keys, so you can
+accept the running nodes first.
 
 ```text
 list-nodes state=pending
@@ -67,18 +89,28 @@ accept-node node_id=<uuid> spki_sha256=<the key read on the node>
 delete-node node_id=<uuid>    # a node refused or pending, not connected: a machine that is gone
 ```
 
-One key is for one node: `accept-node` refuses a key that is accepted for
-another node (a copy of a node's disk carries its pair). A decision drops the
-node's sessions that it no longer lets in: a new key drops the session of the
-old one, and `refuse-node` drops the node's agent. Without
-`enforce_node_keys` only a session that logged in by its key is dropped.
+One key is for one node. `accept-node` refuses a key that is accepted for
+another node, because a copy of the disk of a node carries its key pair. A
+decision drops the sessions of the node that it no longer lets in. A new key
+drops the session of the old key, and `refuse-node` drops the agent of the
+node. Without `enforce_node_keys`, only a session that logged in by its key is
+dropped.
 
 To accept many nodes at once (a migration, a batch of new boxes), open an
-enrollment for some minutes (7.31.15+). While it is open, the key that the
-agent of a node with no key accepted presents is accepted by itself; never a
-node accepted with another key, a refused one, one let in with no key (an
-agent of before), a uuid that came with two keys, or a key of another node. It closes after its minutes, at `max_nodes`,
-with `close-enrollment`, or when the control center pauses; in memory only.
+enrollment for some minutes (7.31.15+). An enrollment is a time window for
+automatic acceptance. While it is open, the control center accepts the key
+that the agent presents, for a node with no accepted key. It never accepts the
+key in these cases:
+
+- A node that is accepted with another key.
+- A refused node.
+- A node that was let in with no key (an older agent).
+- A uuid that came with two keys.
+- A key of another node.
+
+The enrollment closes after its minutes, at `max_nodes`, with
+`close-enrollment`, or when the control center pauses. It exists in memory
+only.
 
 ```text
 open-enrollment minutes=10 max_nodes=20
@@ -90,21 +122,27 @@ Detail: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Each node's key".
 ## A node is reached by its uuid
 
 `command-agent`, `stats-agent`, `write-tty` and the scenarios name a node by
-its uuid or by its hostname. The uuid is the identity that the session of the
-agent was accepted for (two sessions of an accepted uuid: the one that logged
-in by the key). The hostname is only what the agent writes in its card, so it
-names an accepted node through its record (that hostname is written only by a
-session that logged in by the node's key), and any other node only through
-the card of its agent in session: the record of a node without a key is
-written by any session of its uuid, so it names nobody. An open that is
-refused writes nothing. The uuid of an
-accepted node always names it; any other name that two nodes give, or that is
-the uuid of a session and the hostname of another node, is refused (*"is the
-hostname of more than one node: give its node uuid"*). `drop-agent` names a
-node the same way. `write-tty` goes to one agent only, and is refused without
-`agent_id`. A scenario run in order does not start on such a name; a stop
-does what it reaches and names the rest, and the stop of a `max_run` is tried
-again in a minute instead of waiting for a node.
+its uuid or by its hostname.
+
+The uuid is the identity for which the control center accepted the session of
+the agent. If an accepted uuid has two sessions, the uuid names the session
+that logged in by the key.
+
+The hostname is only what the agent writes in its card. For an accepted node,
+the hostname names the node through its record. Only a session that logged in
+by the key of the node writes that hostname. For any other node, the hostname
+names the node only through the card of its agent in session. The reason is
+that any session of its uuid writes the record of a node without a key, so
+that record names nobody. An open that is refused writes nothing.
+
+The uuid of an accepted node always names it. The control center refuses any
+other name that two nodes give. It also refuses a name that is the uuid of a
+session and the hostname of another node (*"is the hostname of more than one
+node: give its node uuid"*). `drop-agent` names a node the same way.
+`write-tty` goes to one agent only, and the control center refuses it without
+`agent_id`. A scenario run in order does not start on such a name. A stop does
+what it reaches and names the rest. The stop of a `max_run` tries again in a
+minute, and does not wait for a node.
 
 ```text
 command-agent agent_id=board-b cmd2agent=list-yunos
@@ -113,14 +151,15 @@ command-agent agent_id=board-b cmd2agent=list-yunos
 
 ## Who asks: operator assertions (7.30.9+)
 
-The control center forwards an operator's command to an agent with
-`__username__`, and with `operator_assertion_key` it also adds an operator
-assertion, `__operator_assertion__`. This is an ES256 JWT that it signs for
-that node: `aud` is the node uuid and `sub` is the operator, and it lives
-60 s. The agent verifies it with the public key in its `main.c` and believes
-the `sub`, not the `__username__`. The control center adds an assertion only
-for an agent whose identity card says `knows_operator_assertion`. The key is
-a private JWK of EC P-256 on the control center's machine. In production:
+The control center forwards the command of an operator to an agent with
+`__username__`. With `operator_assertion_key`, it also adds an operator
+assertion, `__operator_assertion__`. This is an ES256 JWT that the control
+center signs for that node. Its `aud` is the node uuid, its `sub` is the
+operator, and it lives 60 s. The agent verifies it with the public key in its
+`main.c`, and believes the `sub`, not the `__username__`. The control center
+adds an assertion only for an agent whose identity card says
+`knows_operator_assertion`. The key is a private JWK of EC P-256 on the
+machine of the control center. In production:
 
 ```json
 "operator_assertion_key": "/yuneta/store/certs/private/controlcenter-assertion.jwk"
@@ -130,111 +169,113 @@ Detail and attributes: `docs/doc.yuneta.io/yunos/controlcenter.md`, "Who asks".
 
 ## Commands
 
-Registered in the `command_table` of `src/c_controlcenter.c`:
+The commands are in the `command_table` of `src/c_controlcenter.c`:
 
 | Command          | Purpose                                                                       |
 |------------------|-------------------------------------------------------------------------------|
 | `help`           | List commands.                                                                |
 | `authzs`         | Authz help for this service.                                                  |
-| `logout-user`    | Force a user to log out (`username=`, permission `logout-user`). `disabled=1` also disables the user, `disabled=0` enables it; without `disabled` the user stays as it is. |
-| `list-agents`    | List currently connected nodes (UUID, hostname, status). `uuid=`, `version=`, `hostname=`, `os=`: regular expressions (POSIX extended) the agent must match, all of them (`list-agents hostname=^yunovatios- version=^7.31.`, `list-agents os=^Rocky`). The hardware of a node: `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
-| `command-agent`  | Forward an arbitrary command to a specific node (`SDF_WILD_CMD`). `agent_id` is a UUID, or a hostname that one node has. |
+| `logout-user`    | Force a user to log out (`username=`, permission `logout-user`). `disabled=1` also disables the user, and `disabled=0` enables it. Without `disabled`, the user stays as it is. |
+| `list-agents`    | List the connected nodes (UUID, hostname, status). `uuid=`, `version=`, `hostname=`, `os=` are regular expressions (POSIX extended), and the agent must match all of them (`list-agents hostname=^yunovatios- version=^7.31.`, `list-agents os=^Rocky`). For the hardware of a node, use `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
+| `command-agent`  | Forward any command to one node (`SDF_WILD_CMD`). `agent_id` is a UUID, or a hostname that one node has. |
 | `stats-agent`    | Get stats from a specific node.                                               |
-| `info-machine`   | The machine of a node: os, cpu, memory, disks, network interfaces, uptime (`info-machine agent_id=<uuid or hostname>`, permission `list-agents`; give `ycommand` a `-w`). |
-| `drop-agent`     | Drop every session of a node (`agent_id` as for `command-agent`; empty: every agent). |
+| `info-machine`   | Show the machine of a node: os, cpu, memory, disks, network interfaces, uptime (`info-machine agent_id=<uuid or hostname>`, permission `list-agents`). Give `ycommand` a `-w`. |
+| `drop-agent`     | Drop every session of a node (`agent_id` as for `command-agent`, empty for every agent). |
 | `write-tty`      | Write bytes to the PTY console of one node (the `yuno_agent22` backdoor). `agent_id` is required. |
 | `scenarios`      | List the scenarios, or one (`scenario_id=`).                                  |
-| `save-scenario`  | Create or replace a scenario, whole (`scenario={...}`), validated; `revision=` (the `__md_treedb__.g_rowid` it was read at) refuses it when somebody saved it since. |
+| `save-scenario`  | Create or replace a whole scenario (`scenario={...}`), after validation. With `revision=` (the `__md_treedb__.g_rowid` it was read at), the command refuses the save when somebody saved the scenario after that revision. |
 | `delete-scenario`| Delete a scenario and its runs (`scenario_id=`).                              |
-| `run-scenario`   | Run the steps of an action of a scenario, in order (`scenario_id= action=`); `action=on|off scenario_yuno=<key>` turns the switch of one yuno (7.28.6). |
+| `run-scenario`   | Run the steps of an action of a scenario, in order (`scenario_id= action=`). `action=on|off scenario_yuno=<key>` turns the switch of one yuno (7.28.6). |
 | `scenario-runs`  | The runs of a scenario, newest first (`scenario_id=`).                        |
-| `watch-scenario` | Watch the yunos of a scenario on one node (`scenario_id= node= [keys=] [period=] [stop=1]`): the agent's `watch-yuno-stats` is built HERE from the scenario, so it needs only `read-scenarios` on it. |
+| `watch-scenario` | Watch the yunos of a scenario on one node (`scenario_id= node= [keys=] [period=] [stop=1]`). The control center builds the `watch-yuno-stats` of the agent HERE, from the scenario, so the command needs only `read-scenarios` on it. |
 | `my-permissions` | The permissions of the user who asks: `true`, `false`, or the list of scenarios a scoped role grants it for. |
 
-Besides answers, the control center relays what a node's agent PUSHES along
-the route of a request: the PTY of `open-console` (`EV_TTY_OPEN/DATA/CLOSE`)
-and, since 7.25.13, the readings of a `watch-yuno-stats` (`EV_YUNO_STATS`).
-`command-agent` removes the `__relays__` of the client and writes its own
-`__relays__: ["EV_YUNO_STATS"]` only when the client's request said it takes
-that event (its own `__relays__` names it). The agent refuses a watch whose kw
-does not say it: a control center that receives an event it does not know
-drops the agent's connection, and a client that does not know it (`ycommand`)
-logs *"Event NOT DEFINED"* on every reading. Up to 7.25.20 the control center
-said it for every client, so a `ycommand ... command-agent
-cmd2agent="watch-yuno-stats ids=..."` was sent readings it could not handle.
+Besides answers, the control center relays what the agent of a node PUSHES
+along the route of a request. That is the PTY of `open-console`
+(`EV_TTY_OPEN/DATA/CLOSE`) and, since 7.25.13, the readings of a
+`watch-yuno-stats` (`EV_YUNO_STATS`). `command-agent` removes the
+`__relays__` of the client. It writes its own `__relays__: ["EV_YUNO_STATS"]`
+only when the request of the client said that it takes that event, that is,
+when its own `__relays__` names it. The agent refuses a watch whose kw does
+not say it. The reason is that a control center that receives an event that
+it does not know drops the connection of the agent. Also, a client that does
+not know the event (`ycommand`) logs *"Event NOT DEFINED"* on every reading.
+Up to 7.25.20 the control center said it for every client. So a `ycommand ...
+command-agent cmd2agent="watch-yuno-stats ids=..."` received readings that it
+was not able to handle.
 
-Deploy order: **gui_agent 0.29.7 or later first** (or together with this
-control center). An older gui_agent does not send `__relays__` through the
-control center, so its watch is refused and its Monitor falls back to polling
-`stats-yuno`, as it does for an agent that refuses a direct watch.
+Deploy order: deploy gui_agent 0.29.7 or later first, or together with this
+control center. An older gui_agent does not send `__relays__` through the
+control center. So the agent refuses its watch, and its Monitor uses polling
+of `stats-yuno` instead. The Monitor does the same for an agent that refuses a
+direct watch.
 
-What an agent sends back reaches a web client's channel of `__top_side__`, or,
-for a request that came in by the control center's link to its own agent
-(`ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent ...'`),
-that `C_IEVENT_CLI` link, and only for an agent it sent a request to (the
-agent's channel remembers the link until it closes). Nothing else: a route
-that names any other local service, or a link that did not ask that agent, is
-dropped with a warning. Up to 7.25.20 the control center fell back
-to a service named by the client's own hop of the route, and the answers of the
-request through the local agent went nowhere.
+What an agent sends back goes to one of two places. Usually it reaches the
+channel of a web client of `__top_side__`. A request can also come in by the
+link of the control center to its own agent
+(`ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent ...'`).
+Then the answer reaches that `C_IEVENT_CLI` link, but only for an agent that
+the link sent a request to. The channel of the agent remembers the link until
+it closes. Nothing else gets the answer. The control center drops with a
+warning a route that names any other local service, or a link that did not ask
+that agent. Up to 7.25.20 the control center used a service named by the own
+hop of the client in the route instead. So the answers of the request through
+the local agent went nowhere.
 
-An event that only an agent sends (an answer, the PTY, `EV_YUNO_STATS`) sent by
-a web client is dropped with the warning *"event of an agent not from the
-agents' side, dropped"*, at most once per `drops_warning_window` (ms, default
-60000; `dropped=` counts them). What such a capped warning counted after it
-last spoke is said when its window ends, or when the control center stops
-(`when=`, `dropped=`); never per connection close, which a client could loop.
-A new `drops_warning_window` applies at once to the open windows; under 1 it
-is refused and 60000 put back. `drops_timer_armed` (read-only) says whether a
-count waits for its window.
+A web client can send an event that only an agent sends (an answer, the PTY,
+`EV_YUNO_STATS`). The control center drops it with the warning *"event of an
+agent not from the agents' side, dropped"*. It logs this warning at most once
+per `drops_warning_window` (ms, default 60000), and `dropped=` counts the
+drops. When its window ends, or when the control center stops, the control
+center tells what such a capped warning counted after it last spoke (`when=`,
+`dropped=`). It never tells it at each connection close, because a client can
+loop on that. A new `drops_warning_window` applies at once to the open
+windows. A value under 1 is refused, and 60000 is put back.
+`drops_timer_armed` (read-only) tells whether a count waits for its window.
 
-Talk to it via `ycommand`:
+To talk to it with `ycommand`, use the commands in "Usage" above.
 
-```bash
-ycommand -c 'command-yuno id=<cc> service=controlcenter command=list-agents'
-ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host> cmd2agent="list-yunos"'
-```
+`command-agent` answers AT ONCE, before the node does. The first answer comes
+from the control center itself: *"Command sent to 1 nodes"*. When no connected
+agent matches, the answer is -1 and tells why: *"node 'artgins' (8b64c225-…,
+accepted) is not connected, last seen 2026-11-18T23:36:02.0+0100"*, or *"'x'
+names no node connected"* (since 7.31.19). The answer of the node comes later,
+as a second answer along the same route. A non-interactive `ycommand` exits
+`--wait` seconds after an answer (`-w`, default 1). So it shows the answer of
+the node only if that answer arrives in that time. Give it room (`-w 10`, as
+in the second command of "Usage"), or stay interactive (`-i`).
 
-`command-agent` answers AT ONCE, before the node does: the first answer is
-the control center's own, *"Command sent to 1 nodes"*; when no connected
-agent matches it is -1 and says why: *"node 'artgins' (8b64c225-…, accepted)
-is not connected, last seen 2026-11-18T23:36:02.0+0100"*, or *"'x' names no node
-connected"* (since 7.31.19). The node's answer comes later, as a second
-answer along the same route. A non-interactive `ycommand` exits `--wait`
-seconds after an answer (`-w`, default 1), so it shows the node's answer only
-if it arrives in that time. Give it room (`-w 10`, as in the second line
-above), or stay interactive (`-i`).
-
-When the agent's link is closing, the link refuses the request at once and
-the first answer is the only one, -1 with its reason:
+When the link of the agent is closing, the link refuses the request at once.
+The first answer is then the only one, -1 with its reason:
 *"controlcenter^cc1: service 'input-7' not in session: Command sent to 0
-nodes"*. The same for `stats-agent`, a `write-tty` and a step of a scenario
-run, which fails at once. Up to 7.30.26 the refusal was dropped and the
-operator, or the run, waited for an answer nobody would send.
+nodes"*. The same occurs for `stats-agent`, a `write-tty`, and a step of a
+scenario run, which fails at once. Up to 7.30.26 the refusal was dropped, and
+the operator or the run waited for an answer that nobody sent.
 
-The control center finds the matching connected agent (a `C_IEVENT_SRV` child
-of its `__input_side__` gate in state `ST_SESSION`) and forwards the command;
-the node's agent then runs it (and can itself target a specific yuno via its own
-`command-yuno`).
+The control center finds the matching connected agent and forwards the
+command. That agent is a `C_IEVENT_SRV` child of its `__input_side__` gate in
+state `ST_SESSION`. The agent of the node then runs the command. The agent can
+itself send it to a specific yuno with its own `command-yuno`.
 
 ## Stats
 
-`rxMsgs`/`txMsgs` count the messages it relays, once each way (in: a client's
-`command-agent`/`stats-agent`/`write-tty`/`run-scenario`, an agent's answer or
-stream; out: a request to an agent, a step of a run, an answer or stream to a
-client, the answer of a run). `rxMsgsec`/`txMsgsec` are their rates, computed
-on a tick every `timeout` ms (1000) over the exact interval since the last
-one, so a reading returns the same whoever reads; `maxrxMsgsec`/`maxtxMsgsec`
-the highest of any tick (write 0 to start again);
-`stats=__reset__` zeroes them all. Up to 7.25.20 nothing counted them and all
-six read 0.
+`rxMsgs`/`txMsgs` count the messages that the control center relays, once in
+each direction. In: a `command-agent`/`stats-agent`/`write-tty`/`run-scenario`
+of a client, or an answer or stream of an agent. Out: a request to an agent, a
+step of a run, an answer or stream to a client, or the answer of a run.
+
+`rxMsgsec`/`txMsgsec` are their rates. The control center computes them on a
+tick every `timeout` ms (1000), over the exact interval since the last tick.
+So a reading returns the same value, whoever reads it. `maxrxMsgsec`/`maxtxMsgsec`
+are the highest rates of any tick (write 0 to start again). `stats=__reset__`
+sets them all to zero. Up to 7.25.20 nothing counted them, and all six read 0.
 
 ## A generator turned by hand: the `switch` of a yuno (7.28.6)
 
-A yuno of a scenario may carry `switch: {on: [steps], off: [steps]}`, steps as
-those of an action (a step that names no `yuno` goes to the switch's own), so
-one generator is turned on or off while the others go on -- to climb the load
-one fleet at a time:
+A yuno of a scenario can carry `switch: {on: [steps], off: [steps]}`. The
+steps are like those of an action, and a step that names no `yuno` goes to the
+yuno of the switch. So you turn one generator on or off while the others
+continue. That lets you increase the load one fleet at a time:
 
 ```json
 {"key": "gen2", "id": "gen2", "service": "sim_load", "rate": "tx", "node": "node-a",
@@ -246,50 +287,67 @@ one fleet at a time:
 ycommand ... -c 'run-scenario scenario_id=load-test action=on scenario_yuno=gen2'
 ```
 
-`on` runs in order, and only while the scenario RUNS (its last run that changed
-its state is a start or a resume), so the `max_run` stop is always there to
-turn it off; `off` sends its steps at once, in any state. A switch run is
-written and told like any other run (*"on gen2 done, 2 steps"*), but changes
-neither the state of the scenario nor its `max_run` clock: the scenario's
-`stop` must reach every yuno with a switch. gui_agent draws the switch on the
-yuno's card. Details: `docs/doc.yuneta.io/yunos/controlcenter.md`.
+`on` runs its steps in order, and only while the scenario RUNS. The scenario
+runs when its last run that changed its state is a start or a resume. So the
+`max_run` stop is always there to turn it off. `off` sends its steps at once,
+in any state. The control center writes and reports a switch run like any
+other run (*"on gen2 done, 2 steps"*). But a switch run changes neither the
+state of the scenario nor its `max_run` clock. So the `stop` of the scenario
+must reach every yuno with a switch. gui_agent draws the switch on the card of
+the yuno. Details: `docs/doc.yuneta.io/yunos/controlcenter.md`.
 
 ## A test left running: `max_run`
 
-A scenario's `max_run` (seconds, 0 = none, at most a week) is a safeguard: a
-`start` that did any step schedules its `stop` `max_run` seconds after the
-start ended; a `stop` that did any step cancels it; pause and resume leave the
-clock as it is. When it is due the control center runs `stop` itself -- one
-more run, written with its own name as the user and the reason in the comment
-(*"max_run of 2100 s reached (started by ops@example.com); run ...: stop done,
-16 steps"*) -- a few seconds
-later if another run is in flight. A stop that could do nothing is written
-once, with a warning, and tried again. When a node of it is connected (its
-yuno refused the stop, or did not answer: restarting, perhaps), it is tried
-again in a minute; a save, a report or a switch inside that minute keeps
-it (up to 7.29.3 they brought the stop forward to at once). When none is, it waits for the agent of one of its nodes
-to connect, and runs again at that connection, not on a clock (up to 7.29.1
-it was tried every minute, and every try wrote a run for as long as the node
-was down; 7.29.2 made every one wait, so a stop refused on a connected node
-was never tried again). A save of the scenario or another run of it does not
-end the wait. The schedule is rebuilt from the runs when the control center
-starts, so a restart does not lose it; a stop already due then waits for an
-agent, as no agent is connected yet. `scenarios` answers it as `stop_at`
-(epoch seconds), with `stop_waits_node: true` while it waits for a node. Every run that ends publishes
-`EV_SCENARIO_RUN_ENDED` (public, no data): a console watching a scenario reads
-its state again, and sees it stopped by the control center, or by anybody.
+The `max_run` of a scenario is a safeguard, in seconds (0 = none, at most a
+week). These rules apply to its clock:
 
-**While a scenario runs, saving it needs `run-scenarios` too** (7.27.19): it
-runs when a run of it is in flight, or its last run that did anything is not a
-stop. Whatever max_run the save leaves, the control center may run the stop
-steps that save writes, so writing them would be running them -- a user who
-may write a scenario but not run it gets *"scenario 'x' runs: saving it needs
-'run-scenarios' too"*. **Deleting it too** (after 7.29.1; up to then
-`write-scenarios` was enough): its delete takes its stop steps and the stop
-its max_run schedules, so nobody stops its yunos from the control center any
-more -- *"scenario 'x' runs: deleting it needs 'run-scenarios' too"*. Deleted
-by a user who may run it, the answer says *"it was running: its yunos are
-left as they are"*, and a WARNING names the user.
+- A `start` that did any step schedules its `stop` `max_run` seconds after the
+  start ended.
+- A `stop` that did any step cancels the scheduled stop.
+- Pause and resume leave the clock as it is.
+
+When the stop is due, the control center runs `stop` itself. This is one more
+run, written with the name of the control center as the user and the reason
+in the comment (*"max_run of 2100 s reached (started by ops@example.com); run
+...: stop done, 16 steps"*). If another run is in flight, the stop runs a few
+seconds later. A stop that was not able to do anything is written once, with a
+warning, and tried again.
+
+If a node of the scenario is connected, the control center tries the stop
+again in a minute. That happens when its yuno refused the stop, or did not
+answer (perhaps because it was restarting). A save, a report or a switch
+inside that minute keeps that delay. Up to 7.29.3 they brought the stop
+forward to at once.
+
+If no node is connected, the stop waits for the agent of one of its nodes to
+connect. It runs again at that connection, not on a clock. Up to 7.29.1 the
+control center tried it every minute, and every try wrote a run for as long as
+the node was down. Version 7.29.2 made every stop wait, so a stop refused on a
+connected node was never tried again. A save of the scenario or another run of
+it does not end the wait.
+
+The control center rebuilds the schedule from the runs when it starts, so a
+restart does not lose it. A stop that is already due then waits for an agent,
+because no agent is connected yet. `scenarios` shows the schedule as
+`stop_at` (epoch seconds), with `stop_waits_node: true` while it waits for a
+node. Every run that ends publishes `EV_SCENARIO_RUN_ENDED` (public, no data).
+A console that watches a scenario then reads its state again. It sees it
+stopped by the control center, or by anybody.
+
+While a scenario runs, saving it needs `run-scenarios` too (7.27.19). A
+scenario runs when a run of it is in flight, or when its last run that did
+anything is not a stop. Whatever max_run the save leaves, the control center
+can run the stop steps that the save writes. So writing them is the same as
+running them. A user who can write a scenario but cannot run it gets
+*"scenario 'x' runs: saving it needs 'run-scenarios' too"*.
+
+Deleting a running scenario needs `run-scenarios` too (after 7.29.1). Up to
+7.29.1, `write-scenarios` was enough. The delete takes away its stop steps and
+the stop that its max_run schedules. So nobody can stop its yunos from the
+control center any more: *"scenario 'x' runs: deleting it needs
+'run-scenarios' too"*. If a user who can run the scenario deletes it, the
+answer says *"it was running: its yunos are left as they are"*, and a WARNING
+names the user.
 
 ```json
 {"id": "load-test", "max_run": 2100, "node": "node-b", ...}
@@ -297,36 +355,42 @@ left as they are"*, and a WARNING names the user.
 
 ## Permissions scoped to scenarios
 
-Every scenario command checks its permission (`read-scenarios`,
-`write-scenarios`, `run-scenarios`) with the `scenario_id` it acts on, so a
-role of the `authz` store whose `parameters` scope a permission
-(`{"scenario_id": ["load-test"]}`, C_AUTHZ 7.27.15+) grants it for
-those scenarios only: `scenarios` lists only them, the others are refused by
-id, and `save-scenario` checks the id it saves. Such a user watches a scenario
-live with `watch-scenario` -- the control center builds the agent's watch from
-the scenario it keeps -- and never needs `command-agent`, which sends anything
-to any node. `my-permissions` tells the console what to offer. Details and the
-role row: doc.yuneta.io, *controlcenter* -> *A user who may see one scenario*.
+Every scenario command asks for its permission (`read-scenarios`,
+`write-scenarios`, `run-scenarios`) with the `scenario_id` that it acts on. So
+a role of the `authz` store can scope a permission with its `parameters`
+(`{"scenario_id": ["load-test"]}`, C_AUTHZ 7.27.15+). Such a role grants the
+permission for those scenarios only. Then `scenarios` lists only them, the
+control center refuses the others by id, and `save-scenario` asks for the
+permission on the id that it saves.
 
-**When it changes** (7.27.16+): the control center watches its `authz` store
-(`treedb_authzs`) and publishes `EV_PERMISSIONS_CHANGED` -- a public event with
-no data -- when a role is created, changed or deleted, or a link whose parent
-is a role is made or undone (a user given or taken a role, a child role). A
-client subscribed to it on the service `controlcenter` asks `my-permissions`
-again: the console shows the new controls without a reload. A user's own
-record is not watched -- it changes at every login (its sessions) -- and
-disabling or deleting a user already drops its sessions.
+Such a user watches a scenario live with `watch-scenario`. The control center
+builds the watch of the agent from the scenario that it keeps. So the user
+never needs `command-agent`, which sends anything to any node.
+`my-permissions` tells the console what to offer. Details and the role row:
+doc.yuneta.io, *controlcenter* -> *"A user who may see one scenario"*.
+
+The permissions can change while the control center runs (7.27.16+). The
+control center watches its `authz` store (`treedb_authzs`). It publishes
+`EV_PERMISSIONS_CHANGED`, a public event with no data, in two cases. One is
+that a role is created, changed or deleted. The other is that a link whose
+parent is a role is made or undone (a user given or taken a role, a child
+role). A client subscribed to it on the service `controlcenter` asks
+`my-permissions` again. The console then shows the new controls without a
+reload. The control center does not watch the own record of a user, because it
+changes at every login (its sessions). Also, disabling or deleting a user
+already drops its sessions.
 
 ## Data model: scenarios and their runs
 
-`src/treedb_schema_controlcenter.c` declares the control center's own treedb
-`treedb_controlcenter` (`schema_version` 3): two topics, `scenarios` and
-`scenario_runs`, a run linked to its scenario (`scenarios.runs` hook,
-`scenario_runs.scenario_id` fkey). The connected agents are NOT in it: they
-are discovered live, scanning the `__input_side__` gate for sessions. Nor are
-the users: who may use the control center is its `authz` store (`C_AUTHZ`).
+`src/treedb_schema_controlcenter.c` declares `treedb_controlcenter`, the own
+treedb of the control center (`schema_version` 3). It has two topics,
+`scenarios` and `scenario_runs`. A run is linked to its scenario
+(`scenarios.runs` hook, `scenario_runs.scenario_id` fkey). The connected
+agents are NOT in it. The control center discovers them live, when it scans
+the `__input_side__` gate for sessions. The users are not in it either. The
+`authz` store (`C_AUTHZ`) of the control center holds who can use it.
 
-A scenario is a document saved whole:
+A scenario is a document that is saved whole:
 
 ```json
 {
@@ -353,64 +417,74 @@ A scenario is a document saved whole:
 }
 ```
 
-`node` is the scenario's default; a yuno can carry its own. `queue_service`
-(7.27.21+) names the service that holds a yuno's output queue when it is not
-the one it is watched on: a gate's queue towards its store is in
-`__output_side__`, and its main service reports none. `watch-scenario` adds
-it to the watch (`ids=7601,7601:__output_side__`), and the console shows that
-queue on the card and in a chart of its own. `agent_url`
-instead of `node` makes a DIRECT scenario, which the web console watches
-through its own link to that agent (and which `run-scenario` refuses). An
-action is `start`, `pause`, `resume`, `stop` or `report`, each a list of
-steps: a yuno of the scenario (its `key`, default its `id`), an optional
-service, and one command line with its `key=value` parameters. A parameter
-may not be named like one of `command-yuno`'s (`id`, `service`, `command`) or
-a column of the agent's `yunos` topic (it would select the yuno), nor start
-with `__` (a framework key: `__md_iev__`, `__username__`, ...). `run-scenario`
-checks the steps again, so a scenario saved before a check existed is refused
-naming the step until it is saved again.
+`node` is the default node of the scenario, and a yuno can carry its own.
+`queue_service` (7.27.21+) names the service that holds the output queue of a
+yuno, when it is not the service that the yuno is watched on. For example, the
+queue of a gate towards its store is in `__output_side__`, and its main
+service reports none. `watch-scenario` adds that service to the watch
+(`ids=7601,7601:__output_side__`). The console shows that queue on the card
+and in a chart of its own.
 
-`run-scenario scenario_id=<id> action=<action>` sends each step as
-`command-yuno id=<yuno> [service=<svc>] command=<command>` to the yuno's
-node, carrying the user who asked, one at a time: a step goes only when the
-one before it answered, and a step that fails, does not answer in
-`run_step_timeout` (30000 ms), or whose agent disconnects, ends the run. The
-run is then written to `scenario_runs` -- action, user, start and end, the
-result and answer of every step, and for a `report` what each step answered
-(`data`) -- and the requester is answered with it. One run at a time. A
-step's answer is taken only from the agent the step went to: `command-agent`
-removes the marks of a step (`__md_iev__` `cc_run`, `cc_step`) from what a
-client forwards.
+`agent_url` instead of `node` makes a DIRECT scenario. The web console watches
+a DIRECT scenario through its own link to that agent, and `run-scenario`
+refuses it.
 
-A web client is told apart by its connection, not by its channel name (which
-the next client takes): answers (`command-agent`, `stats-agent`), streams (the
-PTY of `open-console`, `EV_YUNO_STATS`) and run answers reach the channel only
-while it holds the same connection (7.25.15 for the stats and the runs, since
-7.25.20 all of them). Those events are taken only from `__input_side__`: a web
-client that sends one itself is dropped with a warning. Several consoles can
-be mirrored through one agent's connection; when it closes, the client of
-each console is dropped (once, and only if it is still the same connection). `write-scenarios` together with
-`run-scenarios` is as much as `command-agent`: the steps run on the control
-center's session.
+An action is `start`, `pause`, `resume`, `stop` or `report`, and each action
+is a list of steps. A step has a yuno of the scenario (its `key`, default its
+`id`), an optional service, and one command line with its `key=value`
+parameters. A parameter cannot have the name of a parameter of
+`command-yuno` (`id`, `service`, `command`). It also cannot have the name of a
+column of the `yunos` topic of the agent, because then it selects the yuno. It
+cannot start with `__` either (a framework key: `__md_iev__`, `__username__`,
+...). `run-scenario` tests the steps again. So it refuses a scenario saved
+before such a test existed, and names the step, until the scenario is saved
+again.
 
-Permissions `read-scenarios`, `write-scenarios` and `run-scenarios` are
-checked by the commands themselves, always.
+`run-scenario scenario_id=<id> action=<action>` sends each step to the node of
+the yuno as `command-yuno id=<yuno> [service=<svc>] command=<command>`, with
+the user who asked. It sends one step at a time: a step goes only when the
+step before it answered. The run ends at a step that fails, that does not
+answer in `run_step_timeout` (30000 ms), or whose agent disconnects. The
+control center then writes the run to `scenario_runs`. The record holds the
+action, the user, the start and end, and the result and answer of every step.
+For a `report`, it also holds what each step answered (`data`). The requester
+gets this record as the answer. Only one run occurs at a time. The control
+center takes the answer of a step only from the agent that the step went to.
+`command-agent` removes the marks of a step (`__md_iev__` `cc_run`,
+`cc_step`) from what a client forwards.
+
+The control center tells a web client apart by its connection, not by its
+channel name, because the next client takes that name. Answers
+(`command-agent`, `stats-agent`), streams (the PTY of `open-console`,
+`EV_YUNO_STATS`) and run answers reach the channel only while it holds the
+same connection. This applies since 7.25.15 for the stats and the runs, and
+since 7.25.20 for all of them. The control center takes those events only from
+`__input_side__`. If a web client sends one itself, the control center drops
+that event with a warning. Several consoles can be mirrored through the connection of
+one agent. When that connection closes, the client of each console is dropped,
+once, and only if it is still the same connection. `write-scenarios` together
+with `run-scenarios` is as much as `command-agent`, because the steps run on
+the session of the control center.
+
+The commands themselves always ask for the permissions `read-scenarios`,
+`write-scenarios` and `run-scenarios`.
 
 ```bash
 ycommand -c 'command-yuno id=<cc> service=controlcenter command=run-scenario scenario_id=stress-demo action=start'
 ```
 
-Standard graph model — see [`YUNO_TREEDB.md`](../yuno_agent/YUNO_TREEDB.md).
+The treedb uses the standard graph model. See
+[`YUNO_TREEDB.md`](../yuno_agent/YUNO_TREEDB.md).
 
 ## Build & deploy
 
-Standard yuneta build (`make install` from the yuno's `build/`), then the
-agent's `install-binary` + `create-yuno` + `run-yuno` cycle. See
-[`YUNO_LIFECYCLE.md`](../yuno_agent/YUNO_LIFECYCLE.md) §6.
+Use the standard Yuneta build (`make install` from the `build/` of the yuno).
+Then run the `install-binary` + `create-yuno` + `run-yuno` cycle of the agent.
+See [`YUNO_LIFECYCLE.md`](../yuno_agent/YUNO_LIFECYCLE.md) §6.
 
 ## Where it runs
 
-Typically on a dedicated **company** host (e.g. `artgins.com`), not on
-production app hosts. Production nodes' agents (`yuno_agent` on :1988 and
-`yuno_agent22` on :1989; agents before 7.30.4 on :1994 and :1995) dial out to
-this control center.
+It usually runs on a dedicated company host (for example `artgins.com`), not
+on the hosts of production applications. The agents of production nodes
+connect out to this control center: `yuno_agent` on :1988 and `yuno_agent22`
+on :1989. Agents before 7.30.4 use :1994 and :1995.

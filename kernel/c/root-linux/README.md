@@ -1,8 +1,8 @@
 # root-linux
 
-Runtime GClasses for **Linux**. This layer sits on top of `gobj-c` + `yev_loop` and implements the building blocks that every yuno uses: networking, protocols, timers, filesystem watching, databases, auth, etc.
+root-linux is the library of runtime GClasses for **Linux**. It sits on top of `gobj-c` and `yev_loop`. It has the GClasses that every yuno uses: networking, protocols, timers, filesystem watch, databases, authentication, and more.
 
-## What's inside
+## What is inside
 
 | Area | GClasses |
 |---|---|
@@ -15,14 +15,14 @@ Runtime GClasses for **Linux**. This layer sits on top of `gobj-c` + `yev_loop` 
 
 ## Headers to look at
 
-- `src/c_tcp.h`, `src/c_tcp_s.h` — TCP/TLS client GClasses
-- `src/c_timer.h` — timers
-- `src/c_fs.h` — filesystem watcher
-- `src/c_treedb.h`, `src/c_node.h` — TreeDB graph db
-- `src/c_yuno.h`, `src/entry_point.h` — yuno lifecycle
+- `src/c_tcp.h`, `src/c_tcp_s.h`: TCP/TLS client GClasses
+- `src/c_timer.h`: timers
+- `src/c_fs.h`: filesystem watcher
+- `src/c_treedb.h`, `src/c_node.h`: TreeDB graph database
+- `src/c_yuno.h`, `src/entry_point.h`: yuno lifecycle
 
 ## Build
 
-Built automatically by `yunetas build` once `kernel/c/gobj-c`, `kernel/c/yev_loop`, `kernel/c/ytls` and `kernel/c/timeranger2` are up. Every yuno in `yunos/c/` links against this library.
+`yunetas build` builds this library after `kernel/c/gobj-c`, `kernel/c/yev_loop`, `kernel/c/ytls` and `kernel/c/timeranger2`. Every yuno in `yunos/c/` links against this library.
 
-See the top-level `CLAUDE.md` for the full dependency order.
+The top-level `CLAUDE.md` gives the full dependency order.

@@ -1,6 +1,6 @@
 # yunos
 
-Deployable Yuneta services. Each yuno is a standalone executable built around one or more GClasses, with a JSON configuration that defines its runtime topology (services, I/O gates, protocols, persistence). All yunos use the Yuneta entry point (`yuneta_entry_point`) and event loop.
+This directory holds the deployable Yuneta services. Each yuno is a standalone executable built around one or more GClasses. Its JSON configuration defines its runtime topology (services, I/O gates, protocols, persistence). All yunos use the Yuneta entry point (`yuneta_entry_point`) and the event loop.
 
 ## Directory Layout
 
@@ -22,16 +22,16 @@ yunos/
 ```
 
 > The interactive clients `ycli` and `mqtt_tui`, and the `emu_device` emulator,
-> used to live here; they moved to [`utils/c/`](../../utils/c/)
-> (`utils/c/ycli`, `utils/c/mqtt_tui`, `utils/c/emu_device`) since they are CLI
+> were here before. They moved to [`utils/c/`](../../utils/c/)
+> (`utils/c/ycli`, `utils/c/mqtt_tui`, `utils/c/emu_device`), because they are CLI
 > tools installed in `/yuneta/bin`, not deployable services.
 
 ## Yuno Summary
 
 | Yuno | Role | GClass | Install path | Description |
 |------|------|--------|-------------|-------------|
-| yuneta_agent | `yuneta_agent` | `C_AGENT` | `/yuneta/agent` | Primary host authority — realm, yuno, and binary lifecycle management |
-| yuneta_agent22 | `yuneta_agent22` | `C_AGENT22` | `/yuneta/agent` | Secondary agent — connects to controlcenter |
+| yuneta_agent | `yuneta_agent` | `C_AGENT` | `/yuneta/agent` | Primary host authority: realm, yuno, and binary lifecycle management |
+| yuneta_agent22 | `yuneta_agent22` | `C_AGENT22` | `/yuneta/agent` | Secondary agent, connects to controlcenter |
 | yuneta_agent44 | `yuneta_agent44` | `C_AGENT22` | `/yuneta/agent` | Third agent variant (reuses `C_AGENT22`) |
 | controlcenter | `controlcenter` | `C_CONTROLCENTER` | `${YUNOS_DEST_DIR}` | Central management of distributed agents |
 | logcenter | `logcenter` | `C_LOGCENTER` | `${YUNOS_DEST_DIR}` | Log collection with email alerts |
@@ -50,17 +50,17 @@ yunos/
 
 ### yuneta_agent
 
-The **primary authority** on a host. Manages realms, yunos, binaries, configurations, and public services. Listens on two WebSocket ports for control-plane commands.
+The primary authority on a host. It manages realms, yunos, binaries, configurations, and public services. It listens on two WebSocket ports for control-plane commands.
 
-**Ports (default):**
-- `ws://0.0.0.0:1991` — Primary control port
-- `wss://0.0.0.0:1993` — TLS control port (with certificate)
+Ports (default):
+- `ws://127.0.0.1:1991`: Primary control port
+- `wss://0.0.0.0:1993`: TLS control port (with certificate)
 
-**Memory:** 200 MB max block, 2 GB max system, 200 MB superblock
+Memory: 200 MB max block, 2 GB max system, 200 MB superblock
 
-**TreeDB schema:** `treedb_schema_yuneta_agent.c` — persistent storage for realms, yunos, binaries, configs, public services
+TreeDB schema: `treedb_schema_yuneta_agent.c`, the persistent storage for realms, yunos, binaries, configurations, public services
 
-**Commands (50+):**
+Commands (50+):
 
 Agent management:
 | Command | Description |
@@ -72,7 +72,7 @@ Agent management:
 | `close-console` | Close a console |
 | `command-agent` | Send command to agent |
 | `stats-agent` | Get agent statistics |
-| `set-graceful-kill` | Kill yunos with SIGQUIT (graceful, yuno shuts down itself) |
+| `set-graceful-kill` | Kill yunos with SIGQUIT (graceful, the yuno stops itself) |
 | `set-quick-kill` | Kill yunos with SIGKILL (quick) |
 
 Filesystem operations:
@@ -113,7 +113,7 @@ Binary management:
 |---------|-------------|
 | `install-binary` | Install yuno binary |
 | `update-binary` | Update binary (dev only) |
-| `delete-binary` | Delete a binary (`id=` required; `version=` one version; `record_only=1` the record, its files stay) |
+| `delete-binary` | Delete a binary (`id=` required. `version=`: one version. `record_only=1`: the record, its files stay) |
 
 Configuration:
 | Command | Description |
@@ -122,14 +122,14 @@ Configuration:
 | `edit-config` | Edit configuration |
 | `view-config` | View configuration |
 | `update-config` | Update configuration |
-| `delete-config` | Delete a configuration (`id=` required; `version=` one version) |
+| `delete-config` | Delete a configuration (`id=` required. `version=`: one version) |
 
 Yuno lifecycle:
 | Command | Description |
 |---------|-------------|
 | `find-new-yunos` | Find new yunos |
 | `create-yuno` | Create yuno |
-| `delete-yuno` | Delete one release (`yuno_release=`) or the whole yuno (`whole=1`), not both; `id=` required |
+| `delete-yuno` | Delete one release (`yuno_release=`) or the whole yuno (`whole=1`), not both. `id=` required |
 | `set-tag` | Set yuno tag |
 | `set-multiple` | Set yuno multiple instances |
 | `edit-yuno-config` | Edit yuno configuration |
@@ -176,34 +176,34 @@ Other:
 | `ping` | Ping |
 | `node-uuid` | Get UUID of node |
 
-**Extra files:**
-- `certs/` — Self-signed TLS certificates (`yuneta_agent.crt`, `yuneta_agent.key`, `localhost.crt`, `localhost.key`)
-- `create-certs-self-signed/` — Scripts to generate certificates
-- `service/` — the `.deb`'s start and stop helpers (`install-yuneta-service.sh`, `remove-yuneta-service.sh`: they enable/disable the systemd units, or the SysV script without systemd) and the SysV script `yuneta_agent`, all byte-identical to the packager's
+Extra files:
+- `certs/`: Self-signed TLS certificates (`yuneta_agent.crt`, `yuneta_agent.key`, `localhost.crt`, `localhost.key`)
+- `create-certs-self-signed/`: Scripts to generate certificates
+- `service/`: the start and stop helpers of the `.deb` (`install-yuneta-service.sh`, `remove-yuneta-service.sh`) and the SysV script `yuneta_agent`. The helpers enable/disable the systemd units, or the SysV script when there is no systemd. All these files are identical, byte for byte, to the files of the packager.
 
 ### yuneta_agent22
 
-A **secondary agent** providing a remote entry point for the `controlcenter`. Connects outbound to a controlcenter instance (default: port 1989, `yunetacontrol.ovh:1989`). Operates with `master: false` authorization (cannot modify realm topology).
+A secondary agent that gives a remote entry point for the `controlcenter`. It connects outbound to a controlcenter instance (default: port 1989, `yunetacontrol.ovh:1989`). It operates with `master: false` authorization, so it cannot change the realm topology.
 
-**Commands:** `help`, `write-tty`, `list-consoles`, `open-console`, `close-console`
+Commands: `help`, `write-tty`, `list-consoles`, `open-console`, `close-console`
 
 ### yuneta_agent44
 
-A **third agent variant** (built from `main44.c`). Reuses the `C_AGENT22` GClass with its own identity. Built as a separate binary from the same CMakeLists.txt as agent22.
+A third agent variant (built from `main44.c`). It uses the `C_AGENT22` GClass again, with its own identity. It is a separate binary, built from the same CMakeLists.txt as agent22.
 
 ### controlcenter
 
-**Central management** of distributed Yuneta agents. Agents connect in and the controlcenter dispatches commands across the fleet, and keeps the scenarios of the fleet (yunos watched and tested together) and the runs of their actions.
+Central management of distributed Yuneta agents. The agents connect in, and the controlcenter dispatches commands across the fleet. It also keeps the scenarios of the fleet and the runs of their actions. A scenario is a set of yunos that are watched and tested together.
 
-**TreeDB schema:** `treedb_schema_controlcenter.c` (`scenarios`, `scenario_runs`)
+TreeDB schema: `treedb_schema_controlcenter.c` (`scenarios`, `scenario_runs`)
 
-**Commands:**
+Commands:
 
 | Command | Description |
 |---------|-------------|
 | `help` | Command help |
 | `authzs` | Authorization help |
-| `logout-user` | Logout a user |
+| `logout-user` | Log out a user |
 | `list-agents` | List connected agents |
 | `command-agent` | Send command to agent (by UUID or hostname) |
 | `stats-agent` | Get agent statistics |
@@ -221,25 +221,25 @@ A **third agent variant** (built from `main44.c`). Reuses the `C_AGENT22` GClass
 
 ### logcenter
 
-Collects log messages from all yunos on the host via UDP (default `udp://127.0.0.1:1992`). Provides log analysis, search, email summaries, and disk/memory monitoring with automatic restart on queue alarms.
+Collects log messages from all yunos on the host through UDP (default `udp://127.0.0.1:1992`). It gives log analysis, search, email summaries, and disk/memory monitoring, with automatic restart on queue alarms.
 
-**Key Attributes:**
+Key Attributes:
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `url` | string | `udp://127.0.0.1:1992` | UDP server URL |
-| `from` | string | — | Email from field (persistent) |
-| `to` | string | — | Email to field (persistent) |
+| `from` | string | none | Email from field (persistent) |
+| `to` | string | none | Email to field (persistent) |
 | `subject` | string | `"Log Center Summary"` | Email subject |
 | `log_filename` | string | `"W.log"` | Log filename mask (DD/MM/CCYY-W-ZZZ) |
-| `max_rotatoryfile_size` | integer | — | Max log file size (MB) |
-| `min_free_disk` | integer | — | Minimum free disk percentage |
-| `min_free_mem` | integer | — | Minimum free memory percentage |
+| `max_rotatoryfile_size` | integer | none | Max log file size (MB) |
+| `min_free_disk` | integer | none | Minimum free disk percentage |
+| `min_free_mem` | integer | none | Minimum free memory percentage |
 | `restart_on_alarm` | boolean | false | Restart yuneta on queue alarm |
-| `restart_yuneta_command` | string | `yshutdown -s; ...` | Restart command, run with `system()`: config only |
+| `restart_yuneta_command` | string | `yshutdown -s; ...` | Restart command, run with `system()`: configuration only |
 | `timeout_restart_yuneta` | integer | 3600 | Min seconds between restarts |
 
-**Commands:**
+Commands:
 
 | Command | Description |
 |---------|-------------|
@@ -255,67 +255,67 @@ Collects log messages from all yunos on the host via UDP (default `udp://127.0.0
 
 ### mqtt_broker
 
-MQTT broker supporting v3.1, v3.1.1, and v5.0. Uses the `C_MQTT_BROKER` GClass from the mqtt module. Persistence via TimeRanger2 and TreeDB.
+MQTT broker for v3.1, v3.1.1, and v5.0. It uses the `C_MQTT_BROKER` GClass from the mqtt module. TimeRanger2 and TreeDB give the persistence.
 
-**Memory:** 1 GB max block, 16 GB max system, 1 GB superblock (sized for high-throughput message handling).
+Memory: 1 GB max block, 16 GB max system, 1 GB superblock (sized for high-throughput message handling).
 
-**Default deny list:** `test/nosubscribe`
+Default deny list: `test/nosubscribe`
 
-**Tests** (in `tests/`, index in `tests/README.md`):
-- `hivemq/` — HiveMQ MQTT CLI battery: spec compliance, functional and performance (25 tests); `run_hivemq_tests.sh` downloads `mqtt-cli.jar` if missing
-- `connect_disconnect/` — raw-packet CONNECT / DISCONNECT edge cases (Python, 22 rows)
-- `mosquitto/` — Eclipse Mosquitto's broker test suite through a stand-in (`setup.sh`, `run_all.sh`)
-- `mqtt_broker.json` — broker configuration of the three
+Tests (in `tests/`, index in `tests/README.md`):
+- `hivemq/`: HiveMQ MQTT CLI battery: spec compliance, functional and performance (25 tests). If `mqtt-cli.jar` is missing, `run_hivemq_tests.sh` downloads it.
+- `connect_disconnect/`: raw-packet CONNECT / DISCONNECT edge cases (Python, 22 rows)
+- `mosquitto/`: the broker test suite of Eclipse Mosquitto, through a stand-in (`setup.sh`, `run_all.sh`)
+- `mqtt_broker.json`: broker configuration of the three
 
 ### emailsender
 
-Email sending service using native SMTPS (implicit TLS, RFC 8314). Queues email requests with TimeRanger2 persistence and processes them asynchronously.
+Email sending service that uses native SMTPS (implicit TLS, RFC 8314). It queues email requests with TimeRanger2 persistence and processes them asynchronously.
 
-**GClasses:** `C_EMAILSENDER` (queue/dispatch + MIME encoder), `C_SMTP_SESSION` (SMTP protocol over `C_TCP`)
+GClasses: `C_EMAILSENDER` (queue/dispatch + MIME encoder), `C_SMTP_SESSION` (SMTP protocol over `C_TCP`)
 
-**Events:** `EV_SEND_EMAIL` / `EV_SEND_MESSAGE` (enqueue), `EV_ON_MESSAGE` (smtp result), `EV_SMTP_COMMAND` (internal dequeue)
+Events: `EV_SEND_EMAIL` / `EV_SEND_MESSAGE` (enqueue), `EV_ON_MESSAGE` (smtp result), `EV_SMTP_COMMAND` (internal dequeue)
 
-**Dependency:** none beyond the standard yuneta toolchain.
+Dependency: none beyond the standard yuneta toolchain.
 
 ### dba_postgres
 
-PostgreSQL database adapter. Wraps the `C_POSTGRES` module GClass with a yuno entry point.
+PostgreSQL database adapter. It wraps the `C_POSTGRES` module GClass with a yuno entry point.
 
-**Conditional:** Only built when `CONFIG_C_POSTGRES` is enabled.
+Conditional: Only built when `CONFIG_C_POSTGRES` is enabled.
 
-**Dependency:** `sudo apt-get install postgresql-server-dev-all libpq-dev`
+Dependency: `sudo apt-get install postgresql-server-dev-all libpq-dev`
 
 ### sgateway
 
-Raw TCP relay: takes one connection on `input_url` and relays its bytes, both ways, to a connection to `output_url` of its own (one output connection per client, with back-pressure). See [`sgateway/README.md`](sgateway/README.md).
+Raw TCP relay. It takes one connection on `input_url` and relays its bytes, both ways, to its own connection to `output_url`. It opens one output connection for each client, with back-pressure. See [`sgateway/README.md`](sgateway/README.md).
 
 ### watchfs
 
-Filesystem watcher that executes a shell command when monitored files change. Useful for auto-building documentation, triggering deployments, or development workflows.
+Filesystem watcher that executes a shell command when monitored files change. Use it to build documentation automatically, to start deployments, or in development workflows.
 
-**Key Attributes:**
+Key Attributes:
 
 | Name | Type | Description |
 |------|------|-------------|
 | `path` | string | Path to watch |
 | `recursive` | boolean | Watch subdirectory tree |
-| `patterns` | string | File patterns to match (e.g., `*.py;*.rst;*.json`) |
+| `patterns` | string | File patterns to match (for example `*.py;*.rst;*.json`) |
 | `command` | string | Command to execute on change |
 | `use_parameter` | boolean | Pass filename as parameter |
 | `ignore_changed_event` | boolean | Ignore file modification events |
 | `ignore_renamed_event` | boolean | Ignore file rename events |
 | `info` | boolean | Report found subdirectories |
 
-**Default config:** Watches `.` for `*.py`, `*.mako`, `*.js`, `*.css`, `*.scss`, `*.rst`, `*.json` files recursively, runs `make html`.
+Default configuration: Watches `.` recursively for `*.py`, `*.mako`, `*.js`, `*.css`, `*.scss`, `*.rst`, `*.json` files, and runs `make html`.
 
-**Batch configs** (in `batches/yuneta_docs/`): Pre-built configurations for deploying Yuneta documentation sections.
+Batch configurations (in `batches/yuneta_docs/`): Pre-built configurations to deploy sections of the Yuneta documentation.
 
 ---
 
 ## Client / utility yunos (moved out)
 
 > The interactive clients `ycli` and `mqtt_tui`, and the `emu_device` emulator,
-> moved to `utils/c/` — they are CLI tools installed in `/yuneta/bin`, not
+> moved to `utils/c/`, because they are CLI tools installed in `/yuneta/bin`, not
 > deployable services. See
 > [`utils/c/ycli/README.md`](../../utils/c/ycli/README.md),
 > [`utils/c/mqtt_tui/README.md`](../../utils/c/mqtt_tui/README.md) and
@@ -325,15 +325,14 @@ Filesystem watcher that executes a shell command when monitored files change. Us
 
 ## Build Details
 
-All yunos link the standard kernel libraries. Additional per-yuno dependencies:
+All yunos link the standard kernel libraries. Some yunos have more dependencies:
 
 | Yuno | Extra libraries |
 |------|----------------|
 | mqtt_broker | `${MODULE_MQTT}` |
-| emailsender | `${CURL_LIBRARIES}` |
 | dba_postgres | `libyunetas-c_postgres.a`, `pq` |
 
-All yunos are built with `add_yuno_executable()` and follow the standard memory configuration pattern:
+All yunos are built with `add_yuno_executable()`. They use the standard pattern for the memory configuration:
 
 ```c
 json_t *kw = json_pack("{s:I, s:I, s:I, s:i}",
@@ -346,7 +345,7 @@ json_t *kw = json_pack("{s:I, s:I, s:I, s:i}",
 
 ## Configuration
 
-Yunos are configured via JSON files passed with `--config-file`. The JSON structure follows a standard pattern:
+You configure a yuno with the JSON files that you give with `--config-file`. The JSON structure uses a standard pattern:
 
 ```json
 {
@@ -363,15 +362,19 @@ Yunos are configured via JSON files passed with `--config-file`. The JSON struct
 }
 ```
 
-Configuration variables use `__double_underscore__` delimiters and are substituted at startup.
-**Their place decides what they reach.** A top-level `__json_config_variables__` has
-the scope of its own json text: in a yuno's `main.c` it is replaced when that
-text is loaded, and in the json file it reaches only that file. A
-`"global": {"<service>.__json_config_variables__": {...}}` is replaced when the
-service is created, after the json file is merged, so it is what a node can
-override. The agent keeps its input urls (`ws://127.0.0.1:1991`,
-`wss://0.0.0.0:1993`) at the top level of its `main.c` -- no json file can move
-them -- and its `__output_url__` in `"global"`:
+Configuration variables use `__double_underscore__` delimiters. The yuno
+substitutes them at startup. Their place decides what they reach:
+
+- A top-level `__json_config_variables__` has the scope of its own json text.
+  In the `main.c` of a yuno, it is replaced when that text is loaded. In the
+  json file, it reaches only that file.
+- A `"global": {"<service>.__json_config_variables__": {...}}` is replaced when
+  the service is created, after the json file is merged. Thus a node can
+  override it.
+
+The agent keeps its input urls (`ws://127.0.0.1:1991`, `wss://0.0.0.0:1993`)
+at the top level of its `main.c`, so no json file can move them. It keeps its
+`__output_url__` in `"global"`:
 
 ```json
 "global": {

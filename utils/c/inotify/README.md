@@ -1,8 +1,8 @@
 # inotify
 
-Tiny diagnostic tool for raw **Linux `inotify`** — one step below `fs_watcher`. Sets up an inotify watch on a path and prints each event with its flag bits decoded (`IN_MODIFY`, `IN_CREATE`, `IN_DELETE`, `IN_CLOSE_WRITE`, …).
+`inotify` is a small diagnostic tool for raw Linux `inotify`, one level below `fs_watcher`. It puts an inotify watch on a path. It prints each event with its flag bits decoded (`IN_MODIFY`, `IN_CREATE`, `IN_DELETE`, `IN_CLOSE_WRITE`, …).
 
-Useful when `C_FS` / `watchfs` / `fs_watcher` misbehave and you need to confirm whether the kernel is actually emitting the expected events, independent of any Yuneta layering.
+Use it when `C_FS` / `watchfs` / `fs_watcher` do not work as expected. It shows if the kernel sends the expected events, independent of the Yuneta layers.
 
 ## Usage
 
@@ -10,4 +10,4 @@ Useful when `C_FS` / `watchfs` / `fs_watcher` misbehave and you need to confirm 
 inotify <path>
 ```
 
-Ctrl-C to exit.
+To stop the tool, press Ctrl-C.

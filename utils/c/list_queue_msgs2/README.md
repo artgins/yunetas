@@ -1,6 +1,6 @@
 # list_queue_msgs2
 
-List messages from a **msg2db queue** (message queue persisted on timeranger2). Supports listing all messages or a specific record, with local timestamps and metadata.
+`list_queue_msgs2` lists the messages of a msg2db queue. A msg2db queue is a message queue that timeranger2 keeps on disk. The tool can list all the messages or one record, with local timestamps and metadata.
 
 ## Usage
 
@@ -8,4 +8,4 @@ List messages from a **msg2db queue** (message queue persisted on timeranger2). 
 list_queue_msgs2 --path <queue-path> [--rowid <id>] [options]
 ```
 
-Companion to the `msg2db` API used by the MQTT broker and other queue consumers.
+It is the companion tool of the `msg2db` API. The MQTT broker and other queue consumers use that API.

@@ -1,6 +1,6 @@
 # tr2keys
 
-List all keys (primary ids) stored in a **timeranger2** topic — like `tr2list`, but outputs only the key set. Useful for auditing or batch processing.
+`tr2keys` lists all keys (primary ids) of a timeranger2 topic. It is like `tr2list`, but it prints only the set of keys. Use it to audit a topic or to give the keys to a batch job.
 
 ## Usage
 

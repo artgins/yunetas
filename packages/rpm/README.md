@@ -1,9 +1,10 @@
 # packages/rpm
 
-RPM packaging for the Yuneta Agent (RHEL / Rocky / Alma / CentOS Stream 9+).
-This is the counterpart of the Debian packaging in [`../`](../README.md): it
-stages the **same** `/yuneta` runtime tree and the same helpers/configs, then
-packages it with `rpmbuild` instead of `dpkg-deb`.
+This directory makes the RPM package of the Yuneta Agent for RHEL, Rocky, Alma
+and CentOS Stream 9 or later. It is the counterpart of the Debian packaging in
+[`../`](../README.md). It stages the same `/yuneta` runtime tree and the same
+helpers and configuration files. Then it packages them with `rpmbuild` instead
+of `dpkg-deb`.
 
 ## Quick Start
 
@@ -24,20 +25,30 @@ cd packages/rpm/
 sudo dnf -y install ./dist/yuneta-agent-7.5.6-1.el9.x86_64.rpm
 ```
 
-> ℹ️ **Published automatically on release.** The
+Read these points before you install:
+
+- On a node that builds from source, `%pre` stops the install. See
+  [It refuses a node that builds from source](#it-refuses-a-node-that-builds-from-source).
+- The package enables io_uring in the kernel (`kernel.io_uring_disabled = 0`).
+  If your security policy forbids io_uring, read
+  [io_uring](#io_uring-critical-on-rhel) before you build.
+- If the agent does not run after the install, read the warning at the end of
+  `%post`. See [What `%post` does](#what-post-does-in-order).
+
+> ℹ️ The GitHub workflow
 > [`release-packages.yml`](../../.github/workflows/release-packages.yml)
-> GitHub workflow runs `x86_64.sh` on every published Release and uploads the
-> resulting `.rpm` as a release asset, next to the AMD64 `.deb`. It builds on
-> the Ubuntu runner: the framework is fully static by default, so those
-> binaries also run on RHEL/Rocky. This local flow is for other arches or
-> custom build options.
+> publishes the package on each release. It runs `x86_64.sh` on every
+> published Release and uploads the `.rpm` as a release asset, next to the
+> AMD64 `.deb`. It builds on the Ubuntu runner. The framework is fully static
+> by default, so those binaries also run on RHEL/Rocky. Use the local
+> procedure above for other architectures or for custom build options.
 
 Each wrapper reads the framework version from `../../YUNETA_VERSION` and the
-package release number from `../../RELEASE` (shared with the `.deb`), then calls
-`make-yuneta-agent-rpm.sh`. As with the `.deb`, the `<arch>` argument is only a
-label over whatever binaries currently sit in `/yuneta/bin` and `/yuneta/agent`
-— a genuine cross-arch package needs those dirs populated with cross-built
-binaries.
+package release number from `../../RELEASE`. The `.deb` uses the same two
+files. Then the wrapper calls `make-yuneta-agent-rpm.sh`. As with the `.deb`,
+the `<arch>` argument is only a label. The package holds the binaries that are
+in `/yuneta/bin` and `/yuneta/agent` at that time. For a real package of
+another architecture, those directories must hold cross-built binaries.
 
 ## File Layout
 
@@ -54,7 +65,7 @@ packages/rpm/
     └── webserver               <- contents: "nginx" or "openresty"
 ```
 
-**Generated at build time:**
+The build makes these files:
 
 ```
 packages/rpm/
@@ -74,15 +85,16 @@ sudo dnf install rpmlint rpmdevtools
 
 ## Differences from the `.deb` (RHEL-specific)
 
-The payload (`/yuneta` tree, init script, helpers, configs) is identical. Only
-the packaging metadata and the install/remove logic differ:
+The payload (the `/yuneta` tree, the init script, the helpers and the
+configuration files) is the same in both packages. Only the packaging metadata
+and the install and remove logic are different:
 
 | Concern            | `.deb` (Debian)                       | `.rpm` (RHEL/Rocky)                          |
 |--------------------|---------------------------------------|----------------------------------------------|
 | Package metadata   | `DEBIAN/control`                      | `.spec` (`Requires` / `Recommends`)          |
 | Pre-install hook   | `preinst`                             | `%pre` (`$1`: 1 install, 2 upgrade)          |
 | Install hook       | `postinst`                            | `%post` (`$1`: 1 install, 2 upgrade)         |
-| End-of-transaction | *(none — `postinst` runs late enough)* | `%posttrans` (after the old files are erased) |
+| End-of-transaction | *(none: `postinst` runs late enough)*  | `%posttrans` (after the old files are erased) |
 | Pre-remove hook    | `prerm`                               | `%preun` (`$1`: 0 remove, 1 upgrade)         |
 | Post-remove hook   | `postrm`                              | `%postun` (`$1`: 0 remove, 1 upgrade)        |
 | Create user        | `adduser --disabled-password`         | `useradd -m` + `passwd -l`                    |
@@ -96,81 +108,83 @@ the packaging metadata and the install/remove logic differ:
 | Log rotation       | `Depends: logrotate`                  | `Requires: logrotate` (base repo, no EPEL)   |
 | Intrusion banning  | `Recommends: fail2ban`, banaction nftables/iptables | `Recommends: fail2ban` (EPEL), banaction firewalld |
 
-The `/etc/logrotate.d/yuneta` drop-in is identical in both packages — same
-paths, same periods, same `postrotate`. See the *Log Rotation* section of
-[`../deb/README.md`](../deb/README.md) for what it rotates and why.
+The `/etc/logrotate.d/yuneta` drop-in is the same in both packages: the same
+paths, the same periods and the same `postrotate`. The *Log Rotation* section
+of [`../deb/README.md`](../deb/README.md) tells what it rotates and why.
 
-The fail2ban filter and jails are identical in both packages too, and both ship
-the jails **disabled**. See the *Intrusion Banning* section of
-[`../deb/README.md`](../deb/README.md) — and read the SELinux note there before
-enabling them on RHEL, where the `logpath` globs cannot work and fail with no
-message that names SELinux.
+The fail2ban filter and jails are also the same in both packages, and both
+packages ship the jails disabled. See the *Intrusion Banning* section of
+[`../deb/README.md`](../deb/README.md). On RHEL, read the SELinux note there
+before you enable the jails. On RHEL the `logpath` globs cannot work, and they
+fail with no message that names SELinux.
 
 ### io_uring (critical on RHEL)
 
-Yuneta's event loop (`yev_loop`) is built on Linux **io_uring**. RHEL 9 /
-Rocky 9 / Alma 9 ship `kernel.io_uring_disabled=2` (fully disabled, a hardening
-default), so every yuno aborts at startup. The `.rpm` therefore ships
-`kernel.io_uring_disabled = 0` inside `/etc/sysctl.d/99-yuneta-core.conf` and
-applies it via `sysctl --system` in `%post`. If your security policy forbids
-re-enabling io_uring, remove that line before building and Yuneta will not run.
+The event loop of Yuneta (`yev_loop`) uses Linux io_uring. RHEL 9, Rocky 9
+and Alma 9 ship `kernel.io_uring_disabled=2` as a hardening default. That value
+disables io_uring fully, so every yuno aborts at startup. For this reason the
+`.rpm` ships `kernel.io_uring_disabled = 0` in
+`/etc/sysctl.d/99-yuneta-core.conf`, and `%post` applies it with
+`sysctl --system`. If your security policy forbids io_uring, remove that line
+before you build. Yuneta will then not run.
 
-**SELinux is a second, independent gate.** Even with
-`kernel.io_uring_disabled=0`, an `Enforcing` policy can deny `io_uring_setup(2)`
-to a confined service, so the agent still aborts. If the agent will not start
-while io_uring is enabled, check `getenforce` and the audit log
-(`ausearch -m AVC -ts recent`); a permissive domain or an explicit policy
-allowance may be required.
+SELinux is a second gate, independent of the first. An `Enforcing` policy can
+deny `io_uring_setup(2)` to a confined service, also with
+`kernel.io_uring_disabled=0`. The agent then still aborts. If the agent does
+not start while io_uring is enabled, read the output of `getenforce` and the
+audit log (`ausearch -m AVC -ts recent`). The agent can need a permissive
+domain or an explicit policy allowance.
 
-**SELinux also decides whether the web server unit can start at all.**
-`/yuneta` is outside the policy, so everything under it is labelled
-`default_t`. The SysV script can exec that, because `initrc_t` is allowed to. systemd
-is not, and `yuneta-webserver.service` dies with `203/EXEC` and *"Permission
-denied"* on a file whose Unix mode is `rwxr-xr-x`. `%posttrans` therefore
-labels `/yuneta/bin/yuneta-webserver` as `bin_t`, with `semanage fcontext` +
-`restorecon` and a `chcon` fallback. If a node ever comes up without a web
-server, `ls -Z /yuneta/bin/yuneta-webserver` is the first thing to read.
+SELinux also decides whether the web server unit can start at all. `/yuneta`
+is outside the policy, so SELinux labels everything under it `default_t`. The
+SysV script can execute such a file, because `initrc_t` has that permission.
+systemd does not have it. `yuneta-webserver.service` then dies with `203/EXEC`
+and *"Permission denied"* on a file whose Unix mode is `rwxr-xr-x`. For this
+reason `%posttrans` labels `/yuneta/bin/yuneta-webserver` as `bin_t`, with
+`semanage fcontext` + `restorecon` and a `chcon` fallback. If a node starts
+without a web server, read `ls -Z /yuneta/bin/yuneta-webserver` first.
 
 ### The node's web server choice
 
-`/etc/yuneta/webserver` holds one word, `nginx` or `openresty`, and it is
-**node state, not package content**. Neither package ships it.
+`/etc/yuneta/webserver` holds one word, `nginx` or `openresty`. It is node
+state, not package content. Neither package ships it.
 
-The reason is the one nginx.conf taught in 7.9.1: the file the package would
-ship carries the BUILD machine's choice, and the build machine has none, so it
-ships `nginx`. On 7.11.0 that pushed `nginx` onto two nodes that run openresty,
-and both came back up serving from the wrong tree with a default
-configuration.
+The reason is the lesson that `nginx.conf` taught in 7.9.1. If the package
+ships the file, the file carries the choice of the BUILD machine. The build
+machine has no choice, so the file says `nginx`. In 7.11.0 that file put
+`nginx` on two nodes that run openresty. Both nodes came back up and served
+from the wrong tree with a default configuration.
 
-The handling is the same as nginx.conf, and symmetric between the two
-flavours:
+The packages handle this file as they handle `nginx.conf`. The `.deb` and the
+`.rpm` do the same steps:
 
 | Step | What happens |
 |---|---|
-| `preinst` / `%pre` | Copies the node's value to `/etc/yuneta/webserver.pkgsave` |
-| unpack | A file the package no longer provides is removed by the package manager |
-| `postinst` / `%post` | Absent → restore from `.pkgsave`; no `.pkgsave` → seed the build default; present → leave it alone |
+| `preinst` / `%pre` | Copies the value of the node to `/etc/yuneta/webserver.pkgsave` |
+| unpack | The package manager removes a file that the package no longer provides |
+| `postinst` / `%post` | Absent → restore from `.pkgsave`. No `.pkgsave` → seed the build default. Present → leave it alone. |
 
-So a node that already chose keeps its choice, and only a node that never had
-one gets a default.
+As a result, a node that already has a choice keeps it. Only a node that never
+had one gets a default.
 
-One upgrade does not keep it: an `.rpm` upgrade from 7.11.0-1/-2, the
-packages that still shipped the file. At `%post` the old package's file is
-still there, so nothing is restored; rpm removes it after `%post`, and
-`%posttrans` restores `nginx.conf` only. Such a node gets its choice back by
-hand:
+One upgrade does not keep the choice: an `.rpm` upgrade from 7.11.0-1/-2.
+Those packages still shipped the file. At `%post` the file of the old package
+is still there, so `%post` restores nothing. rpm removes the file after
+`%post`, and `%posttrans` restores only `nginx.conf`. On such a node, restore
+the choice by hand:
 
 ```bash
 sudo cp -a /etc/yuneta/webserver.pkgsave /etc/yuneta/webserver   # or webserver.rpmsave
 ```
 
-The default is the build's choice, written into the scriptlets as TEXT when the
-package is built. From 7.12.0 to 7.30.26 the scriptlets named the build's
-variable instead (`${WEB_CHOICE}`, inside a quoted heredoc), which does not
-exist on the node, so the first install on a fresh node died with *"WEB_CHOICE:
-parameter not set"* and left the package unconfigured. `install.sh` seeds
-`nginx` when the node has no choice, so those packages install with it; by
-hand, the same thing is:
+The scriptlets are the scripts that the package manager runs during an
+install. The default is the choice of the build. The build writes it into the
+scriptlets as TEXT. From 7.12.0 to 7.30.26 the scriptlets named the build
+variable instead (`${WEB_CHOICE}`, inside a quoted heredoc). That variable does
+not exist on the node. As a result, the first install on a fresh node died with
+*"WEB_CHOICE: parameter not set"* and left the package unconfigured.
+`install.sh` seeds `nginx` when the node has no choice, so those packages
+install with it. To do the same by hand:
 
 ```bash
 printf 'nginx\n' | sudo tee /etc/yuneta/webserver   # or openresty
@@ -179,21 +193,24 @@ sudo dpkg --configure -a                             # .deb; a .rpm: sudo dnf re
 
 ### No automatic reboot
 
-The `.deb` postinst offers/forces a reboot. The `.rpm` does **not**: `dnf` runs
-`%post` non-interactively, so an auto-reboot on every install/upgrade would be
-surprising and un-idiomatic. The kernel tuning is applied live with
-`sysctl --system`; reboot only if your kernel needs it for other reasons.
+The postinst of the `.deb` offers or forces a reboot. The `.rpm` does not.
+`dnf` runs `%post` non-interactively. An automatic reboot on each install or
+upgrade is a surprise there, and it is not the usual practice of an RPM.
+`sysctl --system` applies the kernel tuning live. If your kernel needs a reboot
+for other reasons, reboot.
 
 ## It refuses a node that builds from source
 
 `%pre` aborts the install when `/yuneta/development/yunetas` holds the sources
-(`kernel/` and `.git`). The package carries artefacts built on another machine
-and lays them into the tree `yunetas build` owns (`outputs/`, `outputs_ext/`),
-so fresh objects would link against archives from a **different glibc** — and a
-static link takes those silently and corrupts the heap at run time.
+(`kernel/` and `.git`). The package carries artifacts built on another machine.
+It puts them into the tree that `yunetas build` owns (`outputs/`,
+`outputs_ext/`). New objects then link against archives from a different glibc.
+A static link accepts those archives silently and corrupts the heap at run
+time.
 
-It is a refusal, not a warning, so it has to be a decision somebody took rather
-than something an install did to a build node on its way past. To go ahead:
+It is a refusal, not a warning, because the install must be the decision of a
+person. It must not be a side effect of an install on a build node. To
+continue:
 
 ```bash
 sudo YUNETAS_FORCE_OVER_SOURCE=1 dnf install ./<package>.rpm
@@ -201,105 +218,113 @@ sudo YUNETAS_FORCE_OVER_SOURCE=1 dnf install ./<package>.rpm
 sudo touch /etc/yuneta/allow-package-over-source
 ```
 
-Then **rebuild everything on that node, external libraries first**
+Then rebuild everything on that node, external libraries first
 (`kernel/c/linux-ext-libs`: `extrae.sh` + `configure-libs.sh`, then
-`yunetas init` and `yunetas clean && yunetas build`). Rebuilding only the SDK
-leaves the packaged externals in place — the same mismatch by a shorter road.
+`yunetas init` and `yunetas clean && yunetas build`). If you rebuild only the
+SDK, the packaged external libraries stay in place. That is the same mismatch
+by a shorter road.
 
 ## What `%post` does (in order)
 
-1. Creates the `yuneta` login user (locked password) if missing; ensures
-   `/home/yuneta`.
+1. Creates the `yuneta` login user (locked password) if it does not exist.
+   Makes sure that `/home/yuneta` exists.
 2. Adds `yuneta` to a broad set of access groups (`wheel`, `dialout`, `tty`,
-   `kvm`, `libvirt`, `docker`, …); missing groups are skipped (override with
-   `YUNETA_GROUPS`, create missing with `YUNETA_CREATE_MISSING_GROUPS=1`).
-3. Creates `/yuneta/agent/yuneta_agent*.json` from the bundled `.sample`
-   (never overwrites; optional `YUNETA_OWNER=` substitutes `node_owner`).
-4. Sets `LANG=en_US.UTF-8` in `/etc/locale.conf` if unset.
-5. `chown -R yuneta:yuneta /yuneta`; private keys dir `0700`; `/var/crash`
-   `0775 root:yuneta`, then `systemd-tmpfiles --create` on the bundled
-   `/usr/lib/tmpfiles.d/yuneta-crash.conf`. **`/var/crash` is co-owned with
-   `kexec-tools` (kdump)**, which declares it `root:root 0755`, so any later
-   transaction touching that package silently reverts the group and mode and
-   cores stop being written; the tmpfiles drop-in re-asserts it every boot.
-6. `sysctl --system` (applies the tuning **including io_uring**).
-6bis. **sshd is left alone.** The package does not touch sshd or fail2ban's
-   `sshd` jail: that is the policy of whoever runs the node. 7.20.0-3 shipped
-   a flood drop-in and enabled the jail; the next package dropped both. The
-   same measures are scripts run by hand, at
+   `kvm`, `libvirt`, `docker`, …). It skips the groups that do not exist. To
+   change the set, use `YUNETA_GROUPS`. To create the missing groups, use
+   `YUNETA_CREATE_MISSING_GROUPS=1`.
+3. Creates `/yuneta/agent/yuneta_agent*.json` from the bundled `.sample`. It
+   never overwrites a file. The optional `YUNETA_OWNER=` substitutes
+   `node_owner`.
+4. Sets `LANG=en_US.UTF-8` in `/etc/locale.conf` if it is not set.
+5. Runs `chown -R yuneta:yuneta /yuneta`. Sets the private keys directory to
+   `0700` and `/var/crash` to `0775 root:yuneta`. Then runs
+   `systemd-tmpfiles --create` on the bundled
+   `/usr/lib/tmpfiles.d/yuneta-crash.conf`. `kexec-tools` (kdump) also owns
+   `/var/crash`, and it declares the directory `root:root 0755`. A later
+   transaction that touches that package then silently reverts the group and
+   the mode, and the kernel stops writing cores. The tmpfiles drop-in sets them
+   again at each boot.
+6. Runs `sysctl --system`. This applies the tuning, io_uring included.
+6bis. The package leaves sshd alone. It does not touch sshd or the `sshd` jail
+   of fail2ban, because that is the policy of the operator of the node.
+   7.20.0-3 shipped a flood drop-in and enabled the jail. The next package
+   removed both. The same measures are scripts that you run by hand, at
    `/yuneta/development/yunetas/tools/sshd/` (see
    [`tools/README.md`](../../tools/README.md)).
-7. Installs bundled `authorized_keys` for `yuneta` (if present).
+7. Installs the bundled `authorized_keys` for `yuneta`, if the file is present.
 8. Enables `rsyslog`.
-9. Installs the SysV script via `chkconfig` (for an init that is not systemd),
-   enables the units `yuneta_agent.service` and `yuneta_agent22.service`, and
-   RESTARTS them -- the main agent first, agent22 only once it runs; a restart
-   because `%pre` stopped the agent behind the generated unit's back, leaving
-   it `active (exited)`, where a start does nothing. `%pre` and `%post` find
-   the running agent by the base name of its `argv[0]`, as its own `--stop`
-   does (up to 7.30.17 by `/proc/<pid>/exe`: an agent behind a symlinked
-   `/yuneta`, on a renamed binary, or under a root without `CAP_SYS_PTRACE`
-   was not found, and `%pre` left the old agent running). It does so
-   **only when io_uring is actually enabled** (re-checked after the
-   `sysctl --system` of step 6) and captures the real result — a disabled
-   io_uring, or any other start failure, is reported, **not** hidden behind
-   RPM's always-"Complete" transaction. Under systemd the SysV script itself
-   drives the pair of units (since 7.25.22-3): `start` both, agent22 once the
-   main agent is up; `stop` the main agent alone; `status` both. Up to
-   7.25.22-2 it was not redirected on RHEL at all, and a
-   `/etc/init.d/yuneta_agent start` started the agents by hand, outside their
-   units.
-10. Ensures `pam_limits.so` in `system-auth`/`password-auth` (already default
-    on RHEL; only appended if genuinely missing and not authselect-managed).
+9. Installs the SysV script with `chkconfig` (for an init that is not
+   systemd). Enables the units `yuneta_agent.service` and
+   `yuneta_agent22.service`, and RESTARTS them: the main agent first, agent22
+   only after the main agent runs. A start is not enough. `%pre` stopped the
+   agent without the knowledge of the generated unit, and that left the unit
+   `active (exited)`, where a start does nothing. `%pre` and `%post` find the
+   running agent by the base name of its `argv[0]`, as its own `--stop` does.
+   Up to 7.30.17 they used `/proc/<pid>/exe`. They then did not find an agent
+   behind a symlinked `/yuneta`, on a renamed binary, or under a root without
+   `CAP_SYS_PTRACE`, and `%pre` left the old agent running. The restart
+   happens only when io_uring is enabled. `%post` tests this again after the
+   `sysctl --system` of step 6. It captures the real result. It reports a
+   disabled io_uring, or any other start failure. It does not hide them behind
+   the RPM transaction, which always says "Complete". Under systemd the SysV
+   script itself drives the pair of units (since 7.25.22-3). `start` starts
+   both, agent22 after the main agent is up. `stop` stops the main agent
+   alone. `status` shows both. Up to 7.25.22-2 the script was not redirected
+   on RHEL at all. A `/etc/init.d/yuneta_agent start` then started the agents
+   by hand, outside their units.
+10. Makes sure that `pam_limits.so` is in `system-auth`/`password-auth`. RHEL
+    has it there by default. The script appends it only if it is really
+    missing and authselect does not manage the file.
 
 ## Web server service
 
 - Installs `/usr/lib/systemd/system/yuneta-webserver.service` and
-  `/yuneta/bin/yuneta-webserver`, and enables and starts the unit.
-- **The web server is no longer started by the init script.** It used to be:
+  `/yuneta/bin/yuneta-webserver`, then enables and starts the unit.
+- The init script no longer starts the web server. It did before:
   `/etc/init.d/yuneta_agent` ran nginx and let it daemonize, so nothing owned
-  the process afterwards. A later `start` found nothing to look at and tried
-  again, and the second master died with *"Address already in use"* while the
-  first one kept serving.
-- The unit runs the server with `daemon off`, so `$MAINPID` is the real master
-  and stop and reload reach it. `systemctl reload` sends HUP, which reloads the
-  configuration. Reopening the log files is USR1 and stays where it was, in the
-  `postrotate` of `/etc/logrotate.d/yuneta`.
-- On upgrade the scriptlet asks the old, daemonized server to finish before it
-  starts the unit, because the unit cannot take `:80` and `:443` while the old
-  master holds them. **That is a short interruption of the node's web server,
-  at upgrade time only.**
+  the process after that. A later `start` found nothing to look at and tried
+  again. The second master then died with *"Address already in use"*, and the
+  first one continued to serve.
+- The unit runs the server with `daemon off`, so `$MAINPID` is the real
+  master, and stop and reload reach it. `systemctl reload` sends HUP, which
+  reloads the configuration. USR1 reopens the log files, and it stays where it
+  was, in the `postrotate` of `/etc/logrotate.d/yuneta`.
+- On upgrade, the scriptlet asks the old, daemonized server to finish before it
+  starts the unit. The unit cannot take `:80` and `:443` while the old master
+  holds them. This interrupts the web server of the node for a short time, at
+  upgrade time only.
 
-## What `%pre` and `%posttrans` do (the web server config)
+## What `%pre` and `%posttrans` do (the web server configuration)
 
-The web server configuration belongs to the **node**, so it is stripped from
-the payload rather than shipped — `%files` lists `/yuneta` as a directory, so
-a file inside it cannot be tagged `%config(noreplace)` (rpmbuild: *"file
-listed twice"*). But not shipping it is only half the job: **rpm erases files
-that an upgrade no longer provides**, so coming from a package that still
-owned `nginx.conf` (7.9.0 or older) would remove it.
+The web server configuration belongs to the node, so the package removes it
+from the payload and does not ship it. `%files` lists `/yuneta` as a
+directory, so a file in it cannot have the tag `%config(noreplace)` (rpmbuild:
+*"file listed twice"*). But to not ship the file is only half of the job. rpm
+erases the files that an upgrade no longer provides. Without the steps below,
+an upgrade from a package that still owned `nginx.conf` (7.9.0 or older)
+removes it.
 
-- **`%pre`** copies `/yuneta/bin/{nginx,openresty/nginx}/conf/nginx.conf` to
+- `%pre` copies `/yuneta/bin/{nginx,openresty/nginx}/conf/nginx.conf` to
   `nginx.conf.pkgsave`, before rpm touches anything.
-- **`%posttrans`** restores it, picking in order: an existing `nginx.conf`
-  (left alone) → `nginx.conf.pkgsave` (the node's own, dropped by the erase)
-  → `nginx.conf.default` (a first install). It also creates `conf/conf.d/`
-  when missing.
+- `%posttrans` restores it. It picks the first of these, in order: an existing
+  `nginx.conf` (it leaves it alone) → `nginx.conf.pkgsave` (the file of the
+  node, which the erase removed) → `nginx.conf.default` (a first install). It
+  also creates `conf/conf.d/` if it does not exist.
 
-`%posttrans` and **not** `%post`: on an upgrade rpm runs the new `%post`
-*before* erasing the old package's files, so anything `%post` writes there is
-wiped moments later — which is exactly what happened in 7.9.1, leaving one
-node with no `nginx.conf` at all.
+The restore is in `%posttrans`, not in `%post`. On an upgrade, rpm runs the
+new `%post` before it erases the files of the old package. A short time later
+the erase removes anything that `%post` wrote there. That happened in 7.9.1,
+and one node was left with no `nginx.conf` at all.
 
-> ℹ️ **If the agent is not running after install**, `%post` ends with a
+> ℹ️ If the agent does not run after the install, `%post` ends with a
 > `Yuneta files installed, but the AGENT IS NOT RUNNING` warning that names the
-> cause. The usual ones on RHEL: io_uring still disabled
-> (`kernel.io_uring_disabled` ≠ 0 — enable it, then
-> `sudo service yuneta_agent start`), or **SELinux** denying io_uring to the
-> confined service (`getenforce`). Diagnose with
+> cause. There are two usual causes on RHEL. The first is that io_uring is
+> still disabled (`kernel.io_uring_disabled` ≠ 0). Enable it, then run
+> `sudo service yuneta_agent start`. The second is that SELinux denies io_uring
+> to the confined service (`getenforce`). To find the cause, run
 > `systemctl status yuneta_agent.service` and
-> `journalctl -xeu yuneta_agent.service`. The package files are installed
-> regardless — only the agent start is gated.
+> `journalctl -xeu yuneta_agent.service`. The package installs its files in all
+> cases. Only the start of the agent depends on these conditions.
 
 ## Inspecting the package (without installing)
 
@@ -312,10 +337,10 @@ rpmlint    dist/yuneta-agent-*.rpm    # lint (some warnings are expected)
 
 ## Versioning
 
-Same two-number scheme as the `.deb`: framework version from
-`../../YUNETA_VERSION`, package release from `../../RELEASE`. RPM `Version`
-cannot contain `-`, so a pre-release like `7.0.0-b10` is mapped to `7.0.0~b10`.
-The final name follows:
+The `.rpm` uses the same scheme of two numbers as the `.deb`. The build reads
+the framework version from `../../YUNETA_VERSION` and the package release from
+`../../RELEASE`. The RPM `Version` cannot contain `-`, so a pre-release like
+`7.0.0-b10` becomes `7.0.0~b10`. The final name has this form:
 
 ```
 yuneta-agent-<version>-<release>.<dist>.<arch>.rpm
@@ -324,8 +349,9 @@ yuneta-agent-<version>-<release>.<dist>.<arch>.rpm
 
 ## Optional build-time configuration
 
-Identical to the `.deb`: drop SSH keys in `authorized_keys/authorized_keys`,
-choose the web server with `webserver/webserver` (`nginx` or `openresty`,
-default `nginx`). See [`../README.md`](../README.md) for the full description of
-the runtime layout, CLI tools, service helpers and certbot integration — all
-shared with this package.
+This is the same as for the `.deb`. To bundle SSH keys, put them in
+`authorized_keys/authorized_keys`. To choose the web server, write `nginx` or
+`openresty` in `webserver/webserver` (the default is `nginx`).
+[`../README.md`](../README.md) gives the full description of the runtime
+layout, the CLI tools, the service helpers and the certbot integration. This
+package shares all of them.

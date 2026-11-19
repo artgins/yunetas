@@ -1,6 +1,6 @@
 # fs_watcher
 
-Standalone CLI test harness for the **`fs_watcher`** library (`kernel/c/timeranger2/src/fs_watcher.c`). Creates a `yev_loop`, attaches an `fs_event_t` to a path, and prints every filesystem event the watcher reports — handy for debugging the low-level layer that powers `root-linux/C_FS` and `yunos/c/watchfs`.
+A standalone CLI test harness for the `fs_watcher` library (`kernel/c/timeranger2/src/fs_watcher.c`). It prints every filesystem event that the watcher reports.
 
 ## Usage
 
@@ -8,4 +8,8 @@ Standalone CLI test harness for the **`fs_watcher`** library (`kernel/c/timerang
 fs_watcher <path>
 ```
 
-Run against a directory and then touch/rename/delete files in it to see the event stream. Ctrl-C to exit.
+1. Run `fs_watcher` on a directory.
+2. In that directory, touch, rename, or delete files. The tool prints the stream of events.
+3. To exit, press Ctrl-C.
+
+The tool creates a `yev_loop` and attaches an `fs_event_t` to the path. Use it to debug the low-level layer under `root-linux/C_FS` and `yunos/c/watchfs`.

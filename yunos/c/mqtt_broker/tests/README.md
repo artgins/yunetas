@@ -1,21 +1,21 @@
 # MQTT Broker tests
 
-Three test batteries for the yuneta `mqtt_broker`, one per directory:
+This directory holds three test batteries for the yuneta `mqtt_broker`, one in each subdirectory:
 
 | Directory | What it is | Result now |
 |-----------|------------|------------|
-| [`hivemq/`](hivemq/README.md) | HiveMQ MQTT CLI: its spec compliance checks (MQTT 3.1.1 and 5.0), functional tests and performance (25 tests). | 25 of 25 |
+| [`hivemq/`](hivemq/README.md) | HiveMQ MQTT CLI: its spec compliance tests (MQTT 3.1.1 and 5.0), functional tests, and performance tests (25 tests). | 25 of 25 |
 | [`connect_disconnect/`](connect_disconnect/README.md) | Raw-packet CONNECT / DISCONNECT edge cases (Python, 22 rows). | 22 of 22 |
-| [`mosquitto/`](mosquitto/README.md) | Eclipse Mosquitto's own broker test suite (about 270 tests), through a stand-in for the `mosquitto` binary. It starts its own brokers. | 83 pass, see its README |
+| [`mosquitto/`](mosquitto/README.md) | The broker test suite of Eclipse Mosquitto (about 270 tests). It runs through a stand-in for the `mosquitto` binary. It starts its own brokers. | 83 pass, see its README |
 
-`mqtt_broker.json` (here) is the broker configuration of the three: `hivemq/` and
-`connect_disconnect/` run against a broker started with it, and `mosquitto/`
-uses it as the template of the config of each test.
+`mqtt_broker.json` (in this directory) is the broker configuration of the three
+batteries. `hivemq/` and `connect_disconnect/` run against a broker that you
+start with it. `mosquitto/` uses it as the template of the configuration of each test.
 
 ## Run them
 
-`hivemq/` and `connect_disconnect/` need a broker started with `mqtt_broker.json`
-(it listens on 1810, its store is `/tmp/mqtt_broker_test`):
+`hivemq/` and `connect_disconnect/` need a broker that runs with `mqtt_broker.json`.
+That broker listens on port 1810, and its store is `/tmp/mqtt_broker_test`:
 
 ```bash
 cd yunos/c/mqtt_broker/tests
@@ -28,8 +28,8 @@ mqtt_broker --config-file=mqtt_broker.json &
 kill -INT %1                               # stop the broker (orderly shutdown)
 ```
 
-`mosquitto/` starts a broker for each test (ports 1888-1895), so it needs no
-broker running:
+`mosquitto/` starts a broker for each test (ports 1888-1895). It does not need a
+broker that runs before it:
 
 ```bash
 cd yunos/c/mqtt_broker/tests/mosquitto
@@ -37,28 +37,29 @@ cd yunos/c/mqtt_broker/tests/mosquitto
 ./run_all.sh                               # every test, about 7 minutes
 ```
 
-`mqtt_broker` is the binary in `outputs/yunos/` (`yunetas build`); with
-`yunetas-env.sh` sourced, `$YUNETAS_YUNOS/mqtt_broker`. Each directory's README
-says how to run one test and how to read the results.
+`mqtt_broker` is the binary in `outputs/yunos/` (`yunetas build`). If you sourced
+`yunetas-env.sh`, its path is `$YUNETAS_YUNOS/mqtt_broker`. The README of each
+subdirectory tells how to run one test and how to read the results.
 
 ## Broker Configuration (mqtt_broker.json)
 
 
-A standalone broker (no agent) that the suites can use as it is:
+The file configures a standalone broker (no agent). The suites use it with no changes:
 
-- Listens on `mqtt://0.0.0.0:1810` (the scripts' default port), with 200 channels:
-  test 21 opens 100 connections and test 23 holds 21 at once.
+- It listens on `mqtt://0.0.0.0:1810` (the default port of the scripts), with 200 channels.
+  Test 21 opens 100 connections, and test 23 keeps 21 open at the same time.
 - `"yuno": {"autoplay": true}`: a standalone yuno has no agent to play it. The broker opens
-  its database and finds its `__input_side__` when it starts, but it hands the input side
+  its database and finds its `__input_side__` when it starts. But it gives the input side
   its queues and starts it (the listener) only when it plays.
-- `C_PROT_MQTT2` with `"iamServer": true`: without it the protocol is a client and sends a
-  CONNECT to every peer.
-- `Authz.allow_anonymous_in_localhost`: a client with no credentials, from the same host,
-  is accepted whatever the Linux user that runs the broker (without it only `yuneta` is).
-- `Mqtt_broker.enable_new_clients`: an unknown client id is created at its first CONNECT
-  (without it every CONNECT of a new id is closed, with the INFO *"Client not exist and no
-  auto-create"*). Set it in `global`: a different `kw` in the `services` list makes the
-  config merge create the service twice.
+- `C_PROT_MQTT2` with `"iamServer": true`: without this key, the protocol is a client and
+  sends a CONNECT to every peer.
+- `Authz.allow_anonymous_in_localhost`: the broker accepts a client with no credentials
+  from the same host, for any Linux user that runs the broker. Without this key, the
+  broker accepts such a client only when the user is `yuneta`.
+- `Mqtt_broker.enable_new_clients`: the broker creates an unknown client id at its first
+  CONNECT. Without this key, the broker closes every CONNECT of a new id, with the INFO
+  *"Client not exist and no auto-create"*. Set this key in `global`. A different `kw` in
+  the `services` list makes the configuration merge create the service two times.
 - `C_MQTT_BROKER` with `deny_subscribes: ["test/nosubscribe"]` (test 13).
-- An empty `__top_side__`: the broker looks for that service at play.
-- `work_dir` `/tmp/mqtt_broker_test`: the store of the run. Remove it to start clean.
+- An empty `__top_side__`: the broker looks for that service when it plays.
+- `work_dir` `/tmp/mqtt_broker_test`: the store of the run. To start with an empty store, remove it.

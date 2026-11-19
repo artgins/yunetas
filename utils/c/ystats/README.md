@@ -1,6 +1,6 @@
 # ystats
 
-Subscribe to and display real-time statistics from a Yuneta service. Supports a refresh interval, filtering by stat/attribute name, and multiple concurrent subscriptions.
+ystats subscribes to the statistics of a Yuneta service and shows them in real time. It has a refresh interval and a filter by statistic or attribute name. It can keep more than one subscription at the same time.
 
 ## Usage
 
@@ -8,4 +8,4 @@ Subscribe to and display real-time statistics from a Yuneta service. Supports a 
 ystats --url ws://host:port [--interval <s>] [--stats <names>] [--attrs <names>]
 ```
 
-Authentication options are the same as `ycommand`. Run `ystats --help` for details.
+The authentication options are the same as those of `ycommand`. Run `ystats --help` to see all the options.

@@ -1,6 +1,16 @@
 # utils
 
-Command-line utilities for operating, inspecting, and developing with Yuneta. All tools install to `${BIN_DEST_DIR}` (typically `outputs/bin/`, deployed to `/yuneta/bin/`).
+This directory holds the command-line utilities to operate, inspect, and develop with Yuneta. All tools install to `${BIN_DEST_DIR}`. That is usually `outputs/bin/`, and a deploy puts the tools in `/yuneta/bin/`.
+
+These are the commands that you use most:
+
+```bash
+ycommand -c 'help'                              # list available commands
+ycommand -i                                      # interactive mode
+treedb_list /yuneta/store/agent/agent            # list all records in default treedb
+```
+
+The options of each tool are in [Tools by Category](#tools-by-category).
 
 ## Directory Layout
 
@@ -37,7 +47,7 @@ utils/
 
 ### Control Plane
 
-Tools that communicate with running yunos over WebSocket. They share a common set of connection and OAuth2 options.
+These tools communicate with running yunos over WebSocket. They share one set of connection and OAuth2 options.
 
 #### ycommand
 
@@ -75,7 +85,7 @@ Local:
   -V, --yuneta-version       Print Yuneta version
 ```
 
-Uses ncurses/panel for the interactive terminal UI. Links `CONSOLE_LIBS`.
+The interactive terminal UI uses ncurses/panel. The tool links `CONSOLE_LIBS`.
 
 Examples:
 
@@ -150,7 +160,7 @@ Remote Service:
 
 #### ylist
 
-List running yuno processes. Reads PID files from the runtime directory, verifies processes are alive, and cleans up stale PID files.
+List running yuno processes. The tool reads the PID files from the runtime directory and makes sure that each process is alive. It removes the stale PID files.
 
 ```
 ylist [OPTIONS]
@@ -160,7 +170,7 @@ ylist [OPTIONS]
 
 #### yshutdown
 
-Shut down yuno processes and/or the Yuneta agent.
+Stop yuno processes, or the Yuneta agent, or both.
 
 ```
 yshutdown [OPTIONS]
@@ -173,7 +183,7 @@ yshutdown [OPTIONS]
 
 ### TimeRanger2 Database Tools
 
-Tools for inspecting and managing TimeRanger2 append-only time-series databases.
+These tools inspect and manage TimeRanger2 append-only time-series databases.
 
 #### tr2list
 
@@ -215,7 +225,7 @@ Print:
 
 #### tr2search
 
-Search within record content in TimeRanger2 databases. Extends `tr2list` with content-based searching: decode fields (e.g. base64), match text patterns, and display results as JSON or hexdump.
+Search the record content in TimeRanger2 databases. The tool adds content-based search to `tr2list`. It decodes fields (for example base64), matches text patterns, and shows the results as JSON or hexdump.
 
 ```
 tr2search [OPTIONS] PATH
@@ -286,9 +296,10 @@ tr2keys [OPTIONS] PATH
 
 #### tr2check
 
-Check a TimeRanger2 topic filled by a load test, in one pass per key: count,
+Examine a TimeRanger2 topic filled by a load test, in one pass per key: count,
 duplicates, gaps, out-of-range sequences, checksums, storage rate and latency
-percentiles. One JSON document on stdout; exit 0 pass, 1 fail, 2 error.
+percentiles. The tool writes one JSON document to stdout. The exit code is 0
+for pass, 1 for fail, and 2 for error.
 
 ```
 tr2check [OPTIONS] TOPIC_PATH
@@ -326,7 +337,7 @@ list_queue_msgs2 [OPTIONS] PATH
 
 #### treedb_list
 
-List records in TreeDB hierarchical databases built on top of TimeRanger2. A TreeDB organizes records (nodes) in a parent-child graph structure with typed schemas.
+List records in TreeDB hierarchical databases built on top of TimeRanger2. A TreeDB keeps records (nodes) in a parent-child graph with typed schemas.
 
 ```
 treedb_list [OPTIONS] PATH
@@ -366,17 +377,17 @@ treedb_list -r /yuneta/store
 
 #### fs_watcher
 
-Monitor filesystem changes using io_uring and the `fs_watcher` library. Reports file/directory creation, deletion, and modification events.
+Monitor filesystem changes with io_uring and the `fs_watcher` library. The tool reports file and directory creation, deletion, and modification events.
 
 ```
 fs_watcher DIRECTORY
 ```
 
-Watches recursively. Prints events as they occur.
+The tool watches recursively. It prints each event when it occurs.
 
 #### inotify
 
-Low-level test utility for Linux inotify filesystem event monitoring. Tracks watched directories in a JSON object. Uses io_uring for async I/O.
+A low-level test utility for Linux inotify filesystem event monitoring. It keeps the watched directories in a JSON object. It uses io_uring for async I/O.
 
 ```
 inotify DIRECTORY
@@ -384,7 +395,7 @@ inotify DIRECTORY
 
 ### Code Generation
 
-Tools for scaffolding new GClasses, yunos, and projects.
+These tools make the start files (the scaffolding) of new GClasses, yunos, and projects.
 
 #### yuno-skeleton
 
@@ -412,11 +423,11 @@ Built-in skeleton templates:
 | `project` | Project | Application repository with its `gui/`, open source (MIT `LICENSE`) |
 | `project_commercial` | Project | Application repository, closed (proprietary `LICENSE`, delivery obligations) |
 
-Templates use `+variable+` placeholders in filenames and `{{variable}}` in file contents. Interactive prompts ask for values like description, author, version, and license.
+Templates use `+variable+` placeholders in filenames and `{{variable}}` in file contents. Interactive prompts ask for values, for example description, author, version, and license.
 
 #### yclone-gclass
 
-Clone and rename an existing GClass. Handles case variations (lowercase, Capitalize, UPPERCASE) in both filenames and content.
+Clone and rename an existing GClass. The tool handles case variations (lowercase, Capitalize, UPPERCASE) in both filenames and content.
 
 ```
 yclone-gclass OLD_GCLASS NEW_GCLASS
@@ -461,7 +472,7 @@ ymake-skeleton ./gate_frigo yuno_gate --yunorole=gate_frigo --rootname=gate_frig
 
 #### yscapec
 
-Convert a file into an escaped C string literal. Useful for embedding binary or text data in C source.
+Convert a file into an escaped C string literal. Use it to embed binary or text data in C source.
 
 ```
 yscapec [OPTIONS] FILE
@@ -470,11 +481,11 @@ yscapec [OPTIONS] FILE
   -s, --line-size SIZE       Output line size
 ```
 
-Handles `\"`, `\\`, `\r`, `\n` escaping with configurable line wrapping.
+The tool escapes `\"`, `\\`, `\r`, `\n`. The line size of the wrap is configurable.
 
 #### ytestconfig
 
-Validate and test a JSON configuration file against the Yuneta config parser.
+Validate and test a JSON configuration file against the Yuneta configuration parser.
 
 ```
 ytestconfig [OPTIONS] FILE
@@ -484,19 +495,19 @@ ytestconfig [OPTIONS] FILE
 
 #### pkey_to_jwks
 
-Convert a raw base64url-encoded RSA public key (from Keycloak) to JWKS (JSON Web Key Set) format. Useful for converting legacy `Authz.jwt_public_keys` to `Authz.jwks`.
+Convert a base64-encoded DER RSA public key (from Keycloak) to JWKS (JSON Web Key Set) format. Use it to convert legacy `Authz.jwt_public_keys` to `Authz.jwks`.
 
 ```
-pkey_to_jwks --iss ISSUER BASE64_DER_RSA_KEY
+keycloak_pkey_to_jwks --iss ISSUER BASE64_DER_RSA_KEY
 ```
 
-Uses `getopt_long` (not argp). Links OpenSSL directly.
+The tool uses `getopt_long`, not argp. It links OpenSSL directly.
 
 ### Build Testing
 
 #### test-static
 
-Minimal "Hello World" program for verifying static builds work correctly. No Yuneta dependencies.
+A minimal "Hello World" program to make sure that static builds work correctly. It has no Yuneta dependencies.
 
 ```bash
 # Prints: Hello from static binary!
@@ -510,11 +521,11 @@ Minimal "Hello World" program for verifying static builds work correctly. No Yun
 
 ### Standalone Tools
 
-The remaining tools are plain C programs that may use individual Yuneta libraries (gobj, timeranger2, helpers) without the full yuno runtime. They use `argp-standalone` for command-line parsing (except `pkey_to_jwks` which uses `getopt_long`, and `inotify`/`fs_watcher` which use manual parsing).
+The other tools are plain C programs. They can use some Yuneta libraries (gobj, timeranger2, helpers) without the full yuno runtime. They use `argp-standalone` for command-line parsing. The exceptions are `pkey_to_jwks`, which uses `getopt_long`, and `inotify`/`fs_watcher`, which parse the arguments by hand.
 
 ### Common Link Libraries
 
-All standalone tools link a subset of:
+Each standalone tool links some of these libraries:
 
 ```
 libargp-standalone.a       # Command-line argument parsing
@@ -525,7 +536,7 @@ liburing.a                 # io_uring async I/O
 libbacktrace.a             # Stack traces (when CONFIG_DEBUG_WITH_BACKTRACE)
 ```
 
-GClass-based tools additionally link the full kernel stack:
+The GClass-based tools also link the full kernel stack:
 
 ```
 libyunetas-core-linux.a    # Runtime GClasses (TCP, timers, protocols)

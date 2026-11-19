@@ -1,6 +1,6 @@
 # ytestconfig
 
-Validate a JSON configuration file. Parses the file and reports any syntax / structural errors — a quick sanity check before starting a yuno.
+`ytestconfig` reads a JSON configuration file and reports each syntax or structural error. Run it before you start a yuno with that file.
 
 ## Usage
 
@@ -8,4 +8,4 @@ Validate a JSON configuration file. Parses the file and reports any syntax / str
 ytestconfig <config.json>
 ```
 
-Exits non-zero on parse failure.
+If the parse fails, the exit code is not zero.

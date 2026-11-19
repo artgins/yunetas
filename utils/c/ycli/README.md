@@ -1,6 +1,6 @@
 # ycli
 
-Interactive ncurses-based terminal UI for Yuneta v7. Provides a layout for browsing yunos, inspecting state, and sending commands — a friendlier alternative to raw `ycommand` for live debugging. (The source directory was `yunos/c/yuno_cli` before 7.4.x; the binary has always been `ycli`.)
+ycli is an interactive terminal UI for Yuneta v7, built on ncurses. You can use it to browse yunos, look at their state, and send commands. For live debugging, it is an alternative to raw `ycommand`. Before 7.4.x, the source directory was `yunos/c/yuno_cli`. The binary was always `ycli`.
 
 ## Usage
 
@@ -8,4 +8,4 @@ Interactive ncurses-based terminal UI for Yuneta v7. Provides a layout for brows
 ycli [--url ws://host:port]
 ```
 
-Navigate with arrow keys; press `?` inside the UI for help.
+Use the arrow keys to move. Press `?` in the UI to see the help.

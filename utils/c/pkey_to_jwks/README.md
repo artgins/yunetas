@@ -1,6 +1,6 @@
 # pkey_to_jwks
 
-Convert an RSA public key (base64-encoded DER, the "Public key" Keycloak shows for a realm key) to ONE JWK, an entry of `C_AUTHZ`'s `jwks`. The issuer string is used as the `kid`: give the issuer (`iss`) of the tokens; `C_AUTHZ` refuses a `kid` of `*`.
+`keycloak_pkey_to_jwks` converts an RSA public key to one JWK, an entry of `C_AUTHZ`'s `jwks`. The key is base64-encoded DER, the "Public key" that Keycloak shows for a realm key.
 
 ## Usage
 
@@ -8,4 +8,6 @@ Convert an RSA public key (base64-encoded DER, the "Public key" Keycloak shows f
 keycloak_pkey_to_jwks --iss <issuer> <base64-der-public-key>
 ```
 
-Output is the JWK (JSON) on stdout.
+The tool writes the JWK (JSON) to stdout.
+
+The tool uses the issuer string as the `kid`. Give the issuer (`iss`) of the tokens. `C_AUTHZ` refuses a `kid` of `*`.

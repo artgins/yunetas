@@ -1,5 +1,7 @@
 # modules/c/test
 
-Support GClasses used exclusively by the test suites in `tests/c/`. Enabled with `CONFIG_MODULE_TEST=y`.
+This module holds support GClasses for the test suites in `tests/c/`. To enable it, set `CONFIG_MODULE_TEST=y`.
 
-Provides helper gobjs (fake servers, counters, event dumpers, …) that would otherwise clutter real modules. Nothing here should be linked into production yunos.
+Do not link this module into production yunos.
+
+The module gives helper gobjs, for example fake servers, counters, and event dumpers. These helpers are in this module so that they do not clutter the real modules.

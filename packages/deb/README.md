@@ -1,11 +1,11 @@
 # packages/deb
 
-Debian packaging for the Yuneta Agent. Builds `.deb` packages that install the complete Yuneta runtime — agent binaries, CLI tools, web server, init scripts, kernel tuning, TLS certificate management, and a dedicated `yuneta` system user — under the `/yuneta` hierarchy.
+Debian packaging for the Yuneta Agent. It builds `.deb` packages that install the complete Yuneta runtime under the `/yuneta` hierarchy: agent binaries, CLI tools, web server, init scripts, kernel tuning, TLS certificate management, and a dedicated `yuneta` system user.
 
-> 📦 **RHEL/Rocky/Alma?** The RPM counterpart lives in [`../rpm/`](../rpm/README.md):
-> it stages the same `/yuneta` payload and builds an `.rpm` with `rpmbuild`.
-> See [`../rpm/README.md`](../rpm/README.md) for the RHEL-specific differences
-> (SysV via `chkconfig`, `wheel` group, langpacks, EPEL certbot, and the
+> For RHEL/Rocky/Alma, the RPM counterpart is in [`../rpm/`](../rpm/README.md).
+> It stages the same `/yuneta` payload and builds an `.rpm` with `rpmbuild`.
+> See [`../rpm/README.md`](../rpm/README.md) for the differences on RHEL
+> (SysV through `chkconfig`, `wheel` group, langpacks, EPEL certbot, and the
 > shipped `kernel.io_uring_disabled=0`).
 
 ## Quick Start
@@ -37,7 +37,7 @@ sudo apt install ./dist/yuneta-agent-7.3.4-1-amd64.deb
 | `ARMhf.sh` | ARMv6/v7 hard-float | `armhf` |
 | `RISCV64.sh` | RISC-V 64-bit | `riscv64` |
 
-Each wrapper reads the framework version from `../../YUNETA_VERSION` and the package release number from `../../RELEASE`, then calls `make-yuneta-agent-deb.sh` with the appropriate parameters. All four architectures share the same release counter — bump `RELEASE` once when re-packaging the same framework version.
+Each wrapper reads the framework version from `../../YUNETA_VERSION` and the package release number from `../../RELEASE`. Then it calls `make-yuneta-agent-deb.sh` with the correct parameters. All four architectures share the same release counter. When you package the same framework version again, bump `RELEASE` one time.
 
 ## File Layout
 
@@ -55,7 +55,7 @@ packages/deb/
     └── webserver               <- contents: "nginx" or "openresty"
 ```
 
-**Generated at build time:**
+Generated at build time:
 
 ```
 packages/deb/
@@ -67,7 +67,7 @@ packages/deb/
 
 ### Build Pipeline
 
-1. Architecture wrapper (`AMD64.sh`, etc.) parses `YUNETA_VERSION` and calls `make-yuneta-agent-deb.sh`
+1. Architecture wrapper (`AMD64.sh` and the others) parses `YUNETA_VERSION` and calls `make-yuneta-agent-deb.sh`
 2. Main script resolves `YUNETAS_BASE` (from env var or `/yuneta/development/yunetas`)
 3. Creates a fresh staging tree under `./build/deb/<arch>/`
 4. Copies pre-built binaries from `/yuneta/bin/` and `/yuneta/agent/`
@@ -81,18 +81,18 @@ packages/deb/
 
 - All yunetas binaries must be pre-built (`yunetas build`)
 - `YUNETAS_BASE` env var must be set (or `/yuneta/development/yunetas` must exist)
-- Wrapper scripts **must be executed from this directory** (`cd packages/deb/`)
+- You must execute the wrapper scripts from this directory (`cd packages/deb/`)
 
 ## It refuses a node that builds from source
 
 `preinst` aborts the install when `/yuneta/development/yunetas` holds the sources
-(`kernel/` and `.git`). The package carries artefacts built on another machine
-and lays them into the tree `yunetas build` owns (`outputs/`, `outputs_ext/`),
-so fresh objects would link against archives from a **different glibc** — and a
-static link takes those silently and corrupts the heap at run time.
+(`kernel/` and `.git`). The package carries artifacts built on another machine.
+It puts them into the tree that `yunetas build` owns (`outputs/`, `outputs_ext/`).
+Thus new objects link against archives from a different glibc. A static link
+accepts those archives silently and corrupts the heap at run time.
 
-It is a refusal, not a warning, so it has to be a decision somebody took rather
-than something an install did to a build node on its way past. To go ahead:
+It is a refusal, not a warning. Thus somebody must take the decision, and an
+install cannot take it for a build node in passing. To go ahead:
 
 ```bash
 sudo YUNETAS_FORCE_OVER_SOURCE=1 apt install ./<package>
@@ -100,37 +100,38 @@ sudo YUNETAS_FORCE_OVER_SOURCE=1 apt install ./<package>
 sudo touch /etc/yuneta/allow-package-over-source
 ```
 
-Then **rebuild everything on that node, external libraries first**
+Then rebuild everything on that node, external libraries first
 (`kernel/c/linux-ext-libs`: `extrae.sh` + `configure-libs.sh`, then
-`yunetas init` and `yunetas clean && yunetas build`). Rebuilding only the SDK
-leaves the packaged externals in place — the same mismatch by a shorter road.
+`yunetas init` and `yunetas clean && yunetas build`). If you rebuild only the
+SDK, the packaged externals stay in place. That is the same mismatch by a
+shorter road.
 
 ## What the .deb Installation Does
 
-When you run `sudo apt install ./yuneta-agent-*.deb`, the following happens step by step:
+When you run `sudo apt install ./yuneta-agent-*.deb`, these steps occur, in order:
 
 ### 1. File Extraction
 
-The package manager extracts the full `/yuneta/` tree, configuration files under `/etc/`, and the `/var/crash/` directory onto the filesystem. No existing configuration file is overwritten: those under `/etc/` are marked as `conffiles`, and the web server configuration — which lives outside `/etc/`, where `conffiles` cannot reach — is simply **not shipped** (see below).
+The package manager extracts the full `/yuneta/` tree, the configuration files under `/etc/`, and the `/var/crash/` directory onto the filesystem. It overwrites no existing configuration file. The files under `/etc/` are marked as `conffiles`. The web server configuration is outside `/etc/`, where `conffiles` cannot reach it, so the package does not ship it (see below).
 
 ### 2. Post-Installation Script (`postinst`)
 
-The `postinst` script runs automatically after file extraction and performs these actions **in order**:
+The `postinst` script runs automatically after file extraction. It does these actions, in order:
 
 #### 2.1. User and Group Setup
-- **Creates the `yuneta` login user** (if it doesn't exist) with:
+- Creates the `yuneta` login user (if it does not exist) with:
   - Home directory: `/home/yuneta`
   - Shell: `/bin/bash`
   - UID >= 1000 (non-system user, regular login)
   - Disabled password (SSH key or sudo access)
-- **Adds `yuneta` to system groups**: `adm`, `sudo`, `tty`, `dialout`, `cdrom`, `audio`, `video`, `plugdev`, `netdev`, `render`, `input`, `gpio`, `i2c`, `spi`, `uucp`, `wireshark`, `bluetooth`, `scanner`, `lp`, `lpadmin`, `sambashare`, `docker`, `libvirt`, `kvm`, `lxd`
-  - Missing groups are silently skipped (override with `YUNETA_CREATE_MISSING_GROUPS=1`)
-  - Override group list with `YUNETA_GROUPS` env var
+- Adds `yuneta` to these system groups: `adm`, `sudo`, `tty`, `dialout`, `cdrom`, `audio`, `video`, `plugdev`, `netdev`, `render`, `input`, `gpio`, `i2c`, `spi`, `uucp`, `wireshark`, `bluetooth`, `scanner`, `lp`, `lpadmin`, `sambashare`, `docker`, `libvirt`, `kvm`, `lxd`
+  - Missing groups are skipped silently (override with `YUNETA_CREATE_MISSING_GROUPS=1`)
+  - To change the group list, set the `YUNETA_GROUPS` env var
 
 #### 2.2. Agent Configuration
-- Creates `/yuneta/agent/yuneta_agent.json` from the bundled `.sample` file (only if the file doesn't already exist)
-- Creates `/yuneta/agent/yuneta_agent22.json` from the bundled `.sample` file (only if the file doesn't already exist)
-- Existing configuration files are **never** overwritten on upgrade
+- Creates `/yuneta/agent/yuneta_agent.json` from the bundled `.sample` file (only if the file does not exist yet)
+- Creates `/yuneta/agent/yuneta_agent22.json` from the bundled `.sample` file (only if the file does not exist yet)
+- An upgrade never overwrites existing configuration files
 
 #### 2.3. Locale Configuration
 - Enables `en_US.UTF-8` and `es_ES.UTF-8` in `/etc/locale.gen`
@@ -138,126 +139,128 @@ The `postinst` script runs automatically after file extraction and performs thes
 
 #### 2.4. Ownership and Permissions
 - Sets `/yuneta/` tree ownership recursively to `yuneta:yuneta`
-- Sets `/yuneta/store/certs/private/` to mode `0700` (only owner can access private keys)
-- Sets `/var/crash/` to mode `0775` with group `yuneta` (for core dumps), and
-  installs `/usr/lib/tmpfiles.d/yuneta-crash.conf` so systemd re-applies it on
-  every boot. `/var/crash` can be co-owned by another package (kdump's
-  `kexec-tools` declares it `root:root 0755`), and a one-shot postinst fix
-  holds only until that package's next transaction — after which cores stop
-  being written with no diagnostic.
+- Sets `/yuneta/store/certs/private/` to mode `0700` (only the owner can access private keys)
+- Sets `/var/crash/` to mode `0775` with group `yuneta` (for core dumps). It
+  also installs `/usr/lib/tmpfiles.d/yuneta-crash.conf`, so systemd applies it
+  again on every boot. Another package can co-own `/var/crash` (`kexec-tools`
+  of kdump declares it `root:root 0755`). A one-shot postinst fix holds only
+  until the next transaction of that package. After that, cores stop being
+  written, with no diagnostic.
 
-- **Disables `apport`** (`enabled=0` in `/etc/default/apport` +
-  `systemctl disable --now`). It is Ubuntu's crash-telemetry client: it exists
-  to ship deduplicated reports to `errors.ubuntu.com`, and it discards crashes
-  of binaries outside its packaging allowlist (`/yuneta` is not on it), so on a
-  Yuneta node it only costs us core dumps. Note `apport --stop` leaves
-  `core_pattern` as the bare word `core` (dumps land in the crashing process's
-  CWD), so the installer re-applies the sysctl **after** stopping it.
-- Installs and enables `yuneta-core-pattern.service`, which re-applies
-  `kernel.core_pattern` **after** `apport.service` — a backstop in case an
-  apport upgrade re-enables itself. On Ubuntu apport takes that
-  sysctl over at every boot and discards cores of non-distro binaries, so
-  without this the yunos silently stop producing core dumps after the first
-  reboot. Verify with `cat /proc/sys/kernel/core_pattern` — a value starting
-  with `|` means a crash handler owns it.
+- Disables `apport` (`enabled=0` in `/etc/default/apport` +
+  `systemctl disable --now`). It is the crash-telemetry client of Ubuntu. It
+  exists to ship deduplicated reports to `errors.ubuntu.com`. It discards
+  crashes of binaries outside its packaging allowlist (`/yuneta` is not on it).
+  Thus, on a Yuneta node, it only costs us core dumps. Note that
+  `apport --stop` leaves `core_pattern` as the bare word `core` (dumps land in
+  the CWD of the crashing process). Thus the installer applies the sysctl
+  again after it stops apport.
+- Installs and enables `yuneta-core-pattern.service`, which applies
+  `kernel.core_pattern` again after `apport.service`. It is a backstop in case
+  an apport upgrade enables apport again. On Ubuntu, apport takes that sysctl
+  over at every boot and discards the cores of non-distro binaries. Without
+  this service, the yunos silently stop producing core dumps after the first
+  reboot. To make sure, run `cat /proc/sys/kernel/core_pattern`. A value that
+  starts with `|` means that a crash handler owns it.
 
 #### 2.5. Kernel Parameter Tuning
 - Applies `/etc/sysctl.d/99-yuneta-core.conf` via `sysctl --system`
 
 #### 2.5bis. sshd is left alone
-- The package does **not** touch sshd or fail2ban's `sshd` jail. How sshd
-  behaves is the policy of whoever runs the node, and the package may be
-  installed on a node of another company. 7.20.0-3 shipped a flood drop-in
-  here; it left the package in the next one.
-- The same measures are scripts an operator runs by hand, shipped at
+- The package does not touch sshd or the `sshd` jail of fail2ban. The
+  behavior of sshd is the policy of the operator of the node, and the package
+  can be installed on a node of another company. 7.20.0-3 shipped a flood
+  drop-in here. The next release removed it from the package.
+- The same measures are scripts that an operator runs by hand, shipped at
   `/yuneta/development/yunetas/tools/sshd/`: `audit-sshd.sh`,
   `install-sshd-flood-guard.sh`, `install-fail2ban-sshd-jail.sh`,
   `stop-sshd.sh`, `start-sshd.sh`. See [`tools/README.md`](../../tools/README.md).
 
 #### 2.6. SSH Keys (Optional)
-- If `/etc/yuneta/authorized_keys` exists (bundled at build time), installs it to `/home/yuneta/.ssh/authorized_keys` with proper permissions (directory `0700`, file `0600`)
+- If `/etc/yuneta/authorized_keys` exists (bundled at build time), the script installs it to `/home/yuneta/.ssh/authorized_keys` with the correct permissions (directory `0700`, file `0600`)
 
 #### 2.7. Syslog Setup
-- Enables and starts `rsyslog` to ensure `/var/log/syslog` is available
+- Enables and starts `rsyslog`, to make `/var/log/syslog` available
 
 #### 2.8. The agents' services
 - Installs the systemd units `/usr/lib/systemd/system/yuneta_agent.service`
-  and `yuneta_agent22.service` (from `packages/templates/`), enables both, and
-  on `configure`/`reconfigure` **restarts** them: the main agent first, agent22
-  only once it runs, so both are never down. A restart, not a start: an agent
-  the SysV script started left its generated unit `active (exited)`, where a
-  start does nothing; and a restart moves an agent22 running outside its unit
-  into it. The units' own comments say why each line is there
-  (`Type=forking` + the watcher's `--pid-file`, `KillMode=process`,
+  and `yuneta_agent22.service` (from `packages/templates/`), and enables both.
+  On `configure`/`reconfigure`, it restarts them: the main agent first, and
+  agent22 only when the main agent runs. Thus both are never down at the same
+  time. It is a restart, not a start, for two reasons. An agent that the SysV
+  script started left its generated unit `active (exited)`, and there a start
+  does nothing. Also, a restart moves an agent22 that runs outside its unit
+  into it. The comments of the units tell why each line is there
+  (`Type=forking` + the `--pid-file` of the watcher, `KillMode=process`,
   `Restart=no`).
-- `yuneta_agent.service` has the name of the SysV script, so under systemd it
-  replaces the unit generated from `/etc/init.d/yuneta_agent`. The script is
+- `yuneta_agent.service` has the name of the SysV script. Thus, under systemd,
+  it replaces the unit generated from `/etc/init.d/yuneta_agent`. The script is
   still installed (with its `update-rc.d` links) for an init that is not
-  systemd. Up to 7.25.21 it was the only service, agent22 had no unit, and an
+  systemd. Up to 7.25.21 it was the only service, and agent22 had no unit. An
   agent started outside it was invisible to `systemctl`.
 
 #### 2.8bis. Web server service
 
 - Installs `/usr/lib/systemd/system/yuneta-webserver.service` and
   `/yuneta/bin/yuneta-webserver`, and enables and starts the unit.
-- **The web server is no longer started by the init script.** It used to be:
+- The init script no longer starts the web server. Before,
   `/etc/init.d/yuneta_agent` ran nginx and let it daemonize, so nothing owned
   the process afterwards. A later `start` found nothing to look at and tried
-  again, and the second master died with *"Address already in use"* while the
+  again. The second master died with *"Address already in use"*, while the
   first one kept serving.
-- The unit runs the server with `daemon off`, so `$MAINPID` is the real master
+- The unit runs the server with `daemon off`, so `$MAINPID` is the real master,
   and stop and reload reach it. `systemctl reload` sends HUP, which reloads the
-  configuration. Reopening the log files is USR1 and stays where it was, in the
-  `postrotate` of `/etc/logrotate.d/yuneta`.
-- On upgrade the scriptlet asks the old, daemonized server to finish before it
-  starts the unit, because the unit cannot take `:80` and `:443` while the old
-  master holds them. **That is a short interruption of the node's web server,
-  at upgrade time only.**
+  configuration. The signal to reopen the log files is USR1. It stays where it
+  was, in the `postrotate` of `/etc/logrotate.d/yuneta`.
+- On upgrade, the scriptlet asks the old, daemonized server to finish before it
+  starts the unit. The reason is that the unit cannot take `:80` and `:443`
+  while the old master holds them. That is a short interruption of the web
+  server of the node, at upgrade time only.
 
 #### 2.9. PAM Limits
 - Adds `session required pam_limits.so` to `/etc/pam.d/common-session` and `/etc/pam.d/common-session-noninteractive` (if not already present)
 
 #### 2.10. Reboot
-- **The installer never reboots**, in either mode. The kernel tuning is applied
-  live with `sysctl --system`, so a reboot is not needed to run. It only writes
-  the `/run/reboot-required` flag and recommends one, to verify that the agent
-  comes up at boot.
-- This paragraph used to say a non-interactive install reboots automatically.
-  It has not been true since the auto-reboot was removed, and reading it before
-  installing on a client's node is a bad minute to have.
+- The installer never reboots, in either mode. It applies the kernel tuning
+  live with `sysctl --system`, so the node does not need a reboot to run. It
+  only writes the `/run/reboot-required` flag and recommends a reboot, to make
+  sure that the agent comes up at boot.
+- Before, this paragraph said that a non-interactive install reboots
+  automatically. That is not true since the removal of the auto-reboot. To read
+  it before an install on the node of a client is a bad minute to have.
 
 ### The node's web server choice
 
-`/etc/yuneta/webserver` holds one word, `nginx` or `openresty`, and it is
-**node state, not package content**. Neither package ships it.
+`/etc/yuneta/webserver` holds one word, `nginx` or `openresty`. It is
+node state, not package content. Neither package ships it.
 
-The reason is the one nginx.conf taught in 7.9.1: the file the package would
-ship carries the BUILD machine's choice, and the build machine has none, so it
-ships `nginx`. On 7.11.0 that pushed `nginx` onto two nodes that run openresty,
-and both came back up serving from the wrong tree with a default
+The reason is the lesson of nginx.conf in 7.9.1. A file that the package ships
+carries the choice of the BUILD machine. The build machine has no choice, so
+the file says `nginx`. On 7.11.0 that pushed `nginx` onto two nodes that run
+openresty. Both came back up and served from the wrong tree with a default
 configuration.
 
-The handling is the same as nginx.conf, and symmetric between the two
-flavours:
+The handling is the same as for nginx.conf, and it is symmetric between the two
+flavors:
 
 | Step | What happens |
 |---|---|
 | `preinst` / `%pre` | Copies the node's value to `/etc/yuneta/webserver.pkgsave` |
 | unpack | A file the package no longer provides is removed by the package manager |
-| `postinst` / `%posttrans` | Absent → restore from `.pkgsave`; no `.pkgsave` → seed the build default; present → leave it alone |
+| `postinst` / `%posttrans` | Absent → restore from `.pkgsave`. No `.pkgsave` → seed the build default. Present → leave it alone |
 
-So a node that already chose keeps its choice, and only a node that never had
+Thus a node that already chose keeps its choice. Only a node that never had
 one gets a default.
 
 ### 3. Package Removal
 
-- **`prerm`**: on an upgrade, stops the main agent only (agent22 stays up). On a removal, stops and disables every unit the package brought -- both agents, `yuneta-webserver.service`, `yuneta-core-pattern.service` -- inline: by `postrm` the package's files are gone (up to 7.25.21 this was done from `postrm` through a script of the package, which no longer existed, so agent22 kept running from a deleted binary)
-- **`postrm remove`**: Removes SysV runlevel symlinks (keeps conffiles) and reloads systemd
-- **`postrm purge`**: Also deletes `/etc/init.d/yuneta_agent`
+- `prerm`: on an upgrade, it stops the main agent only (agent22 stays up). On a removal, it stops and disables every unit that the package brought: both agents, `yuneta-webserver.service`, `yuneta-core-pattern.service`. It does this inline, because by `postrm` the files of the package are gone. Up to 7.25.21, `postrm` did this through a script of the package, which no longer existed, so agent22 kept running from a deleted binary.
+- `postrm remove`: Removes SysV runlevel symlinks (keeps conffiles) and reloads systemd
+- `postrm purge`: Also deletes `/etc/init.d/yuneta_agent`
 
 ### 4. Configuration Files Preserved on Upgrade
 
-These files are marked as `conffiles` and will not be overwritten on upgrade:
+These files are marked as `conffiles`, and an upgrade does not overwrite them:
 - `/etc/profile.d/yuneta.sh`
 - `/etc/sudoers.d/90-yuneta`
 - `/etc/init.d/yuneta_agent`
@@ -266,31 +269,31 @@ These files are marked as `conffiles` and will not be overwritten on upgrade:
 - `/etc/yuneta/webserver` (if bundled)
 
 The web server configuration is preserved by a different mechanism, because it
-lives under `/yuneta/bin/`, where `conffiles` does not apply (and where the
-`.rpm` cannot tag it either: `%files` lists `/yuneta` as a directory, so
-rpmbuild rejects a second entry for a file inside it). These are **stripped
-from the payload** instead — a file the package does not contain cannot be
-replaced:
+is under `/yuneta/bin/`, where `conffiles` does not apply. The `.rpm` cannot
+tag it either: `%files` lists `/yuneta` as a directory, so rpmbuild rejects a
+second entry for a file inside it. Instead, these files are stripped from the
+payload. The package cannot replace a file that it does not contain:
 
 - `/yuneta/bin/nginx/conf/nginx.conf` and `conf/conf.d/`
 - `/yuneta/bin/openresty/nginx/conf/nginx.conf` and `conf/conf.d/`
 
-Not shipping them is only half the job, though: **dpkg deletes files that an
-upgrade no longer provides**, so upgrading from a package that still owned
-`nginx.conf` (7.9.0 or older) would remove it. Since 7.9.2 `preinst` copies it
-to `nginx.conf.pkgsave` before the unpack, and `postinst` restores from that
-copy.
+But not to ship them is only half the job. dpkg deletes files that an upgrade
+no longer provides. Thus an upgrade from a package that still owned
+`nginx.conf` (7.9.0 or older) removes it, if nothing keeps a copy. Since 7.9.2,
+`preinst` copies it to `nginx.conf.pkgsave` before the unpack, and `postinst`
+restores from that copy.
 
-So `postinst` picks, in order:
+Thus `postinst` picks, in order:
 
 1. `nginx.conf` already there → leave it alone.
-2. `nginx.conf.pkgsave` → restore the node's own config (an upgrade that
-   dropped it).
+2. `nginx.conf.pkgsave` → restore the configuration of the node (an upgrade
+   that dropped it).
 3. `nginx.conf.default` → seed a first install.
 
-It also creates `conf.d/` when missing. Until 7.9.1 the package carried the
-build machine's copies and overwrote the node's on every upgrade; 7.9.1 fixed
-the overwrite but deleted the file on the way, which is what 7.9.2 fixes.
+It also creates `conf.d/` when it is missing. Until 7.9.1 the package carried
+the copies of the build machine and overwrote the copies of the node on every
+upgrade. 7.9.1 fixed the overwrite but deleted the file on the way, and 7.9.2
+fixes that.
 
 ## Installed Filesystem Layout
 
@@ -305,8 +308,8 @@ The `.deb` installs the following tree:
 │   └── skeletons/                       <- project/gclass skeleton templates
 ├── agent/                               <- agent binaries + configs
 │   ├── yuneta_agent                     <- main agent binary
-│   ├── yuneta_agent22                   <- agent variant (port 22)
-│   ├── yuneta_agent44                   <- agent variant (port 44)
+│   ├── yuneta_agent22                   <- secondary agent (yuno_agent22)
+│   ├── yuneta_agent44                   <- agent22 variant (main44.c)
 │   ├── yuneta_agent.json                <- agent config (created by postinst)
 │   ├── yuneta_agent22.json              <- agent22 config (created by postinst)
 │   └── service/                         <- service management helpers
@@ -385,21 +388,21 @@ The `.deb` installs the following tree:
 | `yuneta_agent22` | Agent listening on port 22 |
 | `yuneta_agent44` | Agent listening on port 44 |
 
-Each agent has a corresponding `.json` configuration file generated on first install by `postinst`.
+Each agent has a corresponding `.json` configuration file, which `postinst` generates on the first install.
 
 ## Service Management Helper Scripts
 
 | Script | Location | Purpose |
 |--------|----------|---------|
-| `install-yuneta-service.sh` | `/yuneta/agent/service/` | Replace an `/etc/init.d/yuneta_agent` that differs (the old one kept as `yuneta_agent.<date>.bak`, not executable); enable and restart both agents' systemd units where `yuneta_agent.service` exists (exit 1 when a restart fails); otherwise install, enable and start the SysV init script |
-| `remove-yuneta-service.sh` | `/yuneta/agent/service/` | Disable and stop both agents' units and the web server's, stop the SysV service and remove its runlevel symlinks (the init script stays: it is a conffile) |
-| `restart-yuneta` | `/yuneta/bin/` | Restart the Yuneta stack (prefers `service`, falls back to `yshutdown` + direct start) |
-| `install-certbot.sh` | `/yuneta/bin/` | Install certbot via snap; symlink to `/usr/bin/certbot` |
+| `install-yuneta-service.sh` | `/yuneta/agent/service/` | Replace an `/etc/init.d/yuneta_agent` that differs (the old one kept as `yuneta_agent.<date>.bak`, not executable). Where `yuneta_agent.service` exists, enable and restart the systemd units of both agents (exit 1 when a restart fails). If not, install, enable and start the SysV init script |
+| `remove-yuneta-service.sh` | `/yuneta/agent/service/` | Disable and stop the units of both agents and the unit of the web server. Stop the SysV service and remove its runlevel symlinks (the init script stays: it is a conffile) |
+| `restart-yuneta` | `/yuneta/bin/` | Restart the Yuneta stack (`service` first, if not available `yshutdown` + direct start) |
+| `install-certbot.sh` | `/yuneta/bin/` | Install certbot through snap, and symlink it to `/usr/bin/certbot` |
 | `install-yuneta-dev-deps.sh` | `/yuneta/bin/` | Install full build toolchain (gcc, cmake, libs, gh, pipx packages) |
 | `check-certs-validity.sh` | `/yuneta/bin/` | Scan `*.crt` files and show expiry status |
 | `copy-certs.sh` | `/yuneta/store/certs/` | Copy Let's Encrypt certificates from `/etc/letsencrypt/live/` to `/yuneta/store/certs/` |
 | `colas2.sh` | `/yuneta/bin/` | Scan and list two-level message queue directories |
-| `yuneta-node-uuid` | `/usr/libexec/yuneta/` | Write the node uuid (`/yuneta/store/agent/uuid/uuid.json`) as a function of the machine: from the chip on a box that has an identifier burned into it (SoC serial, devicetree `serial-number`), from the DMI uuid AND the lowest permanent on-board MAC on any other machine (x86, a VM): the same after a reinstall, never shared by two machines. Started as root by the `postinst`, by both agent units (`ExecStartPre=-+`) and by the SysV start; it reads the hardware as root and drops to `yuneta` for the files. A stored uuid that the hardware no longer gives is replaced (a copy kept), unless something is only missing at that start; in a container it is random (the `/sys` there is the host's) and belongs to the container's hostname, and the `postinst` (`ensure --installing`, exit 3) stores none there and, without systemd, does not start the agents, so an image built with the package carries no uuid. A chroot (`/` is not the root of PID 1, or no `/proc`: an image built over an exported or a debootstrapped rootfs) is treated as a container. Two copies with the same hostname and the same stored uuid share it (an image committed from a container that has one): delete `uuid.json` before a `docker commit` / `docker export`. Anything out of the initial pid namespace is a container, marker file or not (a BuildKit `RUN` step, containerd), and so is a `--pid=host` container (Toolbx, distrobox): `/` is not the root of PID 1, or, where PID 1's root cannot be looked at (Docker's root has no `CAP_SYS_PTRACE`, Toolbx's is in a user namespace, a security module can refuse any root), the mount on `/` is not PID 1's (`/proc/1/mountinfo`). A root without `CAP_SYS_PTRACE` on the box itself has PID 1's mount on `/` and reads the hardware. Where `/proc/1/mountinfo` cannot be read either, a root in a user namespace or without `CAP_SYS_PTRACE` is a container. A board written from a `docker export` keeps `/.dockerenv`, which counts only out of the initial pid namespace; in the initial one only what this boot made counts (PID 1's `container=`, and `/run/systemd/container` -- which an Ubuntu image ships with `docker` -- or `/run/host/container-manager` only on a tmpfs `/run`; of `systemd-detect-virt` only `wsl`, `openvz` and `proot`): it reads its hardware, and with none it gets a new random uuid, not the container's. `show` tells the source, `set <uuid>` pins one by hand, `unset` goes back to the hardware's. After a change, restart both agents and every yuno: they read it once, when they start. Root-owned and outside `/yuneta` on purpose: root runs it |
+| `yuneta-node-uuid` | `/usr/libexec/yuneta/` | Write the node uuid (`/yuneta/store/agent/uuid/uuid.json`) as a function of the machine. On a box that has an identifier burned into it (SoC serial, devicetree `serial-number`), the source is the chip. On any other machine (x86, a VM), the source is the DMI uuid AND the lowest permanent on-board MAC. The uuid is the same after a reinstall, and two machines never share it. The `postinst`, both agent units (`ExecStartPre=-+`) and the SysV start run it as root. It reads the hardware as root and drops to `yuneta` for the files. If the hardware no longer gives a stored uuid, the tool replaces it (and keeps a copy), unless something is only missing at that start. In a container the uuid is random (the `/sys` there is the host's), and it belongs to the hostname of the container. There, the `postinst` (`ensure --installing`, exit 3) stores no uuid and, without systemd, does not start the agents. Thus an image built with the package carries no uuid. A chroot (`/` is not the root of PID 1, or no `/proc`: an image built over an exported or a debootstrapped rootfs) is treated as a container. Two copies with the same hostname and the same stored uuid share it (an image committed from a container that has one). Thus delete `uuid.json` before a `docker commit` / `docker export`. Anything out of the initial pid namespace is a container, with or without a marker file (a BuildKit `RUN` step, containerd). So is a `--pid=host` container (Toolbx, distrobox). The test is that `/` is not the root of PID 1. Where the tool cannot look at the root of PID 1, the test is that the mount on `/` is not the mount of PID 1 (`/proc/1/mountinfo`). That happens when the root of Docker has no `CAP_SYS_PTRACE`, when the root of Toolbx is in a user namespace, or when a security module refuses any root. A root without `CAP_SYS_PTRACE` on the box itself has the mount of PID 1 on `/` and reads the hardware. Where the tool cannot read `/proc/1/mountinfo` either, a root in a user namespace or without `CAP_SYS_PTRACE` is a container. A board written from a `docker export` keeps `/.dockerenv`, which counts only out of the initial pid namespace. In the initial namespace, only what this boot made counts: the `container=` of PID 1, `/run/systemd/container` (an Ubuntu image ships it with `docker`) or `/run/host/container-manager` only on a tmpfs `/run`, and of `systemd-detect-virt` only `wsl`, `openvz` and `proot`. Such a board reads its hardware. With no identifier there, it gets a new random uuid, not the uuid of the container. `show` tells the source, `set <uuid>` pins one by hand, `unset` goes back to the uuid of the hardware. After a change, restart both agents and every yuno, because they read it one time, when they start. The tool is root-owned and outside `/yuneta` on purpose, because root runs it |
 
 ## System Configuration
 
@@ -420,27 +423,27 @@ Each agent has a corresponding `.json` configuration file generated on first ins
 | `yuneta` | soft/hard | nofile | unlimited |
 | `yuneta` | soft/hard | memlock | unlimited |
 
-`nofile unlimited` is not infinite: Linux refuses that for open files, and
-pam_limits gives `fs.nr_open` instead (4000000, see the sysctl table above).
-Do not set a number of your own in a shell startup file: `ulimit -n N` sets the
-HARD limit too, and a user process can never raise it again, so that shell and
-every agent or yuno started from it stays at N.
+`nofile unlimited` is not infinite. Linux refuses that value for open files,
+and pam_limits gives `fs.nr_open` instead (4000000, see the sysctl table above).
+Do not set a number of your own in a shell startup file. `ulimit -n N` also
+sets the HARD limit, and a user process can never raise it again. Thus that
+shell, and every agent or yuno started from it, stays at N.
 
 `memlock` is not optional. io_uring rings are pinned memory charged against
-`RLIMIT_MEMLOCK`, and the budget is **per user**, shared by every yuno running
+`RLIMIT_MEMLOCK`. The budget is for each user, shared by every yuno that runs
 as `yuneta`. A yuno with `io_uring_entries=32768` pins ~3.1 MB (SQEs
-`32768*64` + CQEs `65536*16` + SQ array), so the usual 8 MB default admits only
-two of them: from the third yuno on, `yev_loop_create()` fails with `ENOMEM`,
-the yuno aborts at startup and the ydaemon watcher relaunches it indefinitely.
-The symptom is a node with gigabytes of free RAM whose yunos die of "out of
-memory" — it is a limit, never a shortage.
+`32768*64` + CQEs `65536*16` + SQ array). Thus the usual 8 MB default admits
+only two of them. From the third yuno on, `yev_loop_create()` fails with
+`ENOMEM`, the yuno aborts at startup, and the ydaemon watcher relaunches it
+indefinitely. The symptom is a node with gigabytes of free RAM whose yunos die
+of "out of memory". It is a limit, never a shortage.
 
 ### Log Rotation (`/etc/logrotate.d/yuneta`)
 
-nginx has no rotation of its own. It only knows how to reopen its files when it
-gets `USR1`, so without this drop-in `access.log` and `error.log` grow for the
-life of the node. When it was added, no log had ever been rotated on any node;
-the busiest one was writing 3.5 MB a day.
+nginx has no rotation of its own. It only reopens its files when it gets
+`USR1`. Thus, without this drop-in, `access.log` and `error.log` grow for the
+life of the node. When the drop-in was added, no node had ever rotated a log.
+The busiest node wrote 3.5 MB a day.
 
 | Path | Period | Keeps |
 |------|--------|-------|
@@ -448,77 +451,77 @@ the busiest one was writing 3.5 MB a day.
 | `/yuneta/bin/openresty/nginx/logs/*.log` | daily | 30, compressed |
 | `/var/log/yuneta/*.log` | monthly | 12, compressed |
 
-Both web server trees are listed. A node runs one or the other — the choice is
-in `/etc/yuneta/webserver` — and `missingok` covers the tree that is absent.
+Both web server trees are listed. A node runs one or the other (the choice is
+in `/etc/yuneta/webserver`), and `missingok` covers the tree that is absent.
 The `postrotate` reads each `nginx.pid` and sends `USR1` only to a live
-process named `nginx` (asked through `/proc/<pid>/comm`), so a stale pid file
+process named `nginx` (asked through `/proc/<pid>/comm`). Thus a stale pid file
 cannot make it signal an unrelated process. When it finds no live master, it
-says so in the logrotate output (the journal of `logrotate.service`) instead of
-skipping in silence.
+writes that in the logrotate output (the journal of `logrotate.service`), and
+it does not skip in silence.
 
-It does **not** use `kill -0` for that check, and the reason is RHEL/Rocky.
-logrotate runs there in the SELinux domain `logrotate_t`, which may send the
-master `USR1` (`signal`) but not the null signal (`signull`), and the policy
-does not even audit that denial: no AVC appears unless the `dontaudit` rules
-are switched off (`semodule -DB`). The first version guarded the signal with
-`if kill -0 "$pid" 2>/dev/null`, so on a Rocky 9 test node the signal was
-skipped every night, the service still ended "successfully", and nginx went
-on writing to the rotated `access.log.1` until the next restart of the web
-server. The symptom is a live file that does not grow while the `.1` does;
-the `webstats` yuno warns about exactly that (*"Log rotation STALLED"*). To
-check a node after the nightly rotation:
+It does not use `kill -0` for that check, and the reason is RHEL/Rocky. There,
+logrotate runs in the SELinux domain `logrotate_t`. That domain can send the
+master `USR1` (`signal`), but not the null signal (`signull`). The policy does
+not even audit that denial: no AVC appears unless the `dontaudit` rules are
+switched off (`semodule -DB`). The first version guarded the signal with
+`if kill -0 "$pid" 2>/dev/null`. Thus, on a Rocky 9 test node, the signal was
+skipped every night, and the service still ended "successfully". nginx
+continued to write to the rotated `access.log.1` until the next restart of the
+web server. The symptom is a live file that does not grow while the `.1` does.
+The `webstats` yuno warns about exactly that (*"Log rotation STALLED"*). To
+examine a node after the nightly rotation, run:
 
 ```bash
 ls -l --time-style=+%F_%T /yuneta/bin/nginx/logs/access.log /yuneta/bin/nginx/logs/access.log.1
 # the live access.log must be the one with the newest mtime
 ```
 
-The **yunos do not rotate here**. Each one writes numbered files under
+The yunos do not rotate here. Each one writes numbered files under
 `/yuneta/realms/<realm>/<yuno>/logs/` and rotates them itself.
 
-The package `Depends` on `logrotate` (`Requires` on RPM) and the drop-in is a
-conffile, so a node that edits it keeps its version across upgrades.
+The package `Depends` on `logrotate` (`Requires` on RPM), and the drop-in is a
+conffile. Thus a node that edits it keeps its version across upgrades.
 
 The owner of the log can change on the first rotation, and that is correct.
-`create` gives the new file the owner of the old one, and then nginx reopens it
-and hands it to the `user` of its own config so the workers can write.
+`create` gives the new file the owner of the old one. Then nginx reopens it and
+gives it to the `user` of its own configuration, so that the workers can write.
 Measured on the openresty nodes: logrotate leaves `root:root`, and after the
 `USR1` the file is `yuneta:root`.
 
 ### Intrusion Banning (`/etc/fail2ban/`)
 
 Two files: the filter `filter.d/yuneta-nginx-probe.conf` and the jails
-`jail.d/yuneta-nginx.conf`. `fail2ban` is a `Recommends` (`Requires` on RPM
-would be too strong for a package that also runs on nodes with no web server).
+`jail.d/yuneta-nginx.conf`. `fail2ban` is a `Recommends`. A `Requires` on RPM
+is too strong for a package that also runs on nodes with no web server.
 
 The filter does not ban on 404s. Search engines collect 404s honestly all day,
-and a rate rule would ban Googlebot before it banned anybody worth banning. It
-bans on **what was asked for**: any `.php` path (no node runs PHP), the
+and a rate rule bans Googlebot before it bans anybody worth banning. It
+bans on what was asked for: any `.php` path (no node runs PHP), the
 dot-directories that hold source control or credentials (`.env`, `.git`,
 `.aws`, `.ssh`, `.svn`, `.hg`), and the WordPress surface `/wp-*`. Measured
-against 15 days of one node's `access.log`: 52 383 matching lines from 972
+against 15 days of the `access.log` of one node: 52 383 matching lines from 972
 addresses, and not one of them was a real crawler or another node of the fleet.
 
-**The response status is not looked at, and that took a fresh node to learn.**
-The first version matched only 404, 403 and 444, reasoning that a path some app
-really serves would stop matching once it answered 200. That holds for a static
-site and collapses on a SPA: with `try_files $uri $uri/ /index.html` every
-unknown path answers **200** with `index.html`, so `/wp-login.php` came back 200
-and the filter never fired. On a node serving static sites too, the same
-restriction hid 606 more lines in a single day: probes answered 301 by the
-http→https redirect, and probes answered 200 by a SPA. Dropping the status costs
-nothing, because these paths cannot be legitimate on a Yuneta node.
+The filter does not look at the response status, and a fresh node taught that.
+The first version matched only 404, 403 and 444. The reason was that a path
+that some app really serves stops matching when it answers 200. That holds for
+a static site and fails on a SPA. With `try_files $uri $uri/ /index.html`,
+every unknown path answers 200 with `index.html`. Thus `/wp-login.php` came
+back 200, and the filter never fired. On a node that also serves static sites,
+the same restriction hid 606 more lines in a single day: probes answered 301 by
+the http→https redirect, and probes answered 200 by a SPA. To drop the status
+costs nothing, because these paths cannot be legitimate on a Yuneta node.
 
 Several hundred of those lines carry the user agent of Googlebot, GPTBot or
-ClaudeBot. Every one is an impostor — the addresses reverse to
+ClaudeBot. Every one is an impostor. The addresses reverse to
 `googleusercontent.com` and to Cloudflare, and the real Googlebot does not ask
-for `/.env.backup`. Banning them is the point.
+for `/.env.backup`. To ban them is the purpose.
 
-**Both jails ship disabled.** If none of a jail's `logpath` globs resolves to a
-file, fail2ban does not skip the jail: it refuses to configure and the whole
-server exits 255, taking every other jail with it, `sshd` included. A node with
-this package whose web server has not run yet is exactly that case. Enable them
-once `access.log` exists:
+Both jails ship disabled. If none of the `logpath` globs of a jail resolves to
+a file, fail2ban does not skip the jail. It refuses to configure, and the whole
+server exits 255, with every other jail, `sshd` included. A node with this
+package whose web server did not run yet is exactly that case. When
+`access.log` exists, enable them:
 
 ```bash
 printf '[yuneta-nginx-probe]\nenabled = true\n[nginx-botsearch]\nenabled = true\n' \
@@ -526,27 +529,28 @@ printf '[yuneta-nginx-probe]\nenabled = true\n[nginx-botsearch]\nenabled = true\
 sudo systemctl reload fail2ban && sudo fail2ban-client status
 ```
 
-A separate file, because `jail.d/yuneta-nginx.conf` is a conffile and editing it
-earns a prompt on every upgrade. `jail.d` is read in alphabetical order.
+The enable goes in a separate file, because `jail.d/yuneta-nginx.conf` is a
+conffile, and an edit to it earns a prompt on every upgrade. fail2ban reads
+`jail.d` in alphabetical order.
 
-Two failures worth knowing, because neither says what is wrong:
+Two failures are worth knowing, because neither says what is wrong:
 
-- **A jail can watch nothing and still report healthy.** If the node's
-  `[DEFAULT]` sets `backend = systemd`, every jail reads the journal and ignores
-  `logpath`. `fail2ban-client status` looks normal; only
+- A jail can watch nothing and still report healthy. If the `[DEFAULT]` of the
+  node sets `backend = systemd`, every jail reads the journal and ignores
+  `logpath`. `fail2ban-client status` looks normal. Only
   `fail2ban-client get <jail> logpath` shows *"No file is currently
   monitored"*. The shipped jails pin `backend = auto` for that reason.
-- **A ban can be recorded and never applied.** `banaction` names a command; if
+- A ban can be recorded and never applied. `banaction` names a command. If
   that command is not installed, fail2ban logs the failure to
-  `/var/log/fail2ban.log` and carries on counting bans that do not exist. Check
-  the firewall, not the jail: `nft list table inet f2b-table`, or
-  `iptables -L f2b-<jail> -n`, and confirm the addresses match
+  `/var/log/fail2ban.log` and continues to count bans that do not exist.
+  Examine the firewall, not the jail: `nft list table inet f2b-table`, or
+  `iptables -L f2b-<jail> -n`. Make sure that the addresses match
   `fail2ban-client get <jail> banip`.
 
-On a node with **SELinux enforcing** the globs do not work at all: `fail2ban_t`
-cannot list `/yuneta/bin`, the denial is dontaudited so no AVC is written, and
-the only symptom is the fatal *"Have not found any log file"*. There, override
-`logpath` with a literal path in the same `zz-` file and label the directory:
+On a node with SELinux enforcing, the globs do not work at all. `fail2ban_t`
+cannot list `/yuneta/bin`, and the denial is dontaudited, so no AVC is written.
+The only symptom is the fatal *"Have not found any log file"*. There, override
+`logpath` with a literal path in the same `zz-` file, and label the directory:
 
 ```bash
 semanage fcontext -a -t var_log_t "/yuneta/bin/nginx/logs(/.*)?"
@@ -556,11 +560,11 @@ restorecon -R /yuneta/bin/nginx/logs
 ### Shell Environment (`/etc/profile.d/yuneta.sh`)
 
 - Adds `/yuneta/bin` and `/yuneta/agent` to `PATH`
-- Sets `ulimit -c unlimited` and `ulimit -l unlimited` (the second one so a yuno
-  launched straight from a shell — `ycommand` included — gets the same
-  pinned-memory budget as the ones started by the agent)
+- Sets `ulimit -c unlimited` and `ulimit -l unlimited`. The second one gives a
+  yuno launched straight from a shell (`ycommand` included) the same
+  pinned-memory budget as the yunos that the agent starts
 - Raises the soft limit of open files to the hard one (`ulimit -Sn "$(ulimit -Hn)"`).
-  pam_limits sets the hard limit to `fs.nr_open` (4000000); a shell cannot raise
+  pam_limits sets the hard limit to `fs.nr_open` (4000000). A shell cannot raise
   it, and Linux refuses `unlimited` for open files. systemd starts a desktop
   terminal with a soft limit of 1024.
 - Defines aliases: `y` (cd to yunetas), `salidas` / `outputs` (cd to outputs), `logs` (cd to logs)
@@ -580,21 +584,27 @@ Grants the `yuneta` user passwordless sudo for all commands.
 - Raises resource limits (`ulimit`) before launching agents: open files to
   `fs.nr_open` (4000000), the same value pam_limits gives a login
 - Supports standard `start`, `stop`, `restart`, `force-reload`, `status` operations
-- Runs agents as user `yuneta` via `su -s /bin/sh`
+- Runs agents as user `yuneta` through `su -s /bin/sh`
 
-Under systemd (since 7.25.22-3) the script drives the two agents' units
-instead of starting the agents by hand: `start` starts `yuneta_agent.service`
-and then, once it is up, `yuneta_agent22.service` (a broken binary never takes
-both down); `stop` stops the main agent alone and leaves agent22, the escape
-hatch, running, as the SysV `stop` always did; `restart` restarts the main
-agent and starts agent22 only if it was not running; `status` reports both.
-An agent running outside its unit (started by hand with `--start`) is stopped
-first and started in its unit. It is recognised by the base name of its
-`argv[0]` (`/proc/<pid>/cmdline`), as its own `--stop` does: the script's
-`argv[0]` is its shell (up to 7.30.17 by `/proc/<pid>/exe`, which misses an
-agent behind a symlinked `/yuneta`, a renamed binary, or a root without
-`CAP_SYS_PTRACE`). `service yuneta_agent22 stop` or `systemctl`
-drive one unit alone. All of it needs root, as `su - yuneta` always did.
+Under systemd (since 7.25.22-3), the script drives the units of the two
+agents, and it does not start the agents by hand:
+
+- `start` starts `yuneta_agent.service`. When it is up, it starts
+  `yuneta_agent22.service`. Thus a broken binary never takes both down.
+- `stop` stops the main agent alone. It leaves agent22, the escape hatch,
+  running, as the SysV `stop` always did.
+- `restart` restarts the main agent, and starts agent22 only if it was not
+  running.
+- `status` reports both.
+
+An agent that runs outside its unit (started by hand with `--start`) is
+stopped first and started in its unit. The script recognizes it by the base
+name of its `argv[0]` (`/proc/<pid>/cmdline`), as its own `--stop` does. The
+`argv[0]` of the script is its shell. Up to 7.30.17 the script used
+`/proc/<pid>/exe`, which misses an agent behind a symlinked `/yuneta`, a
+renamed binary, or a root without `CAP_SYS_PTRACE`.
+`service yuneta_agent22 stop` or `systemctl` drive one unit alone. All of it
+needs root, as `su - yuneta` always did.
 
 ```bash
 sudo /etc/init.d/yuneta_agent restart     # the main agent; agent22 untouched
@@ -607,15 +617,15 @@ sudo systemctl restart yuneta_agent22     # agent22 alone
 
 | Type | Packages |
 |------|----------|
-| **Depends** | `adduser`, `lsb-base`, `rsync`, `locales`, `rsyslog`, `init-system-helpers`, `gdb` |
-| **Recommends** | `curl`, `vim`, `sudo`, `tree`, `pipx`, `fail2ban`, `net-tools`, `locate` |
-| **Suggests** | Full development toolchain (`git`, `cmake`, `gcc`, `clang`, `python3-dev`, crypto/compression libs, etc.) |
+| Depends | `adduser`, `lsb-base`, `rsync`, `locales`, `rsyslog`, `init-system-helpers`, `gdb` |
+| Recommends | `curl`, `vim`, `sudo`, `tree`, `pipx`, `fail2ban`, `net-tools`, `locate` |
+| Suggests | Full development toolchain (`git`, `cmake`, `gcc`, `clang`, `python3-dev`, crypto/compression libs, and others) |
 
 ## Optional Build-Time Configuration
 
 ### SSH Keys
 
-Place SSH public keys in `authorized_keys/authorized_keys` before building. They will be installed to the `yuneta` user's `~/.ssh/authorized_keys` during package installation.
+Put SSH public keys in `authorized_keys/authorized_keys` before you build. The package installation copies them to the `~/.ssh/authorized_keys` of the `yuneta` user.
 
 ```bash
 mkdir -p authorized_keys
@@ -624,7 +634,7 @@ cp ~/.ssh/id_rsa.pub authorized_keys/authorized_keys
 
 ### Web Server Selection
 
-Create a `webserver/webserver` file to choose between nginx and openresty (default: nginx):
+To choose between nginx and openresty (default: nginx), create a `webserver/webserver` file:
 
 ```bash
 mkdir -p webserver
@@ -639,9 +649,9 @@ The package installs a certbot deploy hook at `/etc/letsencrypt/renewal-hooks/de
 2. Reloads the selected web server
 3. Restarts the Yuneta stack in the background
 
-Certificates are auto-discovered unless `/yuneta/store/certs/certs.list` exists, in which case only listed certificates are updated.
+If `/yuneta/store/certs/certs.list` exists, the hook updates only the listed certificates. If not, it discovers the certificates automatically.
 
-To set up certbot after installing the .deb:
+To install certbot after you install the .deb, run:
 
 ```bash
 sudo /yuneta/bin/install-certbot.sh
@@ -651,15 +661,15 @@ sudo /yuneta/bin/install-certbot.sh
 
 After installing the `.deb`, the `postinst` script reminds you to run:
 
-1. `sudo /yuneta/bin/install-yuneta-dev-deps.sh` - Install build toolchain (only needed for development)
+1. `sudo /yuneta/bin/install-yuneta-dev-deps.sh` - Install the build toolchain (only for development)
 2. `sudo /yuneta/bin/install-certbot.sh` - Install certbot for ACME TLS certificates
 
 ## Versioning
 
 Two numbers feed the package name:
 
-- **Framework version** — read from `../../YUNETA_VERSION` (e.g. `YUNETA_VERSION=7.3.4`). Bumped when the framework changes.
-- **Package release** — read from `../../RELEASE` (a single number, e.g. `1`). Bumped when re-packaging the **same** framework version (build script changed, deps changed, conffile fixed, etc.). Shared across all four architectures.
+- Framework version: read from `../../YUNETA_VERSION` (for example `YUNETA_VERSION=7.3.4`). Bumped when the framework changes.
+- Package release: read from `../../RELEASE` (a single number, for example `1`). Bumped when you package the same framework version again (build script changed, deps changed, conffile fixed, and similar). Shared across all four architectures.
 
 The final package name follows the pattern:
 

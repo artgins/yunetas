@@ -1,9 +1,8 @@
 # ybatch
 
-Batch command runner for Yuneta services. Connects to a running yuno and
-executes a file of commands — useful for automation, provisioning and smoke
-tests. Authentication matches `ycommand` (JWT, OAuth2 user/password, or a config
-file).
+`ybatch` runs a file of commands against a running yuno. Use it for
+automation, provisioning and smoke tests. The authentication is the same as
+in `ycommand` (JWT, OAuth2 user/password, or a configuration file).
 
 ## Usage
 
@@ -11,9 +10,12 @@ file).
 ybatch [options] FILE
 ```
 
-`FILE` is a positional argument: a file of relaxed-JSON command objects, each
-with a `command` key (a leading `-` on the command, or `ignore_fail: true`, lets
-the batch continue past a failure). Connection/auth flags match `ycommand`
+`FILE` is a positional argument. It is a file of relaxed-JSON command objects.
+Each object has a `command` key. If a command fails, the batch stops, with two
+exceptions. The batch continues if the command starts with `-`, or if the
+object has `ignore_fail: true`.
+
+The connection and authentication flags are the same as in `ycommand`
 (`--url`/`-u`, `--jwt`/`-j`, `--user_id`/`-x` + `--user_passw`/`-X`,
 `--issuer`/`-I`, `--client-id`/`-Z`, `--config-file`/`-f`, …).
 
@@ -23,4 +25,4 @@ the batch continue past a failure). Connection/auth flags match `ycommand`
 {command: 'reset-counters', ignore_fail: true}
 ```
 
-Run `ybatch --help` for all options.
+Run `ybatch --help` to see all the options.

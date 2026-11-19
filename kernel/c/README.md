@@ -1,20 +1,20 @@
 # kernel/c
 
-C reference implementation of the Yuneta framework kernel.
+This directory is the C reference implementation of the Yuneta framework kernel. To build it, see [Build](#build).
 
-Yuneta is a **function-oriented**, event-driven framework for building distributed systems. Components are built from plain functions and data tables — not class hierarchies — making the framework portable to any programming language. This directory contains the full GObject + Finite State Machine (FSM) runtime, async I/O engine, time-series database, TLS abstraction, JWT, and all Linux runtime GClasses.
+Yuneta is a function-oriented, event-driven framework to build distributed systems. You build its components from plain functions and data tables, not from class hierarchies. For this reason, you can port the framework to any programming language. This directory contains the full GObject + Finite State Machine (FSM) runtime, the async I/O engine, the time-series database, the TLS abstraction, JWT, and all Linux runtime GClasses.
 
 ## License
 
-Licensed under the [MIT License](http://www.opensource.org/licenses/mit-license).
+The license is the [MIT License](http://www.opensource.org/licenses/mit-license).
 
 ---
 
 ## Table of Contents
 
+- [Build](#build)
 - [Function-Oriented & Language-Portable](#function-oriented--language-portable)
 - [Architecture Overview](#architecture-overview)
-- [Build](#build)
 - [Module Map](#module-map)
 - [gobj-c — GObject Framework](#gobj-c--gobject-framework)
   - [Core Concepts](#core-concepts)
@@ -55,67 +55,9 @@ Licensed under the [MIT License](http://www.opensource.org/licenses/mit-license)
 
 ---
 
-## Function-Oriented & Language-Portable
-
-Yuneta is designed around a **function-oriented paradigm**. Every component (GClass) is defined by wiring together plain functions and data tables:
-
-- **Action functions** handle events: `json_t *ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)`
-- **Lifecycle methods** manage creation and teardown: `mt_create`, `mt_start`, `mt_stop`, `mt_destroy`
-- **FSM tables** map (state, event) pairs to action functions and next-state transitions
-- **Attribute schemas** (`SDATA`) declare typed, flagged fields as data — not getter/setter methods
-
-There is no class inheritance, no method overriding, and no language-specific constructs at the core. A GClass is a bag of functions plus a data description, registered at startup.
-
-### Why this matters
-
-This design makes Yuneta **portable to any programming language** that supports functions, arrays, and structured data. The C implementation here is the reference (~12,000 LOC in `gobj.c`), and the JavaScript package (`kernel/js/gobj-js`) mirrors the same API and patterns:
-
-| Concept | C | JavaScript |
-|---------|---|------------|
-| Create an instance | `gobj_create(name, C_FOO, kw, parent)` | `gobj_create(name, "C_FOO", attrs, parent)` |
-| Send an event | `gobj_send_event(gobj, EV_FOO, kw, src)` | `gobj_send_event(gobj, "EV_FOO", kw, src)` |
-| Subscribe | `gobj_subscribe_event(pub, EV_FOO, kw, sub)` | `gobj_subscribe_event(pub, "EV_FOO", kw, sub)` |
-| Attribute schema | `SDATA(DTP_STRING, "url", SDF_RD, "", "desc")` | `SDATA(DTP_STRING, "url", SDF_RD, "", "desc")` |
-| FSM action row | `{EV_CONNECT, ac_connect, ST_CONNECTED}` | `["EV_CONNECT", ac_connect, "ST_CONNECTED"]` |
-| Register a GClass | `GOBJ_DEFINE_GCLASS(C_FOO)` + populate | `gclass_create("C_FOO", events, states, gmt, ...)` |
-
-A developer who knows the C implementation can read the JavaScript version (and vice versa) because the architecture is identical; only the syntax changes.
-
-Different implementations can also **interoperate over the network** via the inter-event protocol. The built-in `C_IEVENT_CLI` / `C_IEVENT_SRV` GClasses proxy remote Yuneta services over WebSocket, so a JavaScript frontend can communicate with a C backend as if it were a local GObject.
-
----
-
-## Architecture Overview
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                         Yuno                             │
-│   (application root GObject)                             │
-│                                                          │
-│   ┌──────────────┐   ┌──────────────┐                   │
-│   │   Service A  │   │   Service B  │                    │
-│   │  (hgobj)     │   │  (hgobj)     │                    │
-│   │              │   │              │                    │
-│   │  ┌────────┐  │   │  ┌────────┐  │                   │
-│   │  │Child 1 │  │   │  │Child 2 │  │                   │
-│   │  └────────┘  │   │  └────────┘  │                   │
-│   └──────────────┘   └──────────────┘                   │
-└──────────────────────────────────────────────────────────┘
-         │ events (json_t *kw)  ↕  pub/sub
-```
-
-Every component is a **GObject** (`hgobj` — an opaque handle) — an instance of a **GClass**. GClasses define:
-- Typed **attributes** (schema via `SDATA`)
-- A **Finite State Machine** (states + event-action table)
-- **Lifecycle methods** (`mt_create`, `mt_start`, `mt_stop`, `mt_destroy`, …)
-
-GObjects communicate exclusively via **events** carrying `json_t *kw` (jansson JSON) payloads. There is no direct function calling between components — everything goes through the FSM event dispatcher.
-
----
-
 ## Build
 
-See the top-level [CLAUDE.md](../../CLAUDE.md) for full build instructions. Summary:
+The top-level [CLAUDE.md](../../CLAUDE.md) has the full build instructions. In summary:
 
 ```bash
 # 1. Install system dependencies (once)
@@ -138,9 +80,67 @@ yunetas build
 
 ---
 
+## Function-Oriented & Language-Portable
+
+Yuneta uses a function-oriented paradigm. You define each component (GClass) when you connect plain functions and data tables:
+
+- Action functions handle events: `json_t *ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)`
+- Lifecycle methods manage creation and teardown: `mt_create`, `mt_start`, `mt_stop`, `mt_destroy`
+- FSM tables map (state, event) pairs to action functions and next-state transitions
+- Attribute schemas (`SDATA`) declare typed, flagged fields as data, not as getter/setter methods
+
+The core has no class inheritance, no method overriding, and no language-specific constructs. A GClass is a bag of functions plus a data description. The GClass is registered at startup.
+
+### Why this matters
+
+With this design, you can port Yuneta to any programming language that supports functions, arrays, and structured data. The C implementation here is the reference (~12,000 LOC in `gobj.c`). The JavaScript package (`kernel/js/gobj-js`) mirrors the same API and patterns:
+
+| Concept | C | JavaScript |
+|---------|---|------------|
+| Create an instance | `gobj_create(name, C_FOO, kw, parent)` | `gobj_create(name, "C_FOO", attrs, parent)` |
+| Send an event | `gobj_send_event(gobj, EV_FOO, kw, src)` | `gobj_send_event(gobj, "EV_FOO", kw, src)` |
+| Subscribe | `gobj_subscribe_event(pub, EV_FOO, kw, sub)` | `gobj_subscribe_event(pub, "EV_FOO", kw, sub)` |
+| Attribute schema | `SDATA(DTP_STRING, "url", SDF_RD, "", "desc")` | `SDATA(DTP_STRING, "url", SDF_RD, "", "desc")` |
+| FSM action row | `{EV_CONNECT, ac_connect, ST_CONNECTED}` | `["EV_CONNECT", ac_connect, "ST_CONNECTED"]` |
+| Register a GClass | `GOBJ_DEFINE_GCLASS(C_FOO)` + populate | `gclass_create("C_FOO", events, states, gmt, ...)` |
+
+A developer who knows the C implementation can read the JavaScript version, and the reverse. The architecture is identical. Only the syntax changes.
+
+Different implementations can also interoperate over the network through the inter-event protocol. The built-in `C_IEVENT_CLI` / `C_IEVENT_SRV` GClasses proxy remote Yuneta services over WebSocket. Thus a JavaScript frontend can communicate with a C backend in the same way as with a local GObject.
+
+---
+
+## Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                         Yuno                             │
+│   (application root GObject)                             │
+│                                                          │
+│   ┌──────────────┐   ┌──────────────┐                   │
+│   │   Service A  │   │   Service B  │                    │
+│   │  (hgobj)     │   │  (hgobj)     │                    │
+│   │              │   │              │                    │
+│   │  ┌────────┐  │   │  ┌────────┐  │                   │
+│   │  │Child 1 │  │   │  │Child 2 │  │                   │
+│   │  └────────┘  │   │  └────────┘  │                   │
+│   └──────────────┘   └──────────────┘                   │
+└──────────────────────────────────────────────────────────┘
+         │ events (json_t *kw)  ↕  pub/sub
+```
+
+Every component is a GObject, an instance of a GClass. The type `hgobj` is an opaque handle to a GObject. A GClass defines:
+- Typed attributes (schema via `SDATA`)
+- A Finite State Machine (states + event-action table)
+- Lifecycle methods (`mt_create`, `mt_start`, `mt_stop`, `mt_destroy`, …)
+
+GObjects communicate only through events. Each event carries a `json_t *kw` (jansson JSON) payload. Components do not call the functions of other components directly. Everything goes through the FSM event dispatcher.
+
+---
+
 ## Module Map
 
-Build order (each layer depends on all above it):
+The build order is below. Each layer depends on all the layers above it:
 
 ```
 kernel/c/gobj-c       ← GObject framework, FSM, SData, helpers, logging
@@ -156,16 +156,16 @@ kernel/c/root-esp32   ← ESP32 port of runtime GClasses
 
 ## gobj-c — GObject Framework
 
-**Header:** `gobj-c/src/gobj.h`
-**Implementation:** `gobj-c/src/gobj.c` (~12,000 LOC)
+Header: `gobj-c/src/gobj.h`
+Implementation: `gobj-c/src/gobj.c` (~12,000 LOC)
 
-The heart of Yuneta. Everything else builds on top of this.
+gobj-c is the core of Yuneta. Everything else builds on top of it.
 
-> **Legend:** Functions marked with **`[JS]`** are also available in the JavaScript implementation (`kernel/js/gobj-js`). Unmarked functions are C-only.
+> Legend: a function marked with `[JS]` is also available in the JavaScript implementation (`kernel/js/gobj-js`). An unmarked function is C-only.
 
 ### Core Concepts
 
-A **GClass** is a registered class definition. A **GObject** (`hgobj`) is an opaque handle to an instance of a GClass. GObjects form a parent-child tree rooted at a **Yuno** (the process root).
+A GClass is a registered class definition. A GObject (`hgobj`) is an opaque handle to an instance of a GClass. GObjects form a parent-child tree. The root of the tree is a Yuno (the process root).
 
 ### GClass Definition Macros
 
@@ -245,7 +245,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 };
 ```
 
-**Data types:** (all available in JS via `data_type_t`)
+Data types (all available in JS via `data_type_t`):
 
 | Type | C equivalent | JS |
 |------|-------------|-----|
@@ -258,7 +258,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 | `DTP_JSON` | `json_t *` (any) | [JS] |
 | `DTP_POINTER` | `void *` | [JS] |
 
-**Attribute flags (`sdata_flag_t`):** (all available in JS via `sdata_flag_t`)
+Attribute flags (`sdata_flag_t`), all available in JS via `sdata_flag_t`:
 
 | Flag | Meaning | JS |
 |------|---------|-----|
@@ -561,7 +561,7 @@ const sdata_desc_t *authz_get_level_desc(const sdata_desc_t *authz_table, const 
 json_t *gobj_build_authzs_doc(hgobj gobj, const char *cmd, json_t *kw);
 ```
 
-**Built-in authz types:** `__read_attribute__`, `__write_attribute__`, `__execute_command__`, `__inject_event__`, `__subscribe_event__`, `__read_stats__`, `__reset_stats__`
+Built-in authz types: `__read_attribute__`, `__write_attribute__`, `__execute_command__`, `__inject_event__`, `__subscribe_event__`, `__read_stats__`, `__reset_stats__`
 
 ### Tracing & Debugging
 
@@ -625,9 +625,9 @@ int gobj_get_deep_tracing(void);
 
 ### Helpers & Utilities
 
-All in `gobj-c/src/helpers.h` and `kwid.h`.
+These functions are in `gobj-c/src/helpers.h` and `kwid.h`.
 
-**Keyword (kw) operations:**
+Keyword (kw) operations:
 ```c
 // Flags
 #define KW_REQUIRED     0x0001                                                       // [JS]
@@ -712,7 +712,7 @@ json_t *json_flatten_dict(json_t *jn_nested);
 json_t *json_unflatten_dict(json_t *jn_flat);
 ```
 
-**String utilities:**
+String utilities:
 ```c
 BOOL empty_string(const char *s);                                                    // [JS]
 BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);              // [JS]
@@ -737,7 +737,7 @@ char *get_parameter(char *s, char **save_ptr);
 char *get_key_value_parameter(char *s, char **key, char **save_ptr);
 ```
 
-**JSON helpers:**
+JSON helpers:
 ```c
 json_t *string2json(const char *str, BOOL verbose);
 json_t *anystring2json(const char *bf, size_t len, BOOL verbose);
@@ -782,7 +782,7 @@ int json_check_refcounts(json_t *kw, int max_refcount, int *result);  // logs; r
 const char *json_nul_fault(json_t *jn);  // a string with a NUL (JSON_ALLOW_NUL) at any depth: why, or NULL
 ```
 
-**File system utilities:**
+File system utilities:
 ```c
 int     newdir(const char *path, int xpermission);
 int     newfile(const char *path, int rpermission, BOOL overwrite);
@@ -805,7 +805,7 @@ int     unlock_file(int fd);
 const char *path_basename(const char *path);
 ```
 
-**URL parsing:**
+URL parsing:
 ```c
 int parse_url(hgobj gobj, const char *uri,
     char *schema, size_t schema_size,
@@ -816,7 +816,7 @@ int parse_url(hgobj gobj, const char *uri,
     BOOL no_schema);
 ```
 
-**Time / date utilities:**
+Time / date utilities:
 ```c
 char    *current_timestamp(char *bf, size_t bfsize);                                 // [JS]
 time_t   start_sectimer(time_t seconds);
@@ -834,13 +834,13 @@ timestamp_t approxidate_careful(const char *date, int *error_ret);           // 
 void     show_date_relative(timestamp_t time, char *timebuf, int timebufsize);
 ```
 
-**Metadata & private key detection:**
+Metadata & private key detection:
 ```c
 BOOL is_metadata_key(const char *key);                                               // [JS]
 BOOL is_private_key(const char *key);                                                // [JS]
 ```
 
-**Miscellaneous:**
+Miscellaneous:
 ```c
 const char *node_uuid(void);                                                         // [JS]
 const char *get_hostname(void);
@@ -859,7 +859,7 @@ int walk_dir_tree(hgobj gobj, const char *root_dir, const char *pattern,
     wd_option opt, walkdir_cb cb, void *user_data);
 ```
 
-**JSON config loading:**
+JSON configuration loading:
 ```c
 json_t *json_config(
     BOOL print_verbose_config,
@@ -876,7 +876,7 @@ json_t *json_replace_var_custom(json_t *jn_dict, json_t *jn_vars,
 json_t *json_desc_to_schema(const json_desc_t *json_desc);
 ```
 
-**Socket / network helpers:**
+Socket / network helpers:
 ```c
 int  get_peername(char *bf, size_t bfsize, int fd);
 int  get_sockname(char *bf, size_t bfsize, int fd);
@@ -889,7 +889,7 @@ int  set_cloexec(int fd);                // children will not inherit
 int  set_tcp_socket_options(int fd, int delay);
 ```
 
-**System info & diagnostics:**
+System info & diagnostics:
 ```c
 unsigned long total_ram_in_kb(void);
 unsigned long free_ram_in_kb(void);
@@ -902,15 +902,15 @@ int           debug_json(const char *label, json_t *jn, BOOL verbose);
 int           debug_json2(json_t *jn, const char *format, ...);
 ```
 
-**Yuneta environment:**
+Yuneta environment:
 ```c
 const char *get_yunetas_base(void);
 int         is_yuneta_user(const char *username);
 ```
 
-**NSS replacements for `CONFIG_FULLY_STATIC`:**
+NSS replacements for `CONFIG_FULLY_STATIC`:
 
-Fully-static glibc binaries cannot use NSS (`libnss_*.so` is loaded via `dlopen`). These helpers read `/etc/passwd` / `/etc/group` directly and are called by the kernel in place of glibc's `getpwuid` / `getpwnam` / `getgrnam` / `getgrouplist`.
+Fully-static glibc binaries cannot use NSS, because glibc loads `libnss_*.so` via `dlopen`. These helpers read `/etc/passwd` / `/etc/group` directly. The kernel calls them in place of the `getpwuid` / `getpwnam` / `getgrnam` / `getgrouplist` of glibc.
 
 ```c
 struct passwd *yuneta_getpwuid(uid_t uid);
@@ -920,29 +920,29 @@ int            yuneta_getgrouplist(const char *user, gid_t group,
                                    gid_t *groups, int *ngroups);
 ```
 
-> For DNS resolution there is a separate companion, `yuneta_getaddrinfo()` / `yuneta_freeaddrinfo()`, in `kernel/c/yev_loop/src/static_resolv.h`.
+> For DNS resolution, a separate companion is in `kernel/c/yev_loop/src/static_resolv.h`: `yuneta_getaddrinfo()` / `yuneta_freeaddrinfo()`.
 
-**Name/number tables:**
+Name/number tables:
 ```c
 typedef struct { int number; const char *name; } number_name_table_t;
 int         get_number_from_nn_table(const number_name_table_t *table, const char *name);
 const char *get_name_from_nn_table(const number_name_table_t *table, int number);
 ```
 
-**Bitmask / string conversion:**
+Bitmask / string conversion:
 ```c
 json_t    *bits2jn_strlist(const char **names, int namec, uint64_t bits);
 gbuffer_t *bits2gbuffer(const char **names, int namec, uint64_t bits);
 uint64_t   strings2bits(const char **names, int namec, const char *str_bits);
 ```
 
-**JSON list extras:**
+JSON list extras:
 ```c
 json_int_t json_list_int(json_t *jn_list, size_t idx);
 int        json_list_int_index(json_t *jn_list, json_int_t value);
 ```
 
-**Inter-event message stack** (from `msg_ievent.h` in root-linux):
+Inter-event message stack (from `msg_ievent.h` in root-linux):
 ```c
 // IEvent creation
 json_t    *iev_create(hgobj gobj, gobj_event_t event, json_t *kw);
@@ -969,7 +969,7 @@ json_t *msg_iev_clean_metadata(json_t *kw);
 
 ### Logging
 
-All in `gobj-c/src/glogger.h`.
+These functions are in `gobj-c/src/glogger.h`.
 
 ```c
 // Core log functions (variadic key-value pairs terminated by NULL)
@@ -1020,9 +1020,9 @@ void print_backtrace(void);
 
 ### GBuffer — Growable Buffer
 
-**Header:** `gobj-c/src/gbuffer.h`
+Header: `gobj-c/src/gbuffer.h`
 
-Growable byte buffer used throughout Yuneta for I/O, serialization, and protocol framing.
+A growable byte buffer. Yuneta uses it for I/O, serialization, and protocol framing.
 
 ```c
 // Lifecycle
@@ -1071,7 +1071,7 @@ void gobj_trace_dump_full_gbuf(hgobj gobj, gbuffer_t *gbuf, const char *fmt, ...
 
 ### Resource API
 
-GObjects that implement `mt_create_resource` / `mt_save_resource` etc. expose CRUD operations:
+GObjects that implement `mt_create_resource` / `mt_save_resource` and the other resource methods expose CRUD operations:
 
 ```c
 json_t *gobj_create_resource(hgobj gobj, const char *resource, json_t *kw, json_t *jn_options);
@@ -1125,7 +1125,7 @@ int     gobj_activate_snap(hgobj gobj, const char *tag, json_t *kw, hgobj src);
 json_t *gobj_list_snaps(hgobj gobj, json_t *filter, hgobj src);
 ```
 
-**Subscription / sdata descriptors:**
+Subscription / sdata descriptors:
 ```c
 json_t                  *gobj_sdata_create(hgobj gobj, const sdata_desc_t *schema);
 const sdata_desc_t      *gobj_subs_desc(void);   // standard subscription filter keys
@@ -1133,9 +1133,9 @@ const sdata_desc_t      *gobj_subs_desc(void);   // standard subscription filter
 
 ### Memory Management (gbmem)
 
-**Header:** `gobj-c/src/gbmem.h`
+Header: `gobj-c/src/gbmem.h`
 
-Tracked allocator used throughout Yuneta. Any memory taken with `gbmem_malloc()` is accounted for, and any leak is reported by `print_track_mem()` at shutdown when `CONFIG_DEBUG_TRACK_MEMORY` is enabled — this is what catches memory leaks in the test suite.
+A tracked allocator. All of Yuneta uses it. The allocator counts all memory taken with `gbmem_malloc()`. If `CONFIG_DEBUG_TRACK_MEMORY` is enabled, `print_track_mem()` reports each leak at shutdown. This is what catches memory leaks in the test suite.
 
 ```c
 // Setup / shutdown
@@ -1173,7 +1173,7 @@ void   print_track_mem(void);
 
 ### Rotatory Log Files
 
-**Header:** `gobj-c/src/rotatory.h`
+Header: `gobj-c/src/rotatory.h`
 
 ```c
 int        rotatory_start_up(void);
@@ -1191,7 +1191,7 @@ const char *rotatory_path(hrotatory_h hr);
 
 ### Testing Utilities
 
-**Header:** `gobj-c/src/testing.h`
+Header: `gobj-c/src/testing.h`
 
 ```c
 void set_expected_results(const char *name, json_t *errors_list, json_t *expected,
@@ -1208,10 +1208,10 @@ int  capture_log_write(void *v, int priority, const char *bf, size_t len);
 
 ## yev_loop — Async Event Loop
 
-**Header:** `yev_loop/src/yev_loop.h`
-**Implementation:** `yev_loop/src/yev_loop.c`
+Header: `yev_loop/src/yev_loop.h`
+Implementation: `yev_loop/src/yev_loop.c`
 
-Single-threaded, non-blocking I/O engine based on **Linux io_uring**. All I/O, timers, and network events are driven from a single loop with zero blocking. Scaling is achieved by running one yuno per CPU core with inter-yuno messaging.
+A single-threaded, non-blocking I/O engine based on Linux io_uring. A single loop drives all I/O, timers, and network events, with zero blocking. To scale, you run one yuno per CPU core, with inter-yuno messaging.
 
 ### Loop Management
 
@@ -1310,10 +1310,10 @@ int my_callback(yev_event_t *ev) {
 
 ## timeranger2 — Time-Series Database
 
-**Header:** `timeranger2/src/timeranger2.h`
-**Implementation:** `timeranger2/src/timeranger2.c`
+Header: `timeranger2/src/timeranger2.h`
+Implementation: `timeranger2/src/timeranger2.c`
 
-Append-only log database with key-indexed access. Used for MQTT session persistence, message queues, TreeDB, and snapshotting.
+An append-only log database with key-indexed access. Yuneta uses it for MQTT session persistence, message queues, TreeDB, and snapshotting.
 
 ### Disk Layout
 
@@ -1338,7 +1338,7 @@ int     tranger2_stop(json_t *tranger);
 int     tranger2_shutdown(json_t *tranger);
 ```
 
-Key config fields: `path` (required), `database`, `master` (BOOL — enables write), `filename_mask` (strftime format), `xpermission`, `rpermission`
+Key configuration fields: `path` (required), `database`, `master` (BOOL, enables write), `filename_mask` (strftime format), `xpermission`, `rpermission`
 
 ### Topic Management
 
@@ -1405,7 +1405,7 @@ json_t  *tranger2_read_record_content(json_t *tranger, json_t *topic,
 
 ### Reading: Iterators
 
-For historical bulk reads over a key's records:
+For historical bulk reads over the records of a key:
 
 ```c
 json_t *tranger2_open_iterator(
@@ -1427,7 +1427,7 @@ json_t *tranger2_iterator_get_page(json_t *tranger, json_t *iterator,
     json_int_t from_rowid, size_t limit, BOOL backward);
 ```
 
-**Callback signature:**
+Callback signature:
 ```c
 typedef int (*tranger2_load_record_callback_t)(
     json_t *tranger, json_t *topic, const char *key,
@@ -1490,7 +1490,7 @@ typedef enum {
 
 ### TreeDB (tr_treedb)
 
-Schema-driven graph database layered on timeranger2. Provides node/link operations with foreign keys and hooks:
+A schema-driven graph database on top of timeranger2. It gives node/link operations with foreign keys and hooks:
 
 ```c
 // Database lifecycle
@@ -1574,9 +1574,9 @@ json_t *treedb_list_snaps(json_t *tranger, const char *treedb_name, json_t *filt
 
 ### Queue (tr_queue)
 
-**Header:** `timeranger2/src/tr_queue.h`
+Header: `timeranger2/src/tr_queue.h`
 
-Persistent message queue built on timeranger2:
+A persistent message queue built on timeranger2:
 
 ```c
 tr_queue_t *trq_open(json_t *tranger, const char *topic_name,
@@ -1608,9 +1608,9 @@ json_t *trq_answer(json_t *jn_message, int result);
 
 ### Message Instances (tr_msg)
 
-**Header:** `timeranger2/src/tr_msg.h`
+Header: `timeranger2/src/tr_msg.h`
 
-Key-value message store with active/inactive instance tracking:
+A key-value message store that tracks active and inactive instances:
 
 ```c
 int     trmsg_open_topics(json_t *tranger, const topic_desc_t *descs);
@@ -1643,7 +1643,7 @@ int trmsg_foreach_active_messages(json_t *list,
 
 ### File System Watcher (fs_watcher)
 
-**Header:** `timeranger2/src/fs_watcher.h`
+Header: `timeranger2/src/fs_watcher.h`
 
 ```c
 fs_event_t *fs_create_watcher_event(yev_loop_h yev_loop, const char *path,
@@ -1657,9 +1657,9 @@ int fs_stop_watcher_event(fs_event_t *fs_event);
 
 ## ytls — TLS Abstraction
 
-**Header:** `ytls/src/ytls.h`
+Header: `ytls/src/ytls.h`
 
-Pluggable TLS layer supporting OpenSSL and mbed-TLS backends. Used by `C_TCP` for encrypted connections.
+A pluggable TLS layer for the OpenSSL and mbed-TLS backends. `C_TCP` uses it for encrypted connections.
 
 ```c
 // Initialize TLS context
@@ -1687,15 +1687,15 @@ const char *ytls_get_last_error(hytls ytls, hsskt sskt);
 void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set);
 ```
 
-**Key config fields:** `library` ("openssl"/"mbedtls"), `ssl_certificate`, `ssl_certificate_key`, `ssl_trusted_certificate`, `ssl_ciphers`, `ssl_verify_depth`, `rx_buffer_size`, `trace`
+Key configuration fields: `library` ("openssl"/"mbedtls"), `ssl_certificate`, `ssl_certificate_key`, `ssl_trusted_certificate`, `ssl_ciphers`, `ssl_verify_depth`, `rx_buffer_size`, `trace`
 
 ---
 
 ## libjwt — JSON Web Tokens
 
-**Header:** `libjwt/src/jwt.h`
+Header: `libjwt/src/jwt.h`
 
-JWT creation, parsing, and verification with support for HS256/384/512, RS256/384/512, ES256/384/512, PS256/384/512, EdDSA.
+JWT creation, parsing, and verification. It supports HS256/384/512, RS256/384/512, ES256/384/512, PS256/384/512, EdDSA.
 
 ```c
 // Algorithm utilities
@@ -1763,13 +1763,13 @@ int jwt_crypto_ops_supports_jwk(void);
 
 ## root-linux — Runtime GClasses
 
-**Location:** `root-linux/src/`
+Location: `root-linux/src/`
 
-33 GClasses providing network, protocol, storage, and system functionality. All registered via `yunetas_register_c_core()`.
+33 GClasses for network, protocol, storage, and system functions. `yunetas_register_c_core()` registers all of them.
 
 ### Entry Point
 
-**Header:** `entry_point.h`
+Header: `entry_point.h`
 
 ```c
 // Setup memory and callbacks (call before yuneta_entry_point)
@@ -1814,7 +1814,7 @@ int yunetas_register_c_core(void);  // register all built-in GClasses
 
 ### Yuno Extras
 
-**Header:** `c_yuno.h`
+Header: `c_yuno.h`
 
 ```c
 void *yuno_event_loop(void);        // get the yev_loop_h
@@ -1830,7 +1830,7 @@ BOOL is_ip_denied(const char *peername);
 
 ### GClass Reference
 
-**Network & Transport:**
+Network & Transport:
 
 | GClass | Purpose | Key attributes |
 |--------|---------|----------------|
@@ -1841,7 +1841,7 @@ BOOL is_ip_denied(const char *peername);
 | `C_UART` | Serial port | `url` (the device), `baudrate` |
 | `C_PTY` | Pseudo-terminal | `command` |
 
-**Protocol Handlers:**
+Protocol Handlers:
 
 | GClass | Purpose |
 |--------|---------|
@@ -1852,7 +1852,7 @@ BOOL is_ip_denied(const char *peername);
 | `C_PROT_TCP4H` | TCP 4-byte-header framing |
 | `C_PROT_RAW` | Raw passthrough |
 
-**Message Routing:**
+Message Routing:
 
 | GClass | Purpose |
 |--------|---------|
@@ -1862,7 +1862,7 @@ BOOL is_ip_denied(const char *peername);
 | `C_IEVENT_CLI` | Inter-event client (connects to remote yuno) |
 | `C_IEVENT_SRV` | Inter-event server (accepts remote yunos) |
 
-**Persistence & Storage:**
+Persistence & Storage:
 
 | GClass | Purpose |
 |--------|---------|
@@ -1871,7 +1871,7 @@ BOOL is_ip_denied(const char *peername);
 | `C_NODE` | TreeDB node CRUD operations |
 | `C_RESOURCE2` | Generic resource management |
 
-**System & Utilities:**
+System & Utilities:
 
 | GClass | Purpose |
 |--------|---------|
@@ -1903,26 +1903,26 @@ EV_SEND_MESSAGE     // send data
 
 ## root-esp32 — ESP32 Port
 
-**Location:** `root-esp32/`
+Location: `root-esp32/`
 
-ESP32-specific components maintaining GObject compatibility for embedded targets. Provides hardware integration for ESP32 SoC:
+ESP32-specific components that keep GObject compatibility for embedded targets. They give hardware integration for the ESP32 SoC:
 
-- `esp_gobj/` — GObject wrapper for ESP-IDF
-- `esp_yuneta/` — Yuneta bootstrap for ESP32
-- `esp_jansson/` — jansson JSON for ESP32
-- `esp_c_prot/` — Protocol GClasses for ESP32
-- `ads111x/` — ADS111x ADC driver
-- `i2cdev/` — I2C device abstraction
+- `esp_gobj/`: GObject wrapper for ESP-IDF
+- `esp_yuneta/`: Yuneta bootstrap for ESP32
+- `esp_jansson/`: jansson JSON for ESP32
+- `esp_c_prot/`: Protocol GClasses for ESP32
+- `ads111x/`: ADS111x ADC driver
+- `i2cdev/`: I2C device abstraction
 
-Builds as a static library `libyunetas-esp32.a` via CMake + ESP-IDF.
+The build makes a static library, `libyunetas-esp32.a`, with CMake + ESP-IDF.
 
 ---
 
 ## linux-ext-libs — External Dependencies
 
-**Location:** `kernel/c/linux-ext-libs/`
+Location: `kernel/c/linux-ext-libs/`
 
-Vendored external libraries. Build before the kernel modules:
+Vendored external libraries. Build them before the kernel modules:
 
 ```bash
 ./set_compiler.sh           # sync compiler choice from .config
@@ -1931,7 +1931,7 @@ Vendored external libraries. Build before the kernel modules:
 
 ```
 
-Includes: **jansson** (JSON), **OpenSSL** (TLS/crypto), **liburing** (io_uring), and others.
+They include jansson (JSON), OpenSSL (TLS/crypto), liburing (io_uring), and others.
 
 ---
 

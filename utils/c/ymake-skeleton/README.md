@@ -1,6 +1,6 @@
 # ymake-skeleton
 
-Generate a new yuno skeleton from an existing project, renaming identifiers and paths to match the new role. Complements `yuno-skeleton` (which creates from a library of templates).
+`ymake-skeleton` makes a new yuno skeleton from a copy of an existing project. It renames the identifiers and the paths to match the new role. To make a yuno from a library of templates, use `yuno-skeleton`.
 
 ## Usage
 
@@ -8,10 +8,12 @@ Generate a new yuno skeleton from an existing project, renaming identifiers and 
 ymake-skeleton <source-project> <destination> --yunorole <role> --rootname <name>
 ```
 
-Run `ymake-skeleton --help` for all options.
+Run `ymake-skeleton --help` to see all the options.
 
-The keyword is replaced only as a **whole word** (`_` is a separator: `time`
-changes in `c_time.c`, not in `C_TIMER`), and the words that held it and were
-left as they were are listed at the end. The engine is
-`utils/c/yclone-project/clone_tree_dir.c`, shared by yclone-gclass,
-yclone-project and ymake-skeleton. See the doc page for what is copied.
+The tool replaces the keyword only as a whole word. The `_` character is a
+separator: `time` changes in `c_time.c`, but not in `C_TIMER`. At the end, the
+tool lists the words that held the keyword and that it did not change.
+
+The engine is `utils/c/yclone-project/clone_tree_dir.c`. yclone-gclass,
+yclone-project and ymake-skeleton use the same engine. The doc page tells
+which files the tool copies.

@@ -1,5 +1,5 @@
 # logcenter
 
-Centralised logging yuno. Aggregates logs from other yunos via UDP and file handlers, applies rotation and filtering, and exposes the collected data for inspection.
+logcenter is the yuno that collects the logs of the other yunos. It receives them by UDP and by file handlers, and applies rotation and filters. You can then look at the collected data.
 
-Typically paired with the `to_udp` log handler (`udp://127.0.0.1:1992`) in per-yuno configurations.
+The configuration of each yuno usually adds the `to_udp` log handler (`udp://127.0.0.1:1992`) to send its logs to logcenter.

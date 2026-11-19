@@ -1,6 +1,6 @@
 # msg2db_list
 
-List messages from a **msg2db** database (dict-style message store organised by topic, built on top of timeranger2). Queries records through the `pkey` / `pkey2` indices (the active message plus its instances) with optional id filtering, field selection and form/table output.
+`msg2db_list` lists the messages of a msg2db database. A msg2db database is a store of dict messages, organized by topic, on top of timeranger2. The tool reads the records through the `pkey` and `pkey2` indices, that is, the active message and its instances. Options filter by id, select fields, and print as a form or a table.
 
 ## Usage
 
@@ -8,4 +8,4 @@ List messages from a **msg2db** database (dict-style message store organised by 
 msg2db_list PATH [--database <db>] [--topic <topic>] [--ids <id,…>] [options]
 ```
 
-`PATH` is a positional argument (the tranger root, the database, or a topic directory); the database and topic are auto-resolved from it when not given. Run `msg2db_list --help` for filters and output modes. See also `treedb_list` for **TreeDB** graph databases.
+`PATH` is a positional argument. It is the tranger root, the database, or a topic directory. If you do not give the database or the topic, the tool finds them from `PATH`. Run `msg2db_list --help` for the filters and the output modes. For TreeDB graph databases, use `treedb_list`.

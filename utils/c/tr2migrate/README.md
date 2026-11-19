@@ -1,6 +1,6 @@
 # tr2migrate
 
-Migrate data from the legacy **timeranger** (v1) on-disk format to **timeranger2**. Bulk-copies topics, records and indices from a source path to a destination path.
+`tr2migrate` moves data from the legacy on-disk format of timeranger (v1) to timeranger2. It is an upgrade tool that you run one time.
 
 ## Usage
 
@@ -8,4 +8,4 @@ Migrate data from the legacy **timeranger** (v1) on-disk format to **timeranger2
 tr2migrate --source <old-tranger> --destination <new-tranger2>
 ```
 
-Intended as a one-shot upgrade tool.
+The tool copies the topics, records, and indices from the source path to the destination path.

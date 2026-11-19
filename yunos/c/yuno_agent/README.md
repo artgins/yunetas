@@ -1,12 +1,28 @@
 # yuno_agent
 
-Primary Yuneta agent. One per host. Manages the lifecycle of every yuno on the
-machine (create / run / pause / kill / update / delete), exposes a control
-interface to [`ycommand`](#util-ycommand) & friends, owns the local treedb that registers
-binaries, configurations, yunos and realms, and brokers inter-yuno traffic.
+`yuno_agent` is the primary Yuneta agent. There is one agent on each host. The
+agent does these jobs:
 
-This is the yuno that `ycommand`, [`ystats`](#util-ystats), [`ybatch`](#util-ybatch) and `controlcenter` talk
-to by default.
+- It manages the lifecycle of every yuno on the machine (create / run / pause /
+  kill / update / delete).
+- It gives a control interface to [`ycommand`](#util-ycommand) and the other
+  control tools.
+- It owns the local treedb that registers binaries, configurations, yunos and
+  realms.
+- It brokers the inter-yuno traffic.
+
+`ycommand`, [`ystats`](#util-ystats), [`ybatch`](#util-ybatch) and `controlcenter` talk
+to this yuno by default.
+
+## Build
+
+```bash
+cd build && cmake .. && make install
+```
+
+The build installs the agent into `$YUNETAS_YUNOS/yuno_agent/`. For the global
+build flow (`yunetas init`, `yunetas build`), see the top-level
+[`CLAUDE.md`](../../../CLAUDE.md).
 
 ## What lives here
 
@@ -15,128 +31,128 @@ to by default.
 | [`src/c_agent.c`](src/c_agent.c)                    | The agent gclass (commands, FSM, child yuno spawning)    |
 | [`src/c_agent.h`](src/c_agent.h)                    | Public interface ([`register_c_agent`](https://github.com/artgins/yunetas/blob/7.31.23/yunos/c/yuno_agent/src/c_agent.c#L16945), `GOBJ_DECLARE_GCLASS`) |
 | [`src/treedb_schema_yuneta_agent.c`](src/treedb_schema_yuneta_agent.c) | Schema of the persistent topics (`binaries`, `configurations`, `yunos`, …) |
-| [`src/main.c`](src/main.c)                          | yuno entry point — registers gclasses, builds fixed/variable config |
-| [`ENTRY_POINT.md`](ENTRY_POINT.md)                  | **Minute 0: what the `main()` of every yuno does.** [`yuneta_entry_point()`](#yuneta_entry_point) step-by-step (argp, gbmem-setup + json allocator switch, config merge, log handlers, gclass registration), [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/ydaemon.c) double-fork supervisor (the watcher that makes a yuno survive without an agent), signals inside the child, how `kill-yuno` interacts with the watcher, `/var/crash/core.%e` forensics wired by the `.deb`. |
-| [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)                      | **The real lifecycle of a yuno under this agent.** Start here when onboarding. |
-| [`DEBUGGING.md`](DEBUGGING.md)                      | **How to debug a running yuno.** Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
-| [`IPC.md`](IPC.md)                                  | **How yunos talk to each other.** Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
-| [`REALMS.md`](REALMS.md)                            | **Realms — the multi-tenancy unit.** Data model, on-disk layout, CRUD (create/update/delete-realm), what is and is not realm-scoped (ports and certs are not), the hierarchical `parent_realm_id`, sharp edges, recipes. |
-| [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | **`yuno-skeleton`** — which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
-| [`YUNO_AUTH.md`](YUNO_AUTH.md)                                | **Auth + TLS.** `auth_bff` OIDC flow (PKCE, HttpOnly cookies, the `issuer` config), JWT validation via `libjwt`, the [`C_AUTHZ`](#gclass-c-authz) service + `authzs` treedb (users/roles), the `pm_*` schemas — the per-command authz gate is **re-armed but gated off by default** (`enable_command_authz`, see §4.5), cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
-| [`GOBJ.md`](GOBJ.md)                                | **The gobj framework in 30 minutes.** gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`, `mt_start`, `mt_stop`, `mt_destroy`, `mt_writing` and `mt_reading`), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavour, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/c_timer.c) (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
-| [`YUNO_TREEDB.md`](YUNO_TREEDB.md)                            | **timeranger2 + treedb in 30 minutes.** The append-only log layer (per-key dirs, `.json`+`.md2` partitioning, `g_rowid`/`i_rowid`, `__t__`/`__tm__`, master/non-master lock, no `fsync`, no per-record delete since v7), the graph layer on top (topic schemas, `cols`/`hook`/`fkey`, `__md_treedb__` metadata, CRUD APIs), **the link-saves-the-child-only rule** and the **`topic_version` versioning trap**, snapshots, cross-yuno `rt_by_disk` pattern, 12 sharp edges, 6 recipes. |
-| [`NODE_SEALING.md`](NODE_SEALING.md)                | **DESIGN (not yet implemented).** The black-box node: closing inbound SSH and reaching the host only inward-out via the controlcenter PTY. The OS-enforced seal, the self-proving + self-validating `seal-node` gate, the agent22↔agent heartbeat, the provider-console break-glass. Marked design until each piece lands. |
+| [`src/main.c`](src/main.c)                          | yuno entry point. It registers gclasses and builds the fixed/variable configuration. |
+| [`ENTRY_POINT.md`](ENTRY_POINT.md)                  | Minute 0: what the `main()` of every yuno does. [`yuneta_entry_point()`](#yuneta_entry_point) step by step (argp, gbmem-setup + json allocator switch, configuration merge, log handlers, gclass registration). The [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/ydaemon.c) double-fork supervisor (the watcher that makes a yuno survive without an agent). Signals inside the child. How `kill-yuno` interacts with the watcher. The `/var/crash/core.%e` forensics that the `.deb` wires. |
+| [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)                      | The real lifecycle of a yuno under this agent. Start here if you are new to the agent. |
+| [`DEBUGGING.md`](DEBUGGING.md)                      | How to debug a running yuno. Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
+| [`IPC.md`](IPC.md)                                  | How yunos talk to each other. Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
+| [`REALMS.md`](REALMS.md)                            | Realms, the multi-tenancy unit. Data model, on-disk layout, CRUD (create/update/delete-realm), what is and is not realm-scoped (ports and certs are not), the hierarchical `parent_realm_id`, sharp edges, recipes. |
+| [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | `yuno-skeleton`: which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
+| [`YUNO_AUTH.md`](YUNO_AUTH.md)                                | Auth + TLS. `auth_bff` OIDC flow (PKCE, HttpOnly cookies, the `issuer` configuration), JWT validation via `libjwt`, the [`C_AUTHZ`](#gclass-c-authz) service + `authzs` treedb (users/roles), the `pm_*` schemas. The per-command authz gate is re-armed but gated off by default (`enable_command_authz`, see §4.5). Also cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
+| [`GOBJ.md`](GOBJ.md)                                | The gobj framework in 30 minutes. gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`, `mt_start`, `mt_stop`, `mt_destroy`, `mt_writing` and `mt_reading`), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavor, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/c_timer.c) (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
+| [`YUNO_TREEDB.md`](YUNO_TREEDB.md)                            | timeranger2 + treedb in 30 minutes. The append-only log layer (per-key dirs, `.json`+`.md2` partitioning, `g_rowid`/`i_rowid`, `__t__`/`__tm__`, master/non-master lock, no `fsync`, no per-record delete since v7), the graph layer on top (topic schemas, `cols`/`hook`/`fkey`, `__md_treedb__` metadata, CRUD APIs), the link-saves-the-child-only rule and the `topic_version` versioning trap, snapshots, cross-yuno `rt_by_disk` pattern, 12 sharp edges, 6 recipes. |
+| [`NODE_SEALING.md`](NODE_SEALING.md)                | DESIGN (not yet implemented). The black-box node: inbound SSH is closed, and the host is reachable only inward-out via the controlcenter PTY. The OS-enforced seal, the self-proving + self-validating `seal-node` gate, the agent22↔agent heartbeat, the provider-console break-glass. The document stays marked as design until each piece lands. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
 | [`service/`](service/)                              | systemd unit + start scripts                             |
 | [`certs/`](certs/)                                  | Default cert directory (populated by the helper above)   |
 
 ## Entry points
 
-- **Local Unix socket** — used by local CLI tools (`ycommand`, `ystats`, …).
-- **WebSocket** on a realm-specific URL — used for remote management and
-  `controlcenter`.
+- A local Unix socket. The local CLI tools use it (`ycommand`, `ystats`, …).
+- A WebSocket on a realm-specific URL. Remote management and `controlcenter`
+  use it.
 
 ## Where to go next
 
-- **What the `main()` of every yuno does** → [`ENTRY_POINT.md`](ENTRY_POINT.md)
-  is the "minute 0" read. It explains `yuneta_entry_point()` step by step
-  (argp, the [`gbmem_setup`](#gbmem_setup) + [`json_set_alloc_funcs`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_set_alloc_funcs) switch that load-bears
-  every test allocator rule, the `fixed + variable + --config-file +
-  positional` config merge that `view-config` surfaces, the log handlers,
-  the gclass-registration callback). Then [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/ydaemon.c): the double-fork
-  pattern, the **per-yuno watcher** that auto-relaunches the child on any
-  abnormal exit (this is what makes a yuno survive `kill -9 yuneta_agent`),
-  the `waitpid` decision matrix, and [`daemon_shutdown()`](#daemon_shutdown)'s SIGQUIT-then-
-  SIGKILL pair. Then signals inside the yuno child (signalfd, SIGQUIT
-  semantics, SIGUSR1/2 as trace toggles). Then how the agent's
-  `kill-yuno` interacts with the watcher and why the default does not
-  touch it. Then `/var/crash/core.%e` post-mortem: the sysctl + PAM
-  limits + `/var/crash` group ownership wired by the `.deb`, the no-PID
-  pattern, and the `Daemon relaunched` log line, which is your only alarm
-  for a silent crash.
-- **Operating a yuno (deploy / update / kill / pause)** → [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)
-  has the full command inventory, the on-disk + treedb layout, the
-  `EV_ON_OPEN` / `EV_ON_CLOSE` handshake, the sharp edges (`update-binary`
-  over a live mmap, stale pids, no SIGKILL escalation, pause ≠ SIGSTOP), and
-  the canonical `ycommand` recipes.
-- **Debugging a running yuno** → [`DEBUGGING.md`](DEBUGGING.md) covers severity
-  levels (`gobj_log_*`), trace categories (global / gclass / gobj), how to read
-  the JSON log lines, the FSM `machine` trace, end-to-end message tracing
-  across yunos via `ievent_gate_stack`, the `logcenter` UDP aggregator, and
-  the SPA-side dev panel.
-- **How yunos talk to each other** → [`IPC.md`](IPC.md) covers the event model
+- What the `main()` of every yuno does: [`ENTRY_POINT.md`](ENTRY_POINT.md)
+  is the "minute 0" read. It explains `yuneta_entry_point()` step by step.
+  That includes argp, and the [`gbmem_setup`](#gbmem_setup) + [`json_set_alloc_funcs`](https://jansson.readthedocs.io/en/latest/apiref.html#c.json_set_alloc_funcs)
+  switch that every test allocator rule depends on. It also includes the
+  `fixed + variable + --config-file +
+  positional` configuration merge that `view-config` shows, the log handlers,
+  and the gclass-registration callback. Then it explains [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/ydaemon.c):
+  the double-fork pattern and the per-yuno watcher. The watcher relaunches
+  the child on any abnormal exit. This is what makes a yuno survive
+  `kill -9 yuneta_agent`. The document also gives the `waitpid` decision
+  matrix and the SIGQUIT-then-SIGKILL pair of
+  [`daemon_shutdown()`](#daemon_shutdown). Then it explains the signals
+  inside the yuno child (signalfd, SIGQUIT semantics, SIGUSR1/2 as trace
+  toggles). Then it tells how the `kill-yuno` of the agent interacts with
+  the watcher, and why the default does not touch it. Last, it explains the
+  `/var/crash/core.%e` post-mortem. The `.deb` wires the sysctl, the PAM
+  limits, and the group ownership of `/var/crash`. The document also covers
+  the no-PID pattern and the `Daemon relaunched` log line. That line is your
+  only alarm for a silent crash.
+- Operate a yuno (deploy / update / kill / pause): [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)
+  has the full command inventory, the on-disk + treedb layout, and the
+  `EV_ON_OPEN` / `EV_ON_CLOSE` handshake. It also has the sharp edges
+  (`update-binary` over a live mmap, stale pids, no SIGKILL escalation,
+  pause ≠ SIGSTOP) and the canonical `ycommand` recipes.
+- Debug a running yuno: [`DEBUGGING.md`](DEBUGGING.md) covers severity
+  levels (`gobj_log_*`), trace categories (global / gclass / gobj), and how
+  to read the JSON log lines. It also covers the FSM `machine` trace,
+  end-to-end message tracing across yunos via `ievent_gate_stack`, the
+  `logcenter` UDP aggregator, and the SPA-side dev panel.
+- How yunos talk to each other: [`IPC.md`](IPC.md) covers the event model
   (states/actions tables, `EVF_*` flags, `kw` ownership, the "IMPORTANT HACK"
-  of state-before-action), intra-yuno dispatch (`gobj_send_event`,
-  `gobj_publish_event`, subscriptions, CHILD vs SERVICE), the inter-yuno
-  ievent layer ([`C_IEVENT_SRV`](#gclass-c-ievent-srv) / [`C_IEVENT_CLI`](#gclass-c-ievent-cli), the `__md_iev__` metadata
-  block, identity card handshake, routing), commands / stats (`gobj_command`,
-  [`msg_iev_build_response`](#msg_iev_build_response)), the gate stack (TCP/HTTP/WebSocket/MQTT, TLS,
-  `public_services`), and the browser SPA case.
-- **Realms (the multi-tenancy unit)** → [`REALMS.md`](REALMS.md) explains the
-  `realms` topic, the composed `<name>.<role>.<env>` URL identity, the
-  `/yuneta/realms/<owner>/<url>/<yuno>/{bin,logs}` on-disk layout, `create-
-  realm` / `update-realm` / `delete-realm`, and the things that **look**
-  per-realm but are not (port pool, cert sync, the binary repo).
-- **Scaffolding a new yuno or gclass** → [`SCAFFOLDING.md`](SCAFFOLDING.md)
-  explains `yuno-skeleton`, the seven shipped templates, the templating
+  of state-before-action). It covers intra-yuno dispatch (`gobj_send_event`,
+  `gobj_publish_event`, subscriptions, CHILD vs SERVICE). It covers the
+  inter-yuno ievent layer ([`C_IEVENT_SRV`](#gclass-c-ievent-srv) / [`C_IEVENT_CLI`](#gclass-c-ievent-cli), the `__md_iev__` metadata
+  block, identity card handshake, routing). It also covers commands / stats
+  (`gobj_command`, [`msg_iev_build_response`](#msg_iev_build_response)), the
+  gate stack (TCP/HTTP/WebSocket/MQTT, TLS, `public_services`), and the
+  browser SPA case.
+- Realms (the multi-tenancy unit): [`REALMS.md`](REALMS.md) explains the
+  `realms` topic, the composed `<name>.<role>.<env>` URL identity, and the
+  `/yuneta/realms/<owner>/<url>/<yuno>/{bin,logs}` on-disk layout. It
+  explains `create-
+  realm` / `update-realm` / `delete-realm`. It also explains the things that
+  look per-realm but are not (port pool, cert sync, the binary repo).
+- Scaffold a new yuno or gclass: [`SCAFFOLDING.md`](SCAFFOLDING.md)
+  explains `yuno-skeleton`, the shipped templates, and the templating
   engine (`{{var}}` for content, `+var+` for filenames, the `_tmpl`
-  opt-in, derived `rootname`/`Rootname`/`ROOTNAME`), the structural diff
-  between `yuno_citizen` and `yuno_standalone`, the verbatim SERVICE vs
-  CHILD subscription block in `mt_create`, and the mandatory banner
-  convention from CLAUDE.md.
-- **Auth + TLS** → [`YUNO_AUTH.md`](YUNO_AUTH.md) covers the `auth_bff` OIDC flow
-  (PKCE, HttpOnly cookies, the `issuer` config), JWT validation via `libjwt`,
-  the `C_AUTHZ` service
+  opt-in, derived `rootname`/`Rootname`/`ROOTNAME`). It also explains the
+  structural diff between `yuno_citizen` and `yuno_standalone`, the verbatim
+  SERVICE vs CHILD subscription block in `mt_create`, and the mandatory
+  banner convention from CLAUDE.md.
+- Auth + TLS: [`YUNO_AUTH.md`](YUNO_AUTH.md) covers the `auth_bff` OIDC flow
+  (PKCE, HttpOnly cookies, the `issuer` configuration) and JWT validation via
+  `libjwt`. It covers the `C_AUTHZ` service
   with its `authzs` treedb (users / roles / users_accesses,
-  `parent_role_id` inheritance, the `yuneta` super-user bypass), the
-  `pm_*` schemas and the **critical** finding that the per-command
-  [`gobj_user_has_authz`](#gobj_user_has_authz) check at [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/command_parser.c) is currently
-  commented out, the `cert_sync_*` machinery on the agent and the
-  `reload-certs` broadcast, the per-project Keycloak realm convention,
+  `parent_role_id` inheritance, the `yuneta` super-user bypass) and the
+  `pm_*` schemas. It gives the critical finding that the per-command
+  [`gobj_user_has_authz`](#gobj_user_has_authz) check at [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/command_parser.c) is re-armed
+  but off by default (`enable_command_authz`). It also covers the `cert_sync_*` machinery on the agent,
+  the `reload-certs` broadcast, the per-project Keycloak realm convention,
   and the secrets-in-cleartext risk (`client_secret`, SMTP password).
-- **The gobj framework in 30 minutes** → [`GOBJ.md`](GOBJ.md) explains the
-  gclass / gobj distinction, the mandatory banner layout, the `GMETHODS`
-  table, the full lifecycle (`gobj_create*` / `gobj_start*` / `gobj_stop*`
-  / `gobj_destroy`), every `mt_*` method, SData attributes (types, flags,
-  persistence), the runtime tree, the service registry, and walks through
+- The gobj framework in 30 minutes: [`GOBJ.md`](GOBJ.md) explains the
+  gclass / gobj distinction, the mandatory banner layout, and the `GMETHODS`
+  table. It explains the full lifecycle (`gobj_create*` / `gobj_start*` / `gobj_stop*`
+  / `gobj_destroy`), every `mt_*` method, and SData attributes (types,
+  flags, persistence). It also explains the runtime tree and the service
+  registry, and walks through
   [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/c_timer.c) as the minimal canonical example.
-- **timeranger2 + treedb in 30 minutes** → [`YUNO_TREEDB.md`](YUNO_TREEDB.md) covers
+- timeranger2 + treedb in 30 minutes: [`YUNO_TREEDB.md`](YUNO_TREEDB.md) covers
   the append-only log layer (per-key directories, `.json`+`.md2`
   partitioning, the `g_rowid`/`i_rowid` rule, master/non-master locking,
-  the post-v7 absence of per-record delete), the graph layer on top
-  (topic schemas, `cols`/`hook`/`fkey` flags, the `__md_treedb__`
-  metadata block, node CRUD), the **link-saves-the-child-only** invariant,
-  the **`topic_version` schema-versioning trap**, snapshots, and the
+  the post-v7 absence of per-record delete). It covers the graph layer on
+  top (topic schemas, `cols`/`hook`/`fkey` flags, the `__md_treedb__`
+  metadata block, node CRUD). It also covers the link-saves-the-child-only
+  invariant, the `topic_version` schema-versioning trap, snapshots, and the
   cross-yuno `rt_by_disk` pattern.
-- **Sealing a node into a black box (DESIGN)** → [`NODE_SEALING.md`](NODE_SEALING.md)
-  is the validated mental model — **not yet implemented** — for closing inbound
-  SSH and reaching the host only inward-out through the controlcenter PTY. It
-  covers the governing property (the seal is enforced by the OS, so it holds
-  even if the agent is dead), the self-proving + self-validating `seal-node`
-  gate, the one piece of new plumbing it needs (the agent22↔agent
-  CC-connection heartbeat, plus Hardening #0: agent22 must never `exit(0)` on an
-  empty `node_owner`), the long-lived-credentials rule (a sealed box with a
-  short JWT/cert is a guaranteed brick), and the provider-console break-glass
-  contract (OVH rescue mode — deliberately no auto-unseal).
-- **The companion backdoor agent** → `../yuno_agent22/` is a separate yuno
-  used by `controlcenter` for PTY-based remote admin. It is **not** the
-  primary lifecycle manager. Enable it only on hosts that must be reachable
-  from a control center. Two practical uses:
-  1. *PTY backdoor for ops*: the controlcenter operator can drop into a
-     shell on the host without touching the primary agent.
-  2. *Self-update channel for the primary agent*: because `yuneta_agent22`
-     is an independent process (its own `--config-file`, its own watcher),
-     you can replace the binary of `yuneta_agent` and restart its unit
-     without losing the inbound channel to the host. Same `authz.master`
-     wiring as the primary, but typically with `authz.master=false`
-     so it follows the primary's authz treedb instead of forking one.
-
-## Build
-
-```bash
-cd build && cmake .. && make install
-```
-
-Installed into `$YUNETAS_YUNOS/yuno_agent/`. See the top-level
-[`CLAUDE.md`](../../../CLAUDE.md) for the global build flow (`yunetas init`,
-`yunetas build`).
+- Seal a node into a black box (DESIGN): [`NODE_SEALING.md`](NODE_SEALING.md)
+  is the validated mental model to close inbound SSH. It is not yet
+  implemented. With the seal, the host is reachable only inward-out through
+  the controlcenter PTY. The document covers these points:
+    - The governing property: the OS enforces the seal, so the seal holds
+      even if the agent is dead.
+    - The self-proving + self-validating `seal-node` gate.
+    - The one piece of new plumbing that it needs: the agent22↔agent
+      CC-connection heartbeat. Also Hardening #0: agent22 must never
+      `exit(0)` on an empty `node_owner`.
+    - The long-lived-credentials rule: a sealed box with a short JWT/cert is
+      a guaranteed brick.
+    - The provider-console break-glass contract (OVH rescue mode). There is
+      deliberately no auto-unseal.
+- The companion backdoor agent: `../yuno_agent22/` is a separate yuno.
+  `controlcenter` uses it for PTY-based remote admin. It is not the primary
+  lifecycle manager. Enable it only on hosts that must be reachable from a
+  control center. It has two practical uses:
+  1. *PTY backdoor for ops*: the controlcenter operator can open a shell on
+     the host without touching the primary agent.
+  2. *Self-update channel for the primary agent*: `yuneta_agent22` is an
+     independent process (its own `--config-file`, its own watcher). Thus
+     you can replace the binary of `yuneta_agent` and restart its unit, and
+     keep the inbound channel to the host. It has the same `authz.master`
+     wiring as the primary, but usually with `authz.master=false`. Then it
+     follows the authz treedb of the primary and does not fork one.

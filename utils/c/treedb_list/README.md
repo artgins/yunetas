@@ -1,6 +1,6 @@
 # treedb_list
 
-List nodes of a **TreeDB** graph database (built on timeranger2). Walks topics and their hook/fkey relationships, printing nodes with their `__md_treedb__` metadata.
+`treedb_list` lists the nodes of a TreeDB graph database. TreeDB runs on timeranger2.
 
 ## Usage
 
@@ -8,4 +8,6 @@ List nodes of a **TreeDB** graph database (built on timeranger2). Walks topics a
 treedb_list --path <tranger-path> --database <treedb> [--topic <topic>] [--ids <id,…>] [options]
 ```
 
-Run `treedb_list --help` for filters and output modes. See also `tr2search` for lower-level topic queries.
+For the filters and the output modes, run `treedb_list --help`. For lower-level queries of a topic, use `tr2search`.
+
+The tool walks the topics and their hook/fkey relationships. It prints each node with its `__md_treedb__` metadata.

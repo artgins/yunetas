@@ -1,6 +1,6 @@
 # ylist
 
-List running Yuneta instances (yunos) on the local machine, with process information. Useful for quick status checks and scripted pid lookups.
+`ylist` lists the Yuneta instances (yunos) that run on the local machine, with process information. Use it for a quick status, or to find pids in a script.
 
 ## Usage
 

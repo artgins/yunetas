@@ -1,16 +1,16 @@
 # Yuneta Kernel
 
-Yuneta Kernel implementations in multiple languages.
+The Yuneta kernel has an implementation in C and an implementation in JavaScript.
 
 ## c
 
-Reference implementation in C, fully operative. Built with CMake.
+The C implementation is the reference implementation. It is complete. CMake builds it.
 
 See [`c/README.md`](c/README.md) for the full C API reference.
 
 ## js
 
-JavaScript/ES6 implementation, fully operative. Built with Vite.
+The JavaScript (ES6) implementation is complete. Vite builds it.
 
 | Package | Description |
 |---------|-------------|

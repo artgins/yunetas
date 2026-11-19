@@ -1,4 +1,4 @@
-# Mosquitto's broker test suite against `mqtt_broker`
+# The Mosquitto broker test suite against `mqtt_broker`
 
 Eclipse Mosquitto ships about 270 broker tests in Python (`test/broker/*.py`).
 Each test starts a broker with `$BUILD_ROOT/src/mosquitto -c <conf> -p <port>`,
@@ -6,22 +6,9 @@ talks raw MQTT to it, and compares the bytes it receives with the bytes it expec
 This directory runs those tests against the yuneta `mqtt_broker`, with a stand-in
 for the `mosquitto` binary.
 
-The suite is **not** copied into this repository. `setup.sh` fetches `test/` from
+The suite is not copied into this repository. `setup.sh` fetches `test/` from
 the Mosquitto repository at a pinned commit (Mosquitto is EPL-2.0 OR BSD-3-Clause).
 Only the scripts, the stand-in, a small patch and the reference results live here.
-
-## Files
-
-| File | What it is |
-|------|------------|
-| `setup.sh` | Fetches `test/` of Mosquitto at the pinned commit into the work directory and applies `mosq_test.patch`. Run it once. |
-| `run_all.sh` | Runs the tests one at a time (60 s limit each) and writes one output per test plus `summary.txt`. |
-| `standin_mosquitto.py` | The stand-in for the `mosquitto` binary. It reads the test's `-p` and `-c <conf>`, writes a yuneta config from `../mqtt_broker.json`, and runs the broker. |
-| `mosq_test.patch` | Patch to the suite's `mosq_test.py`: compares whole packets and accepts the encodings the spec allows (see the patch header). The tests themselves are not changed. |
-| `features.env` | The suite's feature switches. A test of a feature that is OFF exits 77 (skipped). |
-| `classify.py` | Classifies a run, and compares it with a reference run. |
-| `digest.py` | Short form of one test output: the test's lines and the broker's WARNING/ERROR messages. |
-| `baseline.txt` | `summary.txt` of the reference run (see *Current results*). |
 
 ## Prerequisites
 
@@ -30,7 +17,7 @@ Only the scripts, the stand-in, a small patch and the reference results live her
   `$YUNETAS_YUNOS/mqtt_broker`, else `/yuneta/development/yunetas/outputs/yunos/mqtt_broker`.
 - TCP ports 1888 to 1895 free. A broker on 1883 does not interfere.
 
-## Set up (once)
+## Setup (once)
 
 ```bash
 cd /yuneta/development/yunetas/yunos/c/mqtt_broker/tests/mosquitto
@@ -57,11 +44,11 @@ Each run copies the broker binary, `../mqtt_broker.json` and the stand-in into t
 work directory. Thus a rebuild during a run does not change what is tested.
 The results go to `$MOSQ_WORK/results-<date>/` (or `$OUT`):
 
-- `<test>.py.txt`: the output of the test, with the broker's log.
+- `<test>.py.txt`: the output of the test, with the log of the broker.
 - `summary.txt`: one line per test, `<test> <exit code> <time>`.
 - `broker.txt`: the `--version` of the broker under test.
 
-Exit codes: **0** = pass, **77** = skipped (feature OFF), anything else = fail.
+Exit codes: 0 = pass, 77 = skipped (feature OFF), anything else = fail.
 
 At the end of a full run, `run_all.sh` prints the counts per class and every test
 whose exit code changed against `baseline.txt`. A test that fails and is not in the
@@ -83,10 +70,23 @@ Classes of `classify.py`:
 | `PASS` | Exit 0. |
 | `U` | Feature the yuneta broker does not have: TLS, websockets, unix sockets, plugins, password and ACL files, bridges, enhanced authentication (AUTH), `$CONTROL`, `mount_point`... Skipped with 77, or fails on it. |
 | `U*` | Exit 0, but not a pass: the test never runs its case, or passes by coincidence. |
-| `L` | The test checks Mosquitto itself: its files, its command line, its config parser. |
-| `S` | The spec allows both behaviours and the test expects Mosquitto's choice. |
+| `L` | The test checks Mosquitto itself: its files, its command line, its configuration parser. |
+| `S` | The spec allows both behaviors and the test expects the choice of Mosquitto. |
 | `T` | The test itself does not run (a bug in the suite). |
 | `NEW` | Fails and is not classified. Look at it. |
+
+## Files
+
+| File | What it is |
+|------|------------|
+| `setup.sh` | Fetches `test/` of Mosquitto at the pinned commit into the work directory and applies `mosq_test.patch`. Run it once. |
+| `run_all.sh` | Runs the tests one at a time (60 s limit each) and writes one output per test plus `summary.txt`. |
+| `standin_mosquitto.py` | The stand-in for the `mosquitto` binary. It reads the `-p` and `-c <conf>` of the test, writes a yuneta configuration from `../mqtt_broker.json`, and runs the broker. |
+| `mosq_test.patch` | Patch to the `mosq_test.py` of the suite: compares whole packets and accepts the encodings the spec allows (see the patch header). The tests themselves are not changed. |
+| `features.env` | The feature switches of the suite. A test of a feature that is OFF exits 77 (skipped). |
+| `classify.py` | Classifies a run, and compares it with a reference run. |
+| `digest.py` | Short form of one test output: the lines of the test and the WARNING/ERROR messages of the broker. |
+| `baseline.txt` | `summary.txt` of the reference run (see *Current results*). |
 
 ## Debug one test
 
@@ -104,7 +104,7 @@ in `$W`. Environment variables of the stand-in:
 
 | Variable | Effect |
 |----------|--------|
-| `YBROKER_KEEP=1` | Keep the broker's run directory (`$W/runs/ybroker-*`: its config, store and logs). |
+| `YBROKER_KEEP=1` | Keep the run directory of the broker (`$W/runs/ybroker-*`: its configuration, store and logs). |
 | `YBROKER_TRACE='{"C_PROT_MQTT2":["show-decode"]}'` | GClass trace levels for the broker (`yuno.trace_levels`). |
 | `YBROKER_ARGS='--global-trace=machine'` | Extra arguments for the broker. |
 | `STANDIN_SUBACK_REORDER=1` | What-if pass of the patched `mosq_test.py`: a PUBLISH received before the expected SUBACK is kept for later (see `S` below). |
@@ -126,12 +126,12 @@ the test output.
   `per_listener_settings`), `allow_zero_length_clientid`.
 - Mosquitto 2 defaults where the yuneta default is different: `max_keepalive`
   65535, no limit for subscriptions per client and topic filter length,
-  `max_packet_size` 2000000. Anonymous clients are allowed only when the config
+  `max_packet_size` 2000000. Anonymous clients are allowed only when the configuration
   file defines no listener. `Authz.allow_anonymous_in_localhost` is false.
 - `persistence true`: the store is kept across the broker restarts of one test.
   It is cleared when the test deletes its persistence file.
 - `include_dir` is read.
-- Logging, tuning and file options of Mosquitto are ignored; all other options are
+- Logging, tuning and file options of Mosquitto are ignored. All other options are
   reported as unsupported.
 
 ## Current results
@@ -148,7 +148,7 @@ With 7.31.1 (before the fixes of `e49f1c7a3`) 68 tests exited 0.
 
 The 10 `S` failures:
 
-- **B1, retained messages before the SUBACK** (6 tests, e.g.
+- B1, retained messages before the SUBACK (6 tests, for example
   `02-subpub-qos0-send-retain`). The broker sends the retained PUBLISHes of a new
   subscription before its SUBACK. MQTT-3.8.4 permits this ("The Server is
   permitted to start sending PUBLISH packets matching the Subscription before the

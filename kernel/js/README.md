@@ -1,54 +1,20 @@
 # Yuneta JavaScript Packages
 
-JavaScript/ES6 implementation of the [Yuneta](https://yuneta.io) framework (v7).
-Built with [Vite](https://vite.dev/), requires Node.js LTS (v22+).
+This directory has the JavaScript/ES6 implementation of the [Yuneta](https://yuneta.io) framework (v7).
+The packages are built with [Vite](https://vite.dev/) and need Node.js LTS (v22+).
 
-> **Both packages are git submodules.** `gobj-js` and `gobj-ui` each live in
-> their own repository (`github.com/artgins/gobj-js`,
-> `github.com/artgins/gobj-ui.js`) and are embedded here at `kernel/js/gobj-js`
-> and `kernel/js/gobj-ui`. Clone yunetas with `--recurse-submodules` (or run
-> `git submodule update --init`) or these directories will be empty. To ship a
-> new version: edit the submodule directly, commit + `npm publish` in the
-> standalone repo, then bump the submodule pointer in yunetas.
+Both packages are git submodules. `gobj-js` and `gobj-ui` each have their own
+repository (`github.com/artgins/gobj-js`, `github.com/artgins/gobj-ui.js`).
+This repository embeds them at `kernel/js/gobj-js` and `kernel/js/gobj-ui`.
 
-## Packages
+> Clone yunetas with `--recurse-submodules`, or run
+> `git submodule update --init`. If you do not, these directories are empty.
 
-### [`gobj-js`](gobj-js/) — Core Framework
+To ship a new version of a package:
 
-The GObject + Finite State Machine (FSM) runtime for browser and Node.js.
-Published as [`@yuneta/gobj-js`](https://www.npmjs.com/package/@yuneta/gobj-js).
-
-Provides:
-- GClass registration and GObject lifecycle
-- Finite State Machine engine (states, events, actions)
-- Typed attribute schemas (`SDATA`)
-- Event system with pub/sub
-- Hierarchical GObject tree (Yuno)
-- Persistence via `localStorage`
-- Inter-event client (`C_IEVENT_CLI`) for WebSocket communication with C backends
-- TreeDB helpers for schema-driven graph databases
-- Utilities: JSON operations, keyword helpers, logging, string formatting
-
-See [`gobj-js/README.md`](gobj-js/README.md) for the full API reference.
-
-### [`gobj-ui`](gobj-ui/) — UI Component Library
-
-Reusable GUI components for Yuneta-based web applications.
-Published as [`@yuneta/gobj-ui`](https://www.npmjs.com/package/@yuneta/gobj-ui).
-
-Provides:
-- The declarative shell (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
-  `C_YUI_WIZARD`), floating windows, forms, dialogs
-- MapLibre GL map wrapper, uPlot charts, JSON graph visualization
-- TreeDB topic management and graph editing components
-- Theme management, toolbar, developer tools
-- Vite plugin for CSP generation and HTML templating
-
-The scaffold for a new declarative-shell GUI is the `gui/` of the `project`
-templates of `yuno-skeleton`
-([`utils/c/yuno-skeleton/skeletons/project_base/gui/`](../../utils/c/yuno-skeleton/skeletons/project_base/gui/)).
-
-See [`gobj-ui/README.md`](gobj-ui/README.md) for the component guide and setup instructions.
+1. Edit the submodule directly.
+2. In the standalone repository, commit and run `npm publish`.
+3. In yunetas, bump the submodule pointer.
 
 ## Quick Start
 
@@ -63,6 +29,45 @@ cd gobj-js && npm install && vite build && cd ..
 # Build gobj-ui
 cd gobj-ui && npm install && vite build && cd ..
 ```
+
+## Packages
+
+### [`gobj-js`](gobj-js/): Core Framework
+
+This package is the GObject and Finite State Machine (FSM) runtime for the browser and Node.js.
+It is published as [`@yuneta/gobj-js`](https://www.npmjs.com/package/@yuneta/gobj-js).
+
+It has:
+- GClass registration and GObject lifecycle
+- Finite State Machine engine (states, events, actions)
+- Typed attribute schemas (`SDATA`)
+- Event system with pub/sub
+- Hierarchical GObject tree (Yuno)
+- Persistence via `localStorage`
+- Inter-event client (`C_IEVENT_CLI`) for WebSocket communication with C backends
+- TreeDB helpers for schema-driven graph databases
+- Utilities: JSON operations, keyword helpers, logging, string formatting
+
+[`gobj-js/README.md`](gobj-js/README.md) has the full API reference.
+
+### [`gobj-ui`](gobj-ui/): UI Component Library
+
+This package has reusable GUI components for web applications built on Yuneta.
+It is published as [`@yuneta/gobj-ui`](https://www.npmjs.com/package/@yuneta/gobj-ui).
+
+It has:
+- The declarative shell (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
+  `C_YUI_WIZARD`), floating windows, forms, dialogs
+- MapLibre GL map wrapper, uPlot charts, JSON graph visualization
+- TreeDB topic management and graph editing components
+- Theme management, toolbar, developer tools
+- Vite plugin for CSP generation and HTML templating
+
+The scaffold for a new declarative-shell GUI is the `gui/` of the `project`
+templates of `yuno-skeleton`
+([`utils/c/yuno-skeleton/skeletons/project_base/gui/`](../../utils/c/yuno-skeleton/skeletons/project_base/gui/)).
+
+[`gobj-ui/README.md`](gobj-ui/README.md) has the component guide and the setup instructions.
 
 ## Directory Layout
 
