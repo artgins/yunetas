@@ -12,7 +12,7 @@ ievent stack and the message type into the kw, and serialize its binary
 fields (the gbuffer goes into the frame as `__gbuffer___`). A kw that somebody
 else holds too (its refcount above 1: a published kw, or a caller's
 `kw_incref()`) is twinned first (`kw_twin()`, which takes its own reference of
-the gbuffer), and its `__md_iev__` copied, so the caller's kw comes back as it
+the gbuffer), and its `__md_iev__` copied, so the caller's kw is returned as it
 went, gbuffer included:
 
 ```c
@@ -23,7 +23,7 @@ JSON_DECREF(webix)
 KW_DECREF(kw)
 ```
 
-Up to 7.25.4 only an event was twinned; up to 7.30.17 `gobj_command()` and
+Up to 7.25.4, only an event was twinned. Up to 7.30.17, `gobj_command()` and
 `gobj_stats()` wrote in the caller's kw and took its gbuffer away, so the
 reference that `kw_incref()` had taken was never released.
 
@@ -67,7 +67,7 @@ controlcenter that forwards an operator's command to an agent. With
   client's node uuid ([`node_uuid()`](../helpers/misc.md#node_uuid)), and its
   `sub` is the operator.
 - The client asks its yuno's `C_AUTHZ` to verify it with the keys of
-  `assertion_jwks` (local method `verify_jwt` with an `audience`; see
+  `assertion_jwks` (local method `verify_jwt` with an `audience`, see
   [`C_AUTHZ`](#gclass-c-authz)). The `sub` becomes the `__username__`,
   whatever the request said.
 - A request with no assertion is of `service_principal`. Examples are a
@@ -88,7 +88,7 @@ The client takes `__operator_assertion__` out of every request, verified or
 not. It also takes out `__operator_jwt__`, the field of 7.30.6–7.30.8, which
 was never sent. No command and no audit sees either of them. The identity
 card says `knows_operator_assertion: true`, and a server gives assertions
-only to a client that says so. An older client would hand the unknown key to
+only to a client that says so. Otherwise, an older client hands the unknown key to
 its command.
 
 Example: the agent's link to its controlcenter, in the agent's `main.c`
@@ -152,7 +152,7 @@ services, and handles WebSocket upgrade.
 | `client_yuno_name` | `string` | Name of the connected client yuno. |
 | `this_service` | `string` | Local service name this gate serves. |
 | `authenticated` | `bool` | Whether the connection is authenticated. |
-| `max_subscriptions` | `integer` | Subscriptions a peer may hold on the channel (default `5000`, `0` no limit). See *What a peer may hold*. |
+| `max_subscriptions` | `integer` | Subscriptions a peer can hold on the channel (default `5000`, `0` no limit). See *What a peer may hold*. |
 | `max_subscription_size` | `integer` | Bytes, as compact json, of the `__filter__`, of the `__global__` and of the routing back (`__md_iev__`) of a peer's subscription, each one (default `16384`, `0` no limit). |
 | `max_pre_session_frame` | `integer` | Bytes of a frame received before the session (default `65536`, `0` no limit). See below. |
 | `peer_cert` | `dict` | The certificate the client presented to the TLS of its transport (C_TCP's `peer_cert`: `subject`, `cn`, `spki_sha256`, `verified`, ...), `{}` if none (7.30.10+). It goes in the `EV_ON_OPEN` the gate publishes too, for a service that binds an identity to it: the controlcenter pins each node to its agent's key. |
@@ -173,7 +173,7 @@ yuno exited with *"Destroying a RUNNING gobj"*. Only an owner that called
 `gobj_stop_tree()` on the gate stopped it all.
 
 A channel that is disabled and enabled again (the `C_IOGATE` commands
-`disable-channel` and `enable-channel`) comes back whole: `C_CHANNEL`
+`disable-channel` and `enable-channel`) is restored whole: `C_CHANNEL`
 restarts its tree, and `C_IEVENT_SRV` starts its protocol gobj in its start,
 the mirror of its stop. The transport `C_TCP` is manual start: `C_TCP_S`
 starts it for each connection it accepts.
@@ -219,15 +219,15 @@ PRIVATE int mt_pause(hgobj gobj)
 
 A peer subscribes to an event of a local service with a `__subscribing__`
 message. `C_IEVENT_SRV` accepts it only for a **public** output event of a
-service the channel may reach. Since 7.25.5, when the yuno sets
+service the channel can reach. Since 7.25.5, when the yuno sets
 `enable_subscription_authz` (off by default) and the event is flagged
 `EVF_AUTHZ_SUBSCRIBE`, the channel's user also needs the publisher's
 permission aliased `__subscribe_event__` — `read` for the `EV_TREEDB_NODE_*`
 feed of a treedb and for the `EV_TRANGER_RECORD_ADDED` feed of a
 `C_TRANGER` — or the global `__subscribe_event__`. A refused subscription is
 a WARNING (*"No permission to subscribe event"*, `MSGSET_AUTH`, with the
-`service`, the `event`, the `permission` and the `username`; up to 7.30.15 an
-ERROR, though the peer causes it) and is not made; the channel stays
+`service`, the `event`, the `permission` and the `username`, and up to 7.30.15 an
+ERROR, though the peer causes it) and is not made. The channel stays
 open. The refusal is logged once per service and event on a channel: a peer
 that repeats it does not write a log line per frame. When the peer withdraws a
 refused subscription later, that is logged at info level (*"its subscription
@@ -256,13 +256,13 @@ Details, and how a gclass declares a guarded event:
 The kw of a `__subscribing__` message can carry `__config__`, `__global__`
 and `__filter__`, as a local `gobj_subscribe_event()` does. `C_IEVENT_SRV`
 builds the subscription from those three, and keeps of them only what a peer
-may set (since 7.25.5):
+can set (since 7.25.5):
 
 | Key | What is kept |
 |-----|--------------|
 | `__filter__` | All of it. It decides only the peer's own deliveries. |
 | `__config__` | The keys in the list below. |
-| `__global__` | The keys of the peer's own: not one that starts with `_` (the framework's: `__md_iev__`, `__md_yuno__`, `__service__`, ...), and not `gbuffer`, the binary field of every kw. They come back to the peer in every event of this subscription, and to nobody else. |
+| `__global__` | The keys of the peer's own: not one that starts with `_` (the framework's: `__md_iev__`, `__md_yuno__`, `__service__`, ...), and not `gbuffer`, the binary field of every kw. They return to the peer in every event of this subscription, and to nobody else. |
 | `__local__` | Nothing. The one `__local__` of a remote subscription is the reference to the channel, set by `C_IEVENT_SRV`. |
 | any other key | Nothing. |
 
@@ -281,7 +281,7 @@ a bigger one (a record with long strings) refuses the subscription,
 *"SUBSCRIBING refused, its routing is bigger than max_subscription_size"*,
 at most once per 10 s. Up to 7.25.4 the frame's whole `__md_iev__` was
 copied, keys of the peer's own included, and nothing of a subscription was
-measured: a peer could store as much as a frame holds in each subscription,
+measured: a peer was able to store as much as a frame holds in each subscription,
 with no cap on their number, and got it back with every event.
 
 Up to 7.25.4 only `__config__` was filtered, and the publish shared ONE kw
@@ -297,7 +297,7 @@ pointer when the event was serialized back to it, and crashed the yuno. Now
 ([`gobj_publish_event()`](#gobj_publish_event)), and `C_IEVENT_SRV` changes a
 kw that somebody else holds only on a copy.
 
-Of `__config__` the list of keys a peer may set has one key:
+Of `__config__`, the list of keys a peer can set has one key:
 
 | Key | Meaning |
 |-----|---------|
@@ -336,8 +336,8 @@ A key that a publisher reads from a peer is added to the list in
 A peer withdraws a subscription with an `__unsubscribing__` message that
 repeats what it subscribed. The kw is filtered the same way, and compared
 with what the peer SENT: the `__global__` that `C_IEVENT_SRV` stores carries
-its own back-metadata too, which the peer never repeats. Up to 7.25.4 it was
-compared whole, and a subscription with a `__global__` could not be withdrawn
+its own back-metadata too, which the peer never repeats. Up to 7.25.4, it was
+compared whole, and the peer was not able to withdraw a subscription with a `__global__`
 until the channel closed.
 
 Example: a C client tags the events of its subscription, and withdraws it:
@@ -354,7 +354,7 @@ gobj_unsubscribe_event(gobj_remote, EV_REALTIME_TRACK, kw, gobj);   // the same 
 ### What a peer may hold
 
 Every subscription costs a scan of the publisher's subscriptions when it is
-made, and one more on every publish of its event. A peer could make them
+made, and one more on every publish of its event. A peer was able to make them
 without end: 20000 subscriptions of one peer blocked the event
 loop for 80 s, and every later publish took 13 ms. So a channel holds at most
 `max_subscriptions` of its peer. Beyond it a subscription is refused, logged
@@ -415,7 +415,7 @@ already existed, so the peer's `admin` reached the service.
 ### A frame the gate cannot route
 
 Every frame of a session carries its routing: `__md_iev__` with the ievent
-stack, whose top record says where the frame comes from (`src_yuno`,
+stack, whose top record says where the frame is from (`src_yuno`,
 `src_role`, `src_service`, strings) and, if it says, where it goes
 (`dst_yuno`, `dst_role`, `dst_service`, strings). `C_IEVENT_CLI` (C and JS)
 pushes it on every request, and an answer copies the one of its request.
@@ -443,22 +443,22 @@ and how:
 |-----------|--------------------|-------------------|
 | No routing, or a malformed one | Closes the channel, as for a frame that is not json. It cannot be answered, nor routed back. | *"Frame without its routing (\_\_md_iev\_\_ ievent stack), channel closed"*, WARNING, `MSGSET_PROTOCOL`, the kw capped to 256 bytes, at most once per 10 s. |
 | For another yuno (`dst_role`, `dst_yuno`) | Closes the channel. | *"It's not my role, channel closed"* / *"It's not my name, channel closed"*, WARNING, the routing capped. |
-| For a service the channel may not reach | A command or a stats request gets a negative answer and the channel stays; a subscription, a withdrawal or an event closes it. | *"event ignored, dst_service not authorized for this channel"*, WARNING, `MSGSET_AUTH`, the kw capped, at most once per 10 s. |
+| For a service the channel is not allowed to reach | A command or a stats request gets a negative answer and the channel stays. A subscription, a withdrawal or an event closes it. | *"event ignored, dst_service not authorized for this channel"*, WARNING, `MSGSET_AUTH`, the kw capped, at most once per 10 s. |
 | For a service that does not exist | The same. | *"event ignored, service not found"*, WARNING, same pace. |
-| A subscription or a withdrawal of an event that is not public | Refused; the channel stays. | *"SUBSCRIBING event ignored, not PUBLIC..."*, WARNING, same pace. |
-| A command or a stats request that names no command (neither `__command__` in the kw nor in its stack), or whose `service` is not a string | Answered with an error; the channel stays. | *"Request without the command or stats it asks, refused"*, WARNING, the kw capped, same pace. |
-| A command or a stats request whose `service` does not exist, or is one the channel may not reach | Answered with an error; the channel stays. | *"Service not found"* / *"Not authorized to request commands of a different service"* / *"Not authorized to request stats of a different service"*, WARNING, `MSGSET_AUTH`, same pace (one kind with the *"dst_service not authorized"* above). |
+| A subscription or a withdrawal of an event that is not public | Refused. The channel stays. | *"SUBSCRIBING event ignored, not PUBLIC..."*, WARNING, same pace. |
+| A command or a stats request that names no command (neither `__command__` in the kw nor in its stack), or whose `service` is not a string | Answered with an error. The channel stays. | *"Request without the command or stats it asks, refused"*, WARNING, the kw capped, same pace. |
+| A command or a stats request whose `service` does not exist, or is one the channel is not allowed to reach | Answered with an error. The channel stays. | *"Service not found"* / *"Not authorized to request commands of a different service"* / *"Not authorized to request stats of a different service"*, WARNING, `MSGSET_AUTH`, same pace (one kind with the *"dst_service not authorized"* above). |
 | An event no gclass has as public (any state) | Closes the channel. | *"Frame of an event that is not public, refused"*, WARNING, `MSGSET_PROTOCOL`, the name masked and THEN capped to 64 bytes ([`mask_secrets_inline_capped()`](#mask_secrets_inline_capped): capped first, a token the cap cut showed its first bytes), the kw masked and capped to 256 bytes -- said by [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer), once per connection. Up to 7.26.9 it was silent there, and the gate traced the whole kw raw (*"iev_event NULL"*), credentials before the session among it. `C_IEVENT_CLI` the same. |
-| An event the transport publishes on its own (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_ON_MESSAGE`, `EV_ON_IEV_MESSAGE`, `EV_ON_ID`, `EV_ON_ID_NAK`), in session. Other gclasses declare these names public (`C_PROT_HTTP_SR`, `C_POSTGRES`, the decoders of a gate), so the frame reads | Drops the frame; the channel stays. The gate's subscriber (a `C_IOGATE`, which publishes the event again as its own) hears nothing. Up to 7.30.26 it was published as if the transport had said it, with the kw the peer wrote: in the agent each `EV_ON_OPEN {}` was 16 ERRORs with a stack, and in the control center an agent could take a forged `EV_ON_OPEN` (its identity card and certificate) to the check of its node key, and an `EV_ON_CLOSE` wiped the state of its channel (7.30.27). `EV_ON_COMMAND` is not refused: no transport emits it, and the agent takes it as an answer. | *"event of the transport itself sent by a peer, refused"*, WARNING, `MSGSET_PROTOCOL`, the event, `peername` and `username`, at most once per 10 s (`suppressed` says how many were not written). |
-| An event a treedb publishes (`EV_TREEDB_NODE_CREATED`, `EV_TREEDB_NODE_UPDATED`, `EV_TREEDB_NODE_DELETED`, `EV_TREEDB_NODE_LINKED`, `EV_TREEDB_NODE_UNLINKED`), in session. They are public in `C_NODE`, so the frame reads | Drops the frame; the channel stays. The gate's subscriber is often the yuno's main gclass, which is subscribed to its own treedb too and cannot tell a peer's event from its store's. Up to 7.30.26 a session of the lowest privilege could disable (`DELETED`), enable (`UPDATED`) or create (`CREATED`) users of the yuno's `C_AUTHZ` this way. A remote SUBSCRIPTION to these events is not affected: the published events arrive at the client (`C_IEVENT_CLI`), not here. | *"event of a treedb sent by a peer, refused"*, WARNING, `MSGSET_AUTH`, the event, `peername` and `username`, at most once per 10 s. |
-| `EV_REMOTE_LOG`: a log line of the peer's app (gobj-js `set_remote_log_functions()`), in session | Logged. | *"Remote Error"*, ERROR, `MSGSET_APP`, the `remote msg` capped to 1 KB and masked ([`mask_secrets_inline()`](#mask_secrets_inline)), its whole size and the `username`; the kw is not dumped. Up to 7.26.9 the text was written whole, and the kw traced raw. |
+| An event the transport publishes on its own (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_ON_MESSAGE`, `EV_ON_IEV_MESSAGE`, `EV_ON_ID`, `EV_ON_ID_NAK`), in session. Other gclasses declare these names public (`C_PROT_HTTP_SR`, `C_POSTGRES`, the decoders of a gate), so the frame reads | Drops the frame. The channel stays. The gate's subscriber (a `C_IOGATE`, which publishes the event again as its own) hears nothing. Up to 7.30.26 it was published as if the transport had said it, with the kw the peer wrote: in the agent each `EV_ON_OPEN {}` was 16 ERRORs with a stack, and in the control center an agent was able to take a forged `EV_ON_OPEN` (its identity card and certificate) to the check of its node key, and an `EV_ON_CLOSE` wiped the state of its channel (7.30.27). `EV_ON_COMMAND` is not refused: no transport emits it, and the agent takes it as an answer. | *"event of the transport itself sent by a peer, refused"*, WARNING, `MSGSET_PROTOCOL`, the event, `peername` and `username`, at most once per 10 s (`suppressed` says how many were not written). |
+| An event a treedb publishes (`EV_TREEDB_NODE_CREATED`, `EV_TREEDB_NODE_UPDATED`, `EV_TREEDB_NODE_DELETED`, `EV_TREEDB_NODE_LINKED`, `EV_TREEDB_NODE_UNLINKED`), in session. They are public in `C_NODE`, so the frame reads | Drops the frame. The channel stays. The gate's subscriber is often the yuno's main gclass, which is subscribed to its own treedb too and cannot tell a peer's event from its store's. Up to 7.30.26 a session of the lowest privilege was able to disable (`DELETED`), enable (`UPDATED`) or create (`CREATED`) users of the yuno's `C_AUTHZ` this way. A remote SUBSCRIPTION to these events is not affected: the published events arrive at the client (`C_IEVENT_CLI`), not here. | *"event of a treedb sent by a peer, refused"*, WARNING, `MSGSET_AUTH`, the event, `peername` and `username`, at most once per 10 s. |
+| `EV_REMOTE_LOG`: a log line of the peer's app (gobj-js `set_remote_log_functions()`), in session | Logged. | *"Remote Error"*, ERROR, `MSGSET_APP`, the `remote msg` capped to 1 KB and masked ([`mask_secrets_inline()`](#mask_secrets_inline)), its whole size and the `username`. The kw is not dumped. Up to 7.26.9 the text was written whole, and the kw traced raw. |
 
 Each of these is the peer's to repeat, frame after frame, so none writes a
 line per frame, none carries a stack trace, and none dumps the whole kw. Up
 to 7.25.4 a frame without routing logged an error with a stack and the whole
-kw (the lookup was verbose, "TODO check") and was processed all the same; a
-command to a service the channel may not reach logged an error, the whole
-kw, the authorized services and the routing, for each frame; and a
+kw (the lookup was verbose, "TODO check") and was processed all the same. A
+command to a service the channel is not allowed to reach logged an error, the whole
+kw, the authorized services and the routing, for each frame. A
 subscription to an event that is not public returned an error without
 closing the channel, which left it connected and deaf.
 
@@ -466,7 +466,7 @@ The `service` of a command is checked as the one of a stats request: a
 channel reaches the service of its identity card, the services its user has
 roles in (`services_roles`, see [`C_AUTHZ`](#gclass-c-authz)), and any
 service when its user is a superuser (a role of `service: "*"`). A session of
-a user who may reach only `controlcenter`:
+a user who can reach only `controlcenter`:
 
 ```text
 kw      {"__command__": "help", "service": "__yuno__"}
@@ -490,12 +490,12 @@ masked and capped).
 | Any event but `EV_IDENTITY_CARD_ACK` before the session | Closes the channel. | *"event UNKNOWN in not-session state"* |
 | For another yuno (`dst_role`, `dst_yuno`) | Closes the channel. | *"It's not my role"* / *"It's not my name"* |
 | A subscription or a withdrawal (`__subscribing__`, `__unsubscribing__`) | Closes the channel: a client is not subscribed to. | *"subscription event ignored, I'm client"* / *"unsubscription event ignored, I'm client"* |
-| In session, an event of the client itself that is not public (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_DROP`...: another gclass, `C_PROT_HTTP_SR`, declares them public, so the frame reads), or the ACK again | Drops the frame; the channel stays. Up to 7.26.9 `EV_ON_OPEN` and `EV_ON_CLOSE` reached the app as the client's own open and close, with the kw the server chose, and the ACK was sent back to the server. | *"event of the transport itself, or out of its place, refused"* |
-| In session, an event of another gclass whose `dst_service` is no service | Drops it; the channel stays (a view gone with its frames still on the wire). Up to 7.26.9 it was published to the client's subscribers, with an ERROR and a stack, the name in clear. | *"service of the event not found, event dropped"* |
-| In session, an event whose `dst_service` is a service that does not have it as public | Drops it; the channel stays. Up to 7.26.9 it was published to the client's subscribers, with no log. | *"event not public in its service, event dropped"* |
+| In session, an event of the client itself that is not public (`EV_ON_OPEN`, `EV_ON_CLOSE`, `EV_DROP`...: another gclass, `C_PROT_HTTP_SR`, declares them public, so the frame reads), or the ACK again | Drops the frame. The channel stays. Up to 7.26.9, `EV_ON_OPEN` and `EV_ON_CLOSE` reached the app as the client's own open and close, with the kw the server chose, and the ACK was sent back to the server. | *"event of the transport itself, or out of its place, refused"* |
+| In session, an event of another gclass whose `dst_service` is no service | Drops it. The channel stays (a view gone with its frames still on the wire). Up to 7.26.9 it was published to the client's subscribers, with an ERROR and a stack, the name in clear. | *"service of the event not found, event dropped"* |
+| In session, an event whose `dst_service` is a service that does not have it as public | Drops it. The channel stays. Up to 7.26.9, it was published to the client's subscribers, with no log. | *"event not public in its service, event dropped"* |
 | In session, an event with an empty `dst_service` | Publishes it to the client's subscribers: it names no destination, so it belongs to whoever subscribed. Up to 7.26.9 also an ERROR with a stack, *"service EMPTY"*. | None |
-| In session, an event whose `dst_service` is the client's own name (the `src_service` of its identity card: what the server sends on its own, with no `__service__`) | Publishes it to the client's subscribers, as an empty one (7.27.0). The name is compared without case, as `gobj_find_service()` compares it: a client created as a plain child (no `as_service`; every client of the tree is a service) does with `"CLI"` for `cli` what a service does. | None |
-| In session, `EV_MT_STATS` / `EV_MT_COMMAND` whose `service` is no service | Answers with an error (*"Service not found: '...'"*); the channel stays. | *"Service not found"*, `MSGSET_PARAMETER`, the name masked and capped (7.27.0; up to 7.26.9 in clear) |
+| In session, an event whose `dst_service` is the client's own name (the `src_service` of its identity card: what the server sends on its own, with no `__service__`) | Publishes it to the client's subscribers, as an empty one (7.27.0). The name is compared without case, as `gobj_find_service()` compares it: a client created as a plain child (no `as_service`, and every client of the tree is a service) does with `"CLI"` for `cli` what a service does. | None |
+| In session, `EV_MT_STATS` / `EV_MT_COMMAND` whose `service` is no service | Answers with an error (*"Service not found: '...'"*). The channel stays. | *"Service not found"*, `MSGSET_PARAMETER`, the name masked and capped (7.27.0, but up to 7.26.9 in clear) |
 
 `tests/c/c_ievent_cli_peer_faults`.
 
@@ -535,7 +535,7 @@ control center) refuses both events:
 | The yuno is not played or paused. The ack is answered with `"result": -1` and a `comment` (*"`<role>^<name>`: only the link to the yuno's agent plays or pauses the yuno"*). The channel stays. | ONE WARNING per session, `MSGSET_AUTH`, no stack, the server's role and name masked: *"play/pause of the yuno refused: only the link to its agent plays or pauses it"* |
 
 Up to 7.30.26 every client played and paused the yuno: the server of any link
-(a central, a control center) could pause the yuno. In the agent the pause by
+(a central, a control center) was able to pause the yuno. In the agent the pause by
 its control-center link stopped that same link inside its own action.
 
 `tests/c/c_ievent_cli_play_pause`.
@@ -549,17 +549,17 @@ does not always do the same with the frame. The differences, checked in
 
 | The frame | C `C_IEVENT_CLI` | gobj-js `C_IEVENT_CLI` |
 |-----------|------------------|------------------------|
-| Not json, or not an inter-event | WARNING; closes the channel | WARNING; drops the frame, the channel stays |
-| An event no gclass has as public | WARNING; closes the channel | WARNING; drops the frame, the channel stays |
-| `__subscribing__` / `__unsubscribing__` | WARNING; closes the channel | WARNING; drops the frame, the channel stays |
-| `dst_service` names no service | WARNING; drops it (7.27.0; up to 7.26.9 it published it) | WARNING; drops it |
-| `dst_service` is a service that does not have the event as public | WARNING; drops it (7.27.0; up to 7.26.9 it published it, no log) | WARNING; drops it |
+| Not json, or not an inter-event | WARNING, and closes the channel | WARNING, and drops the frame. The channel stays |
+| An event no gclass has as public | WARNING, and closes the channel | WARNING, and drops the frame. The channel stays |
+| `__subscribing__` / `__unsubscribing__` | WARNING, and closes the channel | WARNING, and drops the frame. The channel stays |
+| `dst_service` names no service | WARNING, and drops it (7.27.0, but up to 7.26.9 it published it) | WARNING, and drops it |
+| `dst_service` is a service that does not have the event as public | WARNING, and drops it (7.27.0, but up to 7.26.9 it published it, no log) | WARNING, and drops it |
 | What the server sends on its own, with no `__service__` (addressed to the `src_service` of the identity card) | Its card names the transport itself: published to its subscribers | Its card names the transport's PARENT: delivered to that service if it has the event as public, else dropped with a WARNING |
 | `EV_MT_STATS` / `EV_MT_COMMAND` | Served: the stats or the command of the service named, and the answer | Not served: a browser does not run what its server asks |
 | How a fault closes the channel (an event before the session, another `dst_role` / `dst_yuno`) | `EV_DROP` to the transport: the TCP connection is cut, with no WebSocket close frame | The WebSocket is closed with code 4002, which `EV_ON_CLOSE` carries |
 
 Since 7.27.0 the two clients do the same with a `dst_service` they cannot
-deliver to: they drop the event. The C one published it until then; no node
+deliver to: they drop the event. The C one published it until then. No node
 logged it in a week of logs, and no C client of the tree receives anything
 that way (each one is the `src_service` of what it asks, and declares the
 answers public). What a server sends on its own is the other case: an app
@@ -584,7 +584,7 @@ WARNING per frame.
 
 ### An identity card the gate refuses
 
-Before its session a peer may send two things: its identity card
+Before its session, a peer can send two things: its identity card
 (`EV_IDENTITY_CARD`) or `EV_GOODBYE`. The card carries the same routing as
 any frame, and it must name this yuno and one of its services:
 
@@ -610,13 +610,13 @@ bytes in `kw` and its size in `kw_size`, no stack), with no credential in it.
 size of the masked, capped copy, and a kw of 900 KB said 101). A frame that is
 not json, or not an inter-event, is said as what it is by
 [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer) (*"frame is not
-json"*, *"Frame is not an inter-event ..."*), masked; the gate said *"Bad
+json"*, *"Frame is not an inter-event ..."*), masked. The gate said *"Bad
 json"* for both up to 7.26.9, with a dump of the bytes raw. Before a session there is no
 command table to ask which parameter is `SDF_SECRET`, so the NAME decides
 (`is_secret_name()`, the one list of the SDK: `passw`, `token`, `secret`,
 `jwt`, `api_key`, `private_key`, `pin`... any case): at any depth of the kw
 the value of such a key is shown as `********` (whatever its json type), and in
-a string (a command line) the value of such a `name=value` too; and, under any
+a string (a command line) the value of such a `name=value` too. Also, under any
 key, a value with the shape of a credential -- a JWT, the credential after
 `Bearer` or `Basic` -- the kernel's [`json_mask_secrets()`](#json_mask_secrets),
 the same rule as the `ievents` traces. A command sent before the card:
@@ -694,7 +694,7 @@ one is the view's to handle, on the transport's `EV_ON_CLOSE`.
 
 **A peer that is closing.** A WebSocket Close of the peer (or a protocol error
 of its frames) puts `C_WEBSOCKET` in `ST_DISCONNECTED` at once, and so does
-the close of `C_PROT_TCP4H`; the channel leaves `ST_SESSION` only at its
+the close of `C_PROT_TCP4H`. The channel leaves `ST_SESSION` only at its
 `EV_ON_CLOSE`, when the connection ends, on a later turn of the loop (a
 client waits for the server to end it, or for its `timeout_close`). In that
 window the channel is still in session, but its transport takes nothing.
@@ -721,8 +721,8 @@ and the link is closing when the transport of every opened channel is.
 
 In that window a command or a stats is answered -1 *"`<yuno>`: service
 '`<name>`' not in session"* with one WARNING *"Not in session"*, as out of
-session; anything else that goes to the peer -- an answer, an event of a
-subscription, an injected event -- is dropped, and the channel logs one
+session. Anything else that goes to the peer (an answer, an event of a
+subscription, an injected event) is dropped, and the channel logs one
 WARNING *"Transport closing, nothing sent"* per session, naming the first
 event. Up to 7.30.26 each of them was *"Event NOT DEFINED in state"* in the
 transport, an ERROR with a stack, and the caller of a command or a stats
@@ -752,7 +752,7 @@ directions. A command line (in `__command__`, and in the `command_stack` of
 table of its destination service when that service is in this yuno -- its
 `SDF_SECRET` parameters, positional ones too, a `content64` -- as the
 `commands` trace does
-([`command_mask_secret_line()`](#command_mask_secret_line)); in its answer, and
+([`command_mask_secret_line()`](#command_mask_secret_line)). In its answer, and
 in any other event that echoes the request, the line is its first word only
 (`create-config <...>`). Up to 7.25.20 `ievents2` printed a command's password
 in clear, and up to 7.30.26 both traces showed the line of the `command_stack`
@@ -776,12 +776,12 @@ log  {"event": "EV_MT_COMMAND", "kw": {"__command__": "set-user-pwd username=bob
 | `dst_service` is no service of this yuno | *"Identity card refused, dst_service NOT FOUND in this yuno"*, with `dst_service` |
 | `jwt` present and not a string | *"Identity card refused, its jwt is not a string"* |
 | Any event but the card or `EV_GOODBYE` | *"Event before the identity card, channel closed"*, with `event` |
-| A frame bigger than `max_pre_session_frame` | *"Frame before the identity card too big, channel closed"*, with `size` and `max`; the frame is not parsed, and its bytes are not dumped (unparsed they cannot be masked, and a card carries a jwt) |
-| An event no gclass has as public | *"Frame of an event that is not public, refused"*, with `event` capped to 64 bytes, said by [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer); up to 7.26.9 the kw was traced raw, the jwt with it |
+| A frame bigger than `max_pre_session_frame` | *"Frame before the identity card too big, channel closed"*, with `size` and `max`. The frame is not parsed, and its bytes are not dumped (unparsed they cannot be masked, and a card carries a jwt) |
+| An event no gclass has as public | *"Frame of an event that is not public, refused"*, with `event` capped to 64 bytes, said by [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer). Up to 7.26.9, the kw was traced raw, the jwt with it |
 
 A frame before the session is not even parsed when it is bigger than
 `max_pre_session_frame`. An identity card is a few KB (its jwt the largest
-part); parsed, a frame of `[{},...]` takes about 100 times its size (16 MB:
+part). Parsed, a frame of `[{},...]` takes about 100 times its size (16 MB:
 1.7 GB), so up to 7.25.21 the max block of a yuno (200 MB) let a peer nobody
 had authenticated ask for some 20 GB. A gate whose peers send bigger cards
 raises it:
@@ -800,7 +800,7 @@ A card refused by the authentication is answered with a negative
 `EV_IDENTITY_CARD_ACK`, logged by the authenticator, and the channel is
 dropped at `timeout_idgot` (default 5000 ms).
 
-**A card may carry a gbuffer.** Every frame of a peer goes through
+**A card can carry a gbuffer.** Every frame of a peer goes through
 `kw_deserialize()`, so a serialized field the peer writes becomes a real
 gbuffer of the kw, released with the frame:
 
@@ -809,7 +809,7 @@ gbuffer of the kw, released with the frame:
 ```
 
 Up to 7.30.14 a card refused by the authentication released that gbuffer
-twice (a double free a peer caused before any login; fixed in 7.30.15). The
+twice (a double free a peer caused before any login, fixed in 7.30.15). The
 card the gate keeps (its `identity_card` attribute) and the one it publishes
 in `EV_ON_OPEN` are a copy without the `gbuffer` field. Up to 7.30.15 both
 kept it: an integer that pointed to freed memory, which the controlcenter's
@@ -817,7 +817,7 @@ list of agents showed to an operator.
 
 **A frame has no `"gbuffer"` of the peer, at any depth.** The frame is
 parsed with [`gbuf2json_from_peer()`](#gbuf2json_from_peer), which drops
-every `"gbuffer"` key with one warning; only the top-level `"gbuffer"` that
+every `"gbuffer"` key with one warning. Only the top-level `"gbuffer"` that
 `kw_deserialize()` makes of a `"__gbuffer___"` reaches the services. A
 command of a peer with `{"topic_name": "items", "record": {"id": "a",
 "gbuffer": 4096}}` crashed the yuno up to 7.30.16: C_NODE makes a kw of the
@@ -831,15 +831,15 @@ with the `username` of the session), and the session goes on, with its user,
 its services and its channel. The services above the gate checked the first
 card, in the `EV_ON_OPEN` it published -- the agent registers the yuno, the
 controlcenter binds the node to its key -- and `C_CHANNEL` does not pass a
-second `EV_ON_OPEN` up. A client sends one card per connection; a second one
+second `EV_ON_OPEN` up. A client sends one card per connection. A second one
 is a client that sent its card again before the first ACK arrived, which is
 why the channel stays. Up to 7.30.14 the second card was authenticated again:
 a good one replaced the user, the services, the superuser flag and the
-`identity_card` that the services read later, without their checks; a
+`identity_card` that the services read later, without their checks. A
 refused one armed `timeout_idgot`, and the timeout went to the peer as a frame.
 
 **What the gate sends to its peer on its own** (`mt_inject_event`, the events
-its FSM does not take in the session) comes from outside its tree: what a
+its FSM does not take in the session) is from outside its tree: what a
 service publishes to a remote subscription, the answer of a service to a
 request of the peer, what an app or the agent sends to the peer (`EV_SEND_IEV`
 by its channel, or to the gate itself). An event of the gate's own tree -- its
@@ -848,6 +848,6 @@ tree not taken in this state, not sent to the peer"*) and nothing sent. Up to
 7.30.14 every such event went to the peer as a frame. Up to 7.25.20 each refusal above was an error
 with the whole kw (its jwt with it), followed by a second error, *"event
 UNKNOWN in not-session state"*, with the whole kw again, credentials and
-all; a jwt that was not a string went on to the authentication.
+all. A jwt that was not a string went on to the authentication.
 
 `tests/c/c_ievent_srv_identity_card`.

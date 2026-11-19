@@ -123,10 +123,10 @@ identical: a flat JSON is written by one side and read by the other.
 ### It refuses instead of guessing
 
 `flat2json()` fails, and says which id and why, when the flat dictionary cannot
-be rebuilt **exactly**: an id used as a leaf and as a container (the answer
-would depend on the order the ids are read in), an index over the limit (one id
-would otherwise materialise a million nulls), or a path deeper than the limit.
-Rebuilding *most of it* is how a configuration comes back subtly different from
+be rebuilt **exactly**: an id used as a leaf and as a container (a guess
+depends on the order in which the ids are read), an index over the limit (otherwise
+one id materializes a million nulls), or a path deeper than the limit.
+Rebuilding *most of it* is how a configuration is restored subtly different from
 the one that was saved.
 
 ### Comparing
@@ -139,7 +139,7 @@ so applying is setting and deleting with nothing to walk.
 For the other question — *are these two records equal?* —
 [`kwid_compare_records()`](#kwid_compare_records) works on the nested form and
 tolerates disorder. They do not compete: the flat form is for **seeing** a
-difference and carrying it; the nested one for **answering** whether there is
+difference and carrying it, and the nested one is for **answering** whether there is
 any.
 
 ---
@@ -148,8 +148,8 @@ any.
 
 ## Ownership: who frees this json?
 
-Jansson counts references; it does not say who holds them. Every json bug of
-this family comes from one unanswered question:
+Jansson counts references, but it does not say who holds them. Every json bug of
+this family is the result of one unanswered question:
 
 > **After this line, how many owners does this json have?**
 
@@ -180,7 +180,7 @@ so a signature without the comment is an incomplete signature.
 
 `NOT owned` is the default of a callback the framework calls with something it
 still owns: `mt_publish_event()` and the `mt_publication_*_filter()` methods
-(there you may even **modify** the kw), `gobj_trace_json()`, and the `%j` field
+(there you can even **modify** the kw), `gobj_trace_json()`, and the `%j` field
 of any `gobj_log_*()` line.
 
 **The early exit is where ownership is lost.** Free it on the failure path too:
@@ -244,7 +244,7 @@ four different notations that all mean the same thing:
 | `json_object_update_new()` | `json_object_update()` (shares the **values**) |
 | you own nothing afterwards | **you still own yours, and must free it** |
 
-Read the case rule as: *lower case, the container keeps it; UPPER case, the
+Read the case rule as: *lower case: the container keeps it. UPPER case: the
 container keeps a copy of the reference and yours is still alive.*
 
 **Use `o` for what you just built. Use `O` for what belongs to somebody else:**
@@ -381,7 +381,7 @@ call, not only on the last one, and `kw_incref()` is what balances that.
 
 A `json_incref(kw)` therefore raises the json count and leaves the gbuffer's
 untouched, and every `KW_DECREF` downstream frees a gbuffer that was never
-increfed — a double free. It bites only once the kw actually carries a gbuffer,
+increfed: a double free. It bites only once the kw carries a gbuffer,
 so the wrong call sits there looking fine for years. **Write `kw_incref()` even
 when today's kw is plain JSON.**
 
@@ -419,7 +419,7 @@ object. **Check the return**, or say what you mean:
 
 `json_incref(kw)` plus `JSON_DECREF(kw)` in the same function is two errors
 that cancel out. Correcting only the incref turns a wrong-but-balanced ledger
-into a **leak**; correcting only the decref turns it into a **double free**.
+into a **leak**. Correcting only the decref turns it into a **double free**.
 When you touch one side, check the other in the same function.
 
 ---

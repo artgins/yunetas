@@ -3,7 +3,7 @@
 
 Central management point for a fleet of Yuneta nodes. Nodes **dial in** to the
 control center (the agents are the clients). Operators then reach any connected
-node *through* the control center. `C_CONTROLCENTER` is a **server** — it never
+node *through* the control center. `C_CONTROLCENTER` is a **server**: it never
 dials out.
 
 ```{figure} ../_static/controlcenter_topology.svg
@@ -72,7 +72,7 @@ agents of before.
 Each agent shows who it is with its own pair: the client certificate of its
 link, made on each node. The control center pins every node uuid to the key
 that an operator accepted. Without that, anybody with the agents' shared
-token could connect claiming the uuid of any node, and receive that node's
+token can connect claiming the uuid of any node, and receive that node's
 commands.
 
 **1 — the listeners of the agents ask for the certificate.** The `crypto` of
@@ -93,19 +93,19 @@ is.
 **2 — the `nodes` topic.** The control center keeps one record per node
 uuid. Each record holds:
 
-- `state`: `pending`, `accepted` or `refused`;
-- `spki_sha256`: the accepted key;
+- `state`: `pending`, `accepted` or `refused`.
+- `spki_sha256`: the accepted key.
 - `presented_spki`: the key that the last session written in the record
   presented. For a `pending` or `refused` node this is any key, or empty
   when the session presented none. For an `accepted` node it is the other
   key (or empty) that its last session presented, and it is empty when that
   session presented the accepted key. `accept-node` empties it. With
   `enforce_node_keys`, a refused open writes nothing, so the field keeps the
-  value of the last open that was let in;
+  value of the last open that was let in.
 - `hostname` and `peername`: the node's host name and address, as its agent
   gave them. For an `accepted` node only a session that logged in by its key
   writes them: the hostname names the node, so a session of a token cannot
-  rename it;
+  rename it.
 - `first_seen`, `last_seen`, `decided_by` and `decided_at`. An agent that
   opens a session again with the same hostname, address and key writes
   nothing, unless `last_seen` is an hour old: a link that comes and goes does
@@ -117,15 +117,15 @@ An open that the control center REFUSES writes nothing in `nodes` (7.30.16+).
 A node never seen that presents a key is kept in memory instead, as a node
 that knocks (`list-nodes` shows it `knocking`, see below). In 7.30.15 a
 refused open created or renamed the record of a node that is not accepted,
-so whoever held the token could take the hostname of a node without a key.
+so whoever held the token was able to take the hostname of a node without a key.
 
 When an agent opens its session, the control center checks it as follows:
 
 | The agent presents | The node is | Result |
 |--------------------|-------------|--------|
-| a key | never seen | recorded `pending`, WARNING *"A node to accept"*; with `enforce_node_keys` refused, and not recorded: kept `knocking`, WARNING *"A node knocking"* (the first time, then every `knocking_warning_period` while it goes on knocking, with `knocks`: it asks an operator for `accept-node`) |
+| a key | never seen | recorded `pending`, WARNING *"A node to accept"*. With `enforce_node_keys` refused, and not recorded: kept `knocking`, WARNING *"A node knocking"* (the first time, then every `knocking_warning_period` while it goes on knocking, with `knocks`: it asks an operator for `accept-node`) |
 | its accepted key | `accepted` | let in |
-| another key, or none | `accepted` | WARNING; refused if `enforce_node_keys` |
+| another key, or none | `accepted` | WARNING, and refused if `enforce_node_keys` |
 | anything | `refused` | refused if `enforce_node_keys` |
 | no key | not accepted | let in while `allow_nodes_without_key` (an agent before 7.30.10) |
 
@@ -146,8 +146,8 @@ after it logged an ERROR with a stack.
 |-----------|---------|---------|
 | `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
-| `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`; a new one evicts the one that knocked least recently, a uuid that came with two keys last while those are half the table at most (7.31.16+; 7.31.15 with no bound). |
-| `knocking_warning_period` | `600` | Seconds between the WARNINGs *"A node knocking"* of a node that goes on knocking (7.31.10+); `0`: only the first. Not one per knock: anyone who reaches the port can knock. |
+| `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`. A new one evicts the one that knocked least recently, a uuid that came with two keys last while those are half the table at most (7.31.16+, and 7.31.15 with no bound). |
+| `knocking_warning_period` | `600` | Seconds between the WARNINGs *"A node knocking"* of a node that goes on knocking (7.31.10+). `0`: only the first. Not one per knock: anyone who reaches the port can knock. |
 
 The three are read-only at run time: set them in the `kw` of the
 `controlcenter` service in its realm config, and restart it. For example, once
@@ -165,7 +165,7 @@ smaller table of the boxes that knock:
 }
 ```
 
-**3 — accept the nodes** (permission `manage-nodes`; `list-nodes` asks
+**3 — accept the nodes** (permission `manage-nodes`, and `list-nodes` asks
 `list-agents`). Before you accept a node, compare the key it presented with the
 key of its own pair. The node gives its key with no SSH: its install prints
 it (7.31.12+), and `yuneta-agent-cert key` on the node prints it again:
@@ -191,10 +191,10 @@ delete-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b    # a machine that is 
 `delete-node` (7.31.22+, permission `manage-nodes`) deletes the record of a
 node that is **refused or pending and has no agent connected**: a machine that
 was wiped or switched off. What was decided about it goes with the record, so
-if its agent ever comes back it is a node never seen (pending, or knocking with
-`enforce_node_keys`); to keep a machine out, leave it refused. An accepted node
+if its agent ever returns it is a node never seen (pending, or knocking with
+`enforce_node_keys`). To keep a machine out, leave it refused. An accepted node
 is refused first, so no single command takes a node out of service and forgets
-it; a uuid that only knocked (no record) is dropped from the table in memory:
+it. A uuid that only knocked (no record) is dropped from the table in memory:
 
 ```text
 delete-node node_id=8b64c225-981d-8596-bc2c-10e437f6d28f
@@ -236,13 +236,13 @@ close-enrollment            # close it now; it answers the nodes it accepted
 
 The enrollment does NOT accept:
 
-- a node that is accepted with another key (that is taking the node);
-- a refused node;
+- a node that is accepted with another key (that is taking the node).
+- a refused node.
 - a node let in with NO key (an agent of before 7.30.10, by
   `allow_nodes_without_key`): such an agent never presents a key, so a key
-  under its uuid is somebody else's, and accepting it would lock the real
+  under its uuid is somebody else's, and accepting it locks the real
   node out once `enforce_node_keys` is on. A node of before that is upgraded
-  to its own pair is accepted with `accept-node`, its key read on it;
+  to its own pair is accepted with `accept-node`, its key read on it.
 - a uuid that came with another key before (knocking, or in its record):
   which of the two is the node's? A full knocking table evicts such a uuid
   last, while such uuids hold half the table at most, so a flood of uuids
@@ -250,7 +250,7 @@ The enrollment does NOT accept:
   such a uuid is evicted all the same (a flood of knocks), an open
   enrollment CLOSES and none opens for an hour, with a WARNING (*"A uuid
   that came with two keys evicted from the knocking table"*): a flood can
-  keep the enrollment shut, never slip a key in;
+  keep the enrollment shut, never slip a key in.
 - a key that is accepted for another node (one key, one node).
 
 Each of these is a WARNING (*"Node not accepted by the enrollment"*, the reason
@@ -281,14 +281,14 @@ accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b spki_sha256=<the key ac
 ```
 
 A copy of a node's disk carries the node's pair. Under its own uuid, the copy
-could then log in as both nodes. Make a new pair on the copy, and accept that
+can then log in as both nodes. Make a new pair on the copy, and accept that
 key.
 
 **A decision holds for the sessions in course.** The control center drops
 each session of the node that the decision does not let in any more, with an
 INFO (*"A session of the node dropped: its key is not accepted now"*):
 
-- `accept-node` with a new key drops a session that presents the old key;
+- `accept-node` with a new key drops a session that presents the old key.
 - `refuse-node` drops every session of the node.
 
 Without `enforce_node_keys`, only a session that logged in by its key
@@ -316,7 +316,7 @@ agent presents a key that is not accepted and sends no token, the control
 center refuses it. Because that agent is not authenticated, nothing of it goes
 to the store. The control center keeps it in memory (at most
 `max_knocking_nodes`, 256: a new one evicts the one that knocked least
-recently; the first key of a uuid is kept), logs a WARNING (*"A node
+recently, and the first key of a uuid is kept), logs a WARNING (*"A node
 knocking"*) the first time and again every `knocking_warning_period` (600 s)
 while it goes on knocking, with the count of its `knocks`, and `list-nodes`
 shows it with the state `knocking`. What it says there (its hostname) is not authenticated: it is only a hint. A new box
@@ -334,7 +334,7 @@ the card, with a WARNING (*"Agent not authenticated: its identity card is not
 valid"*, and the reason in `refusal`), when:
 
 - its `id` is not a string of 1 to 63 letters, digits and `-` (what
-  `node_uuid()` gives);
+  `node_uuid()` gives).
 - its `host` is not a string, or is longer than a host name (64).
 
 Up to 7.30.14 a value that was not a string gave an ERROR with a stack, and
@@ -386,13 +386,13 @@ assertion**. The agent verifies the assertion and believes it, not the
 | Claim | Value |
 |-------|-------|
 | `iss` | `operator_assertion_issuer` (`controlcenter`) |
-| `sub` | the operator: the user that `C_IEVENT_SRV` authenticated (an email, or a local `yuneta`), or the user who started a scenario run. The stop that a scenario's `max_run` schedules is a run of the control center itself, so its `sub` is `<role>^<name>` of the control center (`controlcenter^cc`); the run's comment names the user who started the scenario |
+| `sub` | the operator: the user that `C_IEVENT_SRV` authenticated (an email, or a local `yuneta`), or the user who started a scenario run. The stop that a scenario's `max_run` schedules is a run of the control center itself, so its `sub` is `<role>^<name>` of the control center (`controlcenter^cc`). The run's comment names the user who started the scenario |
 | `aud` | the node uuid of that agent (the `id` of its identity card) |
 | `iat`, `exp` | now, and now + `operator_assertion_lifetime` (60 s) |
 
 The control center adds an assertion to `command-agent`, `stats-agent` and
 every step of a scenario run. It adds one only for an agent whose identity
-card says `knows_operator_assertion` (7.30.9+). An older agent would hand the
+card says `knows_operator_assertion` (7.30.9+). If it gets one, an older agent hands the
 unknown key to its command. A request with no user gets no assertion.
 
 The operator's login token never leaves the control center. An assertion is
@@ -468,7 +468,7 @@ its uuid or by its hostname, in that order:
   names:
   - an **accepted** node through its record in `nodes`, also while the node is
     away. That record takes its hostname only from a session that logged in
-    by the node's key;
+    by the node's key.
   - any **other** node (pending, the agents before 7.30.10 with their token)
     through the card of an agent of it in session, and only while it is in
     session. Its record is written by any session of its uuid, a token's
@@ -517,8 +517,8 @@ its console keys. A session that went away left its record, and the name was
 two nodes' for ever, until a `refuse-node` of the other uuid.
 
 The uuid of a PENDING node that is away names no node: an accepted node that
-gives that uuid as its hostname gets what is sent to it. Protecting it would
-let any session of a token block the hostname of an accepted node for ever,
+gives that uuid as its hostname gets what is sent to it. Protecting it lets
+any session of a token block the hostname of an accepted node for ever,
 with one record whose uuid is that hostname.
 
 When `accept-node` accepts a node that was not accepted, its record keeps
@@ -542,9 +542,9 @@ then named two nodes, and nothing was sent to `board-b` until P logged in by
 its key. `write-tty` goes to ONE agent, and is refused without
 `agent_id` (a WARNING, *"write-tty without agent_id, nothing written"*). Up to
 7.30.14 the first agent whose uuid or hostname matched got the command, so an
-agent could take the commands of another node by giving its hostname, or its
-uuid as hostname; `write-tty` went to every agent that matched, to all of
-them without `agent_id`; and `drop-agent` dropped every agent whose uuid or
+agent was able to take the commands of another node by giving its hostname, or its
+uuid as hostname. `write-tty` went to every agent that matched, to all of
+them without `agent_id`. And `drop-agent` dropped every agent whose uuid or
 hostname matched.
 
 ## Reaching nodes through the control center (ycommand)
@@ -573,13 +573,13 @@ ycommand -c 'command-yuno id=<cc> service=controlcenter command=list-agents'
 **2 — list the connected nodes** with `list-agents` (UUID, hostname, status).
 Connected nodes are discovered live: the control center scans `__input_side__`
 for [`C_IEVENT_SRV`](#gclass-c-ievent-srv) children in state `ST_SESSION` and reads each one's
-`identity_card` — a node is addressed by its **UUID** (`identity_card.id`) or
+`identity_card`. A node is addressed by its **UUID** (`identity_card.id`) or
 its **hostname** (see [A node is reached by its uuid](#controlcenter-node-names)).
 
 `list-agents` takes four filters, each a regular expression (POSIX extended,
 as `grep -E` reads it) matched against one field of the agent's card:
 `uuid` (`identity_card.id`), `version` (`yuno_version`), `hostname` and `os`
-(the `pretty_name` of the os the agent says, 7.31.21+; an agent before says
+(the `pretty_name` of the os the agent says, 7.31.21+. An agent before says
 none). An
 agent is listed when it matches every filter given. A filter that is not a
 regular expression is refused (-1), and the answer says which. So is a filter
@@ -615,7 +615,7 @@ ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-ag
 ```
 
 Parameters: `agent_id` (UUID or hostname), `agent_service`, and `cmd2agent`
-(the command to run on the node — this is the exact key the handler reads). The
+(the command to run on the node, the exact key that the handler reads). The
 control center routes the command to the one connected agent of that node
 (`gobj_command`). The node's agent then executes it, and can
 itself target a specific yuno via its own `command-yuno` (`command=… service=…`).
@@ -625,9 +625,9 @@ the control center's own, *"Command sent to 1 nodes"*. The node's answer comes
 later, as a second answer along the same route.
 
 When no connected agent matches, the answer is -1 and says why (since
-7.31.19; it used to say only *"Command sent to 0 nodes"*). A node of the
+7.31.19. Before, it said only *"Command sent to 0 nodes"*). A node of the
 store that is away is named with its hostname, its uuid, its state and when it
-was last seen; a name that is no node says so. `stats-agent` answers the same:
+was last seen. A name that is no node says so. `stats-agent` answers the same:
 
 ```text
 -1 "controlcenter^cc1: node 'artgins' (8b64c225-981d-8596-bc2c-10e437f6d28f, accepted) is not connected, last seen 2026-11-18T23:36:02.0+0100"
@@ -647,9 +647,9 @@ nodes"*):
 ```
 
 Up to 7.30.26 the control center dropped that refusal and answered *"Command
-sent to 1 nodes"*: the operator waited for an answer nobody would send. A
+sent to 1 nodes"*: the operator waited for an answer that nobody sent. A
 `write-tty` refused that way is answered with the link's reason too
-(`EV_MT_COMMAND_ANSWER`, -1); up to 7.30.26 the keystrokes were lost with no
+(`EV_MT_COMMAND_ANSWER`, -1). Up to 7.30.26 the keystrokes were lost with no
 answer. A non-interactive `ycommand` exits `--wait`
 seconds after an answer (`-w`, default 1), so it shows the node's answer only
 if it arrives in that time. Give it room, or stay interactive (`-i`):
@@ -680,8 +680,8 @@ The agent writes the route of its answers, so the control center relays one
 `command-agent` / `stats-agent`) only to a web client that **asked that
 agent**, in the connection it holds now: `command-agent` and `stats-agent`
 remember, in the agent's channel, the client's channel and its connection,
-and stamp the connection on the request (`cc_connection`); the answer must
-come back from that agent with that stamp.
+and stamp the connection on the request (`cc_connection`). The answer must
+return from that agent with that stamp.
 An answer for a client that did not ask that agent, with another client's
 stamp or with none, is dropped with a WARNING that names the agent (one per
 `drops_warning_window`, the rest counted):
@@ -692,7 +692,7 @@ stamp or with none, is dropped with a WARNING that names the agent (one per
 "client": "C_CHANNEL^input-3", "detail": "the client did not ask that agent"
 ```
 
-Up to 7.30.26 an accepted agent could send the seven to any web client of
+Up to 7.30.26 an accepted agent was able to send the seven to any web client of
 the control center, naming its channel: two clients that had asked nothing got
 them. `ycommand` takes one only as the answer of a request it made (one
 answer per request, see the ycommand page) since then.
@@ -711,9 +711,9 @@ the `name=` of the line, else the `name` of the kw, as the agent's parser
 reads it) and a `watch-yuno-stats` it asks there:
 
 - an `EV_TTY_OPEN` goes only for a console of that name the client asked that
-  agent to open, and only then is its mirror recorded;
+  agent to open, and only then is its mirror recorded.
 - an `EV_TTY_DATA` or `EV_TTY_CLOSE` goes only for a console of that name
-  that this agent opened for the client (its mirror);
+  that this agent opened for the client (its mirror).
 - an `EV_YUNO_STATS` goes only to a client that asked that agent for a watch.
 
 The rest is dropped with the WARNING above, its `detail` saying which:
@@ -728,7 +728,7 @@ The rest is dropped with the WARNING above, its `detail` saying which:
 A console is named by the client, not by the node (gui_agent names it
 `tty_<node>_<tab>`), so up to 7.30.26 -- and with the stamp rule alone --
 an agent the client had sent any command to (`help`, which gui_agent sends to
-every node it shows) could write in another agent's console and close it, and
+every node it shows) was able to write in another agent's console and close it, and
 plant the mirror of a console nobody opened, whose close dropped the client.
 The legitimate ones are as before, from one tab:
 
@@ -740,7 +740,7 @@ command-agent agent_id=node-b cmd2agent="open-console name=tty_node-b_t1 cx=80 c
 ```
 
 When an agent's channel closes the control center forgets what its clients
-asked it; a client that keeps a watch renews it (gui_agent does every
+asked it. A client that keeps a watch renews it (gui_agent does every
 `watch_ttl`/3), and a client with a console of that agent is dropped with it,
 so both ask the new connection of the agent again. The drop is kept on
 purpose: gui_agent reads an `EV_TTY_CLOSE` as *the shell ended* and closes
@@ -759,7 +759,7 @@ agent's channel closes. Two requests are refused by the control center itself,
 and nothing is sent to the agent:
 
 - a console name longer than `NAME_MAX` (255) bytes: no agent opens one, a
-  console is a gobj and its name a gobj name;
+  console is a gobj and its name a gobj name.
 - a console asked of an agent by a client that already has 64 asked there and
   not closed (an agent opens 30 by default, its `max_consoles`).
 
@@ -775,14 +775,14 @@ the agent, kept 57 MB in the control center after the client left.
 A reading of a watch (`EV_YUNO_STATS`) reaches the client with the
 `monitor_node` of its `__md_iev__` that the client wrote in its watch of
 **that** agent, not the one the agent echoes: gui_agent reads that key to
-know whose reading it is, and up to 7.30.26 an agent the client watched could
+know whose reading it is, and up to 7.30.26 an agent the client watched was able to
 paint its readings on the cards of another node. A client that wrote no
 `monitor_node` gets none.
 
 A link of the control center (its `C_IEVENT_CLI` to the agent of its node)
 gets the answers of what it asked an agent, and never a stream: its peer, the
 agent of the node, takes no console's events nor readings from a yuno. Up to
-7.30.26 any agent the link had asked something could send it any; now each
+7.30.26 any agent the link asked something was able to send it any. Now each
 is dropped with the WARNING above and the `detail` *"a stream for a link of
 this control center: none is relayed to a link"*.
 
@@ -799,9 +799,9 @@ channel then.
 
 What waits to be sent to a web client is bounded too, in messages and in
 bytes: when the control center relays an agent's answer or stream to a client
-whose transport holds `client_max_tx_queue` messages or more (default `8192`;
-a console's output is many small messages) or `client_max_tx_bytes` bytes or
-more (default 32 MB; an answer of an agent is one message of any size, up to
+whose transport holds `client_max_tx_queue` messages or more (default `8192`,
+because a console's output is many small messages) or `client_max_tx_bytes` bytes or
+more (default 32 MB, and an answer of an agent is one message of any size, up to
 the 200 MB of `max_pkt_size`), the client is dropped, with ONE WARNING, and
 nothing more is relayed to that connection. `0` turns either bound off. The
 bytes are what the client's `C_TCP` holds to send (`cur_tx_bytes`). With the
@@ -857,7 +857,7 @@ forwards (the client's other entries are not passed on). The agent refuses a
 watch without it (*"the client, or the control center in between, does not say
 it takes EV_YUNO_STATS (__relays__), ask stats-yuno instead"*), and the client
 polls `stats-yuno`. Up to 7.25.20 the control center said it for every client,
-so a `ycommand` watch through it got readings it could not handle.
+so a `ycommand` watch through it got readings it was not able to handle.
 
 **Deploy order:** gui_agent 0.29.7 or later first, or together with this
 control center. An older gui_agent does not send `__relays__` through the
@@ -918,27 +918,27 @@ ycommand -c 'command-yuno id=<cc> service=__yuno__ command=write-attr gobj_name=
 ycommand -c 'command-yuno id=<cc> service=__yuno__ command=view-attrs gobj_name=controlcenter attribute=drops_timer_armed'
 ```
 
-Not when a connection closes: a client that connects, sends one, and leaves,
-in a loop, would get one warning per loop.
+Not when a connection closes. Otherwise a client that connects, sends one, and leaves,
+in a loop, gets one warning per loop.
 
 **A web client is its CONNECTION, not its channel name** (since 7.25.15).
 The channel a browser holds in `__top_side__` (`top-12`) is taken by the next
-client once it closes, so a stream still pushed for the tab that left would
+client once it closes, so a stream still pushed for the tab that left can
 reach whoever connected after it -- up to `watch_ttl` of another user's node
 data. Each connection gets a number when it opens, `command-agent` and
 `stats-agent` stamp it on the request (`cc_connection`, in the first frame of
 the ievent stack, which the agent gives back with its answer and keeps with a
-watch or a console), and what comes back -- the answer of a command or of a
+watch or a console), and what returns -- the answer of a command or of a
 stats, the PTY of `open-console` (`EV_TTY_OPEN`, `EV_TTY_DATA`,
 `EV_TTY_CLOSE`), a relayed `EV_YUNO_STATS`, the answer of a `run-scenario` --
 is delivered only while the channel still holds that connection. A stream
 (`EV_YUNO_STATS`, `EV_TTY_DATA`) for another connection is dropped and counted
 with the gone ones (`reconnected=its channel holds another connection now` in
-the warning); an answer is dropped with a warning each (*"answer for a web
+the warning). An answer is dropped with a warning each (*"answer for a web
 client that is gone, dropped: its channel holds another connection now"*).
 When an agent's connection closes, the client of each console mirrored
 through it is dropped, once, and only if it is still the connection that
-opened that console. Several consoles go through one agent's connection; the
+opened that console. Several consoles go through one agent's connection. The
 control center keeps their clients per console name, and a console opened
 again by another client is that client's -- the agent routes it the same way
 (one route per console and control-center channel, refreshed by the re-open).
@@ -947,10 +947,10 @@ last console opened, cleared by the close of any console. Up to 7.25.20 only
 `EV_YUNO_STATS` and the run's answer were checked: a slow answer, or a PTY
 stream, of the client that left reached the next one.
 
-These events are public because the agents send them, but only an agent may:
+These events are public because the agents send them, but only an agent can send them:
 one that arrives from `__top_side__` -- a web client sending it itself, with a
 route of its own writing -- is dropped with a warning (*"event of an agent
-not from the agents' side, dropped"*). Up to 7.25.20 a client could push an
+not from the agents' side, dropped"*). Up to 7.25.20 a client was able to push an
 answer or console frames of its making to any other client's channel.
 
 ## Scenarios (TreeDB)
@@ -958,7 +958,7 @@ answer or console frames of its making to any other client's channel.
 The control center's treedb, `treedb_controlcenter` (`schema_version` 3),
 keeps the **scenarios** of the fleet and the **runs** of their actions. It
 holds neither the connected nodes (discovered live, above) nor the users (who
-may use the control center is its `authz` store, [`C_AUTHZ`](#gclass-c-authz)).
+can use the control center is its `authz` store, [`C_AUTHZ`](#gclass-c-authz)).
 
 ```
                       scenarios
@@ -1060,28 +1060,28 @@ carrying the user who asked (`__username__`, what the agent's audit records).
 How the steps go depends on the action:
 
 - **`start` and `resume` are serial.** A step goes only when the one before
-  it answered; a step that fails, does not answer in `run_step_timeout`
+  it answered. A step that fails, does not answer in `run_step_timeout`
   (30000 ms), or whose node's agent disconnects meanwhile, ends the run
   there -- the last at once, not at the deadline. The order is the order of
   the start: what one yuno needs is started first.
 - **`stop`, `pause` and `report` send every step at once** (7.28.4+), and
-  give them all one `run_step_timeout`. Each step's result is recorded; a
+  give them all one `run_step_timeout`. Each step's result is recorded. A
   step that fails does not keep the others from going. The run ends when
   every step has answered, failed, or timed out, with result `-1` if any
   did not succeed, and the comment names them (*"2 of 16 steps failed; step
   0 (gen1): ...; step 5 (gen6): not answered in 30000 ms"*). A step on a node
-  whose agent is not connected fails at once; an agent that disconnects
+  whose agent is not connected fails at once. An agent that disconnects
   fails only its own steps. A step whose agent's link is closing fails at
   once too, with the link's reason (*"... not in session"*), in a serial run
-  and in a run at once; up to 7.30.26 it waited for `run_step_timeout`. Up to 7.28.3 these were serial too, so a stop
+  and in a run at once. Up to 7.30.26 it waited for `run_step_timeout`. Up to 7.28.3 these were serial too, so a stop
   ended at the first yuno that did not answer, and the yunos after it never
   got the stop (the max_run stop of a scenario whose first simulator was
   already stopped failed every minute, and stopped nothing).
 
 A node of a step that is a name more than one node gives (see
 [A node is reached by its uuid](#controlcenter-node-names)) is said as such
-(7.30.16+). A serial run (`start`, `resume`, `on`) does not start: it would do
-the steps before it and stop there. A run at once does every step it reaches,
+(7.30.16+). A serial run (`start`, `resume`, `on`) does not start. Otherwise it does
+the steps before it and stops there. A run at once does every step it reaches,
 and fails the steps on that name:
 
 ```
@@ -1104,7 +1104,7 @@ taken only from the channel of the agent it went to: `command-agent` removes
 those two keys from what a client forwards, and an answer that carries them
 from anywhere else is dropped with a warning (*"answer of a scenario run step
 not from the agent of the step, dropped"*). Up to 7.25.20 a client with
-`command-agent` could end, or advance, another user's run with an answer of
+`command-agent` was able to end, or advance, another user's run with an answer of
 its own.
 
 ```bash
@@ -1120,7 +1120,7 @@ The permissions `read-scenarios`, `write-scenarios` and `run-scenarios` are
 checked by the commands themselves, always -- not only when the yuno turns
 `enable_command_authz` on. The agent runs each step on the control center's
 own session, so **`write-scenarios` together with `run-scenarios` is as much
-as `command-agent`**: whoever may write a scenario and run it may send any
+as `command-agent`**: whoever can write a scenario and run it can send any
 command to any yuno of a connected node. Grant them as you grant
 `command-agent`.
 
@@ -1132,8 +1132,8 @@ A role can grant a permission for some scenarios only: its `parameters`
 [*Scoped permissions*](#authz-scoped-permissions)). The control center asks
 every scenario permission with the `scenario_id` the command acts on -- a kw
 it builds, with the authenticated user and nothing else of the request, so a
-`scenario_id` put beside another scenario answers nothing; the three
-permissions declare `scenario_id` as the key they may be scoped on (7.27.15)
+`scenario_id` put beside another scenario answers nothing. The three
+permissions declare `scenario_id` as the key they can be scoped on (7.27.15)
 -- and a
 role row like this one, in the control center's `authz` store, lets its users
 read `load-test` and nothing else:
@@ -1158,7 +1158,7 @@ What the scope does in each command:
 
 | Command | A user whose `read-scenarios` is scoped |
 |---------|------------------------------------------|
-| `scenarios` | Lists only the scenarios in scope; asked by `scenario_id` for another one, `-1` *"no permission to 'read-scenarios'"* |
+| `scenarios` | Lists only the scenarios in scope. Asked by `scenario_id` for another one, `-1` *"no permission to 'read-scenarios'"* |
 | `scenario-runs`, `watch-scenario` | Only for a scenario in scope |
 | `save-scenario`, `delete-scenario` | Need `write-scenarios` on that scenario (scoped the same way, on the id saved or deleted), and `run-scenarios` too while it runs |
 | `run-scenario` | Needs `run-scenarios` on that scenario |
@@ -1169,10 +1169,10 @@ watched the yunos of a scenario with `command-agent cmd2agent="watch-yuno-stats
 ids=..."` to each node -- which needs `command-agent`. `watch-scenario` asks
 only `read-scenarios` on the scenario, and the control center BUILDS the
 watch itself from the scenario it keeps: the yunos of that node (`keys=`, a
-comma-separated list of yuno keys, narrows it), with `period=`; `stop=1` ends
+comma-separated list of yuno keys, narrows it), with `period=`. `stop=1` ends
 it. A yuno with a `queue_service` is watched on that service too, so the
 queue of a gate towards its store comes in the same reading. The readings
-come back as `EV_YUNO_STATS`, as through `command-agent` (the client says it
+return as `EV_YUNO_STATS`, as through `command-agent` (the client says it
 takes them in its `__relays__`). The agent never gets a
 line the client wrote:
 
@@ -1184,7 +1184,7 @@ ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b keys=events'
 ycommand ... -c 'watch-scenario scenario_id=load-test node=node-b stop=1'
 ```
 
-**What may I do here?** `my-permissions` answers, for the user who asks, every
+**What can I do here?** `my-permissions` answers, for the user who asks, every
 permission of the control center: `true`, `false`, or the list of the
 scenarios it is granted for. It needs no permission. The console asks it
 before it builds its shell, and a user without `command-agent` gets one of
@@ -1201,7 +1201,7 @@ ycommand ... -c 'my-permissions'
 `authz` store and publishes `EV_PERMISSIONS_CHANGED` (public, no data) when a
 role is created, changed or deleted, or a role is given, taken, or made the
 child of another. A client subscribes to it on the service `controlcenter`
-and asks `my-permissions` again; the console does, so a user given
+and asks `my-permissions` again. The console does, so a user given
 `run-scenarios` while their console is open sees the actions appear without
 a reload. An update of a user's own record (its sessions, at every login) is
 not announced. Only the store itself is believed: the same event from any
@@ -1218,20 +1218,20 @@ gobj_subscribe_event(iev, "EV_PERMISSIONS_CHANGED", {__service__: "controlcenter
 `https://<console>/#/scenarios/live/<id>`, so that address is a link to send:
 the user signs in and lands on it.
 
-**A test left running: `max_run`** (7.27.19+). A scenario may say how long a
-start may run, in seconds (0 = no limit, a week at most):
+**A test left running: `max_run`** (7.27.19+). A scenario can say how long a
+start can run, in seconds (0 = no limit, a week at most):
 
 ```json
 {"id": "load-test", "node": "node-b", "max_run": 2100, "yunos": [...], "actions": {...}}
 ```
 
 A `start` that did any step schedules the scenario's `stop` `max_run` seconds
-after it; a `stop` that did any step cancels it; pause and resume leave the
+after it. A `stop` that did any step cancels it. Pause and resume leave the
 clock alone. When it is due the control center runs `stop` itself, as a run of
 its own -- user the control center, the reason in the comment (*"max_run of
 2100 s reached (started by ops@example.com); run ...: stop done, 16 steps"*)
 -- a few seconds later if
-another run is in flight. A stop that could do nothing is written once, with
+another run is in flight. A stop that was not able to do anything is written once, with
 a warning, and tried again:
 
 - **A node of it is connected** (its yuno refused the stop, or did not
@@ -1275,7 +1275,7 @@ scenario still has: a save that takes out or changes one of them drops it,
 and when none is left nothing is scheduled. The control center never runs a
 step that the run did not have. In 7.30.17 a stop that did some steps made
 the scenario look stopped: a user with `write-scenarios` and no
-`run-scenarios` could save a new `stop`, and when no step of it matched the
+`run-scenarios` was able to save a new `stop`, and when no step of it matched the
 steps due, the control center ran the whole new `stop` by itself. For
 example, a user with both permissions changes the stop of the yuno on
 `node-b` while that step is due:
@@ -1289,7 +1289,7 @@ scenarios scenario_id=load-test     # no stop_at: node-b's step is not in the sc
 A step answered *"Yuno not found"* did not do its work. The agent gives
 that answer for a yuno that is not running, and also for a yuno that is
 alive but is not connected to the agent yet: after a restart of the agent,
-its yunos come back some seconds later, and the stops that waited for that
+its yunos return some seconds later, and the stops that waited for that
 agent are tried when it connects. So the stop is tried again in a minute,
 as a stop that the yuno refused. In 7.30.18 such a step was done, and the
 `max_run` of a yuno that was not connected again yet was lost at each
@@ -1304,7 +1304,7 @@ The tries end:
   one). A try that did some steps starts the count again. `scenarios` then
   answers `stop_given_up: true` (and no `stop_at`), and the scenario runs:
   saving or deleting it needs `run-scenarios` too. A save of the scenario
-  tries the stop again, for 10 more tries; a stop by a user ends it. A
+  tries the stop again, for 10 more tries. A stop by a user ends it. A
   restart of the control center counts all the tries again from the runs,
   so the stop is given up again. In 7.30.18 a stop given up was shown
   nowhere, and a save did not try it again:
@@ -1318,7 +1318,7 @@ The tries end:
   the steps left is in it, changed outside `save-scenario`) writes no run.
   Each attempt says *"the stop of a scenario's max_run cannot run, tried
   again in a minute"*, and counts towards the same 10, with the tries that the
-  runs show; the last one says *"the stop of a scenario's max_run cannot run:
+  runs show. The last one says *"the stop of a scenario's max_run cannot run:
   not tried again"*. These attempts are counted in memory: a save of the
   scenario, or a restart, counts again from the runs. In 7.30.17 such a stop
   was tried every minute, for ever.
@@ -1332,22 +1332,22 @@ a `max_run` stop that did some steps ended the schedule with no log, and the
 yunos on a node that was down at that time continued to run.
 
 Up to 7.29.1 every one was tried every minute, and every try wrote a run
-while the node was down; 7.29.2 made every one wait for an agent, so a stop
+while the node was down. 7.29.2 made every one wait for an agent, so a stop
 refused on a connected node was never tried again. The schedule is rebuilt
-from the runs at start, so a restart does not lose it; a stop already due
+from the runs at start, so a restart does not lose it. A stop already due
 then waits for an agent, because no agent is connected yet. `scenarios`
-answers it as `stop_at` (epoch seconds; `stop_waits_node: true` while it
+answers it as `stop_at` (epoch seconds, `stop_waits_node: true` while it
 waits for a node), and the run in flight of
 the scenario, if any, as `run_in_flight` (`id`, `action`, `username`,
-`started_at`; 7.28.4+), so a console can say that a start is still going and
+`started_at`, 7.28.4+), so a console can say that a start is still going and
 not offer another. Every run that ends
 publishes `EV_SCENARIO_RUN_ENDED` (public, no data): the console says *"stops
 at 18:45"* while it runs, and sees it stopped -- by the control center, or by
 anybody -- at once. While a scenario runs (a run of it in flight, its
 `max_run` stop due, or its last run that did anything is not a stop), saving
-it needs `run-scenarios` on it too (7.27.19; the stop due, 7.30.18): a
+it needs `run-scenarios` on it too (7.27.19, and the stop due, 7.30.18): a
 max_run saved then schedules the stop steps saved then, so writing them
-would be running them. So does deleting it (after 7.29.1): the
+is running them. So does deleting it (after 7.29.1): the
 delete takes its stop steps and its max_run stop, and leaves its yunos as
 they are -- *"scenario 'x' runs: deleting it needs 'run-scenarios' too"*:
 
@@ -1356,7 +1356,7 @@ ycommand ... -c 'delete-scenario scenario_id=load-test'   # stop it first, or ho
 ```
 
 **A generator turned on or off by hand: the `switch` of a yuno** (7.28.6+).
-To climb the load one fleet at a time, a yuno may carry a switch: two lists
+To climb the load one fleet at a time, a yuno can carry a switch: two lists
 of steps, `on` and `off`, as those of an action, where a step that names no
 `yuno` goes to the switch's own:
 
@@ -1376,7 +1376,7 @@ ycommand ... -c 'run-scenario scenario_id=load-test action=off scenario_yuno=gen
 
 `save-scenario` refuses a switch without both lists, or with a step that
 names no yuno of the scenario. `on` runs in order and ends at the first step
-that fails, as a start does; `off` sends every step at once, as a stop does.
+that fails, as a start does. `off` sends every step at once, as a stop does.
 `on` is refused unless the scenario RUNS -- its last run that changed its
 state is a `start` or a `resume` (*"a switch is turned on only while its
 scenario runs"*) -- because a scenario that is not running has no `max_run`
@@ -1389,25 +1389,25 @@ switch off, so its steps must reach every yuno that has one. `run_in_flight`
 carries the `scenario_yuno` of a switch run. The web console draws the switch
 on the yuno's card, ON while its throughput is not zero.
 
-**What a step may carry.** A scenario id is letters, digits and `_ . @ -`, not
+**What a step can carry.** A scenario id is letters, digits and `_ . @ -`, not
 starting with a dot, 200 characters at most (a run id is `<id>.<ms>`). The
 `id`, `key` and `service` of a yuno, and the `service` of a step, are letters,
 digits and `_ . ^ -`. A step's `command` is a name and `key=value` parameters
-without blanks, and a parameter may NOT be named like a parameter of
+without blanks, and a parameter must NOT be named like a parameter of
 `command-yuno` (`id`, `service`, `command`) or like a column of the agent's
 `yunos` topic (`yuno_name`, `date`, `global`, `realm_id`, ...): the agent takes
 the whole kw of `command-yuno` as the filter that selects the yuno, so such a
-parameter would pick another yuno or none. `save-scenario` refuses it:
+parameter picks another yuno or none. `save-scenario` refuses it:
 
 ```bash
 ycommand ... -c 'save-scenario scenario={"id":"t2","node":"node-a","yunos":[{"id":"7301"}],"actions":{"stop":[{"yuno":"7301","command":"set-x date=1"}]}}'
 # -> ... actions.stop[0]: command: the parameter 'date' is command-yuno's or a yuno's field: it would select the yuno
 ```
 
-Nor may a parameter start with `__` (`__md_iev__`, `__username__`,
+Nor can a parameter start with `__` (`__md_iev__`, `__username__`,
 `__md_command__`, ...): those are the framework's keys, and the agent's command
-parser sets the parameters of the line over the kw -- a `__md_iev__` would
-replace the routing of the step's answer (the run waits for its deadline), a
+parser sets the parameters of the line over the kw -- a `__md_iev__` then
+replaces the routing of the step's answer (the run waits for its deadline), a
 `__username__` the user the control center stamps.
 
 ```bash
@@ -1450,7 +1450,7 @@ Key attributes of `C_CONTROLCENTER`:
 
 | Attribute | Purpose |
 |-----------|---------|
-| `run_step_timeout` | Milliseconds a step of a scenario run may take to answer (30000) |
+| `run_step_timeout` | Milliseconds a step of a scenario run can take to answer (30000) |
 | `drops_warning_window` | Milliseconds of the window of a capped warning (60000) |
 | `timeout` | Period of the rate tick, ms (1000): `rxMsgsec`/`txMsgsec` and their maxima |
 
@@ -1479,7 +1479,7 @@ The messages it relays, counted once each way:
 
 - `rxMsgs`, in: a client's `command-agent`, `stats-agent`, `write-tty` and
   `run-scenario`, and every answer or stream an agent sends (command and stats
-  answers, the console PTY, `EV_YUNO_STATS`, a run step's answer);
+  answers, the console PTY, `EV_YUNO_STATS`, a run step's answer).
 - `txMsgs`, out: each `command-agent`/`stats-agent`/`write-tty` request sent to
   an agent and each step of a run (not one the agent's link refused at once),
   and each answer or stream relayed to a client, the answer of a run included.
@@ -1488,7 +1488,7 @@ The messages it relays, counted once each way:
 tick every `timeout` ms (1000) over the EXACT interval since the previous
 tick: a reading only returns the last tick's value, so it is the same
 whoever reads and however often. `maxrxMsgsec`/`maxtxMsgsec` keep the highest
-rate of any tick, a burst nobody read included; write 0 to start them again.
+rate of any tick, a burst nobody read included. Write 0 to start them again.
 `stats=__reset__` zeroes the counters, the rates and the maxima. `drops_timer_armed` says whether a capped
 warning has a count waiting for its window.
 
@@ -1498,7 +1498,7 @@ config or written, is refused with an ERROR and 1000 is put back. Up to
 7.25.21 the tick was a `C_TIMER`, which checks its deadline on the yuno's
 `timeout_periodic` (1000 ms) and re-arms from when it was served, so a tick of
 1000 came every 1 or 2 s and a burst of one second in a tick of two was halved
-in the maxima; a `timeout` under 1 in the config was not checked (the tick was
+in the maxima. A `timeout` under 1 in the config was not checked (the tick was
 off and the rates read 0), and paused, the rates kept the last tick's value.
 
 ```bash
@@ -1513,24 +1513,24 @@ never armed: all six read 0.
 
 | Command | Description |
 |---------|-------------|
-| `list-agents` | List currently connected nodes (UUID, role and version, hostname, os); `uuid`, `version`, `hostname`, `os`: regular expressions the agent must match, all of them |
+| `list-agents` | List currently connected nodes (UUID, role and version, hostname, os). `uuid`, `version`, `hostname`, `os`: regular expressions the agent must match, all of them |
 | `command-agent` | Forward a command to one node (`agent_id`, `agent_service`, `cmd2agent`) |
 | `stats-agent` | Fetch stats from a node |
-| `info-machine` | The machine of a node (`agent_id`: uuid or hostname): os, cpu, memory, disks, network interfaces, uptime, as its agent's yuno answers `info-machine` (permission `list-agents`; 7.31.23+) |
-| `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has; empty: every agent) |
-| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session; empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
-| `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so; permission `manage-nodes`) |
-| `refuse-node` | Refuse a node; its sessions are dropped (`node_id`; permission `manage-nodes`) |
-| `delete-node` | Delete the record of a node refused or pending, with no agent connected (`node_id`; permission `manage-nodes`). An accepted node is refused first (7.31.22+) |
-| `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required. It is an event (`EV_WRITE_TTY`), not a command line; without the permission `write-tty` it is answered as a command is, `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service 'controlcenter'"* (in 7.30.17 the answer was an `EV_WRITE_TTY` that no client takes, and the refusal freed the request twice) |
-| `logout-user` | Log out a user (`username`; permission `logout-user`). `disabled=1` also disables the user and `disabled=0` enables it; without `disabled` the user stays as it is |
+| `info-machine` | The machine of a node (`agent_id`: uuid or hostname): os, cpu, memory, disks, network interfaces, uptime, as its agent's yuno answers `info-machine` (permission `list-agents`, 7.31.23+) |
+| `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has, or empty: every agent) |
+| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session, empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`, or empty: all). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
+| `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so. Permission `manage-nodes`) |
+| `refuse-node` | Refuse a node. Its sessions are dropped (`node_id`, permission `manage-nodes`) |
+| `delete-node` | Delete the record of a node refused or pending, with no agent connected (`node_id`, permission `manage-nodes`). An accepted node is refused first (7.31.22+) |
+| `write-tty` | Write to the PTY console of one node (via `agent22`). `agent_id` is required. It is an event (`EV_WRITE_TTY`), not a command line. Without the permission `write-tty` it is answered as a command is, `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service 'controlcenter'"* (in 7.30.17 the answer was an `EV_WRITE_TTY` that no client takes, and the refusal freed the request twice) |
+| `logout-user` | Log out a user (`username`, permission `logout-user`). `disabled=1` also disables the user and `disabled=0` enables it. Without `disabled` the user stays as it is |
 | `scenarios` | List the scenarios, or one (`scenario_id`) |
 | `save-scenario` | Create or replace a scenario (`scenario`) |
 | `delete-scenario` | Delete a scenario and its runs (`scenario_id`) |
 | `run-scenario` | Run the steps of an action, in order (`scenario_id`, `action`) |
 | `scenario-runs` | The runs of a scenario, newest first (`scenario_id`) |
 | `watch-scenario` | Watch the yunos of a scenario on one node, the watch built here (`scenario_id`, `node`, `keys`, `period`, `stop`) |
-| `my-permissions` | The permissions of the user who asks: `true`, `false`, or the scenarios it is granted for; `EV_PERMISSIONS_CHANGED` says when to ask again |
+| `my-permissions` | The permissions of the user who asks: `true`, `false`, or the scenarios it is granted for. `EV_PERMISSIONS_CHANGED` says when to ask again |
 | `authzs` | Authorization help |
 | `help` | Command help |
 

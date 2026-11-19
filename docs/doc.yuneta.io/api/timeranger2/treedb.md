@@ -24,16 +24,16 @@ json_t *_treedb_create_topic_cols_desc(void);
 
 **Returns**
 
-A JSON list describing what a user column may declare. **The return is yours**
-— every caller decrefs it (`parse_schema()`, `treedb_open_db()`).
+A JSON list describing what a user column can declare. **The return is yours**:
+every caller decrefs it (`parse_schema()`, `treedb_open_db()`).
 
 **Notes**
 
 It is DERIVED from the `cols` topic of `treedb_system_schema`, not written by
 hand: `value` is renamed back to `id`, and the storage-only fields of that
 topic (`id`, `topics`, `order`, `_geometry`) are dropped, because they say how
-a column is stored in `__system__` and not what a column may declare. A field
-added there for user columns needs nothing here; a storage-only one has to be
+a column is stored in `__system__` and not what a column can declare. A field
+added there for user columns needs nothing here. A storage-only one has to be
 added to that skip list too.
 
 ---
@@ -160,7 +160,7 @@ This function is used to extract child references from hierarchical tree structu
 
 A part that does not fit its buffer is refused, not cut: the function logs
 *"Wrong reference: a part of it is too long"* and returns `FALSE` (new after
-7.25.4; it cut the part in silence, and the cut id named another node or none).
+7.25.4. Before, it cut the part in silence, and the cut id named another node or none).
 Decode into buffers of `NAME_MAX`. A child reference is what a hook gives with
 the `refs` option, for example `"users^alice"`:
 
@@ -442,7 +442,7 @@ Returns the snapshot tag (snap `id` = its `g_rowid` in `__snaps__`) as an intege
 
 A save that fails changes nothing, in memory either: the snap that was active stays active, and the one being activated stays inactive. Until 7.25.3 the `"__clear__"` path answered `0` with the save failed, and the snap went on being active on disk.
 
-An activation saves the active snap inactive FIRST, then the new one active. When the second save fails, the old snap is saved active again and the error says so (*"Cannot activate snap, the one active before is active again"*); until 7.25.4 it stayed inactive, and the treedb was left with no active snap. Only if that save fails too is no snap active, on disk and in memory, and the error says that instead.
+An activation saves the active snap inactive FIRST, then the new one active. When the second save fails, the old snap is saved active again and the error says so (*"Cannot activate snap, the one active before is active again"*). Until 7.25.4, it stayed inactive, and the treedb was left with no active snap. Only if that save fails too is no snap active, on disk and in memory, and the error says that instead.
 
 ```C
 if(treedb_activate_snap(tranger, "treedb_agent", "__clear__") < 0) {
@@ -484,7 +484,7 @@ An activation is a filtered load, **not a restore**: nothing is rewritten and no
 
 > Working from an activated snap **ignores** everything written after the shot, for every key you touch, and it ignores it without destroying it.
 
-Reading a node under snap S gives the record S froze. Saving it appends a new record, tagged 0, whose content is the photo's plus the change — never the content of the records written in between. That record is the newest of its key, so it becomes the primary after the deactivation and its reload; the records in between stay on disk and in the secondary indexes, and stop being read as the current state.
+Reading a node under snap S gives the record S froze. Saving it appends a new record, tagged 0, whose content is the photo's plus the change, never the content of the records written in between. That record is the newest of its key, so it becomes the primary after the deactivation and its reload. The records in between stay on disk and in the secondary indexes, and stop being read as the current state.
 
 | From inside an activated snap | What it does to what came after |
 |---|---|
@@ -597,7 +597,7 @@ if(treedb_autolink(tranger, alice, kw, TRUE) < 0) {
 (treedb_blob_path)=
 ## [`treedb_blob_path()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c#L17384)
 
-Where the bytes of an asset of a `file` column live: `<treedb dir>/.blobs/ab/cd/<id>.<ext>`. The id is the lowercase sha256 of the bytes; the two fanout levels are its first four hex characters, and the extension comes from the stored content type ([`treedb_file_ext()`](#treedb_file_ext)), never from the name the file was given. The directory starts with a dot so no scan of the treedb directory takes it for a topic.
+Where the bytes of an asset of a `file` column live: `<treedb dir>/.blobs/ab/cd/<id>.<ext>`. The id is the lowercase sha256 of the bytes. The two fanout levels are its first four hex characters, and the extension is taken from the stored content type ([`treedb_file_ext()`](#treedb_file_ext)), never from the name the file was given. The directory starts with a dot so no scan of the treedb directory takes it for a topic.
 
 ```C
 int treedb_blob_path(
@@ -615,7 +615,7 @@ int treedb_blob_path(
 |---|---|---|
 | `tranger` | `json_t *` | The tranger of the treedb (its `directory` is the root). |
 | `id` | `const char *` | The asset id: 64 lowercase hex characters. |
-| `content_type` | `const char *` | The stored mime type; it picks the extension. |
+| `content_type` | `const char *` | The stored mime type. It picks the extension. |
 | `bf` | `char *` | Output buffer. |
 | `bflen` | `size_t` | Size of `bf` (`PATH_MAX`). |
 
@@ -827,8 +827,8 @@ create, an update ([`treedb_update_node()`](#treedb_update_node): it links the
 or without), an autolink ([`treedb_autolink()`](#treedb_autolink)) and a
 replace of links ([`treedb_replace_links()`](#treedb_replace_links)). C read
 the ref up to the NUL: `"\u0000users^u1^users"` was the empty ref, left out,
-and the create saved the node with no parent and no log; a ref with the NUL
-after its three parts linked the node to the parent C read; and an update of a
+and the create saved the node with no parent and no log. A ref with the NUL
+after its three parts linked the node to the parent C read. And an update of a
 `file` column with `"\u0000junk"` unlinked its file and answered success. A
 link or an unlink takes nodes, not refs: no NUL reaches them.
 
@@ -874,7 +874,7 @@ hold it in their fkeys as `topic^id^hook`, so such an id cannot hold a `^` (the
 separator), and it must be shorter than `NAME_MAX` (a reference is decoded
 into parts of `NAME_MAX`). Either is refused, with *"Invalid 'id': it holds a
 '^', the separator of a reference"* or *"Invalid 'id': too long to be part of
-a reference"* (new after 7.25.4; they were accepted, and every reference to the
+a reference"* (new after 7.25.4. Before, they were accepted, and every reference to the
 node was undecodable, or cut in silence). A topic with no hooks is not named by
 any reference, and keeps any id a key can be:
 
@@ -903,20 +903,20 @@ treedb_get_instance(tranger, "my_db", "defaulted", "version", "d", "v0");   // d
 append keeps ([`tranger2_record_tkey_time()`](<#tranger2_record_tkey_time>)):
 an integer as it is, a string read by
 [`tranger2_time_of_text()`](<#tranger2_time_of_text>) (the text of a JSON
-integer as that integer; a date times 1000 on an `sf_tm_ms` topic). A string
+integer as that integer, and a date times 1000 on an `sf_tm_ms` topic). A string
 that is no date, or one written as a number that is not the text of a JSON
 integer (`" 5"`, `"10.5"`, `"007"`, `"1,5"`), or with a NUL inside, is refused the same way, with *"Node
-refused: its tkey is a text that is no date"* (`why`, `tkey`, `value`; up to
-SDK 7.29.3 a text that is no date was NOW, in silence). One that is negative or
+refused: its tkey is a text that is no date"* (`why`, `tkey`, `value`. Up to
+SDK 7.29.3, a text that is no date was NOW, in silence). One that is negative or
 past the 44 bits is refused before anything is written: the function returns `NULL`, sets the last
 message, and logs *"Node refused: the time of its tkey does not fit a record
 (negative, or past 44 bits)"* (`tkey`, `value`, `int_value`, `tm`) -- a
 WARNING inside the window of a peer's data, an ERROR with a stack for C code
-(new after 7.26.9; it was appended with the time cut, and the node's `__tm__`
+(new after 7.26.9. Before, it was appended with the time cut, and the node's `__tm__`
 was not its date). [`treedb_update_node()`](<#treedb_update_node>) asks the
 same of what a saved update writes. A save that only links, unlinks or tags a
-snapshot is not asked: refusing it would lock out a node that already holds
-such a time.
+snapshot is not asked. If it refused such a save, a node that already holds
+such a time can no longer be saved.
 
 ```C
 /*  topic `events`, tkey `when`, a string column  */
@@ -958,7 +958,7 @@ json_t *treedb_create_topic(
 | `tranger` | `json_t *` | Pointer to the tranger instance managing the TreeDB. |
 | `treedb_name` | `const char *` | Name of the TreeDB where the topic will be created. |
 | `topic_name` | `const char *` | Name of the topic to be created. |
-| `topic_version` | `json_int_t` | Version number of the topic schema. 64 bits since SDK 7.27.0 (it was an `int`, and a version past 2147483647 was cut to a negative one); a caller that passes an `int` compiles unchanged. A version that comes from outside is at most [`TRANGER2_VERSION_MAX`](#timeranger2-version-max). |
+| `topic_version` | `json_int_t` | Version number of the topic schema. 64 bits since SDK 7.27.0 (it was an `int`, and a version past 2147483647 was cut to a negative one). A caller that passes an `int` compiles unchanged. A version that is given from outside is at most [`TRANGER2_VERSION_MAX`](#timeranger2-version-max). |
 | `topic_tkey` | `const char *` | Topic key used for indexing. |
 | `pkey2s` | `json_t *` | The secondary keys of the topic: a name, a list of names, or a dict keyed by them. An empty name is no key. See the rules below. |
 | `jn_cols` | `json_t *` | The columns of the topic: a dict keyed by column id, or a list of columns, each one a json object. See the rules below. |
@@ -987,13 +987,13 @@ schema that [`treedb_open_db()`](<#treedb_open_db>) reads.
 A topic with a column flagged both `hook` and `fkey` is refused, and the
 function returns `NULL`. See [`parse_schema()`](<#parse_schema>).
 
-So is a topic whose columns would not open: no columns, no `id` column, or a
+So is a topic whose columns cannot open: no columns, no `id` column, or a
 column that fails the validation [`parse_schema()`](<#parse_schema>) applies
 when a schema is read. The function logs *"Topic refused: bad columns"* with
 the reason, sets the last message (*"topic 'things' refused: no 'id' column
 (the pkey is 'id')"*), and creates nothing on disk. Until 7.24.1
 the topic was written first and validated after, so a caller was told
-*"Topic created!"* for a topic the next open could not load.
+*"Topic created!"* for a topic that the next open failed to load.
 
 ```C
 /*  refused: no `id` column  */
@@ -1006,9 +1006,9 @@ treedb_create_topic(tranger, "my_db", "things", 1, "", 0,
 **What a new topic must be.** First, before the treedb is looked up, three
 faults of the names return `NULL`, each one with its own ERROR:
 
-- an empty `treedb_name`: *"treedb_name empty"*;
-- an empty `topic_name`: *"topic_name empty"*;
-- a `topic_name` that breaks the topic rule
+- An empty `treedb_name`: *"treedb_name empty"*.
+- An empty `topic_name`: *"topic_name empty"*.
+- A `topic_name` that breaks the topic rule
   ([`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>)):
   ``Invalid name: empty, '.', '..', '/' or '`' not allowed``.
 
@@ -1028,35 +1028,35 @@ treedb_create_topic(tranger, "my_db", "a/b", 1, "", 0,
 
 A topic that the treedb has in memory is answered as it
 is (the function is idempotent). A NEW one is asked these, in this order,
-before anything is written; the first fault refuses it, the function returns
-`NULL` and sets the last message (*"topic '\<topic>' refused: \<why>"*);
+before anything is written. The first fault refuses it: the function returns
+`NULL` and sets the last message (*"topic '\<topic>' refused: \<why>"*).
 [`treedb_check_new_topic()`](<#treedb_check_new_topic>) asks the same
 before a create:
 
 | Rule | Logged | `why` of the log |
 |---|---|---|
-| The name is `NAME_MAX` (255) bytes at most (the topic rule is asked above; `treedb_check_new_topic()` asks both here) | *"Topic refused: bad name"* | ``the topic name breaks the name rule (empty, '.', '..', '/', '`', or longer than NAME_MAX)`` |
+| The name is `NAME_MAX` (255) bytes at most (the topic rule is asked above, and `treedb_check_new_topic()` asks both here) | *"Topic refused: bad name"* | ``the topic name breaks the name rule (empty, '.', '..', '/', '`', or longer than NAME_MAX)`` |
 | The columns are a dict or a list, not empty, and each column is a json object | *"Topic refused: bad columns"* | *"no columns"*, *"a column is not a json object"* |
 | In a LIST of columns, each column has an `id`, a string | *"Topic refused: bad columns"* | *"a column without an id, or an id that is not a string"* |
 | A `file` column is flagged `fkey` and `file`, on a `string` | *"Topic refused: bad 'file' column"* | |
 | No column is flagged both `hook` and `fkey` | *"Topic refused: a column is both 'hook' and 'fkey'"* | |
-| Each column id is of the column rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)); an `id` column is there (the pkey is `id`); each column passes [`parse_schema_cols()`](<#parse_schema_cols>) | *"Topic refused: bad columns"* | `` a column id breaks the name rule (empty or '`') ``, *"no 'id' column (the pkey is 'id')"*, *"a column is not valid (see the log)"* |
-| `pkey2s` is a name, a list of names or a dict of them; each name (an empty one is no key) has no backtick, is not `id` and not the tkey, and is named once | *"Topic refused: bad pkey2s"* | *"a pkey2 cannot be the pkey 'id'"*, *"a pkey2 cannot be the tkey: the lists of their indexes would share one id"*, *"a pkey2 named twice"*, ... |
-| The id of the list that loads each index, `treedb-<yuno>-<gclass>-<gobj>-<treedb>-<topic>-<key>`, is shorter than `NAME_MAX`. `<yuno>` is the process, `<role>^<name>` (only `<role>` for a yuno with no name, and no `<yuno>-` out of a yuno). `<gobj>` is the tranger's gobj (no `<gclass>-<gobj>-` for a tranger with none). `<key>` is the tkey for the `id` index and the pkey2 for its own. Example, the `users` topic of the authz treedb read by the yuno `db_history^7301`: `treedb-db_history^7301-C_TRANGER-tranger_authz-treedb_authzs-users-`. A replica names a directory of the store after the id (`<topic>/disks/<id>/`), so the yuno keeps two yunos that read one store from sharing one; up to 7.27.10 the id had no yuno, and they shared it | *"Topic refused: the id of a list of its indexes is longer than NAME_MAX"* | |
+| Each column id is of the column rule ([`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>)). An `id` column is there (the pkey is `id`). Each column passes [`parse_schema_cols()`](<#parse_schema_cols>) | *"Topic refused: bad columns"* | `` a column id breaks the name rule (empty or '`') ``, *"no 'id' column (the pkey is 'id')"*, *"a column is not valid (see the log)"* |
+| `pkey2s` is a name, a list of names or a dict of them. Each name (an empty one is no key) has no backtick, is not `id` and not the tkey, and is named once | *"Topic refused: bad pkey2s"* | *"a pkey2 cannot be the pkey 'id'"*, *"a pkey2 cannot be the tkey: the lists of their indexes would share one id"*, *"a pkey2 named twice"*, ... |
+| The id of the list that loads each index, `treedb-<yuno>-<gclass>-<gobj>-<treedb>-<topic>-<key>`, is shorter than `NAME_MAX`. `<yuno>` is the process, `<role>^<name>` (only `<role>` for a yuno with no name, and no `<yuno>-` out of a yuno). `<gobj>` is the tranger's gobj (no `<gclass>-<gobj>-` for a tranger with none). `<key>` is the tkey for the `id` index and the pkey2 for its own. Example, the `users` topic of the authz treedb read by the yuno `db_history^7301`: `treedb-db_history^7301-C_TRANGER-tranger_authz-treedb_authzs-users-`. A replica names a directory of the store after the id (`<topic>/disks/<id>/`), so the yuno keeps two yunos that read one store from sharing one. Up to 7.27.10, the id had no yuno, and they shared it | *"Topic refused: the id of a list of its indexes is longer than NAME_MAX"* | |
 | The name of the topic and the id of each `hook` column hold no `^`, and a hook id is shorter than `NAME_MAX`: they are parts of the references of its children (`topic^id^hook`, split at the `^`, each part copied into a `char[NAME_MAX]`). The id of a `file` column holds no `^` either: it is in the hook the column derives on `__assets__`, `as_<topic>_<col>`. Each pkey2 names a column of the topic: the value of a pkey2 is the value of the column of its name | *"Topic refused: a name of its references or of its keys"* | *"the topic name holds a '^', the separator of the parts of a reference"*, *"a hook or file column id holds a '^', the separator of the parts of a reference, or is too long to be a part of one"*, *"a pkey2 names no column of the topic: its index would hold nothing"* |
 
 The faults of the table are ERRORs, and WARNINGs inside the window of a
-peer's data ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)); the list
+peer's data ([`treedb_set_peer_data()`](<#treedb_set_peer_data>)). The list
 id one is an ERROR always (the gobj's name is in the id, so it is never a
 peer's), and only `treedb_create_topic()` asks it. Up to 7.26.9 a `^` in the
 name of a topic or of a hook was taken, and every reference to its nodes was
-undecodable (*"Wrong fkey (parent) reference"*); so was one in the id of a
+undecodable (*"Wrong fkey (parent) reference"*). So was one in the id of a
 `file` column, and every link of a file failed (*"Cannot build the reference
-of a node: ... holds a '^'"*); a pkey2 of no column was
-taken, and its index held nothing -- the name of a `qualified` id, which is its
-first pkey2, could not be built. Before SDK 7.27.0 a column that was not a json object, a pkey2 of
+of a node: ... holds a '^'"*). A pkey2 of no column was
+taken, and its index held nothing -- the code failed to build the name of a `qualified` id, which is its
+first pkey2. Before SDK 7.27.0 a column that was not a json object, a pkey2 of
 `id` or of the tkey, and a pkey2 named twice were taken, and their index was
-built wrong (a node stored inside itself, two lists on one id); a list id
+built wrong (a node stored inside itself, two lists on one id). A list id
 that did not fit was cut, and two lists of the topic shared what was left.
 
 ```C
@@ -1121,11 +1121,11 @@ lists as they are, and each fault is said instead, an ERROR naming it:
 | a `^` in its name or in the id of a hook or a file column, a hook id of `NAME_MAX` or more, a pkey2 of no column | *"Topic on disk opened as it was, with a name of its references or of its keys at fault: fix its schema, a new topic with it is refused"*, with `why` and `name` |
 | the id of a list of its indexes past `NAME_MAX` (cut, as it always was) | *"Topic on disk opened as it was, the id of a list of its indexes cut to NAME_MAX: shorten its names, a new topic with them is refused"*, with `index_key`, `length` and `max` |
 
-Refusing it would take the topic from the treedb at the next open of a store
-that has lived with it, with the CRITICAL *"Cannot create topic of the
+If the open refused it, the next open of a store that lived with it loses the
+topic, with the CRITICAL *"Cannot create topic of the
 schema"* -- an exit of a yuno whose `on_critical_error` exits. So the topic
 runs as it ran:
-a pkey2 `id` indexes nothing, and each node it would index logs *"cannot add
+a pkey2 `id` indexes nothing, and each node that it is meant to index logs *"cannot add
 an instance to the pkey2 index"*, as before. A NEW topic with these faults is
 refused, from C code too (up to 7.26.9 it was created), and so is every topic
 inside the window of a peer's data. Fix the schema, or shorten the names:
@@ -1151,7 +1151,7 @@ would refuse it at its next open"*. The remedy is in the schema, the same as
 for the literal: drop the pkey2 of no column, rename the hook or the `file`
 column with the `^` (the references that hold it on disk were undecodable
 already), with the topic's `topic_version` bumped as every change of its
-columns needs; then save and apply.
+columns needs. Then save and apply.
 
 ```bash
 # the draft keeps `items` with the pkey2 "id": refused
@@ -1181,7 +1181,7 @@ inside the window of a peer's data
 each topic of a PEER's `open-treedb` schema, of a NEW topic that a PEER's
 `create-topic` makes, and of each topic of a schema that `save-schema` or
 `apply-schema` is about to publish, whoever asks (a WARNING for a peer, an
-ERROR for C code; since SDK 7.27.0). A C caller's `open-treedb` and
+ERROR for C code, since SDK 7.27.0). A C caller's `open-treedb` and
 `create-topic` are not asked it: they reach `treedb_create_topic()` as they
 always did.
 
@@ -1245,10 +1245,10 @@ derive `as_a_b_c`, and the second column then linked through the first
 one's hook, onto the other topic's column. This function asks the `file`
 columns of `topics` BEFORE they are created, and refuses:
 
-- a hook name that does not fit `NAME_MAX` (it was cut): *"the names of the
+- A hook name that does not fit `NAME_MAX` (it was cut): *"the names of the
   topic and of its 'file' column are too long for the name of their
-  __assets__ hook"*;
-- a hook that another `file` column derives too, of `topics` or one that the
+  __assets__ hook"*.
+- A hook that another `file` column derives too, of `topics` or one that the
   `__assets__` of `tranger` already has: *"two 'file' columns derive the same
   __assets__ hook (as_<topic>_<col>): rename one of them"*.
 
@@ -1339,7 +1339,7 @@ Returns `0` on success, or a negative value if the deletion is refused or fails.
 KEY, never one of its instances, so a reload links the primary instance of a
 node alone, and hangs every child from the primary of its parent. A link made
 at run time lands on the instance it is given, and the delete puts memory
-where a reload would put it (new after 7.25.4):
+where a reload puts it (new after 7.25.4):
 
 - The instance leaves the hooks of its parents (every instance of each
   parent its fkeys name, found by pointer). When the primary of its key names
@@ -1349,7 +1349,7 @@ where a reload would put it (new after 7.25.4):
   name the key, which is still there.
 
 Nothing is written: the rows of the instance are tombstoned, and a record with
-its fkeys cleared would bring it back. Its fkeys stay as they are. An instance
+its fkeys cleared, if written, brings it back. Its fkeys stay as they are. An instance
 that is also the primary (the same object in the primary index) stays the node
 in memory, with its links.
 
@@ -1408,7 +1408,7 @@ carries 0 while the record the snap froze is still under it. It reads the
 records of the key instead and keeps the ones of this instance (which
 instance a record belongs to is a FIELD, so that walk reads the content of
 the record). `ignore_snaps` overrides this guard, and `force` does not
-(since after 7.24.1; it used to). It is the twin of the one
+(since after 7.24.1. Before, it did). It is the twin of the one
 [`treedb_delete_node()`](<#treedb_delete_node>) has for a whole key.
 
 ---
@@ -1431,8 +1431,8 @@ int treedb_delete_node(
 | Key | Type | Description |
 |---|---|---|
 | `tranger` | `json_t *` | A reference to the tranger database instance. |
-| `node` | `json_t *` | The node to be deleted: the pure node as the index holds it. It is **borrowed**, never the caller's own reference: do not decref it, before or after. On success the index's reference is released with the key; on a refusal the node is left as it was, still indexed. |
-| `jn_options` | `json_t *` | A JSON object containing options for deletion. `force` unlinks the children and the parents first (without it a node with links is refused); `ignore_snaps` deletes a node a snapshot holds a record of. |
+| `node` | `json_t *` | The node to be deleted: the pure node as the index holds it. It is **borrowed**, never the caller's own reference: do not decref it, before or after. On success, the index's reference is released with the key. On a refusal, the node is left as it was, still indexed. |
+| `jn_options` | `json_t *` | A JSON object containing options for deletion. `force` unlinks the children and the parents first (without it, a node with links is refused). `ignore_snaps` deletes a node a snapshot holds a record of. |
 
 **Returns**
 
@@ -1480,13 +1480,13 @@ the node: nothing more is looked at). Without `force` they refuse the delete
 before the children are unlinked. None of those saves, nor the saves of the
 children, is a write of the child that the caller asked for: the instance that
 wrote the newest record of each key they touch before the delete writes it
-again, last, so the next reload takes the same primary as it would without the
+again, last, so the next reload takes the same primary as without the
 delete. A delete that is refused puts them back, and keeps the newest record of
 each key where it was too. In 7.25.4 the child the delete unlinked last was
-the primary of the next reload, over a new instance created after it; and
+the primary of the next reload, over a new instance created after it. And
 the delete did not see the instances that no hook holds: it went without
 `force`, and they named a node that is gone (*"Node not found"*
-at the next open, once one of them was the newest record of its key); and a
+at the next open, once one of them was the newest record of its key). And a
 forced delete saved a child it unlinked through one hook with its ref of
 another hook still there.
 
@@ -1520,11 +1520,11 @@ treedb_delete_node(tranger, p1, json_pack("{s:b}", "force", 1));   // 0: u^1["ow
 **A node whose child topic did not load whole is not deleted**, forced or not:
 a topic one of its hooks holds has keys that did not load (see [A topic that
 did not load whole](<#treedb-topic-not-loaded-whole>)), a child that did not
-load may name the node, and memory does not know it. The delete answers `-1`
+load can name the node, and memory does not know it. The delete answers `-1`
 with *"Cannot delete node: a topic its hooks hold did not load whole, a child
 that did not load may hang from it"* (`child_topic`), and nothing moves.
 Repair or delete the key that did not load, then delete the node (new after
-7.25.4; the node was deleted and that child named a parent that is gone).
+7.25.4. Before, the node was deleted and that child named a parent that is gone).
 
 ```C
 /*  boxes.things hooks things.box; the key of the thing t2, linked to b1, did not load  */
@@ -1544,7 +1544,7 @@ node has left the indexes, and before `EV_TREEDB_NODE_DELETED`. A subscriber
 that looks the node up by its id finds nothing. Until the delete returns, a
 save of the node is refused (*"Cannot save a node that is being deleted"*),
 from these callbacks and from the one of `EV_TREEDB_NODE_DELETED`: its key is
-gone, and a record written into it would bring the node back from the disk.
+gone, and if written, a record in it brings the node back from the disk.
 
 ```C
 /*  gina hangs from legal; the callback of the treedb saves legal when it
@@ -1555,9 +1555,9 @@ treedb_delete_node(tranger, legal, json_pack("{s:b}", "force", 1));   // 0
  *  and legal is not on disk.                                              */
 ```
 
-In 7.25.4 a child whose unlink could not be saved did not stop the delete:
-its record on disk kept naming the deleted node. And a key that could not be
-deleted left the node unlinked from its parents in memory, and every child
+In 7.25.4, a child whose unlink failed to save did not stop the delete:
+its record on disk kept naming the deleted node. And a key whose delete
+failed left the node unlinked from its parents in memory, and every child
 unlinked on disk.
 
 A child that cannot be saved again stays unlinked, in memory as on disk, and
@@ -1635,7 +1635,7 @@ is refused. There is no `force` override.
 (treedb_file_ext)=
 ## [`treedb_file_ext()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c#L17208)
 
-The extension a blob is stored with, derived from its mime type: it is what a web server reads to set the `Content-Type`, so it comes from the type stored and never from the name given.
+The extension a blob is stored with, derived from its mime type: it is what a web server reads to set the `Content-Type`, so it is taken from the type stored and never from the name given.
 
 ```C
 const char *treedb_file_ext(
@@ -1651,7 +1651,7 @@ const char *treedb_file_ext(
 
 **Returns**
 
-A static string without the dot: `jpg`, `png`, `webp`, `gif`, `pdf`, `mp4`, `webm`, `mov`, `ogv`, `mkv`, `mp3`, `m4a`, `ogg`, `wav`, `weba`, `flac`; `bin` for an empty or unknown type.
+A static string without the dot: `jpg`, `png`, `webp`, `gif`, `pdf`, `mp4`, `webm`, `mov`, `ogv`, `mkv`, `mp3`, `m4a`, `ogg`, `wav`, `weba`, `flac`. `bin` for an empty or unknown type.
 
 **Example**
 
@@ -1681,23 +1681,23 @@ json_t *treedb_gc_files(
 |---|---|---|
 | `tranger` | `json_t *` | The tranger of the treedb. |
 | `treedb_name` | `const char *` | The treedb. |
-| `dry_run` | `BOOL` | `TRUE`: take nothing, answer what would be taken. |
+| `dry_run` | `BOOL` | `TRUE`: take nothing, answer what a run without `dry_run` takes. |
 
 **Returns**
 
-The list of asset ids taken (or that would be taken), **yours** to decref. `NULL` with *"__assets__ index not found"* logged when the treedb has no `__assets__` topic.
+The list of asset ids taken (or, with `dry_run`, to be taken), **yours** to decref. `NULL` with *"__assets__ index not found"* logged when the treedb has no `__assets__` topic.
 
 `NULL`, and **nothing taken** -- no asset row, and not even the blobs no row names -- when the gc is refused. It refuses:
 
 - while a **snap is active** in any treedb of the tranger. The nodes in memory are then the snap's photo: a node written after the snap is not there, and the asset it links reads as linked by nobody. *"gc refused: a snap is active, the nodes in memory are its photo and not the live links (deactivate it first)"*. Up to 7.25.4 (since 7.18.1) the gc took the row and the bytes of such an asset, a live node's on disk.
-- when what the snapshots hold cannot be read whole: a tagged record of an existing snap whose content is not an object, a key of a topic with a `file` column whose records do not load (*"cannot read every instance of a topic: the assets a snapshot holds are unknown"*), or a `__snaps__` that did not load whole. The log says which, and *"gc refused: cannot tell which assets a snapshot links"*. Such a record may name any blob, so no asset is taken; until 7.25.4 the gc took the ones it could not see held. [`treedb_delete_node()`](<#treedb_delete_node>) of an `__assets__` node refuses in the same case: *"cannot delete asset, cannot tell whether a snapshot links it"*.
+- when what the snapshots hold cannot be read whole: a tagged record of an existing snap whose content is not an object, a key of a topic with a `file` column whose records do not load (*"cannot read every instance of a topic: the assets a snapshot holds are unknown"*), or a `__snaps__` that did not load whole. The log says which, and *"gc refused: cannot tell which assets a snapshot links"*. Such a record can name any blob, so no asset is taken. Until 7.25.4, the gc took the ones it was not able to see held. [`treedb_delete_node()`](<#treedb_delete_node>) of an `__assets__` node refuses in the same case: *"cannot delete asset, cannot tell whether a snapshot links it"*.
 - when a topic that links assets, or `__assets__`, in any treedb of the tranger, did not load whole (see [A topic that did not load whole](<#treedb-topic-not-loaded-whole>)): a node that did not load links its asset all the same, so the live links are unknown (*"gc refused: a topic that links assets did not load whole, the live links are unknown"*). This holds after a restart too: a key whose files were damaged while the yuno was down fails its load the same way.
 
 **An instance holds its asset.** After a reopen only the primaries are linked,
 so the hooks of `__assets__` do not show what the other instances of a node
 name: the gc reads the `file` columns of every node the secondary indexes hold
 (in the topics with pkey2s), and holds what they name. Up to 7.25.4 it took the
-asset of an instance that is not the primary, row and bytes; once that
+asset of an instance that is not the primary, row and bytes. Once that
 instance was the newest record of its key, the reload said *"Node not found"*.
 
 ```C
@@ -1739,7 +1739,7 @@ json_t *treedb_gc_files2(
 |---|---|---|
 | `tranger` | `json_t *` | The tranger of the treedb. |
 | `treedb_name` | `const char *` | The treedb. |
-| `dry_run` | `BOOL` | `TRUE`: take nothing, answer what would be taken. |
+| `dry_run` | `BOOL` | `TRUE`: take nothing, answer what a run without `dry_run` takes. |
 
 **Returns**
 
@@ -1749,9 +1749,9 @@ A dict, **yours** to decref:
 |---|---|---|
 | `dry_run` | bool | The `dry_run` of the call. |
 | `refused` | string | Only when the asset rows were refused: why (the same text [`treedb_gc_files()`](<#treedb_gc_files>) logs). |
-| `assets` | list | The ids of the asset rows taken, or that would be. `[]` when refused. |
-| `blobs` | list | The ids of the blobs no row names that were taken, or would be -- on a refusal too. An id already in `assets` is not repeated. |
-| `blobs_refused` | string | Only when the sweep refused too: *"gc: the blobs are not swept, __assets__ did not load whole"* (the bytes of a row that did not load would read as bytes no row names). |
+| `assets` | list | The ids of the asset rows taken, or, with `dry_run`, to be taken. `[]` when refused. |
+| `blobs` | list | The ids of the blobs no row names that were taken, or, with `dry_run`, to be taken -- on a refusal too. An id already in `assets` is not repeated. |
+| `blobs_refused` | string | Only when the sweep refused too: *"gc: the blobs are not swept, __assets__ did not load whole"* (otherwise, the bytes of a row that did not load read as bytes no row names). |
 
 `NULL` only on an error, logged: *"__assets__ index not found"*.
 
@@ -1974,7 +1974,7 @@ The function provides insight into the schema of a topic by identifying its fore
 (treedb_import_files)=
 ## [`treedb_import_files()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c#L20304)
 
-The second door of `file` columns: a directory already on the node becomes N assets in one call, with no bytes on the wire. It creates index nodes in `__assets__` and links nothing; it **answers the map `path -> id`**, so the loader can link what it imported (where a file came from is a fact of the load, not of the asset). The command is C_NODE's `import-assets`.
+The second door of `file` columns: a directory already on the node becomes N assets in one call, with no bytes on the wire. It creates index nodes in `__assets__` and links nothing. It **answers the map `path -> id`**, so the loader can link what it imported (where a file came from is a fact of the load, not of the asset). The command is C_NODE's `import-assets`.
 
 It is confined to `import_root`, and an empty root means **refused** -- a call that reads a path is a call that reads anything on the node. The confinement is resolved, not only spelled: a `source_dir` with `..`, or one that resolves out of `import_root` through a symlink, is refused.
 
@@ -1995,9 +1995,9 @@ json_t *treedb_import_files(
 |---|---|---|
 | `tranger` | `json_t *` | The tranger of the treedb. |
 | `treedb_name` | `const char *` | The treedb. |
-| `import_root` | `const char *` | The only tree it may read. Empty: refused. |
+| `import_root` | `const char *` | The only tree it is allowed to read. Empty: refused. |
 | `source_dir` | `const char *` | Directory under `import_root` to import, walked recursively. |
-| `dry_run` | `BOOL` | `TRUE`: store nothing, answer what would be imported. |
+| `dry_run` | `BOOL` | `TRUE`: store nothing, answer what a run without `dry_run` imports. |
 | `uploaded_by` | `const char *` | Kept in each asset node. |
 
 **Returns**
@@ -2116,7 +2116,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 The function does not take ownership of `parent_node` or `child_node`. Make sure that both nodes exist and are valid before calling [`treedb_link_nodes()`](<#treedb_link_nodes>).
 
 **A link writes the CHILD, and only when the child moved.** The persistent
-half of a relationship is the child's `fkey`; the parent's `hook` is in
+half of a relationship is the child's `fkey`. The parent's `hook` is in
 memory and is rebuilt at the next load. So a link that only fills a hook
 writes nothing: that is the ordinary case of a second instance of a node,
 which inherits the fkey of the instance before it (the ref names the
@@ -2142,7 +2142,7 @@ user)` with `-1`. [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>)
 from a parent the child does not name is refused (*"Cannot unlink, the child
 does not hang from that parent"*): nothing moves, no event, no save.
 
-A link that would hang a node from its own descendant through the **same**
+A link that asks to hang a node from its own descendant through the **same**
 hook is refused (*"Cannot link, the link would close a cycle in the hook"*),
 and nothing moves. A cycle through two different hooks is data, and is
 accepted. For example, with the `departments.departments` hook, linking
@@ -2597,11 +2597,11 @@ the system topics have the id
 `treedb-<yuno>-<gclass>-<gobj>-<treedb>-__graphs__` (and `__snaps__`), and
 `tranger2_open_list()` refuses one longer than `NAME_MAX`. A treedb whose name
 makes either one longer is refused before anything is made, with the ERROR
-*"treedb name too long for the ids of its lists"*, and NULL is returned; up to
-7.29.1 it opened without those lists (the active snap unknown) and each of its
+*"treedb name too long for the ids of its lists"*, and NULL is returned. Up to
+7.29.1, it opened without those lists (the active snap unknown) and each of its
 topics was refused. The name is in the id once, the yuno (`<role>^<name>`) and
 the tranger's gobj too, so in a yuno such as `db_history^7301` with the
-gobj `tranger_<treedb>` of `C_TREEDB` the limit is about 100 bytes; a name
+gobj `tranger_<treedb>` of `C_TREEDB` the limit is about 100 bytes. A name
 longer than `NAME_MAX` is refused too (it was cut), and so is a treedb opened
 in a yuno whose `<role>^<name>` alone is too long.
 
@@ -2615,11 +2615,11 @@ The open checks the system lists only. The lists of the topics,
 `treedb-<yuno>-<gclass>-<gobj>-<treedb>-<topic>-<tkey or pkey2>`, are longer
 by the topic and its key, and they are checked topic by topic, as before: a
 NEW topic whose ids do not fit `NAME_MAX` is refused at its create (the ERROR
-*"Topic refused: the id of a list of its indexes is longer than NAME_MAX"*;
-for a topic of the schema given to the open, also the CRITICAL *"Cannot create
+*"Topic refused: the id of a list of its indexes is longer than NAME_MAX"*,
+and for a topic of the schema given to the open, also the CRITICAL *"Cannot create
 topic of the schema"*, which exits a yuno whose `on_critical_error` exits),
-and the rest of the treedb opens; a topic that is already on disk opens with
-its ids as they always were (cut), so a store that has lived with them keeps
+and the rest of the treedb opens. A topic that is already on disk opens with
+its ids as they always were (cut), so a store that lived with them keeps
 its topic.
 
 **The `impose` option.** With `"persistent,impose"`, and only on the master,
@@ -2714,7 +2714,7 @@ static char treedb_schema_names[]= "\
 
 **To check a store before an upgrade, run
 [`tools/treedb/check_store_schemas.py`](../../tools/check_store_schemas.md)**
-(7.27.0+; it ships with the packages, and needs only `python3`). It says, per
+(7.27.0+. It ships with the packages, and needs only `python3`). It says, per
 persisted schema, everything the SDK will log when it opens it -- a name that
 breaks a rule, and the faults a topic already on disk is opened with, at
 every open -- with the level of what the open does and the message it logs.
@@ -2727,11 +2727,11 @@ ssh <node> python3 - /yuneta/store < tools/treedb/check_store_schemas.py   # an 
 ```
 
 The names alone can be asked by hand too: ask the persisted schemas (the KEYS,
-not the values: a description may hold a `/`). They are `<treedb>.treedb_schema.json`
+not the values: a description can hold a `/`). They are `<treedb>.treedb_schema.json`
 (a `topics` list or dict) and, for a topic created at run time,
-`<treedb>-<topic>.treedb_schema.json` (one topic); the recipe reads both, and
+`<treedb>-<topic>.treedb_schema.json` (one topic). The recipe reads both, and
 its `cols` as a dict or as a list. It prints one line per name that breaks a
-rule, with the file it comes from, and nothing on a clean store. A treedb
+rule, with its file, and nothing on a clean store. A treedb
 opened without `"persistent"` writes no schema file (`C_NODE` always opens with
 it):
 
@@ -2796,7 +2796,7 @@ out"*) names the topic, and the hooks of other topics that point at it log
 
 A `.` in a name is fine for both rules: the treedb looks its topics, hooks and
 fkeys up by key ([`kwid_get_by_keys()`](<#kwid_get_by_keys>)), never through a
-`kwid_get()` path, which splits at `.` too (since SDK 7.26.9; before it a link
+`kwid_get()` path, which splits at `.` too (since SDK 7.26.9. Before it, a link
 by a hook `kids.all`, or to a topic `par.v1`, answered -1).
 
 A `%` is fine for both rules too, even in a name that reads as a format, such
@@ -2867,16 +2867,16 @@ for the `id` index, one per `pkey2`). A key whose history cannot be read whole
 is named in the list, every other key is loaded, and the realtime feed is
 opened. A key fails:
 
-- when a row's metadata (`.md2`) or its content (`.json`) cannot be read
+- When a row's metadata (`.md2`) or its content (`.json`) cannot be read
   during the load -- a file cut, damaged or unreadable behind the running
   yuno's back. The list of the `id` index reads only the NEWEST record of
-  each key (the one that is its node; the load is backward and stops
+  each key (the one that is its node. The load is backward and stops
   there), so a damaged OLDER row of a key does not fail it there: the key
   loads. A `pkey2` list reads the whole history of the key, as every list
   did up to 7.27.7, when the open read and parsed every record of every
-  key to keep the newest;
-- after a RESTART, when the topic's cache, built from disk at the open,
-  could not count a `.md2` file of the key: one that cannot be opened or
+  key to keep the newest.
+- After a RESTART, when the topic's cache, built from disk at the open,
+  failed to count a `.md2` file of the key: one that cannot be opened or
   read, or one that ends on no row boundary and must not be cut (below).
   Up to 7.25.4 the cache build dropped such a file and nothing failed:
   after a restart the guards below never fired.
@@ -2908,7 +2908,7 @@ file do not change, and the key fails (a replica makes the same check):
   back: the next appends wrote their rows after the torn bytes, on no row
   boundary, and those rows were acknowledged. The last 32 bytes of the file
   are a whole row whose content is a whole record of the `.json`, at its end
-  or followed by content no row names. A cut would remove the end of that
+  or followed by content no row names. If cut, the file loses the end of that
   row:
 
   ```text
@@ -2922,7 +2922,7 @@ file do not change, and the key fails (a replica makes the same check):
   With content after that row, the `cause` is *"its content is a whole record
   of the content file"*. When the yuno that checks has not the memory to
   parse the record (`MEM_MAX_BLOCK` is set for each yuno, and the writer's
-  can be larger; a record smaller than the block can need more to parse),
+  can be larger. A record smaller than the block can need more to parse),
   the `cause` is *"its content has no NUL but the one at its end, and this
   process has not the memory to parse it (MEM_MAX_BLOCK): it can be a record
   written by a yuno with a larger block"*: not cut either.
@@ -2949,9 +2949,9 @@ When the check itself cannot run, the file is not cut, and the CRITICAL is
 one of three:
 
 - *"Cannot check the torn tail of a md2 file, its content file cannot be
-  read: not cut"*: the `.json` cannot be opened or read (its `path`);
+  read: not cut"*: the `.json` cannot be opened or read (its `path`).
 - *"Cannot check the torn tail of a md2 file, no memory to read a content:
-  not cut"* (the `path` of the `.json`, the `size`);
+  not cut"* (the `path` of the `.json`, the `size`).
 - *"Cannot read a record of md2 file, read FAILED"* or *"Cannot read a record
   of md2 file, short read"*: a row of the `.md2` cannot be read (its `path`,
   the `row`, its `offset`).
@@ -2962,8 +2962,8 @@ at the next notification of it from the master.
 
 A `.md2` of 0 bytes whose `.json` is NOT empty does not fail the key. It is
 the shape an append that was never acknowledged leaves: the content is
-written first and the md2 row after, and the row was never written (the md2
-could not be created or written, or the yuno died between the two). The
+written first and the md2 row after, and the row was never written (the creation
+or the write of the md2 failed, or the yuno died between the two). The
 file is ignored, as until 7.25.4, with a warning that names it, and the key
 loads from its other files:
 
@@ -2994,16 +2994,16 @@ ERROR note_keys_not_loaded: treedb topic loaded WITHOUT the whole history of key
       treedb_name=treedb_items topic_name=items keys=["k2"]
 ```
 
-Memory is what treedb answers from, so it refuses what it would answer
-wrong, until the topic is opened again or the key is deleted:
+Memory is what treedb answers from, so it refuses a request whose answer can
+be wrong, until the topic is opened again or the key is deleted:
 
 | What | With a topic that did not load whole |
 |---|---|
-| [`treedb_create_node()`](<#treedb_create_node>) of such an id | refused: *"Cannot create node, its id has records on disk that could not be loaded"*. Its record would become the newest of the key, over records nobody read. Other ids are created as usual. |
-| `__snaps__` | also logs *"__snaps__ loaded without some snaps: the active snap is unknown, ..."*. The treedb is loaded from the live records (the active snap may be the one that did not load). [`treedb_shoot_snap()`](<#treedb_shoot_snap>) and [`treedb_activate_snap()`](<#treedb_activate_snap>) refuse (*"Cannot shoot a snap: __snaps__ did not load whole, the active snap is unknown"*, *"Cannot activate a snap: __snaps__ did not load whole, the active snap is unknown"*; the command `shoot-snap name=s3` answers `-1: <role^name>: cannot shoot snap 's3' (see the log)`); [`treedb_delete_node()`](<#treedb_delete_node>), `treedb_delete_instance()` and the delete of an asset refuse too, because which snap holds a record is unknown (*"cannot tell which snaps exist: __snaps__ did not load whole"*). `ignore_snaps` still overrides the node and instance deletes. |
+| [`treedb_create_node()`](<#treedb_create_node>) of such an id | refused: *"Cannot create node, its id has records on disk that could not be loaded"*. If created, its record becomes the newest of the key, over records nobody read. Other ids are created as usual. |
+| `__snaps__` | also logs *"__snaps__ loaded without some snaps: the active snap is unknown, ..."*. The treedb is loaded from the live records (the active snap can be the one that did not load). [`treedb_shoot_snap()`](<#treedb_shoot_snap>) and [`treedb_activate_snap()`](<#treedb_activate_snap>) refuse (*"Cannot shoot a snap: __snaps__ did not load whole, the active snap is unknown"*, *"Cannot activate a snap: __snaps__ did not load whole, the active snap is unknown"*. The command `shoot-snap name=s3` answers `-1: <role^name>: cannot shoot snap 's3' (see the log)`). [`treedb_delete_node()`](<#treedb_delete_node>), `treedb_delete_instance()` and the delete of an asset refuse too, because which snap holds a record is unknown (*"cannot tell which snaps exist: __snaps__ did not load whole"*). `ignore_snaps` still overrides the node and instance deletes. |
 | a topic that links assets (a `file` column), or `__assets__`, in ANY treedb of the tranger | [`treedb_gc_files()`](<#treedb_gc_files>) refuses and takes nothing: *"gc refused: a topic that links assets did not load whole, the live links are unknown"*. |
 | `__assets__`, in any treedb of the tranger | the sweep of the blobs no row names ([`treedb_gc_files2()`](<#treedb_gc_files2>)) refuses too: *"gc: the blobs are not swept, __assets__ did not load whole"*. |
-| a topic a hook holds (the CHILD topic) | [`treedb_delete_node()`](<#treedb_delete_node>) of a node of the PARENT topic refuses, forced or not, with or without children in memory: *"Cannot delete node: a topic its hooks hold did not load whole, a child that did not load may hang from it"* (`child_topic` names the topic). A child that did not load may name the node, and the links of a node are known only from its children in memory: deleted, the node left that child naming a parent that is gone (new after 7.25.4). |
+| a topic a hook holds (the CHILD topic) | [`treedb_delete_node()`](<#treedb_delete_node>) of a node of the PARENT topic refuses, forced or not, with or without children in memory: *"Cannot delete node: a topic its hooks hold did not load whole, a child that did not load may hang from it"* (`child_topic` names the topic). A child that did not load can name the node, and the links of a node are known only from its children in memory: deleted, the node left that child naming a parent that is gone (new after 7.25.4). |
 
 A key deleted since ([`tranger2_delete_key()`](<timeranger2.md#tranger2_delete_key>),
 step 3 below) has no records on disk any more: treedb forgets it the next
@@ -3019,16 +3019,16 @@ a tagged record):
 1. Read the log: the read error names the file (`path`, `file_id`, `rowid`),
    the lines above name the treedb, the topic and the keys.
 2. Look at the key's directory, `<store>/<topic>/keys/<key>/`: a `.md2`
-   shorter than what was written (the rows past its end fail); a `.json`
-   that was cut (a row's content past its end fails); a file the yuno's user
-   cannot read; a `.md2` whose size is not a multiple of 32 bytes, when the
+   shorter than what was written (the rows past its end fail), a `.json`
+   that was cut (a row's content past its end fails), or a file the yuno's user
+   cannot read. It can also be a `.md2` whose size is not a multiple of 32 bytes, when the
    log has one of the two CRITICALs above (*"...not cut, repair it by
    hand"*). Without them, such a `.md2` is not on this list: the master cuts
    it back itself, see above.
 3. Repair it with the yuno STOPPED (the running yuno caches the store and
    writes it), with the least that brings the file back, in this order:
-   - a file the yuno's user cannot read: give it back its owner and mode;
-   - a `.md2` whose size is not a multiple of 32 bytes, when the master
+   - A file the yuno's user cannot read: give it back its owner and mode.
+   - A `.md2` whose size is not a multiple of 32 bytes, when the master
      logged *"Cannot cut back a md2 file that ends in a part of a row: the
      file is damaged"* (the cut itself failed, for example on a read-only
      file system): cut it back to whole rows by hand. The part of a row that
@@ -3043,14 +3043,14 @@ a tagged record):
      stat -c %s $f                             # 1280
      ```
 
-   - a `.md2` that 7.25.4 wrote after a torn row (*"md2 file of the key ends
+   - A `.md2` that 7.25.4 wrote after a torn row (*"md2 file of the key ends
      in a whole row that is not on a row boundary: written by 7.25.4 after a
      torn row; not cut, repair it by hand"*): remove the bytes of the torn
      row, not the end of the file. They are `size % 32` bytes (13 in the log
      above) and they start on a row boundary. The script below tries each
      row boundary, and keeps the one where, with those bytes removed, the
      content of every row is whole (inside the `.json`, its last byte a NUL
-     and no other NUL; only zero bytes for an instance deleted with its
+     and no other NUL, or only zero bytes for an instance deleted with its
      content zeroed), each row's content comes after the content of the row
      before, and the removed bytes can be the start of the torn row: when
      they hold its `__offset__` (17 bytes or more, not all zero), that offset
@@ -3148,7 +3148,7 @@ a tagged record):
      )
      ```
 
-     The torn row is gone (its append was never acknowledged); its content
+     The torn row is gone (its append was never acknowledged). Its content
      stays in the `.json`, and no row names it. Every row that 7.25.4
      acknowledged is read again. When the script prints no boundary, or more
      than one, it writes no `.new` file and the `.md2` does not change. When
@@ -3265,11 +3265,11 @@ A column that `kw` does not carry is an **empty** column, and its links are remo
 
 **A column is replaced whole, or not at all** (since 7.25.0). Every new ref of a column is checked BEFORE any old link of it is undone, and a column with one ref that cannot be linked keeps the links it has. A ref cannot be linked when:
 
-- it is malformed: *"Wrong parent reference: …"*;
-- its hook does not link the topic into the column where the ref arrived: *"fkey reference: its hook does not link into this column"*;
-- its parent does not exist: *"fkey reference: parent node not found"*;
-- it names the node itself: *"Cannot link self node"*;
-- the link would close a cycle in the hook: *"Cannot link, the link would close a cycle in the hook"*.
+- It is malformed: *"Wrong parent reference: …"*.
+- Its hook does not link the topic into the column where the ref arrived: *"fkey reference: its hook does not link into this column"*.
+- Its parent does not exist: *"fkey reference: parent node not found"*.
+- It names the node itself: *"Cannot link self node"*.
+- The link closes a cycle in the hook: *"Cannot link, the link would close a cycle in the hook"*.
 
 A ref with a NUL in it refuses the whole call before anything moves, *"Invalid
 fkey reference: it holds a NUL"* (7.27.0+, see
@@ -3302,7 +3302,7 @@ if(treedb_replace_links(tranger, alice, kw, TRUE) < 0) {
 }
 ```
 
-The result: one `EV_TREEDB_NODE_LINKED` (research), no event for engineering. Had the column also named `departments^ghost^users` (not found), NOTHING of it would move: no link to research, no event, one error for ghost, and alice keeps engineering.
+The result: one `EV_TREEDB_NODE_LINKED` (research), no event for engineering. If the column also named `departments^ghost^users` (not found), NOTHING of it moves: no link to research, no event, one error for ghost, and alice keeps engineering.
 
 ---
 
@@ -3333,14 +3333,14 @@ Returns `0` on success, or a negative error code on failure.
 
 The record is always written with tag 0, whether a snap is activated or not. A record gets a snap's tag only once, from [`treedb_shoot_snap()`](<#treedb_shoot_snap>). A save never gives a tag, so it never writes into a snap. With a snap activated, the primary index is loaded from the records that the snap tagged. An edit made during that time appears in the primary index only after the snap is deactivated.
 
-A node that [`treedb_delete_node()`](<#treedb_delete_node>) is deleting cannot be saved: from the moment its key is deleted until the delete returns, a save of it (from a callback of the delete) answers `-1` and logs *"Cannot save a node that is being deleted"*. A record written then would bring the node back from the disk.
+A node that [`treedb_delete_node()`](<#treedb_delete_node>) is deleting cannot be saved: from the moment its key is deleted until the delete returns, a save of it (from a callback of the delete) answers `-1` and logs *"Cannot save a node that is being deleted"*. If written then, a record brings the node back from the disk.
 
 A node that no index holds is not saved either: its key was deleted
 ([`treedb_delete_node()`](<#treedb_delete_node>)), or its instance
 ([`treedb_delete_instance()`](<#treedb_delete_instance>)). The save answers
 `-1` and logs *"Cannot save a node that no index holds: its record would bring
 back what was deleted"*, whatever kept the pointer (a hook of a parent, a
-caller). The primary index is asked first, by pointer; a node that is not the
+caller). The primary index is asked first, by pointer. A node that is not the
 primary is looked for among the instances of its key. Until 7.25.4 such a save
 wrote a record into the deleted key, and the node was back at the next open
 (new after 7.25.4).
@@ -3356,12 +3356,12 @@ A node whose pkey2 value was changed in place is not saved either. A pkey2
 value names the **instance**, and the record is written under the value that
 the node holds now: the new value is a new instance on disk, while memory keeps
 the node in the slot of the old value. [`treedb_update_node()`](<#treedb_update_node>)
-refuses such a change; a direct save of a node that another slot of its key
+refuses such a change. A direct save of a node that another slot of its key
 holds answers `-1` and logs *"Cannot save a node whose pkey2 value changed in
 place: its record would be another instance"*, with `topic_name`, `id`,
 `pkey2_name`, `old_value` (the slot that holds the node) and `new_value`. Put
 the value back and the node saves again. To make the new value, create the
-instance. Only a topic with pkey2s is asked; an empty value is not (the save
+instance. Only a topic with pkey2s is asked. An empty value is not asked (the save
 does not index it). Until 7.25.4 such a save wrote the new instance to disk,
 and when the new value was the one of another instance, it took that
 instance's slot in memory (new after 7.25.4).
@@ -3431,7 +3431,7 @@ The callback function must follow the `treedb_callback_t` signature and will rec
 (treedb_set_files_limits)=
 ## [`treedb_set_files_limits()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c#L17421)
 
-The ceiling of a treedb's `file` columns: the largest file one write may cost this process, and the mime types the store will ever hold. A column may NARROW it with its `properties.max_size` / `properties.content_types`, never raise it. Without a call the ceiling is 128 MB and the sixteen types of [`treedb_content_type_of_name()`](#treedb_content_type_of_name). C_TREEDB forwards `files_max_size` / `files_content_types` of `open-treedb` here.
+The ceiling of a treedb's `file` columns: the largest file one write can cost this process, and the mime types the store will ever hold. A column can NARROW it with its `properties.max_size` / `properties.content_types`, never raise it. Without a call the ceiling is 128 MB and the sixteen types of [`treedb_content_type_of_name()`](#treedb_content_type_of_name). C_TREEDB forwards `files_max_size` / `files_content_types` of `open-treedb` here.
 
 ```C
 int treedb_set_files_limits(
@@ -3449,7 +3449,7 @@ int treedb_set_files_limits(
 | `tranger` | `json_t *` | The tranger of the treedb. |
 | `treedb_name` | `const char *` | The treedb (must be open). |
 | `max_size` | `json_int_t` | Bytes. `0` keeps the current ceiling. |
-| `content_types` | `json_t *` | Owned. A list of mime types; `NULL` keeps the current list. |
+| `content_types` | `json_t *` | Owned. A list of mime types. `NULL` keeps the current list. |
 
 **Returns**
 
@@ -3539,10 +3539,10 @@ This function is useful for debugging and monitoring TreeDB operations.
 (treedb_set_peer_data)=
 ## [`treedb_set_peer_data()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c#L7545)
 
-Say that the data of the calls that follow comes from a PEER. A fault of the
+Say that the data of the calls that follow is from a PEER. A fault of the
 DATA is then logged as a WARNING without a stack trace, not as an ERROR with
 one: a field required or of the wrong type, an fkey reference that cannot be
-linked, a link that would close a cycle or links a node to itself, an unlink
+linked, a link that closes a cycle or links a node to itself, an unlink
 of a child that does not hang from that parent, a create of an id that
 exists, a `pkey2` that is not a secondary index, a time of the tkey that the
 record cannot keep (since SDK 7.27.0). Since SDK 7.27.0 so is a
@@ -3584,7 +3584,7 @@ while it appends a record, whose rt lists ([`tranger2_open_rt_mem()`](<#tranger2
 `C_TRANGER`'s `open-rt` publishing `EV_TRANGER_RECORD_ADDED`) are fed in the
 same call. A subscriber of either runs as a C caller, and what it writes keeps
 its ERRORs. An application's `db_history` writes `treedb_authzs` from its
-`EV_TREEDB_NODE_CREATED` handler, inside the create of a peer; a fault of that
+`EV_TREEDB_NODE_CREATED` handler, inside the create of a peer. A fault of that
 write is its own, not the peer's. Restore the flag, do not reset it, because
 the calls nest:
 
@@ -3669,7 +3669,7 @@ treedb_shoot_snap(tranger, "treedb_links", "s2", "second");
 /*  reopen: a/v2 is the primary; activate s2 and reopen: a/v1 is  */
 ```
 
-**The layout travels with the photo.** `__graphs__` holds how the treedb was arranged — one record per topic, written by the graph view — and a snap tags it like any other topic, so an activation reads back the arrangement of the shot and not the one in use. `treedb_open_db()` opens `__graphs__` filtered by the activated tag for exactly that. A snap shot before anything was arranged holds no layout, so activating it leaves `__graphs__` empty and the graph falls back to its automatic layout. The other two meta-topics stay out: `__snaps__` cannot tag itself, and `__assets__` is held another way — `assets_held_by_snaps()` walks the links of the records the snap froze, because its blobs are shared by every treedb of the tranger.
+**The layout travels with the photo.** `__graphs__` holds how the treedb was arranged (one record per topic, written by the graph view), and a snap tags it like any other topic, so an activation reads back the arrangement of the shot and not the one in use. `treedb_open_db()` opens `__graphs__` filtered by the activated tag for exactly that. A snap shot before anything was arranged holds no layout, so activating it leaves `__graphs__` empty and the graph uses its automatic layout instead. The other two meta-topics stay out: `__snaps__` cannot tag itself, and `__assets__` is held another way: `assets_held_by_snaps()` walks the links of the records the snap froze, because its blobs are shared by every treedb of the tranger.
 
 ```C
 /*  the arrangement of `devices`, as the graph view writes it  */
@@ -3689,12 +3689,12 @@ treedb_activate_snap(tranger, treedb_name, "arranged");  // reload: x is 10 agai
 shot while a snap is active (7.25.0) also holds while the treedb is still
 LOADED from one: `deactivate-snap` clears the tag on disk but the primary
 index in memory is the filtered one until the treedb is opened again, and a
-shot of that index would be a shot of the photo. C_NODE has no reload command;
-the agent's `deactivate-snap` reloads (`restart_nodes()`), any other yuno is
+shot of that index, if allowed, is a shot of the photo. C_NODE has no reload command.
+The agent's `deactivate-snap` reloads (`restart_nodes()`), and any other yuno is
 restarted. Until then `shoot-snap` answers *"reload it first"*.
 
 
-- [`treedb_delete_node()`](<#treedb_delete_node>) erases the whole key, so it refuses a node any existing snap holds a record of (*"cannot delete node, a snapshot still holds it"*), asking the key's records when the primary carries no tag; `ignore_snaps` overrides (`force` does not, since after 7.24.1).
+- [`treedb_delete_node()`](<#treedb_delete_node>) erases the whole key, so it refuses a node any existing snap holds a record of (*"cannot delete node, a snapshot still holds it"*), asking the key's records when the primary carries no tag. `ignore_snaps` overrides (`force` does not, since after 7.24.1).
 - `treedb_gc_files()` holds an asset a node named when a snap was shot for as long as that snap's row exists, whether or not the node has moved on. Deleting the snap frees it.
 
 ```C
@@ -3712,7 +3712,7 @@ Snapshots allow restoring the TreeDB to a previous state using [`treedb_activate
 (treedb_sniff_content_type)=
 ## [`treedb_sniff_content_type()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c#L17269)
 
-The mime type the BYTES say, from their first bytes (magic numbers). Containers shared by several types answer one representative (`video/mp4` for the ISO-BMFF family, `video/webm` for EBML, `audio/ogg` for Ogg); the declared type then picks the member. An SVG or any HTML/XML text is recognised on purpose, as `image/svg+xml` / `text/html`, so the allowlist can REFUSE it by name: declared as `image/png` by a client, it would otherwise walk past the check.
+The mime type the BYTES say, from their first bytes (magic numbers). Containers shared by several types answer one representative (`video/mp4` for the ISO-BMFF family, `video/webm` for EBML, `audio/ogg` for Ogg). The declared type then picks the member. An SVG or any HTML/XML text is recognized on purpose, as `image/svg+xml` / `text/html`, so the allowlist can REFUSE it by name. Otherwise, declared as `image/png` by a client, it walks past the check.
 
 ```C
 const char *treedb_sniff_content_type(
@@ -3730,7 +3730,7 @@ const char *treedb_sniff_content_type(
 
 **Returns**
 
-A static string: a mime type, or `""` when the content is not recognised.
+A static string: a mime type, or `""` when the content is not recognized.
 
 **Example**
 
@@ -3744,7 +3744,7 @@ treedb_sniff_content_type("  <svg xmlns=...", 16);          /* "image/svg+xml": 
 (treedb_store_files)=
 ## [`treedb_store_files()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c#L18064)
 
-The write path of a record with `file` columns: it consumes the `__files__` manifest (and the kw's `gbuffer`), stores the bytes under `.blobs/`, creates or refreshes the `__assets__` node and rewrites every `file` column into its full fkey reference, `__assets__^<id>^as_<topic>_<column>`. [`treedb_create_node()`](#treedb_create_node), [`treedb_update_node()`](#treedb_update_node) and [`treedb_autolink()`](#treedb_autolink) call it; a direct caller needs it only for a kw that never goes through them. Idempotent: a second pass finds full references and no manifest, and does nothing. Design: [`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/DESIGN-treedb-files.md).
+The write path of a record with `file` columns: it consumes the `__files__` manifest (and the kw's `gbuffer`), stores the bytes under `.blobs/`, creates or refreshes the `__assets__` node and rewrites every `file` column into its full fkey reference, `__assets__^<id>^as_<topic>_<column>`. [`treedb_create_node()`](#treedb_create_node), [`treedb_update_node()`](#treedb_update_node) and [`treedb_autolink()`](#treedb_autolink) call it. A direct caller needs it only for a kw that never goes through them. Idempotent: a second pass finds full references and no manifest, and does nothing. Design: [`DESIGN-treedb-files.md`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/DESIGN-treedb-files.md).
 
 ```C
 int treedb_store_files(
@@ -3855,7 +3855,7 @@ This function is useful for retrieving secondary key values associated with a pr
 (treedb_create_system_schema)=
 ## [`treedb_create_system_schema()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c#L1250)
 
-The treedb **meta-schema**: the schema that describes what a schema may say.
+The treedb **meta-schema**: the schema that describes what a schema can say.
 
 ```C
 json_t *treedb_create_system_schema(void);
@@ -3994,7 +3994,7 @@ it again, last, and the unlink answers `-1`. Not for a `file` column (a parent i
 `__assets__`): an asset is what each instance holds, its own. Up to 7.25.4 the
 other instances kept naming the parent: a delete of it without `force` went,
 and they named a node that is gone (*"Node not found"* at the next open, once
-one of them was the newest record); or, once one of them was the newest
+one of them was the newest record). Or, once one of them was the newest
 record, the reload hung the child from the parent it was unlinked from.
 
 ```C
@@ -4062,7 +4062,7 @@ Returns a pointer to the updated node. The returned node is not owned by the cal
 Returns `NULL` if the update is refused. A refused update does not change the node and does not save it.
 
 A saved update (`save` TRUE) on a **replica** is refused before the node moves,
-with *"Cannot update node, NO master"*: the append would be refused anyway,
+with *"Cannot update node, NO master"*: the append, if tried, is refused anyway,
 and the node in memory used to take the update all the same, answered as if
 written, until the next reload. A memory-only update (`save` FALSE) is a
 replica's business and goes on. And a save that fails on a master answers
@@ -4149,11 +4149,11 @@ treedb_create_node(tranger, treedb_name, "binaries",
 Only the fields the `kw` carries are normalized — with ONE exception, a column
 flagged `now`: the clock writes it, not the caller, so no `kw` ever carries
 one. Every write stamps it, create and update, `writable` or not, persistent
-or volatile (since after 7.24.1; 7.24.0 stamped it on an update only when it
+or volatile (since after 7.24.1. 7.24.0 stamped it on an update only when it
 was `writable`). The instant a record was BORN is a `time` column without
 `now`: the create gives it the clock when the kw brings no value, and an
-update leaves it alone. A `now` column is an integer epoch; of any other type
-it is not stamped.
+update leaves it alone. A `now` column is an integer epoch. A `now` column of any other type
+is not stamped.
 
 ```C
 /*  `now`: every write stamps it -- when this record was last written  */
@@ -4196,7 +4196,7 @@ json_t *treedb_update_node_and_links(
 | `node` | `json_t *` | The node to write. Must be a pure node. Not owned. |
 | `kw` | `json_t *` | The record: its fields, and in its fkey columns the parents the node must have. Owned. |
 | `with_fields` | `BOOL` | `TRUE`: write the fields and the links. `FALSE`: write the links alone, for a node just created from the same record (the create wrote its fields). |
-| `links_refused` | `BOOL *` | Optional. Set to `TRUE` when a link could not be made, else `FALSE`. |
+| `links_refused` | `BOOL *` | Optional. Set to `TRUE` when a link failed, else `FALSE`. |
 
 **Returns**
 
@@ -4221,7 +4221,7 @@ In 7.25.4 `C_NODE` made this write with three calls: `treedb_update_node()`
 without save, `treedb_replace_links()` without save, and
 [`treedb_save_node()`](<#treedb_save_node>). The first two closed as
 successes, so a failed save took nothing back: memory kept the fields and the
-links until the next load, and `EV_TREEDB_NODE_LINKED` had been told.
+links until the next load, and `EV_TREEDB_NODE_LINKED` was already told.
 
 **Example**
 

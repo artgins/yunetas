@@ -85,7 +85,7 @@ What the promise settles with is the answer (since gobj-ui 7.26.42): `true`
 closes the modal, as a `true` returned at once does. Anything else is a veto:
 `undefined`, `false`, or a rejection, which is logged. Before 7.26.42 any
 promise was a veto, so an `async` guard that answered `true` left a modal that
-nobody could close.
+nobody was able to close.
 
 ```js
 before_close: async () => {
@@ -146,7 +146,7 @@ and give `opts.t`. The default labels are keys too (since gobj-ui 7.25.16):
 `"ok"`, `"yes"`, `"no"`, `"delete"` and `"cancel"`. Before that release they
 were `"OK"`, `"Yes"`, `"No"`, `"Delete"` and `"Cancel"`, which no locale can
 hold, so the buttons stayed in English in every language. An app that shows
-these dialogs defines the five keys; its `validate-locales` script asks for
+these dialogs defines the five keys. Its `validate-locales` script asks for
 them.
 
 ```js
@@ -183,13 +183,13 @@ yui_shell_confirm_danger(shell, "delete account", {
 ### [`yui_shell_confirm_ok(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.31.6/src/shell_modals.js#L761)
 
 Shows a message with one button. The promise gives `undefined` back.
-`opts.ok_label` changes the label; the default is `"ok"`.
+`opts.ok_label` changes the label. The default is `"ok"`.
 
 (js_yui_shell_confirm_yesno)=
 ### [`yui_shell_confirm_yesno(shell, message, opts)`](https://github.com/artgins/gobj-ui.js/blob/7.31.6/src/shell_modals.js#L772)
 
 Asks a question with two answers. The promise gives `true` for yes.
-`opts.yes_label` and `opts.no_label` change the labels; the defaults are
+`opts.yes_label` and `opts.no_label` change the labels. The defaults are
 `"yes"` and `"no"`.
 
 (js_yui_shell_confirm_yesnocancel)=
@@ -197,7 +197,7 @@ Asks a question with two answers. The promise gives `true` for yes.
 
 Asks a question with three answers. The promise gives `"yes"`, `"no"` or
 `"cancel"`. The labels are `opts.yes_label`, `opts.no_label` and
-`opts.cancel_label`; the defaults are `"yes"`, `"no"` and `"cancel"`.
+`opts.cancel_label`. The defaults are `"yes"`, `"no"` and `"cancel"`.
 
 Use it when the third answer is a real one. A question such as *"play all"* has
 three answers and not two: add, replace, or cancel.

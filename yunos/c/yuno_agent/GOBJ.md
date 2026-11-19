@@ -304,7 +304,7 @@ chain, top to bottom:
    which means every key in the file.
 4. `db_load_persistent_attrs()` reads the file and applies it with
    `gobj_write_attrs(gobj, attrs, SDF_PERSIST, 0)`. **That flag mask is the
-   real filter**: the file may hold anything, only attrs declared
+   real filter**: the file can hold anything, but only attrs declared
    `SDF_PERSIST` are written.
 
 So a service gets its persistent attrs **before its own `mt_create` runs**,
@@ -323,10 +323,10 @@ whole story (owners, unreadable files, the in-place path) is in
 
 APIs ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/gobj.c)):
 
-- `gobj_save_persistent_attrs(gobj, jn_attrs)` — call after mutating a
+- `gobj_save_persistent_attrs(gobj, jn_attrs)`: call after mutating a
   `SDF_PERSIST` attr you want to checkpoint immediately. Always name the
-  attrs; the bare call saves them all.
-- `gobj_load_persistent_attrs(gobj, jn_attrs)` — reload a **subset by name**.
+  attrs. The bare call saves them all.
+- `gobj_load_persistent_attrs(gobj, jn_attrs)`: reload a **subset by name**.
   Nothing in the tree calls it, because step 3 already loaded everything at
   create time. It is there for a gobj that wants to discard its in-memory
   values and re-read some of them.
@@ -381,7 +381,7 @@ Navigation helpers ([`gobj.c`](https://github.com/artgins/yunetas/blob/7.31.23/k
 | `gobj_child_by_index(gobj, idx)`    | 1-based index.                                          |
 | `gobj_first_child(gobj)` / `gobj_next_child(child)` | Iterate linearly.                       |
 | `gobj_child_size(gobj)`             | Count.                                                  |
-| `gobj_walk_gobj_children(gobj, walk_type, cb, ud, ud2, ud3)` | The direct children, with a callback (`WALK_FIRST2LAST` / `WALK_LAST2FIRST`); it refuses (ERROR) a gobj being destroyed. `gobj_walk_gobj_children_tree()` walks the subtree (`WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP`, or `WALK_BYLEVEL` together with `WALK_FIRST2LAST` or `WALK_LAST2FIRST`: `WALK_BYLEVEL\|WALK_FIRST2LAST`), and walks a gobj being destroyed too. |
+| `gobj_walk_gobj_children(gobj, walk_type, cb, ud, ud2, ud3)` | The direct children, with a callback (`WALK_FIRST2LAST` / `WALK_LAST2FIRST`). It refuses (ERROR) a gobj being destroyed. `gobj_walk_gobj_children_tree()` walks the subtree (`WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP`, or `WALK_BYLEVEL` together with `WALK_FIRST2LAST` or `WALK_LAST2FIRST`: `WALK_BYLEVEL\|WALK_FIRST2LAST`), and walks a gobj being destroyed too. |
 | `gobj_find_gobj(path)`              | Lookup by full path, for example `"__yuno__\`auth\`bff"`.      |
 | `gobj_bottom_gobj(gobj)` / `gobj_set_bottom_gobj` | The downward layering pointer (see [`IPC.md`](IPC.md) §6.5). |
 
@@ -456,7 +456,7 @@ You do not allocate it. The framework allocates it, with the size that the
 it is NOT a guard for a raw pointer held across a destroy: once the gobj is
 destroyed, reading its `obflag` is reading freed memory. The kernel made that
 mistake itself, after an action and after each subscriber of a publication,
-until 7.27.0; it keeps a frame per dispatch now (§8.8). The answer is *do
+until 7.27.0. It keeps a frame per dispatch now (§8.8). The answer is *do
 not hold raw pointers across lifecycle boundaries*. See §8.5.
 
 ---
@@ -484,9 +484,9 @@ clear_timeout(timer);       // disarms
 
 **Nobody starts or stops a `C_TIMER`.** Arming starts it, clearing stops it,
 and a one-shot is spent once it fires. `set_timeout()`/`clear_timeout()` are
-also the rare case of a gclass exporting PUBLIC C functions — an escape from
-the interface of §5 and §7.5 — so they are kept as **sugar over the `msec`
-attribute** and hold no behaviour of their own: `gobj_write_integer_attr(timer,
+also the rare case of a gclass exporting PUBLIC C functions (an escape from
+the interface of §5 and §7.5), so they are kept as **sugar over the `msec`
+attribute** and hold no behavior of their own: `gobj_write_integer_attr(timer,
 "msec", 1000)` leaves the timer exactly as `set_timeout()` does. The JS port
 (`kernel/js/gobj-js/src/c_timer.js`) carries the same contract, function for
 function.
@@ -548,9 +548,9 @@ whenever your `priv` holds copies of attrs for performance, `mt_writing` is
 where you keep them in sync.
 
 The block after it is why §7.1 can promise that writing the attribute and
-calling the helper are the same thing. Put the behaviour of an attribute
-**here**, never in a public function that writes it, or the gclass ends up
-with two doors and only one of them works. It does not recurse: `gobj_stop()`
+calling the helper are the same thing. Put the behavior of an attribute
+**here**, never in a public function that writes it, or the gclass gets
+two doors and only one of them works. It does not recurse: `gobj_stop()`
 clears `running` before calling `mt_stop()`, and `mt_stop()` writes no
 attribute.
 
@@ -589,7 +589,7 @@ if(!priv->periodic && priv->t_flush == 0) {
 }
 ```
 
-The `t_flush == 0` guard is not decoration: the subscriber may have re-armed
+The `t_flush == 0` guard is not decoration: it is possible that the subscriber re-armed
 the timer inside the action it was just handed, and a timer that armed itself
 one line ago must not be stopped.
 
@@ -658,7 +658,7 @@ hidden ordering dependencies.
 
 ### 8.6 `gobj_create_pure_child` does not auto-start
 
-([`gobj.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/gobj.c); the same holds in gobj-js).
+([`gobj.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/gobj.c), and the same holds in gobj-js).
 You must call `gobj_start(child)` or rely on `gobj_start_tree(parent)`.
 
 ### 8.7 No sync read inside a `yev_loop` callback
@@ -676,8 +676,8 @@ the publisher mid-iteration. Defer it: post the continuation to yourself
 with [`gobj_post_event`](#post-message)
 and do the stop in that action. The kernel does NOT say this one (unlike the
 destroy below): the pattern is common -- a host that stops its client gate
-in the gate's own `EV_ON_MESSAGE` (`tests/c/c_tcps` does) -- and an ERROR for
-it would land on running apps that work.
+in the gate's own `EV_ON_MESSAGE` (`tests/c/c_tcps` does) -- and if the kernel
+reported it, the ERROR lands on running apps that work.
 
 **Destroying is worse, and the kernel says it.** A subscriber that destroys
 the publisher, or one of its ancestors, frees the publisher while it is still
@@ -686,7 +686,7 @@ inside `gobj_publish_event()`. The kernel is safe from that since 7.27.0:
 the C stack, `gobj_destroy()` marks the frames of what it destroys, and after
 an action, or after each subscriber, the kernel asks its frame instead of the
 freed gobj (up to 7.26.9 it read the gobj's `obflag` in freed memory, and a
-publication could go on with a freed publisher). The publisher's own code is
+publication was able to go on with a freed publisher). The publisher's own code is
 not safe: it goes on after the publish returns. The same holds for any code
 further up the stack: an action of the gobj that called something whose inner
 dispatch destroyed it. So `gobj_destroy()` logs an ERROR with a stack and
@@ -703,7 +703,7 @@ that published it, an outer publication of it), because `EV_STOPPED` is the
 last thing the gobj does with itself and the code it returns to returns at
 once. A frame of that gobj that began INSIDE its `EV_STOPPED` (an action its
 host sends it from there) is not excused: it does not know. Excusing ONLY the publication frame is not possible:
-it would report every `C_TCP` destroyed in its `EV_STOPPED`, whose
+with that rule, the kernel reports every `C_TCP` destroyed in its `EV_STOPPED`, whose
 publication runs inside its own `mt_stop` or action.
 
 | Case | ERROR? |
@@ -712,7 +712,7 @@ publication runs inside its own `mt_stop` or action.
 | A gobj's action walks its parent's children (`gobj_walk_gobj_children()`, `gobj_destroy_children()`, `gobj_destroy_named_children()`) and the walk destroys the gobj | No: the action is the code that destroys, the walk only watches |
 | A gobj publishes its last event, then destroys itself | No: its publication is over |
 | A host destroys its transport in the transport's `EV_STOPPED` | No: the stop contract |
-| A host destroys a RUNNING transport, whose `mt_stop` publishes `EV_STOPPED` at once, and destroys it again in that `EV_STOPPED` | Only *"Destroying a RUNNING gobj"*: the inner destroy frees it, the outer returns (7.27.0; up to 7.26.9 the outer went on with the freed gobj) |
+| A host destroys a RUNNING transport, whose `mt_stop` publishes `EV_STOPPED` at once, and destroys it again in that `EV_STOPPED` | Only *"Destroying a RUNNING gobj"*: the inner destroy frees it, the outer returns (7.27.0, and up to 7.26.9 the outer went on with the freed gobj) |
 | A host, in its transport's `EV_STOPPED`, sends the transport an event whose action ends in the transport's destroy further in | Yes, *"one of its actions is still running"*: that action began inside the farewell |
 | A gobj destroys itself in its own `mt_start` / `mt_stop` / `mt_play` | No |
 | A subscriber destroys the publisher | Yes, *"its tree is publishing"* |
@@ -723,30 +723,30 @@ publication runs inside its own `mt_stop` or action.
 **The walks of the tree are watched too** (7.27.0): `gobj_start_tree()`,
 `gobj_start_children()`, `gobj_stop_tree()`, `gobj_stop_children()`,
 `gobj_walk_gobj_children*()` and `gobj_destroy_children()` take the next child
-AFTER the callback, from a frame that keeps the walk's place. A callback may
+AFTER the callback, from a frame that keeps the walk's place. A callback can
 destroy the child it was given (a gobj that ends itself in its `mt_stop`), the
 next sibling (the stop of a child destroys it), any other sibling, or the root
 of the walk (a host that ends itself in a child's `EV_STOPPED`). When a child
 leaves the list, the frame that held it as the next one moves to the child
 after it, so:
 
-- the walk goes on from the first child left after the one it gave, and ends
-  when the root is gone;
-- it only goes forward: no child is given twice (so none is started or stopped
-  twice), and none that is left is skipped;
-- a step costs the same however many children were destroyed.
+- The walk goes on from the first child left after the one it gave, and ends
+  when the root is gone.
+- It only goes forward: no child is given twice (so none is started or stopped
+  twice), and none that is left is skipped.
+- A step costs the same however many children were destroyed.
 
 **A walk gives the children that existed when it began.** A child created
-during the walk is not given: a host that renews its transport when it stops
+during the walk is not given. Otherwise, a host that renews its transport when it stops
 (destroys the old pair in its `EV_STOPPED`, creates and starts a new one)
-would otherwise give `gobj_stop_children()` a new transport to stop, for ever.
+gives `gobj_stop_children()` a new transport to stop, for ever.
 `gobj_destroy_children()` too: on a LIVE gobj the children created while it
 runs live on (the gobj lives), and a gobj being destroyed cannot get new
-children at all — `gobj_create()` refuses a parent that is being destroyed,
-with an ERROR (*"Cannot create a child of a gobj that is being destroyed"*):
-the child would be freed with it, or never destroyed. The gobj-js walks give
+children at all: `gobj_create()` refuses a parent whose destruction is in progress,
+with an ERROR (*"Cannot create a child of a gobj that is being destroyed"*).
+Otherwise the child is freed with it, or never destroyed. The gobj-js walks give
 the same children, from a copy of the list taken when they begin, and step
-over a child an earlier callback destroyed, as C does (gobj-js 7.26.27; up to
+over a child an earlier callback destroyed, as C does (gobj-js 7.26.27, and up to
 7.26.26 the copy handed it to the callback, and a first-level walk over the
 live list skipped or repeated a sibling). They still differ from C in two
 things:
@@ -754,7 +754,7 @@ things:
 | | C | gobj-js |
 |---|---|---|
 | `gobj_create()` under a parent being destroyed | Refused, ERROR, NULL | Created |
-| A walk of a gobj being destroyed | Refused (ERROR) by `gobj_walk_gobj_children()`, `gobj_stop_children()`, `gobj_stop_tree()`; walked by `gobj_walk_gobj_children_tree()`, `gobj_start_tree()` | Refused (ERROR) by all of them |
+| A walk of a gobj being destroyed | Refused (ERROR) by `gobj_walk_gobj_children()`, `gobj_stop_children()`, `gobj_stop_tree()`. Walked by `gobj_walk_gobj_children_tree()`, `gobj_start_tree()` | Refused (ERROR) by all of them |
 
 
 ```C
@@ -770,7 +770,7 @@ The two usual cases: a gclass that ends itself in the `EV_TIMEOUT` of its own
 `C_TIMER` child (`C_TASK` and `C_COUNTER` until 7.27.0), and a gclass whose
 end comes inside one of its own calls (`C_TASK`, when a job's result arrives
 inside the job's action). Both post an event to themselves now and end in its
-action; `C_TASK` does it for every end:
+action. `C_TASK` does it for every end:
 
 ```c
 PRIVATE int end_task(hgobj gobj, int result)
@@ -812,12 +812,12 @@ PRIVATE int ac_finish_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 ```
 
 **What the owner does meanwhile still counts.** The end waits a turn, and the
-owner may stop the gobj, or stop and start it again, in that turn. A stop
-cancels the end (the owner left the task; a volatile one is destroyed all the
+owner can stop the gobj, or stop and start it again, in that turn. A stop
+cancels the end (the owner left the task, and a volatile one is destroyed all the
 same), and a restart drops it (each posted end names its run, and `mt_start`
-begins a new one) -- so `EV_FINISH_TASK` is declared in `ST_IDLE` too, where
-only the end of a run before a restart can arrive. Without both checks the
-stop would publish a stale `EV_END_TASK`, and the restart would get the
+begins a new one). So `EV_FINISH_TASK` is declared in `ST_IDLE` too, where
+only the end of a run before a restart can arrive. Without both checks, the
+stop publishes a stale `EV_END_TASK`, and the restart gets the
 posted end in `ST_IDLE` as *"Event NOT DEFINED"*. `C_COUNTER` does the same
 with `EV_COUNT_EXPIRED`.
 
@@ -885,7 +885,7 @@ form (also handles the gobj-stopped case). Either is fine.
 
 Sites with this guard today: [`c_websocket.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/c_websocket.c), [`c_prot_tcp4h.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/c_prot_tcp4h.c),
 [`c_prot_mqtt2.c`](https://github.com/artgins/yunetas/blob/7.31.23/modules/c/mqtt/src/c_prot_mqtt2.c). Fixed in commits
-`635b06a41` and `855527770` (2026-05-24); `c_prot_mqtt.c` had it too until
+`635b06a41` and `855527770` (2026-05-24). `c_prot_mqtt.c` had it too until
 it was removed after 7.30.26.
 
 **Intentionally unguarded:** [`c_prot_modbus_m.c`](https://github.com/artgins/yunetas/blob/7.31.23/modules/c/modbus/src/c_prot_modbus_m.c) (`ac_rx_data`). The guard was applied in `855527770` and then reverted in
@@ -1038,7 +1038,7 @@ speaks is the read *after* the one that went wrong.
 javascript `null`, which is falsy, so `if(!x)` works there. That divergence
 is exactly what a port across the two runtimes gets wrong, in both
 directions. `empty_json()` and `json_size()` exist in
-`gobj-js/src/helpers.js` with the identical truth table; `json_absent()`'s
+`gobj-js/src/helpers.js` with the identical truth table. `json_absent()`'s
 twin is `is_null()`, since javascript has no second null to tell apart.
 Write the same question in both.
 

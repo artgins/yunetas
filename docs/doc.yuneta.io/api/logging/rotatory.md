@@ -10,7 +10,7 @@ Source code:
 (rotatory-file-names)=
 ## File names and rotation
 
-The last segment of the `path` given to [`rotatory_open()`](#rotatory_open) is a **mask**. The rotatory makes the file name from the mask and the current local date. These letters of the mask get digits; all other characters stay as they are:
+The last segment of the `path` given to [`rotatory_open()`](#rotatory_open) is a **mask**. The rotatory makes the file name from the mask and the current local date. These letters of the mask get digits. All other characters stay as they are:
 
 | Letters | Replaced by | Example (Wednesday 23 September 2026) |
 |---|---|---|
@@ -54,7 +54,7 @@ _rotatory(): '/yuneta/realms/agent/agent/audit/269-26_09_2026.log' is open again
 ```
 
 (rotatory-rename-fails)=
-**A size rotation whose rename fails** (a directory with `chattr +a`, a read-only bind, a MAC denial). Without keep_all the file is emptied, so its size stays bounded. With [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) nothing may be removed: the file is kept and grows over the limit, one line is printed, and the rename is tried again after 60 seconds of the monotonic clock ([`start_msectimer()`](#start_msectimer): a wall clock set back or forward does not move the retry), or at the next name (the next day), not at every record. One line is printed when a rename works again:
+**A size rotation whose rename fails** (a directory with `chattr +a`, a read-only bind, a MAC denial). Without keep_all the file is emptied, so its size stays bounded. With [`rotatory_keep_all_old_files()`](#rotatory_keep_all_old_files) the rotatory is not allowed to remove anything: the file is kept and grows over the limit, one line is printed, and the rename is tried again after 60 seconds of the monotonic clock ([`start_msectimer()`](#start_msectimer): a wall clock set back or forward does not move the retry), or at the next name (the next day), not at every record. One line is printed when a rename works again:
 
 ```
 _rotatory(): Cannot rename '/yuneta/realms/agent/agent/audit/267-24_09_2026.log' to '/yuneta/realms/agent/agent/audit/267-24_09_2026.log.OLD.1', Permission denied, the file is kept and grows, the rename is tried again every minute
@@ -98,7 +98,7 @@ rotatory(): logging to '/yuneta/realms/agent/agent/logs/yuneta_agent-4.log' agai
 
 Up to 7.25.4 the state was one flag for every handle of the process, and nothing cleared it: once one disk went below the limit, all the file logs of the process stopped until it was restarted.
 
-A new day is taken also while the disk is full: the file of the new name is opened and the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile) runs. That callback is where the agent audit applies its retention, and the retention is what frees the space. After it, the free space is checked again: if it is back, the record of that moment is written. Without it, the retention would never run while the disk is full, and the audit would not write again by itself. If the file of the new day cannot be opened, the open is tried again every 100 records while the disk is full, and the callback runs at the first open that works (see [a new file that cannot be opened](#rotatory-newfile-pending)).
+A new day is taken also while the disk is full: the file of the new name is opened and the callback of [`rotatory_subscribe2newfile()`](#rotatory_subscribe2newfile) runs. That callback is where the agent audit applies its retention, and the retention is what frees the space. After it, the free space is checked again: if it is back, the record of that moment is written. Without this step, the retention cannot run while the disk is full, and the audit cannot write again by itself. If the file of the new day cannot be opened, the open is tried again every 100 records while the disk is full, and the callback runs at the first open that works (see [a new file that cannot be opened](#rotatory-newfile-pending)).
 
 (rotatory-closed-handle)=
 **A closed handle.** Every public function checks that the handle is open before it touches it. After [`rotatory_close()`](#rotatory_close) or [`rotatory_end()`](#rotatory_end), a write, a flush, a truncate or a second close through the old handle does nothing, and [`rotatory_write()`](#rotatory_write) answers `0`. This matters because others keep the handle: the file log handler of the logger keeps it, and the process logs after `rotatory_end()`. The check compares pointers with the list of open handles (a few), and it costs nothing measurable: 551 ns per audit record with it, 586-620 ns without.
@@ -320,11 +320,11 @@ Returns `0`, or `-1` if the handle is not open.
 
 **Notes**
 
-It is off by default, and the yuno logs keep it off: their `W` mask makes 7 files that are emptied each week, and one `.OLD` per file keeps them bounded (7 × 2 × 8 MB). With `keep_all`, a noisy yuno (traces on) would leave any number of `.OLD.<n>` pieces that the weekly reuse of the name never empties.
+It is off by default, and the yuno logs keep it off: their `W` mask makes 7 files that are emptied each week, and one `.OLD` per file keeps them bounded (7 × 2 × 8 MB). With `keep_all`, a noisy yuno (traces on) will leave any number of `.OLD.<n>` pieces that the weekly reuse of the name never empties.
 
 Use it with a mask that makes a new name every day and a retention by days ([`rotatory_remove_old_files()`](#rotatory_remove_old_files)), which removes the `.OLD.<n>` pieces with the rest. The agent audit does this, because a piece of audit must never be removed by the size of the day: up to 7.25.4 a day that crossed the limit twice lost its first part.
 
-A handle with `keep_all` never empties an existing file when its name comes back (for example, a clock set back across midnight): the records are appended. Call it right after [`rotatory_open()`](#rotatory_open), before the first record: the file that the open found is judged at that first record. See [An existing file is emptied only when it is old](#rotatory-clock-set-back).
+A handle with `keep_all` never empties an existing file when its name is used again (for example, a clock set back across midnight): the records are appended. Call it right after [`rotatory_open()`](#rotatory_open), before the first record: the file that the open found is judged at that first record. See [An existing file is emptied only when it is old](#rotatory-clock-set-back).
 
 A rename that fails with `keep_all` keeps the file and tries again after 60 seconds of the monotonic clock, not at every record: see [a size rotation whose rename fails](#rotatory-rename-fails).
 
@@ -500,7 +500,7 @@ int rotatory_write(
 
 **Returns**
 
-Returns `0`, also when the record could not be written (disk below `min_free_disk_percentage`, or the file cannot be opened: those are reported with `print_error()`). Returns `-1` only when `hr` or `bf` is `NULL`. The value `0` matters: the logger stops calling the next handlers when a handler returns a negative value.
+Returns `0`, also when the record was not written (disk below `min_free_disk_percentage`, or the file cannot be opened: those are reported with `print_error()`). Returns `-1` only when `hr` or `bf` is `NULL`. The value `0` matters: the logger stops calling the next handlers when a handler returns a negative value.
 
 **Notes**
 
@@ -549,7 +549,7 @@ Returns `0`, or `-1` if the handle is not open (`NULL`, or closed). In that case
 
 Only one callback can be registered per rotatory log instance. Calling this function again replaces the previous callback and user data.
 
-The callback runs inside the [`rotatory_write()`](#rotatory_write) of the first record of the new file, before that record is written. A new file is a new name (a new day) or a size rotation; at a size rotation `old_filename` and `new_filename` are the same name. The same file opened again is not a new file, and the callback does not run: after a failed write, after the file was removed, after a truncate whose reopen failed. When the open of a new file fails, the callback runs once at the next open that works, with the `old_filename` of before the failure (see [a new file that cannot be opened](#rotatory-newfile-pending)).
+The callback runs inside the [`rotatory_write()`](#rotatory_write) of the first record of the new file, before that record is written. A new file is a new name (a new day) or a size rotation. At a size rotation, `old_filename` and `new_filename` are the same name. The same file opened again is not a new file, and the callback does not run: after a failed write, after the file was removed, after a truncate whose reopen failed. When the open of a new file fails, the callback runs once at the next open that works, with the `old_filename` of before the failure (see [a new file that cannot be opened](#rotatory-newfile-pending)).
 
 **Example**
 

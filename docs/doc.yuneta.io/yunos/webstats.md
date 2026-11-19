@@ -65,7 +65,7 @@ that is `fail2ban`'s job), a latency histogram, and the error log grouped by
 signature.
 
 **Who the top clients are.** The first rows of *Top clients* and *Top
-offenders* carry the country, the organisation that holds the network, and
+offenders* carry the country, the organization that holds the network, and
 the network name, looked up in the registries over RDAP (the JSON successor of
 whois). See [below](#webstats-whois).
 
@@ -76,7 +76,7 @@ for `/%2eenv` is counted with the ones that ask for `/.env`.
 bare `34.140.132.132` as a phone number and delivered the mail to nobody. What
 only separates stays outside (`[34.1.2.3].`, `[34.1.2.3]:443`,
 `client:[34.1.2.3]`, `[10.0.0.1]-[10.0.0.9]`, and an IPv6 address that ends
-in one is bracketed whole: `[::ffff:34.1.2.3]`, `[64:ff9b::34.1.2.3]`); an address
+in one is bracketed whole: `[::ffff:34.1.2.3]`, `[64:ff9b::34.1.2.3]`). An address
 glued to a word, a slash or a dot is a version and stays as it is
 (`Chrome/142.0.0.0`, `nginx-1.25.3.1`). The stored record keeps the plain
 address.
@@ -87,7 +87,7 @@ address.
 |-----------|---------|---------|
 | `access_log_paths` | both trees | Access logs. The yuno also reads each `<path>.1` |
 | `error_log_paths` | both trees | Error logs, same rule |
-| `report_hour` / `report_minute` | 6 / 0 | Local time of the daily run. The stat `next_run` (epoch seconds) says when it is armed for; a run never arms its own slot again |
+| `report_hour` / `report_minute` | 6 / 0 | Local time of the daily run. The stat `next_run` (epoch seconds) says when it is armed for. A run never arms its own slot again |
 | `send_email` | `true` | `false` keeps the record and skips the mail |
 | `email_to` | — | Destination |
 | `email_from` | — | Sender. `"(^^__hostname__^^)@domain"` names the node. Empty: the sender is left to the email service |
@@ -104,7 +104,7 @@ address.
 | `rdap_url` | `https://rdap.db.ripe.net/ip/` | RDAP service, the address is appended. Only `https` |
 | `whois_rows` | 10 | Rows of each table of clients that are looked up |
 | `whois_cache_days` | 30 | An answer younger than this is taken from the stored days |
-| `whois_timeout` | 15000 | Milliseconds one lookup may take |
+| `whois_timeout` | 15000 | Milliseconds one lookup can take |
 
 A batch config that turns the lookups off, for a node that cannot reach the
 registries:
@@ -159,9 +159,9 @@ The mail prints `banned 10:08 #3 (4d 00:00:00)` or `not banned`. `ban_number`
 and `ban_time` appear when the escalating bans of
 `tools/fail2ban/install-probe-ban-escalation.sh` are installed.
 
-- `"banned": false` is written only when the log was read. When it could not
-  be (RHEL ships it `root:root 0600`), the rows say nothing and **Needs
-  attention** says why; `tools/fail2ban/make-fail2ban-log-readable.sh` fixes
+- `"banned": false` is written only when the log was read. When the log is not
+  readable (RHEL ships it `root:root 0600`), the rows say nothing and **Needs
+  attention** says why. `tools/fail2ban/make-fail2ban-log-readable.sh` fixes
   the permissions.
 - **Needs attention** also warns when none of the top offenders that probed 3
   times or more was banned: the jail is probably watching nothing.
@@ -183,7 +183,7 @@ it:
 {"command": "-create-yuno id=3 realm_id=<utilities realm> yuno_role=webstats yuno_name=<node> must_play=1 yuno_tag=util"}
 ```
 
-The binary comes from the package: the `.deb` and the `.rpm` ship
+The package delivers the binary: the `.deb` and the `.rpm` ship
 `outputs/yunos/` whole, so `install-binary` finds it even on a node that
 carries no SDK sources.
 

@@ -131,7 +131,7 @@ $T/install-sshd-flood-guard.sh --remove   # remove the file
 What it makes sure of:
 
 - It runs `sshd -t` before it changes anything. If sshd rejects the new file
-  (for example, OpenSSH older than 8.5), the previous file comes back and sshd
+  (for example, OpenSSH older than 8.5), the previous file is restored and sshd
   is not reloaded.
 - It reloads sshd. It never restarts sshd.
 - It reads `sshd -T` after the change. If a value is not the value in effect,
@@ -176,7 +176,7 @@ $T/install-fail2ban-sshd-jail.sh --remove   # remove the jail
 
 The script runs `fail2ban-client -t` before it reloads fail2ban. A jail that
 fail2ban cannot configure stops the whole fail2ban server, with all its other
-jails. If the new jail causes the failure, the previous state comes back.
+jails. If the new jail causes the failure, the previous state is restored.
 
 A jail does not stop a botnet, which uses thousands of addresses and a small
 number of attempts from each. It stops one address that sends many attempts.

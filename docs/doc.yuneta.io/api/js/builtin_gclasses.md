@@ -127,7 +127,7 @@ A message that names a service goes to that service, if the service takes the
 event as public. A message that names no service is published only if a
 registered gclass declares its event PUBLIC
 ([`gobj_find_event_type()`](state_machine.md#js_gobj_find_event_type) with
-`EVF_PUBLIC_EVENT`; 7.26.24 took any declaration, 7.26.25 requires it public).
+`EVF_PUBLIC_EVENT`. 7.26.24 took any declaration, 7.26.25 requires it public).
 The transport drops any other message with a WARNING, and masks the name of the
 event. The events that the transport says itself (`EV_ON_OPEN`, `EV_ON_CLOSE`,
 `EV_ON_OPEN_ERROR`, `EV_ON_ID_NAK`, `EV_TIMEOUT`, `EV_ON_MESSAGE`, and

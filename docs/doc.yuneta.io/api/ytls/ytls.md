@@ -197,11 +197,11 @@ int ytls_decrypt_data(
 
 **Returns**
 
-Returns `0` on success; `-2222` when the secure socket was freed inside a
+Returns `0` on success, and `-2222` when the secure socket was freed inside a
 callback (its owner dropped the connection there: `on_clear_data_cb`, or
 `on_handshake_done_cb` / `on_encrypted_data_cb` while the handshake runs):
-touch neither the `sskt` nor its owner, which may be gone too; `< -1000` on a
-TLS error.
+touch neither the `sskt` nor its owner, which is possibly gone too. Returns
+`< -1000` on a TLS error.
 
 ```C
 int ret = ytls_decrypt_data(ytls, sskt, gbuf);
@@ -241,10 +241,10 @@ int ytls_do_handshake(
 **Returns**
 
 Returns `1` if the handshake is complete, `0` if it is in progress, `-1` if
-it fails, and `-2222` when the secure socket was freed inside a callback --
-the owner ended the connection in `on_handshake_done_cb`, or in
-`on_encrypted_data_cb` because the write of the handshake's bytes could not
-start: touch neither the `sskt` nor its owner.
+it fails, and `-2222` when the secure socket was freed inside a callback
+(the owner ended the connection in `on_handshake_done_cb`, or in
+`on_encrypted_data_cb` because the write of the handshake's bytes was not able
+to start): touch neither the `sskt` nor its owner.
 
 ```C
 int ret = ytls_do_handshake(ytls, sskt);
@@ -260,7 +260,7 @@ if(ret < 0) {
 
 The callback `on_handshake_done_cb` will be invoked once upon success or multiple times in case of failure.
 
-**Freed inside a callback.** Any of the three callbacks may free the session
+**Freed inside a callback.** Any of the three callbacks can free the session
 (`ytls_free_secure_filter()`) from inside: C_TCP does, when a write cannot
 start or a subscriber drops the connection. Each call in progress keeps a
 marker on its stack, the markers are chained (the calls nest: decrypt,
@@ -295,10 +295,10 @@ int ytls_encrypt_data(
 
 **Returns**
 
-Returns 0 on success; `-2222` when the secure socket was freed inside a
+Returns 0 on success, and `-2222` when the secure socket was freed inside a
 callback (a subscriber of the clear data published while the backend waited
-dropped the connection, or the write of the encrypted data could not start):
-touch neither the `sskt` nor its owner; any other negative value on failure.
+dropped the connection, or the write of the encrypted data was not able to start):
+touch neither the `sskt` nor its owner. Returns any other negative value on failure.
 
 **Notes**
 
@@ -413,7 +413,7 @@ OpenSSL and mbed-TLS backends):
 |---|---|---|
 | `subject` | `string` | X.509 subject DN in one-line form (for example `/CN=api.example.com`). |
 | `issuer` | `string` | X.509 issuer DN in one-line form. Equal to `subject` for self-signed certs. |
-| `cn` | `string` | The common name of the subject, as utf8 whatever its ASN.1 type (a `BMPString` or a `T61String` reads the same on both backends: `CN=nodé1` is `"nodé1"`). Absent when there is none, or when it holds a NUL byte (a name cut there would be another name). |
+| `cn` | `string` | The common name of the subject, as utf8 whatever its ASN.1 type (a `BMPString` or a `T61String` reads the same on both backends: `CN=nodé1` is `"nodé1"`). Absent when there is none, or when it holds a NUL byte (if the name is cut there, it becomes another name). |
 | `dns_names` | `list` | The DNS names of the `subjectAltName` extension (empty when it has none). A name with a NUL byte is left out. |
 | `not_before` | `integer` | Unix timestamp of the certificate's `notBefore`. |
 | `not_after` | `integer` | Unix timestamp of the certificate's `notAfter`. Use `(not_after - time(NULL)) / 86400` to get `days_remaining`. A negative value means already expired. |
@@ -434,7 +434,7 @@ start at all.
 ## [`ytls_get_peer_cert_info()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/ytls/src/ytls.c#L161)
 
 The certificate that the PEER of a connection presented in its handshake:
-for a server, the client's (mutual TLS); for a client, the server's. It is
+for a server, the client's (mutual TLS), and for a client, the server's. It is
 how a server tells WHO is on the other end, not only that the chain is good.
 `C_TCP` puts it in its `EV_CONNECTED` as `peer_cert`.
 
@@ -468,19 +468,19 @@ and:
 A server asks the client for a certificate in three modes:
 
 - With a CA (`ssl_trusted_certificate` or `ssl_use_system_ca`) the default
-  mode is `"optional"`: a client may come without a certificate, and one
+  mode is `"optional"`: a client can come without a certificate, and one
   that does not verify is let in with a WARNING and `verified` false.
 - `"required"` refuses, in the handshake, a client without a certificate or
   with one that does not verify.
-- `"request"` (a server only; a client with it is refused, `NULL` from
+- `"request"` (a server only, and a client with it is refused, `NULL` from
   `ytls_init()`) asks for the certificate and takes it as it comes: its
   chain is not verified and not reported, and a client without one is let
   in. A CA in the same context is NOT used, in both backends, so `verified`
   is always `false`. It is for an owner that PINS the key of each client by
-  its `spki_sha256`; a self-signed client certificate is the point.
+  its `spki_sha256`. A self-signed client certificate is the point.
 
 A client presents a certificate when it is given `ssl_certificate` and
-`ssl_certificate_key` (both backends; the OpenSSL client loads them since
+`ssl_certificate_key` (both backends, and the OpenSSL client loads them since
 this function exists, and a client whose certificate cannot be loaded is
 refused, `NULL` from `ytls_init()`, not a fatal exit). **Trust an identity
 read here only with `verified` true, or with a `spki_sha256` that you
@@ -636,7 +636,7 @@ Up to 7.30.17 a server exited the process with code 0 here
 (`LOG_OPT_EXIT_ZERO`, the OpenSSL backend always, mbedTLS since 7.30.15), and
 an unknown `library` exited it for a client too. Code 0 told the watcher not
 to relaunch the yuno, so an agent without its pair stayed dead, and on a
-node with no SSH nothing could bring it back. Up to 7.30.14 the mbedTLS
+node with no SSH nothing was able to bring it back. Up to 7.30.14 the mbedTLS
 backend returned `NULL`, `C_TCP_S` listened with no context, and the first
 peer crashed the yuno.
 

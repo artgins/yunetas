@@ -114,7 +114,7 @@ name: gclass_diagram
     - `s_user_trace_level`: Defines trace levels for the gclass. These trace levels can be dynamically activated during runtime to log the activity and behavior of gobjs. Facilitates debugging and monitoring of gobj operations.
 
     - `gclass_flag`: A modifier for the gclass. Its behavior is defined by the [`gclass_flag_t`](#gclass_flag_t) type.
-      May specify flags that alter class-level behavior, such as enabling or disabling specific features.
+      It can specify flags that alter class-level behavior, such as enabling or disabling specific features.
 
 (basic_gobj)=
 ## What is a `gobj`?

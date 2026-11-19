@@ -84,7 +84,7 @@ yev_event_h yev_reading = yev_create_read_event(
 when TAB is pressed. The callback receives the current line and fills a list
 of candidates with [`editline_add_completion()`](#editline_add_completion):
 none beeps, one replaces the line at once, several are shown to pick from
-(with their descriptions). A second call replaces the first; `cb = NULL`
+(with their descriptions). A second call replaces the first, and `cb = NULL`
 disables completion.
 
 ```C
@@ -157,7 +157,7 @@ void editline_add_completion(
 |---|---|---|
 | `lc` | `editline_completions_t *` | The list the callback received. |
 | `str` | `const char *` | The WHOLE line that replaces the current one if this candidate is picked, not only the word being completed. |
-| `desc` | `const char *` | A description shown next to the candidate when there are several; `NULL` or `""` for none. |
+| `desc` | `const char *` | A description shown next to the candidate when there are several, or `NULL` or `""` for none. |
 
 **Returns** — nothing. When memory cannot be allocated the candidate is not
 added and nothing is logged (the allocator logs it).
@@ -185,7 +185,7 @@ editline_add_completion(lc, candidate, "name of the service to command");
 hint: a text shown to the right of the cursor, in gray by default, on every
 refresh of the line (`ycli` shows there the parameters a command still takes).
 The callback returns `NULL` for no hint, or a string the editline draws and
-then hands to `free_cb`. A second call replaces the first; `cb = NULL`
+then hands to `free_cb`. A second call replaces the first, and `cb = NULL`
 disables hints.
 
 ```C
@@ -215,7 +215,7 @@ void editline_set_hints_callback(
 |---|---|---|
 | `gobj` | `hgobj` | The `C_EDITLINE` gobj. |
 | `cb` | `editline_hints_cb_t` | The hints callback, or `NULL` to disable hints. |
-| `free_cb` | `editline_free_hint_cb_t` | Called with each hint after it is drawn, so the callback may use any allocator. With `NULL` nothing is freed: pass `NULL` only when `cb` returns static strings. |
+| `free_cb` | `editline_free_hint_cb_t` | Called with each hint after it is drawn, so the callback can use any allocator. With `NULL` nothing is freed: pass `NULL` only when `cb` returns static strings. |
 | `user_data` | `void *` | Handed back to `cb` and `free_cb`. |
 
 **Returns** — nothing.
@@ -296,7 +296,7 @@ const char *editline_history_get(hgobj gobj, int idx);
 **Returns**
 
 The entry, owned by the editline (do not free it, and do not keep it past the
-next line entered: the history may be reordered or trimmed). `NULL` when `idx`
+next line entered: the history can be reordered or trimmed). `NULL` when `idx`
 is out of range.
 
 **Example** — `ycli`'s `!history [filter]`:

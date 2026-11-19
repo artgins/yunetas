@@ -93,7 +93,7 @@ gbuffer_t *iev_create_to_gbuffer(
 
 The frame carries **no `__temp__`** (7.30.27+): it is local to the yuno (the
 channel a message came in by, a pointer of this process), and a kw that is
-published or forwarded as it came carries it. It is deleted with no log; from
+published or forwarded as it came carries it. It is deleted with no log, and from
 a twin of the kw (`kw_twin()`) when somebody else holds it too, so they keep
 theirs. Up to 7.30.26 it was sent: a kw received through a C_IOGATE and
 published to a subscriber over a link told the peer a pointer of this process.
@@ -129,7 +129,7 @@ json_t *iev_create_from_gbuffer(
 | `gobj` | `hgobj` | GObject instance. |
 | `event` | `gobj_event_t *` | Output — the public event the frame names (the registered name, compared by pointer), `NULL` when no gclass has it as public. |
 | `gbuf` | `gbuffer_t *` | Buffer with the serialized message (owned and consumed). |
-| `verbose` | `int` | `0`: a frame that is not json or not an inter-event is the caller's to say; `1` or `2`: said here, a WARNING (a frame that is not json with a masked DEBUG dump of its first bytes). An event that is not public is said whatever `verbose` is. |
+| `verbose` | `int` | `0`: a frame that is not json or not an inter-event is the caller's to say. `1` or `2`: said here, a WARNING (a frame that is not json with a masked DEBUG dump of its first bytes). An event that is not public is said whatever `verbose` is. |
 
 **Returns**
 
@@ -140,23 +140,23 @@ public event the frame names, `NULL` when no gclass has it as public.
 What a frame gets wrong is the peer's, said ONCE, a WARNING (`MSGSET_PROTOCOL`,
 `peername`, no stack), saying what it got wrong:
 
-- with `verbose`, a frame that is not json is *"frame is not json"*
+- With `verbose`, a frame that is not json is *"frame is not json"*
   ([`gbuf2json_from_peer()`](#gbuf2json_from_peer): the parser's error and its
   position -- not the bytes jansson quotes near it, which showed the value of
   a secret (7.27.0+) --, the bytes, and a DEBUG dump of the first 256 masked
-  as [`mask_secrets_in_text()`](#mask_secrets_in_text) masks them);
-- with `verbose`, a frame of json that is not an inter-event (no `"event"`
+  as [`mask_secrets_in_text()`](#mask_secrets_in_text) masks them).
+- With `verbose`, a frame of json that is not an inter-event (no `"event"`
   string, no `"kw"` dict) is *"Frame is not an inter-event (an "event" string
   and a "kw" dict), refused"*, with the frame in `frame`, masked
   ([`json_mask_secrets()`](#json_mask_secrets)) and capped to 256 bytes, and
-  `frame_size`;
-- with `0` the caller says both;
-- an event that is not public is said HERE whatever `verbose` is, since only
+  `frame_size`.
+- With `0`, the caller says both.
+- An event that is not public is said HERE whatever `verbose` is, since only
   here is the name the frame gave known: *"Frame of an event that is not
   public, refused"*, with the name in `event` masked and THEN capped to 64
   bytes ([`mask_secrets_inline_capped()`](#mask_secrets_inline_capped): a
   password or a JWT sent as the name of the event was written in clear up to
-  7.26.9; capped first, a token the cap cut showed its first bytes), the kw
+  7.26.9, and capped first, a token that the cap cut showed its first bytes), the kw
   in `kw` masked and capped to 256 bytes, and `frame_size`.
 
 The kw handed back carries **no `__temp__`** (7.30.27+): it is local
@@ -173,12 +173,12 @@ the control center, or of a session of the agent, with
 {"event": "EV_MT_COMMAND_ANSWER", "kw": {"__temp__": [1094795585]}}
 ```
 
-left the list where C_IOGATE could not write its own channel, and the reader
+left the list where C_IOGATE was not able to write its own channel, and the reader
 took `1094795585` for the channel: a SIGSEGV.
 
 `__send_type__` is the yuno's own key too, and it is NOT deleted here: a
-`C_IOGATE` reads it from the kw of a SEND (`EV_SEND_MESSAGE`, `EV_SEND_IEV`;
-`1` sends to every open channel), and that kw is always built by code of the
+`C_IOGATE` reads it from the kw of a SEND (`EV_SEND_MESSAGE`, `EV_SEND_IEV`,
+where `1` sends to every open channel), and that kw is always built by code of the
 yuno -- a gclass builds its `{"gbuffer": ...}`, an answer is built from the
 `__md_iev__` of its request, and an answer that goes back to a session is
 sent to its `C_CHANNEL`, not to the gate. No path of the SDK makes a peer's
@@ -317,7 +317,7 @@ json_t *msg_iev_pop_stack(
 
 **Returns**
 
-Popped record (owned — caller must free), or `NULL` if not found. A kw without `__md_iev__` or without the stack is logged as [`msg_iev_get_stack()`](#msg_iev_get_stack) with `verbose` logs it: a WARNING, the kw masked and capped (7.27.0+; it was an ERROR with the kw traced in clear).
+Popped record (owned: the caller must free it), or `NULL` if not found. A kw without `__md_iev__` or without the stack is logged as [`msg_iev_get_stack()`](#msg_iev_get_stack) with `verbose` logs it: a WARNING, the kw masked and capped (7.27.0+, and before that it was an ERROR with the kw traced in clear).
 
 **Example**
 

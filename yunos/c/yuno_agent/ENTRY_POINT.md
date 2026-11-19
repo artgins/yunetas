@@ -267,7 +267,7 @@ crashed during its orderly stop was relaunched 2 s later.
   the first one found the default, ended the watcher, and left the child an
   orphan.
 - **SIGQUIT is unblocked.** A yuno starts with its signals blocked (below),
-  and the watcher would hear its stop only when it looked for it.
+  and otherwise the watcher hears its stop only when it looks for it.
 - **The yuno's signals are blocked from the first line of
   `yuneta_entry_point()`.** With `--start` they stay blocked until the
   watcher sets its signals, so a SIGQUIT that comes before is pending, and
@@ -275,13 +275,13 @@ crashed during its orderly stop was relaunched 2 s later.
   given back once the arguments are read (a foreground process keeps their
   defaults until its `C_YUNO` blocks them). Up to 7.29.3 a yuno started by
   hand or by a systemd unit had nothing blocked there, and a SIGQUIT ended
-  it with a core dump; one that the agent launched inherited the agent's
+  it with a core dump. One that the agent launched inherited the agent's
   mask.
 - **SIGHUP is ignored, as SIGTERM.** The stop is SIGQUIT and nothing else
   (`--stop`, the units' `ExecStop`). The watcher has no terminal (`setsid()`),
   so a SIGHUP can only be a stray one, a `kill -HUP` by name or a script that
-  reloads by signal, and taking it as a stop would let it take the yuno down
-  for good. Up to 7.29.3 it ended the watcher, and the child ran on with
+  reloads by signal, and if the watcher takes it as a stop, such a signal ends
+  the yuno for good. Up to 7.29.3 it ended the watcher, and the child ran on with
   nobody to relaunch it.
 - **Every child gets back what the starter gave.** Right after its fork the
   child restores the dispositions of those signals and the mask that the
@@ -303,8 +303,8 @@ crashed during its orderly stop was relaunched 2 s later.
   signalfd reads them. A signal that comes before is **pending**: the
   signalfd reads it when it is made. Up to 7.29.3 that held only for a
   yuno the agent launched (it inherited the agent's mask, those signals
-  blocked); started with an empty mask (both agents' systemd units, or by
-  hand) a SIGQUIT before the signalfd ended the child with a core dump
+  blocked). For a yuno started with an empty mask (both agents' systemd units, or by
+  hand), a SIGQUIT before the signalfd ended the child with a core dump
   (`LimitCORE=infinity`) and the watcher relaunched it, and a SIGUSR1 ended
   it too. Since programs run by a yuno start with an empty mask (§6), a
   yuno the agent launches starts that way as well.
@@ -313,15 +313,15 @@ crashed during its orderly stop was relaunched 2 s later.
   came before its look (pending) launches nothing. After the fork it notes
   the child's pid, still with SIGQUIT blocked, and from then on its handler
   passes every SIGQUIT to that child (`kill(child, SIGQUIT)`), where it
-  waits for the signalfd. Whoever sent it may not know the child: `--stop`
+  waits for the signalfd. Whoever sent it does not always know the child: `--stop`
   lists the processes once, and a child forked after that is not in the
   list. Up to 7.29.3 the child ran on until `--stop`'s SIGKILL 10 s later.
   The watcher waits for the child's end without reaping it (`waitid()`
   with `WNOWAIT`), forgets its pid, and only then reaps it: a SIGQUIT is
-  never passed to a pid that may be another process by then.
+  never passed to a pid that can be another process by then.
   So a stop sent to the watcher AND to the child (`--stop`, the `ExecStop`
   of the agents' units, the agent's `kill-yuno` of a yuno it does not know
-  running) reaches the child twice; a daemon takes the first one and no
+  running) reaches the child twice. A daemon takes the first one and no
   other (§6).
 
 ```bash
@@ -348,7 +348,7 @@ even just before the wait starts: the watcher blocks SIGQUIT, looks at the
 stop, and waits in `sigtimedwait()`, which takes a SIGQUIT that is pending.
 The wait was a `sleep()`, and a SIGQUIT that came after the child ended and
 before the `sleep()` let the whole wait run: 2 s up to 7.29.3, and, once the
-wait could grow to 60 s, past systemd's `TimeoutStopSec=30` or the 10 s of
+wait was able to grow to 60 s, past systemd's `TimeoutStopSec=30` or the 10 s of
 `--stop`, and into a SIGKILL.
 
 ```c
@@ -363,7 +363,7 @@ sigprocmask(SIG_SETMASK, &old, NULL);   // a SIGQUIT still pending reaches the h
 
 Each time the wait grows, the watcher says it on stdout and syslog
 (`ERROR YUNETAS: <process> ended again within 60 s of its start (signal …,
-exit code …): relaunched in <N> s, pid <watcher>`); at 60 s it stops saying it.
+exit code …): relaunched in <N> s, pid <watcher>`). At 60 s, it stops saying it.
 For example, an agent whose audit directory cannot be made exits at each start:
 its relaunches come at 2, 6, 14, 30, 62, 122 s, and then one a minute.
 
@@ -399,13 +399,13 @@ If you see `relaunch_times > 0` after a quiet day, something crashed.
 ### 4.5 `--stop` / [`daemon_shutdown()`](#daemon_shutdown)
 
 `daemon_shutdown()` scans `/proc/*/comm` for entries matching
-`process_name` that were started as it (the base name of `argv[0]` in
-`/proc/<pid>/cmdline`, readable whoever owns the process: the SysV script of
-the same name has its interpreter there, `/bin/sh`, and is not one of them;
-an agent whose binary was renamed or replaced on disk still is; a zombie of
-the name is dead: it is not taken, and an `EPERM` on one is no failure; the
+`process_name` that were started as it. The name is the base name of `argv[0]` in
+`/proc/<pid>/cmdline`, readable whoever owns the process. The SysV script of
+the same name has its interpreter there, `/bin/sh`, and is not one of them.
+An agent whose binary was renamed or replaced on disk still is one. A zombie of
+the name is dead: it is not taken, and an `EPERM` on one is no failure. The
 list has no fixed size, so look-alikes of the name, which anybody can start,
-cannot crowd the real ones out of it), sends
+cannot crowd the real ones out of it. The function sends
 SIGQUIT to every one of them -- the watchers first (a
 process whose parent is not of the name), so none relaunches its child --,
 gives them 10 s to be gone (looked at every 100 ms), then scans again and
@@ -451,7 +451,7 @@ as the user that runs the daemon.
 
 Every `kill()` is checked: one that fails is said on stdout (and syslog), not waited for,
 and `--stop` exits 1. Up to 7.25.22 none was checked: an `EPERM` waited 10 s, printed *"killed (SIGKILL)"* and exited
-0; and an agent that crashed during its stop was relaunched by its watcher,
+0. And an agent that crashed during its stop was relaunched by its watcher,
 the watcher was SIGKILLed at 10 s, and the new agent was left an orphan.
 
 Up to 7.25.21 each process was killed 1 s after its own SIGQUIT, one after
@@ -479,7 +479,7 @@ child share the process name. Each one answers differently:
   pending for ever (`SigPnd`/`ShdPnd` in `/proc/<pid>/status`), and only a
   SIGKILL ended it. The agents of two nodes showed exactly that: the stop
   of their unit timed out into a SIGKILL (the pid file in §4.7), after a day
-  or two of running; a read that had ended is the likely cause, not a proven
+  or two of running. A read that ended is the likely cause, not a proven
   one -- what ended it was never seen. Ten failures in a row
   and it is no longer read, with a last ERROR that says the yuno is deaf.
   Test: `tests/c/c_yuno_signal_read`.
@@ -488,9 +488,9 @@ child share the process name. Each one answers differently:
   crashed in its shutdown.
 
 The SIGKILL is therefore not what breaks a relaunch loop: it is the
-guarantee for the case where 10 s were not enough — a child stuck in its
+guarantee for the case where 10 s were not enough: a child stuck in its
 shutdown, and the watcher still sitting in `waitpid()`. SIGKILL is uncatchable
-and takes both; `--stop` says so on stdout and syslog (*"still alive after the wait:
+and takes both. `--stop` says so on stdout and syslog (*"still alive after the wait:
 killed (SIGKILL)"*, or *"started while the stop ran"* for a process of the
 name that was not in the first scan).
 
@@ -513,7 +513,7 @@ The agents run under native units (`yuneta_agent.service`,
 watcher, not the agent: `--pid-file` makes the process started with `--start`
 write the watcher's pid (the child of its fork) before it exits, which is the
 moment systemd reads `PIDFile=`. The file is written aside and renamed, so it
-is whole or absent; a failure to write it is printed and logged to syslog.
+is whole or absent. A failure to write it is printed and logged to syslog.
 
 ```ini
 [Service]
@@ -534,25 +534,25 @@ What each line keeps from this chapter:
 
 - **`Restart=no`.** The watcher relaunches the agent (§4.3). A crash of the
   agent is seen by the watcher, not by systemd: the unit stays `running`
-  with the same main pid. systemd restarting it too would start a second
-  agent that fights the first for its ports.
+  with the same main pid. If systemd also restarts it, a second agent
+  starts and fights the first for its ports.
 - **`ExecStop` asks only THIS unit's agent** for its orderly shutdown:
   first its watcher (`$MAINPID`), which then does not relaunch it, then the
-  agent (the child of `$MAINPID`); the watcher ends with it. Not `--stop`
+  agent (the child of `$MAINPID`). The watcher ends with it. Not `--stop`
   (§4.5), which ends every process of the name: systemd runs `ExecStop`
-  also when the watcher ended on its own, and a second agent that met the
-  first one running and left would take the first one with it.
+  also when the watcher ended on its own, and if `ExecStop` used `--stop`, a second agent that met the
+  first one running and left takes the first one with it.
 - **`SuccessExitStatus=SIGKILL`.** A hand-run `--stop` whose agent is not
-  gone in 10 s ends the watcher with SIGKILL; without it the unit would read
+  gone in 10 s ends the watcher with SIGKILL. Without it, the unit reads
   `failed`. (Up to 7.25.21 every `--stop` did.)
 - **`ExecStopPost`.** The watcher ignores SIGTERM, so after
   `TimeoutStopSec` systemd SIGKILLs it -- it only, with `KillMode=process`.
-  An agent hung in its shutdown, or relaunched by the watcher while the stop
-  ran, would stay in the cgroup, unsupervised, and meet the next start:
+  Without `ExecStopPost`, an agent hung in its shutdown, or relaunched by the watcher while the stop
+  ran, stays in the cgroup, unsupervised, and meets the next start.
   `ExecStopPost` kills what is left of that agent in the unit's own cgroup
   (the yunos there have other names), and says each kill in the journal.
   It asks systemd for the cgroup (`ControlGroup`) and reads it under the v2,
-  hybrid or v1 mount; when none is found it says so. Up to 7.25.22 it read a
+  hybrid or v1 mount. When none is found, it says so. Up to 7.25.22 it read a
   v2 path written by hand: a no-op, unsaid, on a v1 or hybrid host, and a
   kill with nothing in the journal. Such a stop ends `failed (timeout)`,
   which is what it was.
@@ -562,10 +562,10 @@ What each line keeps from this chapter:
   milliseconds later, when that pid is still a zombie nobody reaped. The
   agent tells the cases apart: a pid that is an agent (of any user: its
   cmdline is read even when `kill()` answers `EPERM`) means *"already
-  running"*, and it exits; a pid that is gone is removed in silence; a pid
+  running"*, and it exits. A pid that is gone is removed in silence. A pid
   that is something else -- a zombie, with an empty cmdline, or another
   program -- is a WARNING, *"pid file left by an agent that did not end in
-  order"*, and removed; a file without a pid is a WARNING too. Up to 7.28.0
+  order"*, and removed. A file without a pid is a WARNING too. Up to 7.28.0
   the zombie was an ERROR, *"cannot check pid"* with `errno 0`, and a file
   without a pid was read as pid 0 -- this very process -- and the agent
   exited as *"already running"*. Example, the WARNING after a stop that
@@ -584,7 +584,7 @@ What each line keeps from this chapter:
   hand when it differs.
 - **`KillMode=process`.** The yunos the agent launches are in the unit's
   cgroup. A stop or a restart must not take them (they outlive their agent,
-  §4.4); the journal says *"Found left-over process"* for them at the next
+  §4.4). The journal says *"Found left-over process"* for them at the next
   start, which is that rule working.
 - **A SIGKILL of the agent alone is a stop, not a crash** (§4.3): the watcher
   exits and the unit goes `inactive`. To test the relaunch, crash it with
@@ -675,7 +675,7 @@ Three consequences:
   SIGKILL: `--stop`'s after 10 s, the unit's after `TimeoutStopSec`,
   `kill-yuno force=1`.
 - **A daemon ignores SIGTERM.** `init` can send it on shutdown, and a stray
-  `killall` should not take a node's yunos down. A daemon depends on the
+  `killall` must not take a node's yunos down. A daemon depends on the
   agent's `kill-yuno` (which sends SIGQUIT), or on the SIGQUIT + SIGKILL
   chain of the init script. The agent launches every managed yuno with
   `--start`, so they all get this posture.
@@ -694,7 +694,7 @@ default: [`run_process2()`](#run_process2) (how the agent launches a yuno),
 [`run_command()`](#run_command), [`pty_sync_spawn()`](#pty_sync_spawn),
 `C_PTY`'s command and [`launch_daemon()`](#launch_daemon), and none of
 them gives it an fd of the yuno but stdin, stdout and stderr (an fd without
-`O_CLOEXEC` stays open across `exec`; up to 7.29.3 the program kept every
+`O_CLOEXEC` stays open across `exec`. Up to 7.29.3, the program kept every
 one of them). The agent's
 `startup_command` and `cert_sync_copy_cmd`, logcenter's
 `restart_yuneta_command` and watchfs's `command` run through
@@ -702,7 +702,7 @@ one of them). The agent's
 the command the caller's mask, and it sets SIGQUIT to `SIG_IGN` while it
 waits, which throws away a stop that is pending. Up to 7.29.3 every program
 a yuno ran had `SigBlk: 0x7a06` (unless a `dash` cleared it), so a `timeout`
-it ran could not stop its child with SIGTERM, and a ctrl+c did nothing in a
+it ran was not able to stop its child with SIGTERM, and a ctrl+c did nothing in a
 console.
 
 ```bash
@@ -732,7 +732,7 @@ Two modes, toggled by the agent's `signal2kill` attribute (SDATA default
   child's signalfd handler runs `set_yuno_must_die()` → clean exit code
   0 → watcher exits on its own. The agent does **not** touch the watcher.
 - **Quick kill (`set-quick-kill`, or `kill-yuno force=1`).** SIGKILL to
-  the child *and* to the watcher. A SIGKILL on the child alone would do:
+  the child *and* to the watcher. A SIGKILL on the child alone is enough:
   the watcher exits on it (table above), it does not relaunch -- the
   watcher's own SIGKILL is belt and braces. (This line said the opposite
   until 2026-10, against the code.)
@@ -858,8 +858,8 @@ also serves the web server the NODE chose, nginx or openresty.
 An older version of the script ran `/yuneta/bin/nginx/sbin/nginx` directly.
 That is a second web server, always plain nginx, that races the unit for
 ports 80 and 443. On a node that serves with openresty it lost the race and
-wrote `[emerg] bind() … Address already in use` at every boot; had it won,
-it would have served the stock `server_name localhost` configuration for
+wrote `[emerg] bind() … Address already in use` at every boot. If it won the race,
+it served the stock `server_name localhost` configuration for
 every vhost of the node.
 
 The script is generated by the packagers

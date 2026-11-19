@@ -21,34 +21,34 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
 - **Without queues** (`tranger_queues` NULL) the client takes QoS 0 only:
   `max_qos` goes to 0 at the CONNACK, BEFORE `EV_ON_OPEN`, so a QoS 1 or 2
   publish of its user is refused (`-1`, ERROR *"Mqtt publish: qos not
-  supported"*), in `EV_ON_OPEN` too; a SUBSCRIBE asks QoS 0 whatever the user
-  asks; and a QoS 2 PUBLISH of the broker disconnects it (DISCONNECT `0x93`,
+  supported"*), in `EV_ON_OPEN` too. A SUBSCRIBE asks QoS 0 whatever the user
+  asks, and a QoS 2 PUBLISH of the broker disconnects it (DISCONNECT `0x93`,
   a WARNING). Up to 7.30.26 a QoS 1 publish in `EV_ON_OPEN` went to the NULL
   queue and crashed the yuno, a SUBSCRIBE asked the user's QoS, and the QoS 2
   PUBLISH released its payload twice.
 - **With queues** they are opened BEFORE `EV_ON_OPEN` is published, so its
-  user may publish in any QoS there (up to 7.30.26 they opened after it: the
+  user can publish in any QoS there (up to 7.30.26 they opened after it: the
   NULL queue, a crash). Its close deletes their topics only when its
   `clean_start` attribute is set (the client does not set it itself).
-- **`max_packet_size`** bounds what the broker may send: a larger packet is
+- **`max_packet_size`** bounds what the broker can send: a larger packet is
   refused at its header (WARNING *"Incoming packet exceeds max_packet_size"*,
-  DISCONNECT `0x95` Packet too large; `0x82` up to 7.31.1), and an MQTT 5
+  DISCONNECT `0x95` Packet too large, or `0x82` up to 7.31.1), and an MQTT 5
   CONNECT announces it (Maximum Packet Size). The size is the whole packet,
   as the server counts it (see the table below). Up to 7.30.26 it was the
   server's only, and a client kept what its broker announced, up to 256 MB.
-- **What a broker may send it**, checked as the server checks a client (each
-  one a WARNING and the end of the connection; up to 7.30.26 each one was let
+- **What a broker can send it**, checked as the server checks a client (each
+  one a WARNING and the end of the connection, but up to 7.30.26 each one was let
   through):
-    - a second CONNACK in the session: a protocol error, DISCONNECT `0x82`
-      (MQTT 5; in 3.1.1 a DISCONNECT has no reason code), then the close. The queues are not opened again and
-      the user does not hear `EV_ON_OPEN` again;
-    - a PUBLISH of QoS 3, of QoS 0 with DUP set, or whose topic has a
+    - A second CONNACK in the session: a protocol error, DISCONNECT `0x82`
+      (MQTT 5, because in 3.1.1 a DISCONNECT has no reason code), then the close. The queues are not opened again and
+      the user does not hear `EV_ON_OPEN` again.
+    - A PUBLISH of QoS 3, of QoS 0 with DUP set, or whose topic has a
       wildcard (`a/#`, `a/+/b`) or is empty: malformed, DISCONNECT `0x81`
       (MQTT 5). The number of levels is not checked: MQTT puts no limit on
       it, so a topic of 250 levels (`l/l/.../l`) from a broker is delivered
       (the 200 separators of the server are its own limit, below), and the
-      user can publish one (see `EV_SEND_MESSAGE` below);
-    - a DISCONNECT of the broker is its last packet: nothing after it in the
+      user can publish one (see `EV_SEND_MESSAGE` below).
+    - A DISCONNECT of the broker is its last packet: nothing after it in the
       same read is processed (a PUBLISH behind it is not delivered), and its
       properties are freed (up to 7.30.26 they leaked).
 - **A refused CONNECT.** A CONNACK with any reason code but `0` ends the
@@ -61,15 +61,15 @@ standalone client (see [`mqtt_tui`](../utilities/mqtt_tui.md)). The deprecated
     | MQTT 5 | `>= 0x80` | *"Mqtt connection refused"* | a refusal: it sends nothing |
     | MQTT 5, a CONNACK in the form of 3.1.1 (no properties) | `1`..`5` | *"Mqtt connection refused"*, `connack` `MQTT 3.1.1` | a refusal by a 3.1.1 broker: it sends nothing, and `reason_code` is the MQTT 5 code of the same meaning: `1` -> `0x84`, `2` -> `0x85`, `3` -> `0x88`, `4` -> `0x86`, `5` -> `0x87` |
     | MQTT 5, a CONNACK in the form of 3.1.1 (no properties) | `0`, and past `5` | *"Mqtt protocol error: CONNACK of MQTT 3.1.1 to an MQTT 5 client"*, with `reason_code` | not a CONNACK of MQTT 5, and not a refusal of 3.1.1: it sends nothing (the broker reads 3.1.1), and `reason_code` is `0x81` (Malformed Packet: the properties are missing). Not dumped |
-    | MQTT 5 | `1`..`0x7F` | *"Mqtt protocol error: CONNACK reason code not defined in MQTT 5"*, with `reason_code` | a protocol error (MQTT 5 defines no code below `0x80` but Success; `1`..`5` are codes of 3.1.1): DISCONNECT `0x82`. The CONNACK is not dumped: it is not malformed |
+    | MQTT 5 | `1`..`0x7F` | *"Mqtt protocol error: CONNACK reason code not defined in MQTT 5"*, with `reason_code` | a protocol error (MQTT 5 defines no code below `0x80` but Success, and `1`..`5` are codes of 3.1.1): DISCONNECT `0x82`. The CONNACK is not dumped: it is not malformed |
 
   The `reason` of each WARNING is a text. Up to 7.30.26 an MQTT 5 refusal was
   taken for a protocol error: a DISCONNECT `0x82` to the broker, a dump of
-  the CONNACK, and no `EV_ON_CLOSE`; a 3.1.1 code past `5`, and an MQTT 5 code
+  the CONNACK, and no `EV_ON_CLOSE`. A 3.1.1 code past `5`, and an MQTT 5 code
   from `0x06` to `0x7F`, ended the connection with the WARNING and no
-  `EV_ON_CLOSE`; a CONNACK in the form of 3.1.1 to an MQTT 5 client was
+  `EV_ON_CLOSE`. A CONNACK in the form of 3.1.1 to an MQTT 5 client was
   *"Error in properties"*, DISCONNECT `0x81` and a dump, with no
-  `EV_ON_CLOSE`; and an MQTT 5 CONNACK with a code from `1` to `5` was taken
+  `EV_ON_CLOSE`. An MQTT 5 CONNACK with a code from `1` to `5` was taken
   for a refusal, its `reason` the text of the MQTT 5 code of that number
   (*"Granted QoS 2"* for `2`), with no DISCONNECT. A CONNACK of MQTT 5 with
   the code `0x06`, one of a 3.1.1 broker that refuses an MQTT 5 client's
@@ -140,9 +140,9 @@ queued and acknowledged).
 **After the client's DISCONNECT the connection ends within `timeout_close`.**
 The DISCONNECT is the last packet of the client (MQTT 5 §3.14.4): the server
 reads nothing after it, and lets the client close, as it MUST
-[MQTT-3.14.4-1]. A client that has not closed after `timeout_close` is closed
+[MQTT-3.14.4-1]. A client that does not close within `timeout_close` is closed
 by the server, with no DISCONNECT of its own and ONE WARNING *"Client did not
-close after its DISCONNECT, closed by the server"*; its keepalive is no longer
+close after its DISCONNECT, closed by the server"*. Its keepalive is no longer
 checked. The server does not close first because every TCP socket of Yuneta
 closes with `SO_LINGER` 0, a RST: a client that half-closes after its
 DISCONNECT (HiveMQ's `shutdownOutput()`) then gets ENOTCONN. The broker
@@ -174,7 +174,7 @@ queued and was tried again, with a new packet id each time.
 
 **An MQTT 5 PUBACK, PUBREC, PUBREL or PUBCOMP of 3 or 4 bytes** (the packet id
 and a reason code, with or without an empty Property Length) is accepted
-(§3.4.2.1: the reason code and the properties may be omitted). Up to 7.31.1 it
+(§3.4.2.1: the reason code and the properties can be omitted). Up to 7.31.1 it
 was refused, *"packet too long"* and DISCONNECT `0x81`: Mosquitto's checks of
 the whole Remaining Length were applied to what was left after the packet id.
 
@@ -209,9 +209,9 @@ server:  WARNING "Mqtt unknown property" {"identifier": 127, "peername": "..."}
          DISCONNECT 0x81, the close
 ```
 
-A property of MQTT 5 in a packet that may not carry it (a Payload Format
+A property of MQTT 5 in a packet that is not allowed to carry it (a Payload Format
 Indicator in a CONNECT) is one WARNING *"Mqtt invalid property of command"*,
-whose `command` is the packet's name; up to 7.30.26 it was printed as a
+whose `command` is the packet's name. Up to 7.30.26, it was printed as a
 number (a string through `%d`), in all eleven sites:
 
 ```text
@@ -265,10 +265,10 @@ of the gate's channel:
 | `max_topic_filter_length` | `256` | A filter longer than this, in bytes, gets `0x80` or `0x8F` Topic Filter invalid in the SUBACK. One WARNING per connection. An UNSUBSCRIBE is never refused by it. |
 | `max_inflight_messages` | `20` | QoS 2 packet ids that wait for their PUBREL. One more is a protocol error of the client: it is disconnected, with a WARNING. MQTT 5 clients are told it in the CONNACK (Receive Maximum). |
 | `message_size_limit` | `0` | A PUBLISH with a larger payload is not delivered. Its QoS flow is completed (MQTT 5: PUBACK or PUBREC `0x95`), and the client stays. |
-| `max_packet_size` | `0` | A packet larger than this is refused when its header arrives, before its bytes are kept, and the client is disconnected: an MQTT 5 one gets DISCONNECT `0x95` Packet too large. The size is the WHOLE packet, as MQTT 5 counts the Maximum Packet Size: the fixed header byte, the Remaining Length field and the rest (with `50`, a PUBLISH of 51 bytes is refused). Up to 7.31.1 the Remaining Length alone was compared, so 2 to 5 bytes more got in, and the DISCONNECT was `0x82`. Without it a packet is kept whole (up to 256 MB) before `message_size_limit` is checked. A CONNECT, which comes before the peer is authenticated, is refused over 64 KB whatever this says (or over this, when smaller); up to 7.31.1 the bound was 1000 bytes, which refused an MQTT 5 CONNECT with properties or a token as its password. It also bounds how many filters one (UN)SUBSCRIBE carries to the upper level (see below). |
+| `max_packet_size` | `0` | A packet larger than this is refused when its header arrives, before its bytes are kept, and the client is disconnected: an MQTT 5 one gets DISCONNECT `0x95` Packet too large. The size is the WHOLE packet, as MQTT 5 counts the Maximum Packet Size: the fixed header byte, the Remaining Length field and the rest (with `50`, a PUBLISH of 51 bytes is refused). Up to 7.31.1 the Remaining Length alone was compared, so 2 to 5 bytes more got in, and the DISCONNECT was `0x82`. Without it a packet is kept whole (up to 256 MB) before `message_size_limit` is checked. A CONNECT, which comes before the peer is authenticated, is refused over 64 KB whatever this says (or over this, when smaller). Up to 7.31.1, the bound was 1000 bytes, which refused an MQTT 5 CONNECT with properties or a token as its password. It also bounds how many filters one (UN)SUBSCRIBE carries to the upper level (see below). |
 | `max_qos` | `2` | `0` or `1`: a PUBLISH of a higher QoS disconnects the client. MQTT 5 clients are told it in the CONNACK (Maximum QoS). Up to 7.30.26 that property was not sent, and each CONNECT logged an ERROR. |
-| `timeout_close` | `3000` | Milliseconds a connection the server closes waits: in MQTT 5, after its DISCONNECT, for the client to close; in MQTT 3.1.1, for its answers to be written. Then the transport is dropped, with a WARNING *"Timeout waiting mqtt disconnected"*; a transport whose write in flight the peer does not take waits `timeout_stop_tx` of `C_TCP` (10 s) more, and aborts with its own WARNING (see below). |
-| `max_unwritten_bytes` | `100000` | Memory that the protocol's answers (PINGRESP, PUBACK, PUBREC, PUBREL, PUBCOMP, SUBACK, UNSUBACK...) may hold in the send queue of the transport before the reading of the peer is paused. Each answer counts its size plus about 300 bytes of buffer. A peer that reads is slowed to what it takes, however much it pipelines; one that takes nothing of what waits for it during `timeout_close` is dropped, with one WARNING (see below). The messages a broker forwards to a subscriber do not count. `0`: no limit. |
+| `timeout_close` | `3000` | Milliseconds a connection the server closes waits: in MQTT 5, after its DISCONNECT, for the client to close, and in MQTT 3.1.1, for its answers to be written. Then the transport is dropped, with a WARNING *"Timeout waiting mqtt disconnected"*. A transport whose write in flight the peer does not take waits `timeout_stop_tx` of `C_TCP` (10 s) more, and aborts with its own WARNING (see below). |
+| `max_unwritten_bytes` | `100000` | Memory that the protocol's answers (PINGRESP, PUBACK, PUBREC, PUBREL, PUBCOMP, SUBACK, UNSUBACK...) can hold in the send queue of the transport before the reading of the peer is paused. Each answer counts its size plus about 300 bytes of buffer. A peer that reads is slowed to what it takes, however much it pipelines. A peer that takes nothing of what waits for it during `timeout_close` is dropped, with one WARNING (see below). The messages a broker forwards to a subscriber do not count. `0`: no limit. |
 
 The two subscription limits count the filters of the CONNECTION: the
 subscriptions of a session that a broker restores are not counted.
@@ -295,7 +295,7 @@ subscriptions of a session that a broker restores are not counted.
 200 `/` separators (`TOPIC_HIERARCHY_LIMIT`: 201 levels pass, 202 do not) is
 malformed: the WARNING *"Mqtt: invalid topic in PUBLISH, disconnecting"*
 names the topic, then DISCONNECT `0x81` (MQTT 5). The wildcard is the rule of
-MQTT [MQTT-3.3.2-2]; the separators are the limit of this server, as of
+MQTT [MQTT-3.3.2-2]. The separators are the limit of this server, as of
 Mosquitto (MQTT puts none, and the client does not apply it). Up to 7.30.26
 that WARNING said *"Mqtt will: invalid topic"*, as if it were a will.
 
@@ -312,7 +312,7 @@ reads the return of the publication:
 | Event | kw | The upper level |
 |---|---|---|
 | `EV_ON_OPEN` | the client: `id`, `protocol_version`, `clean_start`, `peername`, the will (its payload as `gbuffer`) | returns `0`: CONNACK accepted, session present 0. Returns `-2`: CONNACK not authorized, and the connection closes. |
-| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_MESSAGE` | `topic`, `qos`, `retain`, `gbuffer` (the payload, peer bytes) | takes the message. Returns `1` when it took it (MQTT 5: PUBACK Success); `0` is "no matching subscribers" (`0x10`). |
+| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_MESSAGE` | `topic`, `qos`, `retain`, `gbuffer` (the payload, peer bytes) | takes the message. Returns `1` when it took it (MQTT 5: PUBACK Success). `0` is "no matching subscribers" (`0x10`). |
 | `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_SUBSCRIBE` | `subs` (`sub`, `qos`, …), `gbuffer` | appends ONE reason code per filter of `subs` to the `gbuffer`, in order: the QoS granted, or `>= 0x80` to refuse it. The filters the protocol refused are not in `subs`, and a filter repeated in the packet is in it once. |
 | `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_UNSUBSCRIBE` | `subs`, `gbuffer` | appends ONE reason code per filter of `subs`, in order: `0x00` Success, `0x11` No subscription existed, or `>= 0x80` to refuse it. Every distinct filter of the packet is in `subs`, once: the protocol refuses none. MQTT 3.1.1 has no codes in its UNSUBACK, but the upper level writes them all the same. |
 | `EV_ON_CLOSE` | `client_id`, `peername` | the connection ended. |
@@ -353,7 +353,7 @@ lookup in a dictionary and nothing more: the reason code of each occurrence
 is kept in a C array, not in a json, and the options of a repeated filter are
 written once. The CPU of the gate's process per packet, measured over a TCP
 connection of the same machine (a client of another process sends 300
-packets of each shape, four rounds alternated with 7.30.26; development
+packets of each shape, four rounds alternated with 7.30.26, on the development
 machine, with `CONFIG_DEBUG_TRACK_MEMORY`):
 
 | Packet | CPU per packet | 7.30.26 |
@@ -424,15 +424,15 @@ gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_send, gobj);
 
 `gobj_send_event()` returns `-1` and the message is not sent when:
 
-- the topic is not one a PUBLISH can carry: it has a wildcard (`+`, `#`) or
-  it is empty [MQTT-3.3.2-2]; or, on the SERVER side only, it is past the
+- The topic is not one a PUBLISH can carry: it has a wildcard (`+`, `#`) or
+  it is empty [MQTT-3.3.2-2], or, on the SERVER side only, it is past the
   server's own limit: more than 200 `/` separators (`TOPIC_HIERARCHY_LIMIT`,
   as Mosquitto's). An ERROR *"Mqtt publish: topic invalid"* names it. A
   subscription FILTER is not a topic to publish to: up to 7.30.26 a message
   to `cmnd/dev-17/#` was sent as it was. A CLIENT applies no limit of levels,
   by `EV_SEND_MESSAGE` nor by `EV_MQTT_PUBLISH`: MQTT puts none, and its
-  broker decides (a topic `l/l/.../l` of 250 levels goes out);
-- the connection is closing (its DISCONNECT sent, waiting `timeout_close`): a
+  broker decides (a topic `l/l/.../l` of 250 levels goes out).
+- The connection is closing (its DISCONNECT sent, waiting `timeout_close`): a
   WARNING *"Mqtt: the connection is closing, message not sent"*, once per
   connection. Up to 7.30.26 it was an ERROR *"Event NOT DEFINED in state"*,
   with a stack. The message is not queued either: a broker's QoS 1 or 2
@@ -440,10 +440,10 @@ gobj_send_event(gobj_bottom_gobj(gobj), EV_SEND_MESSAGE, kw_send, gobj);
   was before (then with the ERROR).
 
 **What the protocol does not do, and the gate must:** the same client id on a
-second connection is not taken over. A broker drops the first connection; a
+second connection is not taken over. A broker drops the first connection. A
 gate looks for the decoder of that id in its other channels and sends it
 `EV_DROP`. Say that it is a take-over, so an MQTT 5 client is told why
-(DISCONNECT `0x8E` Session taken over; without the key it gets `0x00`). A
+(DISCONNECT `0x8E` Session taken over, but without the key it gets `0x00`). A
 broker sends the same key, and `"delete_session": true` when the new
 connection does not keep the session, which closes the queues of the old one
 and deletes their topics, whether the OLD connection kept its session or
@@ -464,8 +464,8 @@ gobj_send_event(
 
 In MQTT 3.1.1 a server sends no DISCONNECT, and the old connection is dropped
 as soon as what was already sent to it is written. In MQTT 5 it is dropped
-after its DISCONNECT, within `timeout_close`;
-in that window the connection is closing, and another `EV_DROP` drops it as
+after its DISCONNECT, within `timeout_close`.
+In that window, the connection is closing, and another `EV_DROP` drops it as
 soon as what was sent to it is written, at once when nothing waits (up to
 7.30.26 it was an ERROR *"Event NOT DEFINED in state"*, with a stack). A decoder that has dropped its connection is no longer the client's:
 it must stop taking part in the take-over, or every new connection of that id
@@ -494,16 +494,16 @@ server:  PUBACK 1   PUBACK 2   PUBACK 3   PUBACK 4   then the close
 
 A peer that does not read waits longer, and is said twice. At `timeout_close`
 (3 s) the protocol drops the transport, with the WARNING *"Timeout waiting
-mqtt disconnected"*; the `C_TCP` then waits for its write in flight up to its
+mqtt disconnected"*. The `C_TCP` then waits for its write in flight up to its
 `timeout_stop_tx` (10 s), and aborts the connection with the WARNING *"The
 peer did not take the data in flight in timeout_stop_tx, connection
-aborted"*: about 13 s from the cut to the close. Meanwhile the peer may go on
-sending; nothing of it is processed. This holds in MQTT 5 too, after its
+aborted"*: about 13 s from the cut to the close. Meanwhile the peer can go on
+sending, but nothing of it is processed. This holds in MQTT 5 too, after its
 DISCONNECT.
 
 Up to 7.30.26 the 3.1.1 drop went to the `C_TCP` at once, which discards
 what waits behind its write in flight: the client got `PUBACK 1` and the
-close, and would send the three readings again (the gate had taken them);
+close, so it was going to send the three readings again (the gate had taken them).
 `SUBSCRIBE a/b` and a cut `SUBSCRIBE` in one write got `SUBACK 0x00` and the
 close, without the `0x80`. A protocol error of an MQTT 5 client lost its
 answers the same way (`PUBACK 1`, then the close), and an MQTT 5 peer that
@@ -516,7 +516,7 @@ read of 4 KB answers 2048 PINGREQ, and the `C_TCP` writes one packet per turn
 of the loop, even to a peer that reads.
 
 The protocol counts the memory of the answers it hands to the transport since
-the transport's queue was last empty (`EV_TX_READY`); each answer counts its
+the transport's queue was last empty (`EV_TX_READY`). Each answer counts its
 size plus about 300 bytes. The messages a broker forwards to a subscriber
 (PUBLISH) are not answers: they are not counted. Past `max_unwritten_bytes`
 (100000), after the packet that passed it:
@@ -528,7 +528,7 @@ size plus about 300 bytes. The messages a broker forwards to a subscriber
   of 4 KB can complete a record of up to 16 KB (the TLS limit, in OpenSSL and
   in mbedTLS), and the records that the same read completes after it are
   kept too, so the rest is up to about 20 KB. Measured with 10 clients
-  pipelining PINGREQ for 15 s: 4094 bytes at most in clear; over TLS 16 376
+  pipelining PINGREQ for 15 s: 4094 bytes at most in clear, and over TLS 16 376
   with writes of 64 KB (records of 16 KB), and 19 570 with a write of 16 KB
   followed by writes of 200 bytes.
 - **The `EV_TX_READY` of the queue written resumes it:** the rest is read
@@ -539,12 +539,12 @@ size plus about 300 bytes. The messages a broker forwards to a subscriber
   the reading was first paused (a TLS read can bring several records: that
   is the 20 KB above).
 - **`timeout_close` (3 s) at most between two looks:** if the queue is empty,
-  the reading resumes; if something of it was written since the last look,
-  the protocol waits another `timeout_close`; if nothing was written, the
+  the reading resumes. If something of it was written since the last look,
+  the protocol waits another `timeout_close`. If nothing was written, the
   peer does not read: the connection is dropped at once, with one WARNING
   *"Mqtt: the peer does not read its answers, connection dropped"* (with
   `client_id`, `peername`, `unwritten_packets`, `answer_bytes` and
-  `max_unwritten_bytes`). No DISCONNECT is sent (it would wait behind the
+  `max_unwritten_bytes`). No DISCONNECT is sent (otherwise it waits behind the
   rest), and the rest of the read is not processed.
 
 So a connection holds about the bound of answers (about 100 KB) and one read
@@ -560,7 +560,7 @@ peer takes them. **A peer that does not read is dropped after
 write.** Once every answer is in the kernel (the transport's queue empty),
 the protocol holds nothing of the connection and reads again: if the peer
 then sends nothing more (its own kernel stalled on full buffers, or it
-simply stopped), the connection is idle like any other, and only its
+stopped), the connection is idle like any other, and only its
 keepalive (or the pool's bound, or the peer's close) ends it. A peer whose
 kernel still takes a little at each look is not dropped either: it holds the
 same bounded memory until one of those ends it.
@@ -629,8 +629,8 @@ allowed (CONNACK `2` Identifier rejected, WARNING *"Mqtt: client_id contains
 invalid character"*), before the upper level sees it.
 
 (mqtt-moving-from-prot-mqtt)=
-**Moving a gate from `C_PROT_MQTT`.** `C_PROT_MQTT` was removed after 7.30.26;
-a yuno that still creates it gets *"gclass NOT FOUND"* at its start. What
+**Moving a gate from `C_PROT_MQTT`.** `C_PROT_MQTT` was removed after 7.30.26.
+A yuno that still creates it gets *"gclass NOT FOUND"* at its start. What
 changes:
 
 | `C_PROT_MQTT` | `C_PROT_MQTT2` |
@@ -655,16 +655,16 @@ disconnected), and a PUBACK, PUBREC, PUBCOMP or PUBREL of any peer walked the
 NULL queue: the yuno crashed. That case was reachable in a broker with
 `mqtt_persistent_db` false (a configuration the broker refuses at its start
 after 7.30.26: it has no mode without its treedb). Without a `C_MQTT_BROKER` each PUBLISH also
-logged a WARNING *"ACL skipped"*; an anonymous client has no user and no
+logged a WARNING *"ACL skipped"*. An anonymous client has no user and no
 group, so it is not said any more for one.
 
 After 7.30.25 a server sends DISCONNECT only in MQTT 5: in MQTT 3.1.1 it is a
 packet of the client. A 3.1.1 client that breaks the protocol is dropped as
-soon as the answers already sent to it are written (after 7.30.26; in 7.30.26
-at once, and the answers queued behind the write in flight were lost); up to
-7.30.25 it got a DISCONNECT, and the drop waited for `timeout_close` (3 s).
+soon as the answers already sent to it are written (after 7.30.26, but in 7.30.26
+at once, and the answers queued behind the write in flight were lost). Up to
+7.30.25, it got a DISCONNECT, and the drop waited for `timeout_close` (3 s).
 An MQTT 5 client that breaks the protocol gets its answers, then the
-DISCONNECT `0x82`, then the close (after 7.30.26; in 7.30.26 the answers
+DISCONNECT `0x82`, then the close (after 7.30.26, but in 7.30.26 the answers
 behind the write in flight were lost).
 
 ## C_MQTT_BROKER
@@ -711,7 +711,7 @@ kept in the session (`will_expiry_interval`, `sessions` topic version 9). Up to
 **Shared subscriptions: each share group gets its copy, in turn among its
 members.** `$share/<group>/<filter>` keeps one topic tree per group, and a
 message matching the filter of two groups goes to one member of each [MQTT 5
-4.8.2]; within a group the members take turns (round robin, as Mosquitto), and
+4.8.2]. Within a group, the members take turns (round robin, as Mosquitto), and
 a member that does not take it passes the turn to the next. A client in two
 groups gets the message once per group. The command `shared-subs` shows the
 group first:
@@ -756,7 +756,7 @@ The helpers the three gclasses share have pages of their own:
 ## Registration
 
 Register the gclasses a yuno uses once, in `register_yuno_and_more()`, before
-creating them; a second call of the same one fails with *"GClass ALREADY
+creating them. A second call of the same one fails with *"GClass ALREADY
 created"*. Each one returns `0`, or `-1` (logged) when the gclass cannot be
 created.
 

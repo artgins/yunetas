@@ -57,7 +57,7 @@ Finds an event in ANY registered gclass, as `gobj_find_event_type()` of the C
 kernel: the case of the name is ignored. Gives `0` in `event_flag` to accept
 every flag. Returns the event type (`event_name` is the name as the gclass
 declares it), or `null`. With `verbose`, a miss is logged with the name: do not
-give `verbose` for a name that comes from a peer (7.26.24).
+give `verbose` for a name that a peer sends (7.26.24).
 
 ```javascript
 const event_type = gobj_find_event_type("ev_treedb_node_updated", 0, false);

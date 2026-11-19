@@ -247,7 +247,7 @@ configuration dict that accepts these keys:
 
 | Key                       | Effect                                                            |
 |---------------------------|-------------------------------------------------------------------|
-| `__config__`              | Sub-keys: `__hard_subscription__`, `__own_event__`, `__rename_event_name__`, `__first_shot__`. A remote peer may set only `__first_shot__` (§4.6) |
+| `__config__`              | Sub-keys: `__hard_subscription__`, `__own_event__`, `__rename_event_name__`, `__first_shot__`. A remote peer can set only `__first_shot__` (§4.6) |
 | `__global__`              | Keys added to the kw THIS subscriber gets (its own twin, §3.3)    |
 | `__local__`               | Keys removed from the kw THIS subscriber gets (its own twin, §3.3) |
 | `__filter__`              | Publish only if the published kw matches this selector            |
@@ -548,8 +548,8 @@ the subscriber, remote events look the same as local ones.
 
 The peer chooses its `__filter__` and the keys of its own in `__global__`
 (none that starts with `_`, and not `gbuffer`), and they change only what the
-peer itself gets; its `__local__` and any other key are dropped (since
-7.25.5; up to 7.25.4 they went through, and with the shared kw of §3.3 they
+peer itself gets. Its `__local__` and any other key are dropped (since
+7.25.5. Up to 7.25.4 they went through, and with the shared kw of §3.3 they
 forged or stripped the event of every later subscriber). The peer does not
 choose how the framework treats its subscription. Of `__config__`,
 `C_IEVENT_SRV` keeps only `__first_shot__`, which the publisher reads. `__hard_subscription__`,
@@ -557,7 +557,7 @@ choose how the framework treats its subscription. Of `__config__`,
 (since 7.25.5). The subscriptions belong to the session: when the channel
 closes, `C_IEVENT_SRV` removes all of them with force. The channel is static,
 and the next user who connects to it must find nothing of the last one. Up to
-7.25.4 a peer could ask a hard subscription: it outlived the session, went to
+7.25.4 a peer was able to ask a hard subscription: it outlived the session, went to
 the next user of the channel, and with `__own_event__` a failed delivery to
 it stopped every publish before the later subscribers.
 
@@ -578,7 +578,7 @@ peer's `__md_iev__`. A subscription that repeats one the channel holds is
 left as it is: no second `mt_subscription_added()`, no second first shot.
 
 A frame of a session without its routing (`__md_iev__` with the ievent stack)
-closes the channel; a frame for a service the channel may not reach is
+closes the channel. A frame for a service that the channel is not allowed to reach is
 refused (a command gets a negative answer). Each of these logs at most one
 capped WARNING per 10 s per channel, with no stack: a peer can repeat them
 frame after frame.
@@ -600,18 +600,18 @@ conclusion about who is allowed to do what at the far end.
 
 The controlcenter case makes it concrete. The agent dials out to the
 controlcenter, so on that link the agent is the client and its session user is
-its own JWT identity (`yuneta_agent@…`) — which is why that principal belongs
+its own JWT identity (`yuneta_agent@…`). That is why that principal belongs
 in the **controlcenter's** authz list and *not* in the agents'. But when an
 operator drives a node *through* the controlcenter, the operator's
 `__username__` is propagated end to end and is what the node's agent evaluates:
 
 1. `C_IEVENT_SRV` on the controlcenter authenticates the operator and
-   **overwrites** `kw`__username__`` with the authenticated principal — a wire
-   client cannot spoof it (since 7.25.5; up to 7.25.4 `kw_set_dict_value()`
+   **overwrites** `kw`__username__`` with the authenticated principal, so a wire
+   client cannot spoof it (since 7.25.5, and up to 7.25.4 `kw_set_dict_value()`
    kept a `__username__` the peer had put in the kw, and the peer's name
    reached the service).
 2. `cmd_command_agent` checks its own `command-agent` permission for that
-   operator, then deletes a fixed key list from the kw before forwarding —
+   operator, then deletes a fixed key list from the kw before forwarding.
    `__username__` is **not** in that list, so it survives.
 3. The kw goes down the reverse channel unchanged.
 4. On the agent, `authz_checker` reads `kw`__username__`` **first**, and
@@ -637,8 +637,8 @@ carried the operator's `__username__`.
 > `aud` is the node uuid and whose `sub` is the operator), and the agent
 > verifies it with its `Authz.assertion_jwks` and takes the `sub` as
 > `__username__`. A request with no assertion is of `service_principal`
-> (`controlcenter` on the agents); a bad one is refused. The operator's login
-> token never leaves the controlcenter; an assertion is good on one node, for
+> (`controlcenter` on the agents). A bad one is refused. The operator's login
+> token never leaves the controlcenter. An assertion is good on one node, for
 > a minute.
 
 ---
@@ -837,8 +837,8 @@ gclasses.
 
 You also see `__top_side__` and `__bottom_side__` as keys inside `kw` in some
 cross-yuno cases, for example master and non-master treedb access. (A yuno
-that must read a topic of another yuno opens that yuno's store as non-master;
-it does not send commands to it, because a command reaches another yuno only
+that must read a topic of another yuno opens that yuno's store as non-master.
+It does not send commands to it, because a command reaches another yuno only
 if that yuno is connected as a service.) Those are routing
 markers in the `kw`. They are not the same as the gobj-tree convention.
 
@@ -933,7 +933,7 @@ subscription model" section gives the rule. The diagnostic emoji is `📛`.
 It is the explicit *"missing subscriber is not a bug for this event"*
 annotation. If you use it to silence a noisy warning, it often hides a real
 mismatch between the SERVICE pattern and the CHILD pattern. CLAUDE.md is
-clear on this: the flag says that a missing subscriber is not a bug; it is
+clear on this: the flag says that a missing subscriber is not a bug. It is
 not a generic noise suppressor.
 
 ### 8.4 Subscription lists are in **both** gobjs
@@ -969,7 +969,7 @@ frame it writes (a kw published or forwarded as it came carried it to the
 peer, the value of a pointer of this process), and
 [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer) deletes the one of
 every inter-event it decodes. Up to 7.30.26 the receiver kept it: a
-frame with `"__temp__": [1094795585]` left a list where C_IOGATE could not
+frame with `"__temp__": [1094795585]` left a list where C_IOGATE was not able to
 write its channel, and the agent and the control center took the peer's
 integer for the channel and died with SIGSEGV.
 

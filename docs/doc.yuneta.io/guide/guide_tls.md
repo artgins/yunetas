@@ -161,7 +161,7 @@ ycommand -c 'command-agent service=agent_secure_port command=reload-certs'
 ```
 
 Up to 7.30.17 ytls itself exited the yuno with code 0, whatever the yuno
-wanted; 7.30.18 degraded every yuno. Details: [`C_TCP_S`, A TLS server
+wanted, and 7.30.18 degraded every yuno. Details: [`C_TCP_S`, A TLS server
 without its TLS context](#tcp_s_no_tls_context).
 
 ## TLS security posture (hardening)
@@ -190,7 +190,7 @@ Both backends floor at **TLS 1.2** when `ssl_min_version` is unset.
 
 A TLS handshake that has not ended in `timeout_tls_handshake` ms (an
 attribute of `C_TCP`, default `10000`, `0`: none) drops the connection, on a
-server and on a client; a client then reconnects. The drop is said with ONE
+server and on a client. A client then reconnects. The drop is said with ONE
 warning per 10 s for the whole yuno, whose `suppressed` counts the drops it did
 not write. Without
 it, a peer that opened a TCP connection and said nothing held a channel of a
@@ -235,9 +235,9 @@ deliberately left IoT-tolerant (`optional`, surfaced) — raise it per gate with
 | Mode | Asks the client's certificate (server) | Chain verified | A peer that does not verify | `verified` in `peer_cert` |
 |---|---|---|---|---|
 | `none` | no | no | — | always `false` |
-| `optional` | yes, may be absent | yes | let in, WARNING | `true` only if it verified |
+| `optional` | yes, can be absent | yes | let in, WARNING | `true` only if it verified |
 | `required` | yes, must be present (server) | yes | refused in the handshake | `true` |
-| `request` | yes, may be absent | **no** (a CA given is not used) | let in, nothing logged | always `false` |
+| `request` | yes, can be absent | **no** (a CA given is not used) | let in, nothing logged | always `false` |
 
 `request` (since 7.30.10) is for a **server** only: a client with it is
 refused (`ytls_init()` fails). It takes the client's certificate as it
@@ -407,15 +407,15 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
    |---|---|---|
    | `TLS client WITHOUT server-certificate validation` | a client is not validating the server it dials | add a CA → Profile A |
    | `TLS handshake rejected` | a peer was refused (often a legacy device below the floor). One per 10 s for each listener, and one per 10 s for all the clients of the yuno together (for all the clients of one TLS backend: a yuno with clients on both backends has two clients' windows, one per backend): `suppressed` counts the ones of the last window not written, so a peer that fails its handshake in a loop does not write the log at its own rate (up to 7.30.18 each one wrote it), a scanner on one listener does not hide the reject of a legitimate client on another (up to 7.30.19 the window was the whole yuno's), and a client that connects again and again, with a context of its own for each connection, does not write a line per connection (in 7.30.20 it did) | if legitimate, move that gate to Profile B |
-   | `TLS handshakes rejected, not said in their window` | the rejects that no line said. Nothing closes a window by time: its count is said at the next reject after the window (in that line, or in this one when the next reject comes more than 10 s after the window), or when a listener ends; the clients' count also when a client context ends after the window, or in the shutdown of the yuno, by the first client context that ends in it (up to 7.30.21 the count of the clients' last window was lost when the yuno ended). A window whose client contexts have all ended before the shutdown, with no reject after it (a client that stops after failing), keeps its count unsaid: its first reject was written, the ones after it in those 10 s are counted and never said. `suppressed` is the count, and the line names the gobj (`gobj_full_name`) and the `ssl_server_name` of the context that writes it. For the clients' count that is the client whose reject or end writes the line, which may be another client than the ones that failed (see the second example below) | as above |
-   | `TLS handshake not ended in time, connection dropped` | a peer opened a TCP connection and did not end its handshake in `timeout_tls_handshake` (a scanner, a slowloris, a broken client); one per 10 s, `suppressed` counts the others | if a legitimate peer is slow, raise `timeout_tls_handshake` on that `C_TCP`; a high `suppressed` is a flood of mute connections |
+   | `TLS handshakes rejected, not said in their window` | the rejects that no line said. Nothing closes a window by time: its count is said at the next reject after the window (in that line, or in this one when the next reject comes more than 10 s after the window), or when a listener ends. The clients' count is also said when a client context ends after the window, or in the shutdown of the yuno, by the first client context that ends in it (up to 7.30.21 the count of the clients' last window was lost when the yuno ended). A window whose client contexts have all ended before the shutdown, with no reject after it (a client that stops after failing), keeps its count unsaid: its first reject was written, the ones after it in those 10 s are counted and never said. `suppressed` is the count, and the line names the gobj (`gobj_full_name`) and the `ssl_server_name` of the context that writes it. For the clients' count that is the client whose reject or end writes the line, which can be another client than the ones that failed (see the second example below) | as above |
+   | `TLS handshake not ended in time, connection dropped` | a peer opened a TCP connection and did not end its handshake in `timeout_tls_handshake` (a scanner, a slowloris, a broken client). One per 10 s, and `suppressed` counts the others | if a legitimate peer is slow, raise `timeout_tls_handshake` on that `C_TCP`. A high `suppressed` is a flood of mute connections |
    | `legacy floor below TLS1.2` | a gate is on a relaxed floor | confirm it is an intended IoT gate |
    | `renegotiation explicitly enabled` | a gate re-enabled renegotiation | confirm it is needed |
    | `peer certificate did NOT verify` | an `optional` gate accepted an invalid cert | fix the chain, or raise to `required` |
 
    For example, a client `C_TCP` that fails 40 handshakes in 10 s against a
    server whose certificate it does not accept (a new TLS context at each
-   start), and one more 11 s later, writes two lines in all; the second
+   start), and one more 11 s later, writes two lines in all. The second
    says the 39 not written:
 
    ```
@@ -425,8 +425,8 @@ Relax **explicitly** — each relaxation is logged and stays greppable.
 
    The clients' count is one for every client of the backend, so the line
    that says it names the client that writes it. Client X (`ssl_server_name`
-   `idp.x`) fails 5 handshakes; client Y (`other.y`) fails one 11 s later.
-   X writes the first line; the line of Y carries the 4 that X did not write:
+   `idp.x`) fails 5 handshakes. Client Y (`other.y`) fails one 11 s later.
+   X writes the first line. The line of Y carries the 4 that X did not write:
 
    ```
    WARNING: {"msg": "TLS handshake rejected", "ssl_server_name": "idp.x", "suppressed": 0, ...}

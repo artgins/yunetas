@@ -120,7 +120,7 @@ The lookup key is the ip of the peername, without its port:
 | `"[::ffff:192.168.1.1]:80"` (an ipv4 on a dual-stack socket) | `192.168.1.1` |
 | `"192.168.1.1"`, `"2001:db8::1"` (no port) | the same |
 
-Up to 7.25.4 the port was cut at the first `:`, so no list could name an
+Up to 7.25.4, the port was cut at the first `:`, so no list was able to name an
 ipv6 peer.
 
 ```C
@@ -176,7 +176,7 @@ and then denies the address on every interface. A deny broader than asked is
 the safe side.
 
 The answers say what was done. An `add-` that converted the text names both
-forms; text that is not an ip answers -1 with the cause; a `remove-` takes any
+forms. Text that is not an ip answers -1 with the cause. A `remove-` takes any
 form of the same ip, and answers -1 when the ip is not in the list (up to
 7.25.4 it answered success):
 

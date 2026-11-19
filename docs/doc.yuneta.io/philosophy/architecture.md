@@ -91,8 +91,8 @@ One rule follows from this: **only a named service can be the source or the
 destination of an inter-yuno message.** A pointer does not travel over a
 websocket. A name does. A routed view, a pure child, or any unnamed gobj can
 never hold one end of an inter-yuno conversation. The log message
-*"event ignored, service not found"* — from `c_ievent_srv.c`; the JS runtime
-says *"gobj service not found"* — reports a violation of this rule. Correct
+*"event ignored, service not found"* (from `c_ievent_srv.c`, and in the JS runtime
+*"gobj service not found"*) reports a violation of this rule. Correct
 the sender.
 
 | Scope | Structure | Message | Address |

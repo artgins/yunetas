@@ -26,7 +26,7 @@ tr2list /yuneta/store/.../topic --follow                    # tail -f
 | `--from-tm` / `--to-tm` | Message-time range |
 | `--from-rowid` / `--to-rowid` | Rowid range (negative = from the end) |
 | `--user-flag-set` / `--system-flag-set` (+ `…-not-set`) | Flag filters |
-| `--filter` | JSON dict of field matches; each key is a PATH (see below) |
+| `--filter` | JSON dict of field matches. Each key is a PATH (see below) |
 | `--fields` | Select output fields |
 | `--mode form\|table` | Output layout |
 | `--show_md2` | Include `__md2__` metadata |
@@ -91,7 +91,7 @@ Up to 7.27.4 a date stayed in seconds on a topic in milliseconds, and selected
 nothing or everything there. Up to 7.27.6 a negative integer was read as a
 date, and `approxidate` read `-86400` as NOW (and `-1` as the first day of
 the month), with no word. `--dry-run` shows the dates resolved in seconds, and
-a negative bound as relative to the last record of each key; an integer out
+a negative bound as relative to the last record of each key. An integer out
 of range is refused (*"an integer past what a time holds"*). An empty TIME is
 no bound.
 
@@ -101,15 +101,15 @@ exponent, a decimal comma (`" 5"`, `007`, `+5`, `10.5`, `1E5`, `1,5`, `,5`),
 and words that are all digits (`"5 5"`, `"2026 10 01"`, `"2026, 10, 01"`).
 So is a text with such numbers among other words: a comma between two digits
 (`"1,5 days ago"`, September 26 for `approxidate`), or two or more words of
-digits in a row (`"5 5 ago"`, `"2026 10 01 10:00"`); a run of digits is a
+digits in a row (`"5 5 ago"`, `"2026 10 01 10:00"`). A run of digits is a
 date only as day month year (`"01 10 2026"`) or as a day and a year after the
 name of a month (`"Oct 1, 2026"`). So is a text
 that `approxidate` cannot read (`5-`, `-5-`, `5+5`, a lone `-`). Up to 7.27.6
 `approxidate` read `+5`, `" -5"`, `5+`, `5-` and `-5-` as the 5th of this
 month, `"5 5"` and `5+5` as the 5th of May, and a lone `-` or an empty TIME
-as NOW, with no word; up to 7.29.3 tr2list had a reader of its own, and `007`
+as NOW, with no word. Up to 7.29.3, tr2list had a reader of its own, and `007`
 was 7, `10.5` and `1,5` May 10 and May 1. A `-` between two digits makes the
-text a date, and a date keeps working (`2026-10-01`, `01.10.2026`; `1.day`
+text a date, and a date keeps working (`2026-10-01`, `01.10.2026`, and `1.day`, which
 has a letter):
 
 ```bash

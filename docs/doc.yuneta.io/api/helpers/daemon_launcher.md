@@ -32,8 +32,8 @@ int launch_daemon(
 
 **Returns**
 
-The PID of the daemon, or `-1`, said on stderr, when it could not be
-launched: a `fork()`, `setsid()`, `/dev/null` or the `execvp()` failed, or
+The PID of the daemon, or `-1`, said on stderr, when the launch
+failed: a `fork()`, `setsid()`, `/dev/null` or the `execvp()` failed, or
 too many arguments.
 
 **Notes**
@@ -44,8 +44,8 @@ too many arguments.
 - The PID answered is the daemon's: `kill(pid, SIGTERM)` ends it.
 - Up to 7.29.3 it answered the PID of the first child, which had already
   exited (a `kill()` of it did nothing to the daemon) and was never reaped (a
-  zombie per call); it read the pipe once without waiting, so an `exec`
-  failure was seen only when it came first; and the daemon kept the write end
+  zombie per call). It read the pipe once without waiting, so an `exec`
+  failure was seen only when it came first. And the daemon kept the write end
   of the pipe open.
 - The daemon starts with no signal blocked and every signal at its default
   but SIGHUP, which it ignores, and with no fd of the caller but stdin,
@@ -100,10 +100,10 @@ void clean_child_before_exec(int keep_fd);
 **Notes**
 
 - A yuno keeps its signals blocked for its `signalfd`, and a blocked or an
-  ignored signal stays so across `exec`; an fd without `O_CLOEXEC` stays
+  ignored signal stays so across `exec`. An fd without `O_CLOEXEC` stays
   open across `exec`. Without this, the program inherits both.
 - A signal that cannot be set (SIGKILL, SIGSTOP, those the C library keeps
-  for itself) is left. The fds are closed with `close_range()`; on a kernel
+  for itself) is left. The fds are closed with `close_range()`. On a kernel
   without it (before 5.9), the ones open, as `/proc/self/fd` lists them, and
   only without `/proc` one by one up to the limit of open files. Before, that
   loop was the only way, and under `LimitNOFILE=infinity` it was millions of
@@ -210,18 +210,18 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 **Notes**
 
 - The watcher process relaunches the child each time it exits
-  abnormally: 2 s after its end the first time; when each new child ends
-  within 60 s of its start the wait doubles, up to 60 s, and a child that
+  abnormally: 2 s after its end the first time. When each new child ends
+  within 60 s of its start, the wait doubles, up to 60 s, and a child that
   lived longer sets it back to 2 s ([Entry point §4.3](#entry-point-watcher)).
   See [`get_relaunch_times()`](#get_relaunch_times) to
-  inspect how many relaunches have happened so far.
+  inspect how many relaunches happened so far.
 - Use [`daemon_shutdown()`](#daemon_shutdown) from another process (or
   the child itself) to terminate both watcher and child cleanly.
 - A SIGQUIT to the watcher is the stop: its child is not relaunched, and
   the watcher passes the SIGQUIT to the child it waits for. So a stop that
   comes while the watcher forks a child, which the sender did not know,
   stops that child too. Up to 7.29.3 only a stop that came before the
-  watcher looked at it after the fork reached the child; a later one
+  watcher looked at it after the fork reached the child. A later one
   reached only the watcher, and `--stop` killed the child with SIGKILL
   10 s later.
 - `yuneta_entry_point()` blocks the yuno's signals
@@ -238,16 +238,16 @@ Returns `0` on normal shutdown, or a non-zero value on error.
 ### [`daemon_shutdown()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/ydaemon.c#L888)
 
 `daemon_shutdown()` requests an orderly shutdown of a running daemon
-by process name. Every process of that name started as it (the base name
-of `argv[0]` in `/proc/<pid>/cmdline`: a script of the same name has its
-interpreter there and is not one; a daemon whose binary was renamed still
-is; another user's is taken only when the caller is root; a zombie of the
-name is dead and is not counted, nor is an `EPERM` on one a failure; the list has no fixed size, so look-alikes
-of the name, which anybody can start, cannot push the real ones out of it)
-gets SIGQUIT, the
-watchers first: a watcher notes it and does not relaunch its child, whatever its end;
-the child shuts down in order and exits 0, and its watcher exits with it.
-They are given 10 s to be gone; then the name is scanned again and what is
+by process name. Every process of that name started as it gets SIGQUIT, the
+watchers first. The name is the base name
+of `argv[0]` in `/proc/<pid>/cmdline`. A script of the same name has its
+interpreter there and is not one. A daemon whose binary was renamed still
+is one. Another user's process is taken only when the caller is root. A zombie of the
+name is dead and is not counted, nor is an `EPERM` on one a failure. The list has no fixed size, so look-alikes
+of the name, which anybody can start, cannot push the real ones out of it.
+A watcher notes the SIGQUIT and does not relaunch its child, whatever its end.
+The child stops in order and exits 0, and its watcher exits with it.
+They are given 10 s to be gone. Then the name is scanned again, and what is
 left is killed with SIGKILL, said on stdout and in syslog (`print_error()`).
 Each `kill()` is checked.
 
@@ -263,13 +263,13 @@ int daemon_shutdown(const char *process_name);
 
 **Returns**
 
-`0` when every process of the name is gone or killed; `-1` when one could
-not be signalled (`EPERM`), when the `cmdline` of one could not be read for a
+`0` when every process of the name is gone or killed. `-1` when the function
+fails to signal one (`EPERM`), when it fails to read the `cmdline` of one for a
 reason other than its end (so it is not known whether it is the daemon), when
-the list could not grow (no memory), or when nothing of the name is the
-caller's and the name may run as another user: the processes of the name are
+the list fails to grow (no memory), or when nothing of the name is the
+caller's and the name can run as another user. That is, the processes of the name are
 all another user's (7.30.20+), or `/proc` is mounted `hidepid=1` and the name
-of other users' processes cannot be read (7.30.21+; in 7.30.20 it returned
+of other users' processes cannot be read (7.30.21+. In 7.30.20, it returned
 `0`, whether the daemon ran or not). Each one is said on stdout and in
 syslog, and not waited for. For example, `--stop` as a user, with `/proc`
 mounted `hidepid=1`, returns `-1` and prints:
@@ -285,8 +285,8 @@ never signaled. It returns once every process is gone (a zombie counts as
 gone), so a start that follows does not meet the old one. Up to 7.25.21 each
 process was killed 1 s after its own SIGQUIT, one after the other: an agent
 had one second for its orderly shutdown. Up to 7.25.22 it returned nothing:
-an `EPERM` waited 10 s, said *"killed (SIGKILL)"* and the `--stop` exited 0;
-and a child that crashed in its shutdown was relaunched by its watcher and
+an `EPERM` waited 10 s, said *"killed (SIGKILL)"* and the `--stop` exited 0.
+And a child that crashed in its shutdown was relaunched by its watcher and
 left alive once the watcher was killed.
 
 **Example**
@@ -322,7 +322,7 @@ The watcher process PID, or `0` if the current process has no watcher.
 `daemon_set_pid_file()` names the file where, under `--start`, the pid of
 the WATCHER is written -- by the process that was started, before it exits,
 which is when a systemd unit of `Type=forking` reads its `PIDFile=`. The
-entry point calls it with the value of `--pid-file`; a yuno has nothing else
+entry point calls it with the value of `--pid-file`. A yuno has nothing else
 to do for it.
 
 ```C
@@ -346,7 +346,7 @@ cat /run/yuneta_agent/yuneta_agent.pid      # the watcher, the unit's main pid
 **Notes**
 
 The file is written aside (`<file>.tmp`) and renamed, so systemd reads it
-whole or not at all. A failure to write it is printed and sent to syslog; the
+whole or not at all. A failure to write it is printed and sent to syslog. The
 daemon goes on. The unit that uses it is described in
 [the entry point chapter](#entry-point-watcher).
 

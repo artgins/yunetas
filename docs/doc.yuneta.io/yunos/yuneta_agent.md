@@ -63,14 +63,14 @@ What to know before touching them:
 
   On RHEL and Rocky, systemd cannot exec a file labelled `default_t`, and
   everything under `/yuneta` is: the package writes a `bin_t` rule for both
-  agents into the policy (`semanage fcontext`; it requires
+  agents into the policy (`semanage fcontext`, which requires
   `policycoreutils-python-utils` where `selinux-policy` is installed), and
   `restorecon` gives a file moved in by hand that label back -- a `mv` keeps
   the label of the source. Without it the
   unit dies with `203/EXEC` (*"Failed to locate executable ... Permission
   denied"*).
 - **The yunos outlive a restart of their agent.** They are in the unit's
-  cgroup, but a stop takes only the agent (`KillMode=process`); the journal
+  cgroup, but a stop takes only the agent (`KillMode=process`). The journal
   says *"Found left-over process"* for them at the next start, which is that
   rule working.
 - **A node built from source** (no package) gets the units by hand, from the
@@ -194,11 +194,11 @@ rotatory_open(): Cannot create '/yuneta/realms/agent/agent/audit' directory, Rea
 rotatory_open(): Cannot create '/yuneta/realms/agent/agent/audit/302-29_10_2026.log' file, Permission denied
 ```
 
-Up to 7.29.3 an `audit` directory that could not be made gave the agent no
-path, and the agent ran with no audit of commands; the only trace was
+Up to 7.29.3 an `audit` directory that the agent failed to make gave the agent no
+path, and the agent ran with no audit of commands. The only trace was
 *"path EMPTY"* in syslog. The path itself is always built: its root
 (`/yuneta`) and domain (`realms/agent/agent`) are in the fixed configuration
-of the agent. If it could not be built, the agent logs one ERROR, *"Command
+of the agent. If it cannot be built, the agent logs one ERROR, *"Command
 audit: the path of the audit file cannot be built, the agent does not run"*,
 with the parts of the path (`root_dir`, `domain_dir`, `subdir`, `filename`),
 and stops the same way.
@@ -256,16 +256,16 @@ lost. With the keys of the packaged file:
   `api_key`, `cookie`, `authorization`, `private_key`, …) is never written:
   its value is `<redacted>`, whatever else the name holds: `api_key_max`,
   `token_mode` and `token_endpoint` are redacted here, while the traces show
-  them (a name ABOUT a credential; `is_secret_name_any()`; up to 7.25.21 the
+  them (a name ABOUT a credential: `is_secret_name_any()`. Up to 7.25.21 the
   record wrote them in clear). So is whatever `mask_secrets_inline()` masks in
   a string, by the same rules and the same function (`mark_secrets_inline()`):
   a JWT or a JWE (two parts or more), the credential after `Bearer` or
   `Basic`, a `name: value` of a secret's name (`X-Auth-Token: x` is
-  `X-Auth-Token: <redacted>`), every word of a password written with blanks;
+  `X-Auth-Token: <redacted>`), every word of a password written with blanks,
   and, stricter than the SDK, the word after `Bearer ` whatever it is. Up to
   7.26.9 the record's JWT was three parts exactly, and a JWE was written in
   clear. Wherever they are: also in the `user`, the hops of
-  `source`, the console purpose and the console name, which come from a peer
+  `source`, the console purpose and the console name, which a peer sends
   (a field of those longer than 1024 bytes is written as its size and
   sha256 only). For example a hop whose user is a JWT and whose host has
   4095 bytes is written `"user":"<redacted>"`,
@@ -290,10 +290,10 @@ lost. With the keys of the packaged file:
 ```
 
 Up to 7.25.4 an `install-binary` of a 32 MB yuno wrote 134 MB (the base64 three
-times); now it writes about 500 bytes.
+times). Now it writes about 500 bytes.
 
 A day that crosses `max_megas_audit_file` (500 MB) continues in `.OLD.1`,
-`.OLD.2`, …; no piece of a day is removed. The attribute `audit_keep_days`
+`.OLD.2` and so on. No piece of a day is removed. The attribute `audit_keep_days`
 (default `7`, `0` = keep all) is the retention: at start, and when a new audit
 file begins (inside the write of its first record, also while the disk is
 below `min_free_disk_percentage`), the agent removes the
@@ -328,7 +328,7 @@ ycommand -c 'dir-store subdirectory=mqtt_broker match=.*\.json'
 
 A tree that cannot be listed -- the directory does not exist, cannot be
 opened or cannot be read, a `match` that is not a regular expression, no
-memory for an entry -- answers `-1`, and says which directory; the cause is
+memory for an entry -- answers `-1`, and says which directory. The cause is
 in the agent's log:
 
 ```text
@@ -349,9 +349,9 @@ with no id deleted every binary, those in use too.
 
 | Command | Deletes | Also |
 |---|---|---|
-| `delete-binary` | a binary record and its directory `/yuneta/repos/<tags>/<role>/<version>`; without `version=`, or with the primary's, **every version** of the id | `version=`, `force=1`, `record_only=1` |
-| `delete-config` | a configuration; without `version=`, or with the primary's, **every version** of the id | `version=`, `force=1` |
-| `delete-yuno` | a release of a yuno, or the yuno; the release of the primary, when there are others, only with `whole=1` | `yuno_release=` or `whole=1` (one of them, not both), `force=1` |
+| `delete-binary` | a binary record and its directory `/yuneta/repos/<tags>/<role>/<version>`, or, without `version=` or with the primary's, **every version** of the id | `version=`, `force=1`, `record_only=1` |
+| `delete-config` | a configuration, or, without `version=` or with the primary's, **every version** of the id | `version=`, `force=1` |
+| `delete-yuno` | a release of a yuno, or the yuno. It deletes the release of the primary, when there are others, only with `whole=1` | `yuno_release=` or `whole=1` (one of them, not both), `force=1` |
 | `delete-realm` | a realm with no yunos | `force=1` |
 | `delete-public-service` | a public service | `force=1` |
 
@@ -418,7 +418,7 @@ ycommand -c 'delete-yuno id=7601 yuno_release=1.1.0-2 whole=1'   # refused: one 
 
 A delete that takes the whole yuno also removes the attributes the yuno saved
 of its own. That is `delete-yuno whole=1`, and `delete-yuno yuno_release=`
-with the yuno's only release (since 7.30.24; up to 7.30.23 only `whole=1`
+with the yuno's only release (since 7.30.24, and up to 7.30.23 only `whole=1`
 removed them). The attributes are the file of the persistent attrs of its
 `C_YUNO`, `<domain_dir>/data/C_YUNO-<yuno_name>-persistent-attrs.json` (its trace
 levels, and what was written to its `__yuno__` with persistence). An INFO
@@ -472,7 +472,7 @@ directory (`ENOTDIR`: then no directory can be at that path). The error is in th
 hand: *"…: 1 binaries deleted, 1 of them with files the agent could not remove
 (see the log): remove them by hand: ["/yuneta/repos/yuneta/utils/emailsender/7.29.2"]"*.
 Up to 7.29.3 a failed removal was not looked at, and the answer said only
-*"1 binaries deleted"*; a directory the agent could not look at was not
+*"1 binaries deleted"*. A directory that the agent failed to look at was not
 removed and was not named.
 
 A delete that the treedb refuses stops there, and the answer names it, with
@@ -624,13 +624,13 @@ chunk of output as up to 7.30.26.
 
 A console has **flow control**. When a route of it (a session, or the link to
 the control center) has `console_pause_tx_queue` messages or more waiting in
-its transport (default `256`; a message carries up to 1 KB of output, about
+its transport (default `256`, and a message carries up to 1 KB of output, about
 2 KB on the wire), or `console_pause_tx_bytes` bytes or more (default
-`1048576`; the transport's `cur_tx_bytes`), the console stops reading its
+`1048576`, measured as the transport's `cur_tx_bytes`), the console stops reading its
 terminal: the process behind it waits on its write,
 as behind an ssh that does not read, and nothing is lost. The console reads
 again when that transport has sent everything (its `EV_TX_READY`). So a
-session that reads slowly gets ALL the output, at its pace; while one route
+session that reads slowly gets ALL the output, at its pace. While one route
 holds the console paused, the other routes wait too.
 
 A route that holds the console paused for `console_pause_timeout` (default
@@ -644,18 +644,18 @@ whom:
 - A route that only **joined** the console always stops the one that opened
   it: a spectator that does not read is taken off at its deadline.
 - The route that **opened** the console stops the others only when another
-  route of it holds no pause and takes its events (it would read). Alone on
+  route of it holds no pause and takes its events (it is ready to read). Alone on
   its console, or with joined routes that hold a pause too, or that take
   nothing now (the link to the control center while it is down), it freezes
   only itself: the console stays paused and its process waits, for as long
-  as the reader is away. A session that leaves takes its console with it;
-  through the control center the link (the route of all its operators) keeps
+  as the reader is away. A session that leaves takes its console with it.
+  Through the control center the link (the route of all its operators) keeps
   its consoles while the control center is away or does not read, and they
   go on when it reads again.
 - A route is judged only for a **whole period in which it stopped another
-  route**. When it starts to stop one -- a session joins the console of a
+  route**. When it starts to stop one (a session joins the console of a
   reader that waits alone, another route releases its pause, the link to the
-  control center comes back -- its period starts again then. So a session
+  control center returns), its period starts again then. So a session
   that joins the console of a reader that is away gives that reader a whole
   `console_pause_timeout` from the join: if the reader still takes nothing,
   it is taken off then (and the console closed, as it opened it), never at
@@ -674,16 +674,16 @@ t=58s   A took nothing since the join: A is taken off, the console closed,
 A transport that took something in the period gets another period, so a
 reader that is merely slow keeps the console. What the agent measures is the
 transport's `txBytes`, the bytes its socket took, counted on every write in
-clear and over TLS; a write ends as the socket's send buffer drains, and the
+clear and over TLS. A write ends as the socket's send buffer drains, and the
 kernel wakes it only when a good part of that buffer (it grows up to 4 MB) is
 free again: a reader must take that much per period. With the default 30 s
-that is some tens of KB/s or more; raise `console_pause_timeout` for slower
+that is some tens of KB/s or more. Raise `console_pause_timeout` for slower
 links.
 
 When the transport of a route **drops its connection** (the link to the
 control center goes down), what it had waiting goes with it, and no drain of
 it will come: the pause of that route is released at once (`EV_DISCONNECTED`
-of the transport). The console runs again; its output for the link is
+of the transport). The console runs again. Its output for the link is
 dropped while the link is down (ONE INFO *"requester gone before its answer,
 answer dropped"*), and it goes up the next connection.
 
@@ -703,7 +703,7 @@ away some 30 s, or when its link stayed down that long.
 `console_max_tx_queue` (default `8192`) and `console_max_tx_bytes` (default
 `33554432`, 32 MB) stay as a hard bound, whatever paused the console: a route
 over either is taken off the same way (same WARNING, with `tx_queue` and
-`tx_bytes`). With flow control a route never gets near them; they are there
+`tx_bytes`). With flow control a route never gets near them. They are there
 for a route with no flow control (a transport that is not a `C_TCP`). `0`
 turns any bound off. Set them in the agent's config, under `global`:
 
@@ -723,8 +723,8 @@ A route keeps only what routes the console's events back of the request
 that opened or joined the console: the stack of its hops
 (`ievent_gate_stack`, where the control center stamps its client's
 connection) and its `__msg_type__`. Any other key of the request's
-`__md_iev__` (a marker of a client) does not come back with the console's
-events; the answer of `open-console` itself still echoes it. Before the fix
+`__md_iev__` (a marker of a client) does not return with the console's
+events. The answer of `open-console` itself still echoes it. Before the fix
 the whole `__md_iev__` was kept and copied into every chunk of output, and
 both bounds counted messages only: a session whose request was padded with
 1 MB made every chunk of 1 KB a message of 1 MB, and held 256 of them (the
@@ -736,14 +736,14 @@ Up to 7.30.26 there was neither: a session that flooded its console and did
 not read grew the agent some 50 MB/s until it aborted (*"REACHED
 MAX_SYSTEM_MEMORY"*), and so did a control center that did not read its link.
 Tests: `tests/c/c_agent_consoles` (a session at 1 MB/s with a small receive
-window gets all of 11 MB; a session alone on its console that does not read
-keeps it, paused; a joined session that does not read is taken off, and so is
-an opener that does not read while a joined session does; a session that
+window gets all of 11 MB. A session alone on its console that does not read
+keeps it, paused. A joined session that does not read is taken off, and so is
+an opener that does not read while a joined session does. A session that
 joins 2.5 s before the deadline of a reader away gets a whole period from the
-join; a request padded with 1 MB keeps the agent under +25 MB),
+join. A request padded with 1 MB keeps the agent under +25 MB),
 `tests/c/c_agent_controlcenter_link` (the control center away 9 s
-keeps its console; a slow TLS link at 30 KB/s keeps it for four deadlines; a
-console paused when the link drops is released and lives; the console of a
+keeps its console. A slow TLS link at 30 KB/s keeps it for four deadlines. A
+console paused when the link drops is released and lives. The console of a
 session that does not read, joined by the control center just before its
 link drops, lives the 10 s the link is down).
 
@@ -786,14 +786,14 @@ where it sent the order:
   `__md_iev__.agent_requester`, which the control center's answer echoes.
   The agent takes `agent_requester` only from an answer that came from the
   link, and it names only a channel of the agent. Up to 7.30.26 a session
-  with a role for the service `agent` only could send an answer to `agent`
+  with a role for the service `agent` only was able to send an answer to `agent`
   naming the link (`agent_requester: controlcenter`), and the agent sent it
   to the control center with its own identity.
 - **To the agent itself.** A reading of a watch (`__md_iev__.agent_watch`)
   and the answer to a `publish-stats` (`__md_iev__.agent_publish`) are taken
   only from the channel of the yuno they name: not from a session, and not
-  from the link of another yuno. Up to 7.30.26 any session could send the
-  watchers a reading of a yuno, or make the agent take a yuno as refusing to
+  from the link of another yuno. Up to 7.30.26 any session was able to send the
+  watchers a reading of a yuno, or to make the agent take a yuno as refusing to
   publish its stats.
 - **The acks of play and pause.** An `EV_PLAY_YUNO_ACK` or
   `EV_PAUSE_YUNO_ACK` is taken only from the channel of a yuno: the yuno it
@@ -820,7 +820,7 @@ where it sent the order:
   the default) keeps its requester, with its session and the launch it
   made, for the answer of the play of that launch. It is taken out at the
   first open of the yuno, whatever comes next: the play of that open
-  answers it, if the session that asked still holds its channel; a yuno
+  answers it, if the session that asked still holds its channel. A yuno
   that does not play by itself (`must_play` false) just drops it. No later
   play answers it: a `play-yuno`, then a relaunch by the watcher after a
   crash, answer nobody but the `play-yuno`'s requester. Up to 7.30.26 a
@@ -884,7 +884,7 @@ link as its channel: `"channel": "C_IEVENT_CLI^controlcenter"`.
 
 A frame cannot choose what the agent reads as its own: `__temp__` (where
 `C_IOGATE` writes the channel a message came in by, a pointer of the
-process) is dropped from every inter-event that comes from outside. Up to
+process) is dropped from every inter-event from outside. Up to
 7.30.26 a session or the control center that sent `"__temp__": [1094795585]`
 in one of the answers or acks above made the agent read that number as a
 gobj, and it died with SIGSEGV.
@@ -915,13 +915,13 @@ The link logs ONE WARNING per session, *"play/pause of the yuno refused:
 only the link to its agent plays or pauses it"*. Up to 7.30.26 the pause
 reached the agent and stopped that same link inside its own action: the
 agent died with SIGSEGV when more bytes came in the same read, or it lived
-with its `1991` and its link closed, and nobody could reach it until it was
+with its `1991` and its link closed, and nobody was able to reach it until it was
 restarted on the node.
 
 ## Tracing a yuno (`trace-on-yuno`, `trace-off-yuno`)
 
 `trace-on-yuno` sets GLOBAL trace levels in the yunos that match, and marks
-them `traced` in `list-yunos`; `trace-off-yuno` resets every global level of
+them `traced` in `list-yunos`. `trace-off-yuno` resets every global level of
 the yunos that match and marks them not traced. The levels are those of
 `set-global-trace`, the same in every yuno (see
 [Debugging](../../../yunos/c/yuno_agent/DEBUGGING.md)), and the agent sends
@@ -951,7 +951,7 @@ ycommand -c 'trace-off-yuno id=3'
 - They reach only a yuno connected to the agent. A yuno that is stopped,
   starting or stopping gets nothing: its saved levels and its `traced` stay as
   they are, and the answer names it. When no yuno is reached the answer is
-  `-1`; when some are, it is `0`, with the rows of those reached. The agent
+  `-1`. When some are, it is `0`, with the rows of those reached. The agent
   logs a WARNING *"yuno not connected to the agent, its trace not changed"*.
 
 ```bash
@@ -990,7 +990,7 @@ watch-yuno-stats stop=1
 
 These lines show the parameters. A watch is accepted only from a client that
 also says, in the kw of the command, that it takes the pushed event
-(`"__relays__": ["EV_YUNO_STATS"]`, see below); `stop=1` needs no marker. So
+(`"__relays__": ["EV_YUNO_STATS"]`, see below). `stop=1` needs no marker. So
 typed in `ycommand`, which cannot take `EV_YUNO_STATS`, a watch is refused, and
 that is the point: ask `stats-yuno` there.
 
@@ -1018,19 +1018,19 @@ A yuno that does not run gets only its `state`. One watch per requester --
 its connection AND the client at the far end of the route, because every web
 client of a control center shares that control center's connection: a new
 call replaces the previous one. The client is told by the hop the agent can
-trust: directly connected, the hop of the agent's own input channel; through
+trust: directly connected, the hop of the agent's own input channel, and through
 a control center, the hop stamped by the control center -- the channel the
 client came in by there (`input_channel`, since 7.25.15: before, two tabs of
 one browser were one requester and shared a watch) and its connection
 (`cc_connection`). Hops deeper in the stack are written by the client as it
 likes and are never read: up to 7.25.20 the agent took the LAST one, so a
-client could add a hop naming another user's watch, and stop or replace it. One yuno may be named with several services
+client was able to add a hop naming another user's watch, and to stop or replace it. One yuno can be named with several services
 (`ids=7501,7501:db_events`), and an id that is not a yuno of this agent no
 longer refuses the whole watch: it is watched, its `state` says `missing`, and
 the answer names it (`data.missing`,
 *"watching 3 yunos every 2000 ms, 1 of them not found here"*). A watch lives `watch_ttl` (60000 ms) unless it
 is asked again: behind a control center the agent never sees a browser leave,
-so the requester renews it (the answer carries the `ttl`; gui_agent renews
+so the requester renews it (the answer carries the `ttl`, and gui_agent renews
 every third of it), and one not renewed goes with *"watch-yuno-stats not
 renewed, expired"* in the agent's log. The readings come ONCE per yuno and
 service however many requesters watch it, at the shortest period asked. Since
@@ -1040,7 +1040,7 @@ one per service, with `watch_ttl` as its ttl, renewed at half of it, and
 stopped when nobody watches that service any more), and only reads them on
 loopback (`stats-yuno` to its own yunos) for the first readings of a new watch
 and for a yuno that refuses it -- one built before 7.28.11 (*"publish-stats
-refused, the agent asks for these stats"*, INFO, once per process); `period` is never
+refused, the agent asks for these stats"*, INFO, once per process). `period` is never
 under the attribute `watch_min_period` (1000 ms), `max_watches` (30)
 bounds the requesters, and `max_watch_ids` (256) the names in one `ids`
 (*"too many yuno ids: 300, max_watch_ids is 256"*). A `max_watch_ids` under 1

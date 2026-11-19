@@ -403,7 +403,7 @@ This function recursively checks all elements in the JSON object, including arra
 
 A NULL `kw` is reported and the function **returns**: it used to log the NULL and then fall through to `json_typeof()` on it, crashing on the very thing it exists to detect.
 
-It recurses, and does not guard against a CYCLE (two nodes of a treedb in each other's hooks), which it walks round for ever; and it logs an ERROR for every fault, and a json trace of each container over the maximum. To ask what a json held by others looks like -- a tranger, as the `check-json` commands do -- use [`json_refcounts_report()`](#json_refcounts_report), which answers and logs nothing.
+It recurses, and does not guard against a CYCLE (two nodes of a treedb in each other's hooks), which it walks round for ever. It also logs an ERROR for every fault, and a json trace of each container over the maximum. To ask what a json held by others looks like -- a tranger, as the `check-json` commands do -- use [`json_refcounts_report()`](#json_refcounts_report), which answers and logs nothing.
 
 ---
 
@@ -425,8 +425,8 @@ json_t *json_refcounts_report(
 | Key | Type | Description |
 |---|---|---|
 | `jn` | `json_t *` | The json to walk. Not owned. |
-| `max_refcount` | `json_int_t` | Report the jsons held more than this many times; `0` (or less) asks only for the corrupted ones. |
-| `max_shown` | `int` | How many faults the report lists with their path; the counts count them all. |
+| `max_refcount` | `json_int_t` | Report the jsons held more than this many times. `0` (or less) asks only for the corrupted ones. |
+| `max_shown` | `int` | How many faults the report lists with their path. The counts count them all. |
 
 **Returns**
 
@@ -445,7 +445,7 @@ A NEW json, `NULL` (and an ERROR) if `jn` is `NULL`:
 }
 ```
 
-`jsons` is how many jsons were walked, each one once (`true`, `false` and `null` are not counted: they are singletons); `fault` is `"over_max"` or `"corrupted"`.
+`jsons` is how many jsons were walked, each one once (`true`, `false` and `null` are not counted: they are singletons). `fault` is `"over_max"` or `"corrupted"`.
 
 **What it costs.** The walk remembers every json it meets and how many times it reached it -- a set of pointers and counts, kept half empty and doubled as it fills: 24 to 48 bytes per json, and up to 72 while it doubles, the old set and the new one held together -- and a frame of 32 bytes per dict or list for its place in the walk (a scalar takes none). Both are kept in chunks (768 KB and 512 KB), so no block grows with the json: `MAX_BLOCK` bounds none of them, the memory of the yuno does. Measured at its peak (7.27.0, the allocators of gbmem wrapped with `gbmem_set_allocators()`, the bytes each caller asks counted, the peak above what was held before the call):
 
@@ -458,7 +458,7 @@ A NEW json, `NULL` (and an ERROR) if `jn` is `NULL`:
 | a dict of 125 000 records of 8 jsons | 1 000 001 | 44.6 MB | 45 bytes |
 | 250 000 nodes held in two indexes | 1 000 003 | 46.1 MB | 46 bytes |
 
-`truncated` is `true` when the walk stopped short, with no memory left for what it remembers -- the gbmem ERROR says why --, and the counts are then of what was walked. Up to 7.26.9 a frame was reserved for EVERY child of a container walked, scalars too, in one block: a list of a million integers asked 32 MB for its frames, more than the default `MAX_BLOCK` (16 MB), and the walk stopped at its root, `truncated` with one json counted (a flat list took 70 to 111 bytes per json below that, measured the same way); the set was one block too, past `MAX_BLOCK` at about half a million jsons. And earlier, only the jsons held more than once were remembered: a cycle held once, its refcounts corrupted below the truth, was walked round until its frames passed `MAX_BLOCK`, and the report did not say it was cut; and a json held by more places than its refcount, once the walk ended, was not reported at all.
+`truncated` is `true` when the walk stopped short, with no memory left for what it remembers -- the gbmem ERROR says why --, and the counts are then of what was walked. Up to 7.26.9 a frame was reserved for EVERY child of a container walked, scalars too, in one block. A list of a million integers asked 32 MB for its frames, more than the default `MAX_BLOCK` (16 MB), and the walk stopped at its root, `truncated` with one json counted (a flat list took 70 to 111 bytes per json below that, measured the same way). The set was one block too, past `MAX_BLOCK` at about half a million jsons. And earlier, only the jsons held more than once were remembered. A cycle held once, its refcounts corrupted below the truth, was walked round until its frames passed `MAX_BLOCK`, and the report did not say it was cut. And a json held by more places than its refcount, once the walk ended, was not reported at all.
 
 ```C
 json_t *c = json_object();
@@ -496,14 +496,14 @@ JSON_DECREF(jn_report)
 
 **Notes**
 
-`check-json` of `C_TRANGER` and of the agent answer with it (since 7.27.0): `json_check_refcounts()` logged an ERROR for every json held more than `max_refcount` times, and with its default `1` that was every node of a treedb -- a reader filled the log. Their `-1` is a FAULT, a corrupted json or a walk cut short; the jsons held more than `max_refcount` times are the answer to what was asked, a `0`.
+`check-json` of `C_TRANGER` and of the agent answer with it (since 7.27.0): `json_check_refcounts()` logged an ERROR for every json held more than `max_refcount` times, and with its default `1` that was every node of a treedb -- a reader filled the log. Their `-1` is a FAULT, a corrupted json or a walk cut short. The jsons held more than `max_refcount` times are the answer to what was asked, a `0`.
 
 ---
 
 (json_nul_fault)=
 ## [`json_nul_fault()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/helpers.c#L6335)
 
-What is wrong with a json that C reads by its strings, as a short phrase, or `NULL` when nothing is. A json decoded with `JSON_ALLOW_NUL` -- every ievent frame is -- carries a string with a NUL in it, and C reads a string up to its first NUL: the id `"dx\u0000evil"` is `"dx"`. Walked at any depth, at most `JSON_PARSER_MAX_DEPTH` (2048) levels, the depth a parser builds and the one jansson dumps or copies; the json of a peer, built by a parser, is walked once.
+What is wrong with a json that C reads by its strings, as a short phrase, or `NULL` when nothing is. A json decoded with `JSON_ALLOW_NUL` -- every ievent frame is -- carries a string with a NUL in it, and C reads a string up to its first NUL: the id `"dx\u0000evil"` is `"dx"`. Walked at any depth, at most `JSON_PARSER_MAX_DEPTH` (2048) levels, the depth a parser builds and the one jansson dumps or copies. The json of a peer, built by a parser, is walked once.
 
 ```C
 const char *json_nul_fault(
@@ -519,7 +519,7 @@ const char *json_nul_fault(
 
 **Returns**
 
-`NULL`, or what is wrong: *"a string with a NUL in it"*, *"a key with a NUL in it"* (a key set by code with `json_object_setn()`; a parser refuses one), or *"a json nested deeper than a parser builds"* (a cycle built with `json_object_set()` is one).
+`NULL`, or what is wrong: *"a string with a NUL in it"*, *"a key with a NUL in it"* (a key set by code with `json_object_setn()`, which a parser refuses), or *"a json nested deeper than a parser builds"* (a cycle built with `json_object_set()` is one).
 
 **Example**
 
@@ -977,8 +977,8 @@ Returns `0` on success, or `-1` if an error occurs.
 
 The file is written in place (truncated and rewritten), not atomically. Every
 failure is logged: a missing directory with `create` `FALSE` as an ERROR
-(*"Cannot save json file, directory not found and not to be created"*); a
-failure to create the directory, or to create, write or **close** the file, as
+(*"Cannot save json file, directory not found and not to be created"*). A
+failure to create the directory, or to create, write or **close** the file, is logged as
 a CRITICAL at `on_critical_error` (with the default it exits). The close is
 checked because a delayed write fails there (`EIO`, `ENOSPC`): since 7.25.5 a
 failed close returns `-1` with *"Cannot close json file, what was written may
@@ -1231,7 +1231,7 @@ json_t *json_config_string2json(
 
 **Returns**
 
-Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fails, or if `bf` is NULL (an ERROR; up to 7.26.9 a SIGSEGV -- the agent's `create-config` of a `content64` that is not base64 reached it).
+Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fails, or if `bf` is NULL (an ERROR. Up to 7.26.9, a SIGSEGV -- the agent's `create-config` of a `content64` that is not base64 reached it).
 
 **Example**
 
@@ -1520,7 +1520,7 @@ static inline size_t json_size(
 
 | Key | Type | Description |
 |---|---|---|
-| `jn` | `const json_t *` | The JSON value whose size is to be determined. May be NULL. |
+| `jn` | `const json_t *` | The JSON value whose size is to be determined. It can be NULL. |
 
 **Returns**
 
@@ -1550,7 +1550,7 @@ static inline BOOL empty_json(
 
 | Key | Type | Description |
 |---|---|---|
-| `jn` | `const json_t *` | The JSON value to test. May be NULL. |
+| `jn` | `const json_t *` | The JSON value to test. It can be NULL. |
 
 **Returns**
 
@@ -1579,7 +1579,7 @@ static inline BOOL json_absent(
 
 | Key | Type | Description |
 |---|---|---|
-| `jn` | `const json_t *` | The JSON value to test. May be NULL. |
+| `jn` | `const json_t *` | The JSON value to test. It can be NULL. |
 
 **Returns**
 

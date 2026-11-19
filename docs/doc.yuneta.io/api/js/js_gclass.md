@@ -178,8 +178,8 @@ if(subscriber) {
 }
 ```
 
-Do not add it to a view that is already hosted: the host would then receive
-every event of the view, and its state machine would have to declare them.
+Do not add it to a view that is already hosted. If you add it, the host receives
+every event of the view, and its state machine must declare them.
 
 When a publication of a child gives *"Event NOT DEFINED in state"*, add the
 event to the state machine of the parent, or make the gobj a service. Never take

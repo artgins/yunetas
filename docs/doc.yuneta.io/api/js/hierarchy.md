@@ -110,11 +110,11 @@ Gives the parent of a gobj.
 
 Moves a gobj to another parent, and gives `0`. A walk of the tree that is in
 progress gives the gobj in its new place, not in its old place (gobj-js
-7.26.28; see [`gobj_walk_gobj_children()`](#js_gobj_walk_gobj_children)).
+7.26.28, see [`gobj_walk_gobj_children()`](#js_gobj_walk_gobj_children)).
 
 It gives `-1` with an ERROR, and moves nothing, when the gobj or the new parent
 is destroyed, when the new parent is not a gobj, or when the new parent is the
-gobj itself or one of its descendants (that makes a cycle; gobj-js 7.26.29).
+gobj itself or one of its descendants (that makes a cycle, gobj-js 7.26.29).
 
 ```javascript
 gobj_change_parent(a, a_child);   // -1: a gobj cannot be its own ancestor
@@ -185,7 +185,7 @@ Finds a gobj from a path, and begins the search at `gobj`.
 ### [`walk_type_t`](https://github.com/artgins/gobj-js/blob/7.31.0/src/gobj.js#L330)
 
 The order the two walks take. One of `WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP` or
-`WALK_BYLEVEL` must be given; with `WALK_BYLEVEL`, add `WALK_FIRST2LAST` or
+`WALK_BYLEVEL` must be given. With `WALK_BYLEVEL`, add `WALK_FIRST2LAST` or
 `WALK_LAST2FIRST`. Same names and same values as the C `walk_type_t`.
 
 (js_gobj_walk_gobj_children)=

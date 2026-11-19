@@ -171,8 +171,8 @@ Abort.
 exit=255
 ```
 
-A refused port says `Connection refused`; a peer that accepts and says
-nothing, `no answer`. Up to 7.30.17 `ycommand` waited for ever, and said
+A refused port says `Connection refused`. A peer that accepts and says
+nothing gives `no answer`. Up to 7.30.17 `ycommand` waited for ever, and said
 nothing without `-l`: the transport retries a failed connection, as every
 client does, and tells its host nothing until one opens.
 
@@ -209,7 +209,7 @@ client does, and tells its host nothing until one opens.
   `view-yuno-config`) with an event of its own (`EV_READ_FILE`,
   `EV_EDIT_CONFIG`, ...), and ycommand writes it under `~/.yuneta/configs/`,
   opens the editor on it, or leaves a `create-config` on the line. It takes
-  one only while a request of those is pending, one answer per request; a
+  one only while a request of those is pending, one answer per request. A
   line counts as a request when the request is its COMMAND: its first word,
   or, of a `command-agent`, the first word of its `cmd2agent`, so
   `command-agent cmd2agent='read-file filename=/etc/hosts'` through a control
@@ -248,7 +248,7 @@ client does, and tells its host nothing until one opens.
   A link left in `~/.yuneta/configs/` under the file's name is not followed:
   the write fails, with an ERROR *"Cannot write the binary file"* naming the
   path, and the exit code is not 0 (up to 7.30.26 it wrote through the link,
-  and a file it could not open was taken for written, with nothing said and
+  and a file it did not open was taken for written, with nothing said and
   exit code 0):
 
   ```bash

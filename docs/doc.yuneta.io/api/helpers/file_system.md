@@ -276,7 +276,7 @@ Up to 7.25.4 the function returned `0` in both cases, with no directory there, a
 
 A `path` of `PATH_MAX` bytes or more is refused: the log is *"Path too long, not created"*, and the function returns `-1`. Up to 7.25.4 the path was cut to `PATH_MAX` without a log, the cut path was created, and the function returned `0`.
 
-**On `-1`, `errno` is the cause**, after the function's own log: the `errno` of the `stat()` or `mkdir()` that failed, `ENOTDIR` for a component that is not a directory, `ENAMETOOLONG` for a path too long, `EINVAL` for an empty one. A caller can log `strerror(errno)` and name the same cause (see [Log](#gobj_log_error): a log leaves `errno` as it found it). Up to 7.25.4 the log in between could change it, and the callers' logs said *"Success"*.
+**On `-1`, `errno` is the cause**, after the function's own log: the `errno` of the `stat()` or `mkdir()` that failed, `ENOTDIR` for a component that is not a directory, `ENAMETOOLONG` for a path too long, `EINVAL` for an empty one. A caller can log `strerror(errno)` and name the same cause (see [Log](#gobj_log_error): a log leaves `errno` as it found it). Up to 7.25.4, the log in between sometimes changed it, and the callers' logs said *"Success"*.
 
 **Example**
 
@@ -540,8 +540,8 @@ This function is typically used in conjunction with [`lock_file()`](#lock_file) 
 
 Copies a file. The destination is made by [`newfile()`](#newfile) with
 `permission`, so its mode is exactly that one. On Linux the kernel copies the
-bytes (`sendfile()`, as many calls as the size takes); elsewhere a read/write
-loop.
+bytes (`sendfile()`, as many calls as the size takes). Elsewhere, a read/write
+loop copies them.
 
 ```C
 int copyfile(

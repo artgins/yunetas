@@ -293,17 +293,17 @@ The function initializes the finite state machine (FSM) and event list for the `
 If the FSM is invalid, the `gclass` is unregistered and `NULL` is returned.
 A command table where a required secret parameter (`SDF_SECRET`, or a
 secret's name) is followed by another required parameter is refused with an
-ERROR (*"A required secret parameter must be the last required one"*): a
-secret written with blanks would spill into the next parameter (see
+ERROR (*"A required secret parameter must be the last required one"*): otherwise, a
+secret written with blanks spills into the next parameter (see
 [command_parser](#command_parser)). Up to 7.25.21 it was accepted.
 
 An attribute flagged [`SDF_SECRET`](#SDF_SECRET) must have a secret's name
 ([`is_secret_name()`](#is_secret_name)), or the gclass is refused: one ERROR,
 *"A SDF_SECRET attribute must have a secret's name: elsewhere than its gclass
 it is masked by its name only"*, with `gclass` and `attribute`, and `NULL`
-(7.27.0+; up to 7.26.9 such a gclass was created). The flag masks the
+(7.27.0+, and up to 7.26.9 such a gclass was created). The flag masks the
 attribute where its gclass is asked (`view-attrs`, `view-config`, the
-`create_delete2` trace); everywhere else a secret is told by its NAME -- the
+`create_delete2` trace). Everywhere else a secret is told by its NAME -- the
 `machine` trace with `ev_kw` of a kw that carries it, a dump of a peer's kw --
 and a secret named `vault` showed there in clear. Not on the ESP32 port
 (`ESP_PLATFORM`), whose code is frozen.

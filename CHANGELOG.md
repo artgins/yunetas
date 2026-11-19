@@ -19,6 +19,12 @@
   ones of tests, performance and stress with a sentence-level pass. Ten
   stale facts found on the way were corrected against the code (see the
   commits).
+- **The docs (doc.yuneta.io and the agent chapters) in plain English**, a
+  sentence-level pass: `check_ste.py` goes from about 2900 hits to 16 on
+  them, the 16 in headings, in link texts that quote a heading, or in
+  quoted text. Headings, labels and links are unchanged. Six paragraphs of
+  the persistent-attrs section of the SDATA guide were indented as a code
+  block and showed as code on the site; they are prose again.
 
 ## v7.31.23 (2026-11-19)
 

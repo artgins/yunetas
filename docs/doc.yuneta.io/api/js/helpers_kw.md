@@ -62,7 +62,7 @@ holds a scalar, the function logs *"kw must be list or dict"* and returns
 `undefined`. A middle segment that is absent or `null` returns `undefined`, and
 logs only when `verbose` is `true`. So a typed reader (`kw_get_int()`,
 `kw_get_str()`, ...) that gets a bad kw returns its default (since gobj-js
-7.25.6; before, a bad kw returned `0` and a `null` middle segment threw a
+7.25.6. Before, a bad kw returned `0` and a `null` middle segment threw a
 `TypeError`):
 
 ```js
@@ -72,7 +72,7 @@ kw_get_int(null, null, "x", 5, 0);   // 5, logged: kw must be list or dict: 'x'
 ```
 
 In a list, a segment is an index: digits only, read as C's `atoi()` reads
-them. Any other segment is not found (since gobj-js 7.26.2; before,
+them. Any other segment is not found (since gobj-js 7.26.2. Before,
 `length` answered the size of the list). C answers item 0 for a segment
 that is not a number.
 
@@ -86,8 +86,8 @@ kw_find_path(null, {a: [1, 2]}, "a`length", false);  // undefined
 
 Deletes the key at a back-tick path, as the C `kw_delete()`: it returns `0`,
 or `-1` with a logged error when the key or its parent is not there, or when
-the last segment would be an item of a list (only a key of a dict is deleted).
-Since gobj-js 7.26.6; before, a missing key answered `0` in silence and a
+the last segment is an item of a list (only a key of a dict is deleted).
+Since gobj-js 7.26.6. Before, a missing key answered `0` in silence and a
 `length` segment threw a `TypeError`.
 
 ```js
@@ -108,7 +108,7 @@ or an array, and an array goes down into each of its elements. It takes no
 
 Writes a value at a back-tick path, and creates the intermediate objects that
 the path needs. It returns `0`, or `-1` with a logged error when `kw` is not an
-object, when the path is empty (as C; since gobj-js 7.26.10 it no longer writes
+object, when the path is empty (as C, and since gobj-js 7.26.10 it no longer writes
 `kw[""]`), or when a middle segment is `null` or a scalar: nothing can be
 created inside one, so the kw is left as it was (C logs and stops there too). A
 typed reader with `KW_CREATE` over such a path answers its default, logged and
@@ -119,8 +119,8 @@ that IS there (a `null`, another type), see their entries below.
 **C differs here**: since SDK 7.26.9 its json readers with `KW_CREATE` return
 NULL when they cannot answer what `kw` holds (a write that fails, a path of
 another type, no kw), because the C default is freed by then (see
-[`kw_get_dict()` in C](../helpers/kwid.md)); in JS nothing is freed, and the
-default comes back.
+[`kw_get_dict()` in C](../helpers/kwid.md)). In JS nothing is freed, and the
+default is returned.
 
 ```js
 const kw = {a: {}};
@@ -184,7 +184,7 @@ kw_get_real(gobj, {x: "1.5"}, "x", "2.5", 0); // 2.5, and logged: a string is no
 ```
 
 With `KW_REQUIRED` a missing key or a value of a different type writes a log
-error; `kw_get_bool()`, `kw_get_int()`, `kw_get_real()` and `kw_get_str()` log
+error. `kw_get_bool()`, `kw_get_int()`, `kw_get_real()` and `kw_get_str()` log
 a value of a different type also without it, as in C (`kw_get_str()` does not
 log a `null` value). In `kw_get_bool()`, `kw_get_dict()`
 and `kw_get_list()`, `KW_CREATE` writes only a default of the right type. In
@@ -214,7 +214,7 @@ back, as a boolean, and writes a log error (*"path MUST BE a json boolean"*)
 with or without `KW_REQUIRED`, as in C. With `KW_WILD_NUMBER` the function also
 reads a number (`0` is false), a string (`"true"` or `"false"` in any case,
 else its decimal integer, as C's `atoi()` reads it: `"0x1F"` is 0, so false)
-and `null` (false), as in C; a list or a dict then gives `false` and a log
+and `null` (false), as in C. A list or a dict then gives `false` and a log
 error (*"path MUST BE a simple json element"*). Before gobj-js 7.25.2 the value
 went through `Boolean()`, so the string `"false"` was true. Before 7.25.3 a
 value of another type gave the default back with no log. Before 7.25.5 the
@@ -239,7 +239,7 @@ does. Any other value gives the default back, as an integer (`parseInt()`), and
 writes a log error (*"path MUST BE a json integer"*) with or without
 `KW_REQUIRED`, as in C. With `KW_WILD_NUMBER` the function also reads a boolean
 (`1` or `0`), a string (as C's `strtoll()` with base 0: `"0x1F"` is 31, `"017"`
-is 15, `"12abc"` is 12, `"abc"` is 0) and `null` (0); a list or a dict then
+is 15, `"12abc"` is 12, `"abc"` is 0) and `null` (0). A list or a dict then
 gives `0` and a log error (*"path MUST BE a simple json element"*).
 `KW_EXTRACT` deletes the key only when the function gives its value back.
 
@@ -269,7 +269,7 @@ Reads a real number. A number is read as it is. Any other value gives the
 default back, as a number (`Number()`), and writes a log error (*"path MUST BE a
 json real"*) with or without `KW_REQUIRED`, as in C. With `KW_WILD_NUMBER` the
 function also reads a boolean (`1` or `0`), a string (as `parseFloat()` reads
-it; `0` when the string does not start with a number) and `null` (0); a list or
+it, or `0` when the string does not start with a number) and `null` (0). A list or
 a dict then gives `0` and a log error (*"path MUST BE a simple json element"*).
 `KW_EXTRACT` deletes the key only when the function gives its value back.
 Before gobj-js 7.25.4 it did not keep these rules, as `kw_get_int()`.
@@ -305,10 +305,10 @@ Before gobj-js 7.25.5 a value of another type was logged only with
 `KW_REQUIRED`, and then a `null` value was logged too.
 
 With `KW_CREATE`, a string default is written into the kw. Any other default
-is written as `null`. With `KW_EXTRACT` only a string is deleted from the kw;
-before gobj-js 7.25.4 the key was deleted before the type check, so a value
+is written as `null`. With `KW_EXTRACT` only a string is deleted from the kw.
+Before gobj-js 7.25.4 the key was deleted before the type check, so a value
 that was not a string was lost. (The C `kw_get_str()` does not extract at all:
-its answer would point into the freed json. A JS string does not have that
+its answer then points into the freed json. A JS string does not have that
 problem.)
 
 ```js
@@ -338,8 +338,8 @@ only with `KW_REQUIRED` (*"path not found"*), never as *"cannot create"* --
 the same as C.
 
 Where C differs (SDK 7.26.9+): C answers NULL, not the default, for a value of
-another type with `KW_CREATE` (the C default is freed by then); C replaces a
-`null` with any non-NULL default, JS only with a dict default; and JS dumps the
+another type with `KW_CREATE` (the C default is freed by then). C replaces a
+`null` with any non-NULL default, JS only with a dict default. And JS dumps the
 kw (`trace_json_masked`) with the *"cannot create"* error, C does not.
 Before gobj-js 7.25.2 the default went through `Object()`, so a `null` default
 came back as `{}`, and a `0` as a `Number` object.
@@ -369,7 +369,7 @@ Reads a value of any type from an object.
 Reads an array. An array found is given back as it is. Anything else gives the
 default back as you gave it. A value of a different type is logged with
 `KW_REQUIRED` (*"path MUST BE a json list"*) and, since gobj-js 7.26.14, with
-`KW_CREATE`; with `KW_CREATE` a `null` at the path is replaced by a list
+`KW_CREATE`. With `KW_CREATE` a `null` at the path is replaced by a list
 default, and with no list default it is a missing key (since 7.26.16) -- as
 [`kw_get_dict()`](#js_kw_get_dict), where the differences with C are listed. Before gobj-js 7.25.2
 the answer went through `Array()`, which **wraps** its argument: a list found
@@ -518,7 +518,7 @@ kw_set_local_storage_value("rect", () => 1);          // -1, nothing stored
 ### [`kw_remove_local_storage_value(key)`](https://github.com/artgins/gobj-js/blob/7.31.0/src/helpers.js#L4103)
 
 Deletes an attribute from the local storage. A store that refuses the removal
-gives a WARNING (7.26.27; before, a message on the console).
+gives a WARNING (7.26.27, and before, a message on the console).
 
 ---
 
@@ -563,7 +563,7 @@ function reads the object at that path first. The function gives the same list
 back for a `kw` that is a list already.
 
 This is the normalizing half of the pair: whatever shape the data arrives in,
-what comes back is the shape a table indexed and sorted by `id` wants.
+what is returned is the shape a table indexed and sorted by `id` wants.
 
 ```js
 kwid_new_list(gobj, {a: {n: 1}, b: {n: 2}});
@@ -572,7 +572,7 @@ kwid_new_list(gobj, {a: {n: 1}, b: {n: 2}});
 
 :::{warning}
 The key WINS over an `id` that disagrees with it, and the record is written in
-place — the function makes no copy. That is the behaviour of the C twin
+place: the function makes no copy. That is the behavior of the C twin
 (`json_object_set_new(v, "id", ...)`) and it is the point: an object keyed by
 `id` whose records disagree with their own key is what this function is for.
 :::

@@ -28,7 +28,7 @@ None.
 
 **Notes**
 
-This function is only effective when `CONFIG_DEBUG_TRACK_MEMORY` is enabled (the Kconfig knob alone; since 7.16.5 it no longer also requires a Debug build type). It logs memory blocks that have not been freed, aiding in debugging memory leaks. On a clean shutdown it emits nothing.
+This function is only effective when `CONFIG_DEBUG_TRACK_MEMORY` is enabled (the Kconfig knob alone: since 7.16.5 it no longer also requires a Debug build type). It logs the memory blocks that are not freed, to help debug memory leaks. On a clean shutdown it emits nothing.
 
 ---
 

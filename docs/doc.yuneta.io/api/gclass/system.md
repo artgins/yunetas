@@ -34,11 +34,11 @@ pushes as its `cpu` kind, read once a second (`timeout_stats`):
 | `disk_size_in_gigas`, `disk_free_percent` | Size and free percent of `/yuneta`. |
 | `disk_min_free_percent`, `disk_min_free_path`, `disk_min_free_size_gigas` | The FULLEST filesystem the yuno writes to: `/yuneta` and the store of each of its `C_TRANGER`s (a queue on a ramdisk, a store on another disk). Its free percent, a path of the yuno on it, its size. Since 7.28.4. |
 
-The filesystems are looked for once a minute (a yuno may have thousands of
+The filesystems are looked for once a minute (a yuno can have thousands of
 stores, on a handful of devices), and each is measured at every reading.
 Before 7.28.4 a yuno told only of `/yuneta`: the queues of a simulator filled
 a ramdisk (`/mnt/ramdisk`) while `/yuneta` had room, and each simulator died on
-a message it could not save. Example, from `stats-yuno`:
+a message it failed to save. Example, from `stats-yuno`:
 
 ```json
 {"cpu": 12, "uptime": 86400, "mem_rss_kb": 5324,
@@ -76,12 +76,12 @@ ended"* and its reason -- when its `ttl` passes without a new call (`0` or
 `-1`: never), when the requester is no more, when the requester's link (a
 `C_IEVENT_CLI`) leaves its session, when the service is gone, or when the
 service is itself a link (a `C_IEVENT_CLI` or `C_IEVENT_SRV`) out of its
-session, which would answer every period with -1 *"not in session"* and a
-WARNING; `stop=1` ends it at once. The requester must be a service (it is found again by name
-at each publication); `period` is never under `timeout_periodic`, and a yuno
+session, which otherwise answers every period with -1 *"not in session"* and a
+WARNING. `stop=1` ends it at once. The requester must be a service (it is found again by name
+at each publication). `period` is never under `timeout_periodic`, and a yuno
 keeps at most 64 publications. Refused: a service that does not exist
 (*"Service not found"*), a requester that is not a service, a `stats_service`
-longer than `NAME_MAX` (no service is named so; *"stats_service too long"*,
+longer than `NAME_MAX` (no service is named so, and the answer is *"stats_service too long"*,
 with `stop=1` too).
 
 | Parameter | Meaning |
@@ -89,7 +89,7 @@ with `stop=1` too).
 | `stats_service` | The service whose stats are sent: `__yuno__` for the yuno's own, empty for the default service. |
 | `stats` | Which stats, as in a stats request (empty: all). |
 | `period` | Milliseconds between two (default `2000`). |
-| `ttl` | Milliseconds it lives unless asked again; `0` or `-1`, no automatic end. Absent: the attribute `publish_stats_ttl` (`60000`, writable). |
+| `ttl` | Milliseconds it lives unless asked again. `0` or `-1`: no automatic end. Absent: the attribute `publish_stats_ttl` (`60000`, writable). |
 | `stop` | End this requester's publication of that service. |
 
 Test: `tests/c/c_yuno_publish_stats`.
@@ -102,15 +102,15 @@ Test: `tests/c/c_yuno_publish_stats`.
 | `view-services` / `view-top-services` | List services. |
 | `view-gobj` / `view-gobj-tree` | Inspect the gobj tree. |
 | `enable-gobj` / `disable-gobj` | Enable or disable a gobj. |
-| `write-attr` / `view-attrs` / `attrs-schema` | Read/write gobj attributes. `write-attr gobj_name=<g> attribute=<a> value=<text>`: the value is TEXT, read as the type of the attribute exactly as the parser reads a parameter of that type ([`command_parameter_from_text()`](<#command_parameter_from_text>)): a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or an integer, an integer or a real of the JSON grammar with nothing before or after it and in its range (`value=007`, `+5` and `.5` are refused since 7.27.0), a dict or a list as its json (`value={"a":1}`, `value=[1,2]`), a json as its json or else the text itself (`value=word` is the string `"word"`). A text that does not read as one is refused and nothing is written: `-1` *"\<gobj>: attr 'debug' takes a boolean (true/false, yes/no, on/off, or an integer), not a text that does not read as one"*. No refusal of write-attr repeats the value -- it may be a secret's. A value with blanks is written quoted (`value='correct horse battery'`): unquoted, the words after the first are extra text, which the command parser refuses, and it does not repeat them when the line carries a secret (`attribute=password value=correct horse battery` answers *"... extra parameters: '<...>'"*; up to 7.26.9 it answered `'horse battery'`), see [`command_mask_secret_line()`](<#command_mask_secret_line>). A pointer attr is refused (*"is a pointer: no command writes it"*). Since 7.27.0: `atoi()` and `strtoll()` wrote `value=yes` as FALSE, `abc` as 0 and `12abc` as 12; a json attr refused a bare word and echoed the value it refused, a secret's too; a dict or a list answered *"Can't write attr"*. |
-| `set-global-trace` / `set-gclass-trace` / `set-gobj-trace` | Configure trace levels. `level` is the name of a level (or its bitmask in digits); `set` takes `1`/`true`/`set`/`yes`/`on` to set and `0`/`false`/`reset`/`no`/`off` to reset, as text (a number written as a JSON integer: `set=+1` and `set=01` are refused) or as json: `command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=C_TCP level=traffic set=1`, or `{"gclass": "C_TCP", "level": "traffic", "set": true}` from a GUI. Anything else answers `-1` *"\<role^name>: bitmask set or re-set?"* (since 7.27.0: it was read as text by `atoi()`, so `set=yes` was a RESET, and a GUI's `set: 1` was refused as no text). The same `set` in `set-global-no-trace`, `set-gclass-no-trace`, `set-gobj-no-trace` and `set-trace-filter`. |
+| `write-attr` / `view-attrs` / `attrs-schema` | Read/write gobj attributes. `write-attr gobj_name=<g> attribute=<a> value=<text>`: the value is TEXT, read as the type of the attribute exactly as the parser reads a parameter of that type ([`command_parameter_from_text()`](<#command_parameter_from_text>)): a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or an integer, an integer or a real of the JSON grammar with nothing before or after it and in its range (`value=007`, `+5` and `.5` are refused since 7.27.0), a dict or a list as its json (`value={"a":1}`, `value=[1,2]`), a json as its json or else the text itself (`value=word` is the string `"word"`). A text that does not read as one is refused and nothing is written: `-1` *"\<gobj>: attr 'debug' takes a boolean (true/false, yes/no, on/off, or an integer), not a text that does not read as one"*. No refusal of write-attr repeats the value, because it can be a secret's. A value with blanks is written quoted (`value='correct horse battery'`): unquoted, the words after the first are extra text, which the command parser refuses, and it does not repeat them when the line carries a secret (`attribute=password value=correct horse battery` answers *"... extra parameters: '<...>'"*. Up to 7.26.9, it answered `'horse battery'`), see [`command_mask_secret_line()`](<#command_mask_secret_line>). A pointer attr is refused (*"is a pointer: no command writes it"*). Before 7.27.0, `atoi()` and `strtoll()` wrote `value=yes` as FALSE, `abc` as 0 and `12abc` as 12. A json attr refused a bare word and echoed the value it refused, a secret's too. A dict or a list answered *"Can't write attr"*. |
+| `set-global-trace` / `set-gclass-trace` / `set-gobj-trace` | Configure trace levels. `level` is the name of a level (or its bitmask in digits). `set` takes `1`/`true`/`set`/`yes`/`on` to set and `0`/`false`/`reset`/`no`/`off` to reset, as text (a number written as a JSON integer: `set=+1` and `set=01` are refused) or as json: `command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=C_TCP level=traffic set=1`, or `{"gclass": "C_TCP", "level": "traffic", "set": true}` from a GUI. Anything else answers `-1` *"\<role^name>: bitmask set or re-set?"* (since 7.27.0: it was read as text by `atoi()`, so `set=yes` was a RESET, and a GUI's `set: 1` was refused as no text). The same `set` in `set-global-no-trace`, `set-gclass-no-trace`, `set-gobj-no-trace` and `set-trace-filter`. |
 | `reset-all-traces` / `set-deep-trace` | Trace management. The `set` of `set-deep-trace` and `set-machine-format` is a number, the level or the format (`set` / `true` are `1`, `reset` / `false` are `0`). |
 | `info-global-trace` | Show trace configuration. |
 | `view-config` | Show yuno configuration. |
 | `info-mem` | Memory usage info. |
 | `publish-stats` | Send the stats of a service to the requester every period, see [above](#c_yuno_publish_stats). |
-| `info-cpus` / `info-ifs` / `info-os` | System information. `info-ifs` gives each interface its `mac`, and `up` / `running` / `loopback` (7.31.21+); `info-os` adds `os`, the distribution ([`get_os_info()`](<#get_os_info>)). |
-| `info-machine` | The machine at once (7.31.21+): `os`, `cpu` (`model`, `logical_cpus`), `memory` (`total`, `available`, `swap_total`, `swap_free`), `disks` (each block device at the first place it is mounted: `device`, `mountpoint`, `fstype`, `size`, `used`, `available`, `use_percent`; squashfs left out), `ifs` (as `info-ifs`) and `uptime` (`seconds`, `boot_date`). Sizes in bytes. A part that cannot be read is null, and logged. Of a node, through its control center: `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
+| `info-cpus` / `info-ifs` / `info-os` | System information. `info-ifs` gives each interface its `mac`, and `up` / `running` / `loopback` (7.31.21+). `info-os` adds `os`, the distribution ([`get_os_info()`](<#get_os_info>)). |
+| `info-machine` | The machine at once (7.31.21+): `os`, `cpu` (`model`, `logical_cpus`), `memory` (`total`, `available`, `swap_total`, `swap_free`), `disks` (each block device at the first place it is mounted: `device`, `mountpoint`, `fstype`, `size`, `used`, `available`, `use_percent`, with squashfs left out), `ifs` (as `info-ifs`) and `uptime` (`seconds`, `boot_date`). Sizes in bytes. A part that cannot be read is null, and logged. Of a node, through its control center: `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
 | `info-uptime` | Uptime and boot date of the machine, and uptime and start date of this yuno. |
 | `info-inotify` | inotify limits (`/proc/sys/fs/inotify/*`) plus this yuno's own usage (instances + watches). |
 | `list-allowed-ips` / `add-allowed-ip` | IP access control. |
@@ -125,7 +125,7 @@ event loop the shutdown stops, so the handler only arms a timer and the
 periodic action does the dying (up to one `timeout_periodic`, 1 s by default).
 
 It exits with code **0**, so the ydaemon watcher does **not** relaunch the
-yuno — asking for a shutdown and getting a restart would be a surprise. To
+yuno. The caller asked for a shutdown, not for a restart. To
 start it again, use the agent (`run-yuno`).
 
 Like every `SDF_AUTHZ_X` command, its per-command authz check only runs where
@@ -218,7 +218,7 @@ One event per change the watcher reports, `path` being the directory and
 | directory created / deleted (`FS_SUBDIR_CREATED_TYPE`, `FS_SUBDIR_DELETED_TYPE`) | `EV_FS_CHANGED` |
 | file created / deleted / modified (`FS_FILE_CREATED_TYPE`, `FS_FILE_DELETED_TYPE`, `FS_FILE_MODIFIED_TYPE`) | `EV_FS_CHANGED` |
 | rename (`FS_FILE_RENAME_TYPE`, not reported by the watcher today) | `EV_FS_RENAMED` |
-| events lost (`FS_OVERFLOW_TYPE`) | `EV_FS_CHANGED` once, for the watched root (`filename` empty); the rescan pass that follows publishes nothing |
+| events lost (`FS_OVERFLOW_TYPE`) | `EV_FS_CHANGED` once, for the watched root (`filename` empty). The rescan pass that follows publishes nothing |
 
 A host creates it as its child and declares both events in its FSM: a
 `C_FS` subscribes its parent (or the gobj in `subscriber`) by itself, the
@@ -247,7 +247,7 @@ theirs.
 itself (`FS_FLAG_RECURSIVE_PATHS`). Up to 7.25.20 a recursive `C_FS` also
 added a recursive watcher for each subdirectory it found at start, each with
 its own inotify fd, so a change N levels down was published N+1 times (a file
-created in `a/b/` three times); and every watcher recursed, so `recursive: 0`
+created in `a/b/` three times). Also, every watcher recursed, so `recursive: 0`
 reported the subdirectories too. With `"recursive", 0`:
 
 ```C
@@ -289,14 +289,14 @@ read as an `EV_TTY_DATA`. A host that sends that output on (the agent sends
 it to the sessions of a console) can stop the reading while it has too much
 to send, with the same contract as `C_TCP`'s `rx_paused`:
 
-- written `TRUE`: no more reads are started. The read in flight still ends
+- Written `TRUE`: no more reads are started. The read in flight still ends
   and publishes its data (written inside an `EV_TTY_DATA`, nothing more
   comes). The terminal's buffer then fills and the process blocks on its
-  write, as behind an ssh that does not read: nothing is lost;
-- written `FALSE`: the read held by the pause starts again. A resume while a
-  read is still in flight starts nothing;
-- a stop while paused ends at once (`EV_TTY_CLOSE`, the process killed);
-- created with `rx_paused` `TRUE`, it reads nothing until it is resumed.
+  write, as behind an ssh that does not read: nothing is lost.
+- Written `FALSE`: the read held by the pause starts again. A resume while a
+  read is still in flight starts nothing.
+- A stop while paused ends at once (`EV_TTY_CLOSE`, the process killed).
+- Created with `rx_paused` `TRUE`, it reads nothing until it is resumed.
 
 ```c
 gobj_write_bool_attr(pty, "rx_paused", TRUE);   // the output has nowhere to go now
@@ -304,7 +304,7 @@ gobj_write_bool_attr(pty, "rx_paused", TRUE);   // the output has nowhere to go 
 gobj_write_bool_attr(pty, "rx_paused", FALSE);  // it drained: read again
 ```
 
-Up to 7.30.26 there was no way to stop the reading, and a host that could not
+Up to 7.30.26 there was no way to stop the reading, and a host that was not able to
 send the output on as fast had to keep it all. A `C_PTY` that is not volatile
 published `EV_STOPPED` at its stop without declaring it (an ERROR *"event NOT
 in output event list"*). Test: `tests/c/c_pty_flow_control`.
@@ -358,8 +358,8 @@ longer than one datagram in pieces, the NUL after the last one).
 | Property | Value |
 |----------|-------|
 | **States** | `ST_IDLE` |
-| **Input events** | `EV_SEND_MESSAGE` (a gbuffer to send: to its address, or, with none, to the known peer its label names -- see *Answer a peer*), and from its `C_UDP_S`: `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED`; `EV_TIMEOUT_PERIODIC` from its timer, `EV_TIMEOUT` from its restart timer |
-| **Output events** | `EV_ON_OPEN` (a new channel), `EV_ON_MESSAGE` (a whole frame, its gbuffer in the kw, without the NUL; the gbuffer carries its peer as label and address), `EV_ON_CLOSE` (a channel with no datagram for `seconds_inactivity`) |
+| **Input events** | `EV_SEND_MESSAGE` (a gbuffer to send: to its address, or, with none, to the known peer its label names -- see *Answer a peer*), and from its `C_UDP_S`: `EV_RX_DATA`, `EV_TX_READY`, `EV_STOPPED`. Also `EV_TIMEOUT_PERIODIC` from its timer, and `EV_TIMEOUT` from its restart timer |
+| **Output events** | `EV_ON_OPEN` (a new channel), `EV_ON_MESSAGE` (a whole frame, its gbuffer in the kw, without the NUL, and the gbuffer carries its peer as label and address), `EV_ON_CLOSE` (a channel with no datagram for `seconds_inactivity`) |
 
 A channel is keyed by the PEER of the datagram, the label `C_UDP_S` writes in
 the gbuffer (`"ip:port"`). So the pieces of the frames of two peers never mix,
@@ -402,11 +402,11 @@ The gbuffer of an `EV_ON_MESSAGE` carries its peer twice: as its LABEL
 (`gbuffer_getlabel()`, `"ip:port"`, the name of its channel) and as its
 ADDRESS (`gbuffer_getaddr()`). `EV_SEND_MESSAGE` takes either:
 
-- a gbuffer with an address (`gbuffer_setaddr()`) goes to that address,
-  whatever its label;
-- a gbuffer with NO address goes to the known peer its label names -- a
-  channel that is open, whose address is taken;
-- with neither, it is refused: an ERROR, *"EV_SEND_MESSAGE without a peer: no
+- A gbuffer with an address (`gbuffer_setaddr()`) goes to that address,
+  whatever its label.
+- A gbuffer with NO address goes to the known peer its label names: a
+  channel that is open, whose address is taken.
+- With neither, it is refused: an ERROR, *"EV_SEND_MESSAGE without a peer: no
   address, and its label names no known peer; dropped"*, and the event answers
   -1.
 
@@ -429,13 +429,13 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 ```
 
 Up to 7.25.4 a frame carried neither its peer's label nor its address, so no
-host could answer the peer of a frame; and `EV_SEND_MESSAGE` looked the
+host was able to answer the peer of a frame. Also, `EV_SEND_MESSAGE` looked the
 channel up by the label and did not use it: a send by address (the documented
 way) logged *"UDP channel NOT FOUND"* for every datagram, and a send by label
 had no address: the kernel refused the datagram (`EINVAL`), and `C_UDP_S` took
 that for a disconnection and stopped, reading too.
 The label contract is the original one (the pre-v7 `C_UDP_S` sent to the
-`"ip:port"` of the label); the address is how `C_UDP_S` sends since v7.
+`"ip:port"` of the label). The address is how `C_UDP_S` sends since v7.
 `tests/c/c_udp_s_rx`, case 5.
 
 ### When its C_UDP_S stops by itself
@@ -445,20 +445,20 @@ memory for the next read, a socket error): it logs the cause as an ERROR and
 publishes `EV_STOPPED` -- while it still RUNS, which is how `C_GSS_UDP_S`
 tells it from a stop made from outside. `C_GSS_UDP_S` then:
 
-- says it once: *"UDP server stopped by itself, it is started again after a
-  backoff"*, WARNING, with `backoff_ms`;
-- starts the `C_UDP_S` again after that backoff, and says *"UDP server
+- Says it once: *"UDP server stopped by itself, it is started again after a
+  backoff"*, WARNING, with `backoff_ms`.
+- Starts the `C_UDP_S` again after that backoff, and says *"UDP server
   started again"*, INFO, with `tx_dropped`, the sends refused meanwhile --
   only when it LISTENS (its `listening` attr). A start whose listen fails (its
   port held by another socket) exits the yuno with code 0 (`exitOnError`, the
-  default); with `exitOnError` false it is said and tried again by the
+  default). With `exitOnError` false, it is said and tried again by the
   `C_UDP_S` (*"yev_create_accept_event() FAILED"*, ERROR, then *"UDP
-  listening ..."* when it listens); up to 7.30.18 *"UDP server started
+  listening ..."* when it listens). Up to 7.30.18, *"UDP server started
   again"* came too, for a server that did not listen. The
   backoff is `timeout_base` first, and DOUBLES (up to 5 minutes) each time
   the `C_UDP_S` stops again, or cannot start (*"UDP server cannot start
   again, it is tried again after a backoff"*), within a minute of the last
-  try; a restart that holds a minute sets it back to `timeout_base`. A
+  try. A restart that holds a minute sets it back to `timeout_base`. A
   failure that persists is said a few times an hour, not at every tick. A
   `C_UDP_S` that cannot start at the first start of the `C_GSS_UDP_S` takes
   the same path (*"UDP server cannot start, it is tried again after a
@@ -468,7 +468,7 @@ A send is refused whenever the `C_UDP_S` is not in `ST_IDLE`: stopped, or
 still stopping (`ST_WAIT_STOPPED`, while a send of its own is in flight, the
 window before its `EV_STOPPED`). The event answers -1, and ONE warning is
 logged per stop, *"EV_SEND_MESSAGE while the UDP server is stopped,
-dropped"*, with `udp_state`; the count comes with the restart, or, if the
+dropped"*, with `udp_state`. The count comes with the restart, or, if the
 `C_GSS_UDP_S` is stopped first, with its stop (*"UDP server stops with sends
 refused while it was stopped"*, `tx_dropped`). After a restart whose listen
 failed (`exitOnError` false), the sends are refused until the `C_UDP_S`
@@ -494,10 +494,10 @@ Its own stop (`gobj_stop()` of the `C_GSS_UDP_S`) stops the `C_UDP_S` too, and
 that `EV_STOPPED` is its end, not a restart. A start that comes while that stop still
 waits (a stop and a start in the same turn, the read of the `C_UDP_S` still
 being canceled) starts the `C_UDP_S` when its `EV_STOPPED` comes, on the next
-cycle of the loop (`EV_START_UDP_SERVER`): starting it at once would find it
+cycle of the loop (`EV_START_UDP_SERVER`). Otherwise, a start at once finds it
 still holding its socket.
 
-A `timeout_base` of 0 or less would arm no timer at all: no peer forgotten
+If it is used, a `timeout_base` of 0 or less arms no timer at all: no peer forgotten
 after `seconds_inactivity`, and no base for the backoff. It is refused at the
 create with a WARNING (*"timeout_base <= 0 would arm no timer ..."*), and the
 default `5000` is used (and written back to the attribute):
@@ -510,8 +510,8 @@ json_t *kw_gss = json_pack("{s:s, s:i}",
 hgobj gss = gobj_create("logs", C_GSS_UDP_S, kw_gss, gobj);
 ```
 
-Up to 7.25.20 the `EV_STOPPED` was taken with no action: the service could
-not receive again, and every send reached a stopped `C_UDP_S` and logged
+Up to 7.25.20 the `EV_STOPPED` was taken with no action: the service was not able
+to receive again, and every send reached a stopped `C_UDP_S` and logged
 *"Event NOT DEFINED in state"*. `tests/c/c_gss_udp_s_self_stop`.
 
 ### Key attributes
@@ -519,7 +519,7 @@ not receive again, and every send reached a stopped `C_UDP_S` and logged
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `url` | `string` | UDP listening URL. |
-| `timeout_base` | `integer` | Period of the inactivity check, and first delay of a restart of the `C_UDP_S`, in milliseconds (default `5000`; `<= 0` is refused with a warning and the default used). |
+| `timeout_base` | `integer` | Period of the inactivity check, and first delay of a restart of the `C_UDP_S`, in milliseconds (default `5000`, and `<= 0` is refused with a warning and the default used). |
 | `seconds_inactivity` | `integer` | Seconds without a datagram before a channel is closed (default `300`). |
 | `disable_end_of_frame` | `bool` | Publish every datagram as it comes (`EV_ON_MESSAGE` with the `EV_RX_DATA` kw), without joining until a NUL. |
 | `max_channels` | `integer` | Peers held at once (default `1024`, `0` no limit). A datagram of a new peer beyond it is dropped. |
@@ -534,14 +534,14 @@ frame for `seconds_inactivity`. So three caps bound it:
 
 | Cap | When it is reached | Logged |
 |-----|--------------------|--------|
-| `max_channels` | the datagrams of a NEW peer are dropped; the peers held go on | once, *"Too many peers, datagrams of new peers dropped"*, and again only after a peer has gone |
+| `max_channels` | the datagrams of a NEW peer are dropped, but the peers held go on | once, *"Too many peers, datagrams of new peers dropped"*, and again only after a peer has gone |
 | `max_frame_size` | what came is delivered cut, and a new frame begins | *"Frame without end within max_frame_size, delivered cut"*, at most once per 10 s, with the count |
 | `max_pending_bytes` | the datagram is dropped, with the unfinished frame of its peer | *"Too many bytes in unfinished frames, ..."*, at most once per 10 s, with the count |
 
 The buffer of a frame starts at 4 KB and doubles as bytes come, up to
-`max_frame_size`. A buffer of 1 MB from the first byte of each peer, with no
-cap on the peers, would let a sender of one-byte datagrams from many source
-ports take logcenter to its memory ceiling. (Up to 7.25.4 every peer shared
+`max_frame_size`. If each peer got a buffer of 1 MB from its first byte, with no
+cap on the peers, a sender of one-byte datagrams from many source
+ports can take logcenter to its memory ceiling. (Up to 7.25.4 every peer shared
 one channel, and the corrupt joins above were the price.) `tests/c/c_udp_s_rx`,
 case 4.
 

@@ -27,7 +27,7 @@ CPU core and exchanging events between them.
 Every operation is submitted to the kernel as soon as it is prepared. When
 the submission queue has no free entry, the loop first flushes it
 (`io_uring_submit()`) and asks again. When the kernel still takes nothing
-(`io_uring_enter()` fails; on an older kernel a CQ overflow answers
+(`io_uring_enter()` fails, or, on an older kernel, a CQ overflow answers
 `EBUSY` until the completions are reaped), the submission is **kept** by
 the loop, and one WARNING says it: *"Submission queue full and the kernel
 takes nothing: kept for the next cycle"* (with `ret` and `sret`, the
@@ -80,21 +80,21 @@ canceled"* (with `fd` and `type`). What the kernel already has is not
 touched: the kernel holds its own reference to the file. Without memory for
 that completion the submissions are dropped all the same, with an ERROR
 (*"...: dropped, the event will not complete"*): an event that waits is
-better than bytes sent to another file. Handed to the kernel later, they
-would run on whatever file had taken the number: the bytes of an old
-connection would go to a new peer, and the write callback would say they
-were sent. (7.25.4 kept no submission; an entry that a failed submit left in
+better than bytes sent to another file. If they are handed to the kernel later, they
+run on whatever file took the number: the bytes of an old
+connection go to a new peer, and the write callback says they
+were sent. (7.25.4 kept no submission, and an entry that a failed submit left in
 the queue went to the kernel at the next submit that worked, on whatever
 file had the number by then.)
 
 The owner of a submission is read from the entry itself: its `fd` and its
 event (`user_data`). An entry of the ring that the loop has handed out but
 not yet prepared already sits between the head and the tail of the queue,
-and the kernel does not clear a slot it has read: it would still name the
+and the kernel does not clear a slot it has read: it still names the
 file and the event of the LAST operation of that slot. So every entry the
 loop hands out is cleared of both (`fd` -1, no event) before it is
 prepared, and the stop of a `RUNNING` timer or connect prepares its cancel
-before it closes the fd. A scan made in between would otherwise "take back"
+before it closes the fd. Without this, a scan made in between can "take back"
 an old event that has nothing untaken -- an extra `STOPPED` callback, a
 wrong count of its completions, and, if that event was already freed, a
 completion on freed memory. Every yuno wraps its ring (2400 entries) and
@@ -126,7 +126,7 @@ In 7.25.4 and earlier, a full queue ended the process at each of the 12
 places that ask for an entry: 10 used the NULL entry (a crash), and 2
 logged *"io_uring_get_sqe() FAILED"* and aborted. An entry left in the
 queue by a failed submit waited for the next submit that worked, which
-could be never. The answer is `-1` now only when there is no memory to keep
+possibly never came. The answer is `-1` now only when there is no memory to keep
 the submission: a CRITICAL *"No memory to keep a submission"*, then an
 ERROR of the caller that says what did not happen (*"No memory to keep a
 submission: event NOT started"*, *"...: timer NOT started"*, *"...:
@@ -161,7 +161,7 @@ another event kept, and in the queue).
 
 A sendmsg event ([`yev_create_sendmsg_event()`](<#yev_create_sendmsg_event>),
 used by `C_UDP_S`) is sent with `io_uring_prep_sendmsg_zc()`. The kernel
-may not copy the data: it reads the buffer of the event until the datagram
+can skip the copy of the data: it reads the buffer of the event until the datagram
 is transmitted. So one send gives **two** completions:
 
 | Completion | `res` | Flag | Meaning |
@@ -277,7 +277,7 @@ yev_start_event(yev_reading);
 ```
 
 In 7.25.4 and earlier the stop released the gbuffer at once, for every
-type of event. Its memory could be freed and used again while the kernel
+type of event. So its memory was free for reuse while the kernel
 still had the read or the write.
 
 The test is `tests/c/yev_loop/yev_events/test_yevent_stop_in_flight.c`.
@@ -305,12 +305,12 @@ first:
 - A zero-copy send that had its result and waits for its notification is
   the exception. The notification cannot be canceled: it comes when the
   kernel frees the packet (a packet waiting for an ARP resolution that
-  fails is held about 3 seconds), and until then the kernel may read the
+  fails is held about 3 seconds), and until then the kernel can read the
   gbuffer. While one waits, the loop reaps for up to 5 seconds in all.
   If it still has not come, the event is **not** freed: it is left to the
   end of the process, with a WARNING *"Loop destroyed with zero-copy sends
   whose notification did not come: NOT freed, the kernel may still read
-  their gbuffer"* (with `events`). A freed gbuffer, reused, would be sent
+  their gbuffer"* (with `events`). If freed and reused, the gbuffer is sent
   with whatever was written into it.
 - When the submission queue has no entry for that cancel (full, and the
   kernel takes nothing), the loop says so before it waits: *"Submission
@@ -333,7 +333,7 @@ In 7.25.4 and earlier, an event destroyed while the loop ran, whose
 completion did not come before the loop ended (a callback broke the loop,
 a zero-copy notification was late), was never freed: a leak of the event
 and its gbuffer. And an event destroyed after the loop ended was freed at
-once, while the kernel could still have its read or its write.
+once, while the kernel possibly still had its read or its write.
 
 The test is `tests/c/yev_loop/yev_events/test_yevent_loop_end_drain.c`.
 
@@ -393,7 +393,7 @@ In 7.25.4 and earlier the address was a `struct sockaddr` (16 bytes) in
 `sock_info_t` and in the gbuffer, and a sendmsg event always gave the
 kernel 16 bytes. An accept or connect event refused an IPv6 address, a
 received IPv6 peer was cut to 16 bytes, and the kernel refused a reply to
-it (`-EINVAL`). So `C_UDP_S` could not answer an IPv6 peer.
+it (`-EINVAL`). So `C_UDP_S` was not able to answer an IPv6 peer.
 
 The test is `tests/c/yev_loop/yev_events/test_yevent_udp_ipv6.c`.
 
@@ -493,7 +493,7 @@ failed, or `0` when it failed elsewhere (the url, the resolution). `EADDRINUSE`,
 the address taken, is logged as a WARNING with no stack and every other
 failure as an ERROR: whether a taken address is an error is the caller's to
 say ([`C_TCP_S`](#gclass-c-tcp-s) tries again for `listen_retry_msec`). Up to
-7.27.3 `errno` could be the one of the log written on the way out.
+7.27.3 `errno` was sometimes the one of the log written on the way out.
 
 ---
 
@@ -534,7 +534,7 @@ Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on 
 
 The host is resolved in the family of the destination address. In 7.25.4 a non-empty `src_url` was never parsed: a dynamic build failed the connect with *"getaddrinfo() src_url FAILED"*, and a static one bound the socket to the loopback address with a port of the kernel's choice, whatever the `src_url` said.
 
-A destination name can resolve to several addresses (`localhost` is `::1` and `127.0.0.1`). An address in whose family the `src_url` has no address (a src `127.0.0.1` and the destination `::1`) is skipped silently, and the next address is tried; only when no address is left is it an ERROR, *"Cannot get addr to connect"*, with the `src_url`.
+A destination name can resolve to several addresses (`localhost` is `::1` and `127.0.0.1`). An address in whose family the `src_url` has no address (a src `127.0.0.1` and the destination `::1`) is skipped silently, and the next address is tried. Only when no address is left is it an ERROR, *"Cannot get addr to connect"*, with the `src_url`.
 
 ```C
 // localhost is [::1] first here: the IPv6 address is skipped, the connect goes to 127.0.0.1
@@ -780,7 +780,7 @@ The returned string corresponds to one of the predefined event states.
 completion of `yev_event` that the loop has not delivered yet: it is in the
 completion ring, behind the one being delivered. The ring is looked at, not
 consumed. Between two turns of the loop the kernel completes an operation at
-any return to user space, so what a read took from its file may already be
+any return to user space, so what a read took from its file can already be
 out of the file and not yet in the owner's hands.
 
 ```C
@@ -795,7 +795,7 @@ int yev_get_waiting_completion(
 | Key | Type | Description |
 |---|---|---|
 | `yev_event` | `yev_event_h` | The event whose completion is looked for. |
-| `result` | `int *` | Filled with the result of the completion found (a read: the bytes it took). May be `NULL`. |
+| `result` | `int *` | Filled with the result of the completion found (a read: the bytes it took). Can be `NULL`. |
 
 **Returns**
 
@@ -919,7 +919,7 @@ This function does not return a value.
 **Notes**
 
 After calling `yev_loop_destroy()`, the `yev_loop_h` handle becomes invalid and must not be used.
-Before it closes the ring, it frees the destroyed events whose completions have not come: it cancels what the kernel still has, reaps the completions for 1 second at most (no callback is called), and frees what is left then with an ERROR *"Loop destroyed with events whose completions did not come: freed"*. A zero-copy send whose notification has not come is waited for up to 5 seconds, and then NOT freed, with a WARNING *"Loop destroyed with zero-copy sends whose notification did not come: NOT freed, the kernel may still read their gbuffer"*: the kernel may still read its gbuffer. When there is no submission entry for that cancel, it logs *"Submission queue full: the cancel of the events left is NOT submitted, their completions may not come"* first. See [The end of a loop](<#yev-loop-end-of-loop>).
+Before it closes the ring, it frees the destroyed events whose completions have not come: it cancels what the kernel still has, reaps the completions for 1 second at most (no callback is called), and frees what is left then with an ERROR *"Loop destroyed with events whose completions did not come: freed"*. A zero-copy send whose notification has not come is waited for up to 5 seconds, and then NOT freed, with a WARNING *"Loop destroyed with zero-copy sends whose notification did not come: NOT freed, the kernel may still read their gbuffer"*: the kernel can still read its gbuffer. When there is no submission entry for that cancel, it logs *"Submission queue full: the cancel of the events left is NOT submitted, their completions may not come"* first. See [The end of a loop](<#yev-loop-end-of-loop>).
 
 ```C
 yev_loop_stop(yev_loop);
@@ -983,7 +983,7 @@ Returns 0 on successful execution, or -1 if an error occurs.
 
 If a callback function returns -1, the loop will break and exit early.
 
-Every cycle begins with [`gobj_deliver_posted_events()`](../gobj/events_state.md#gobj_deliver_posted_events), which delivers what the gobjs posted with [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event). It happens before the completions, so an event posted while the loop was not yet running does not wait for a completion that may never arrive. While messages are pending, or the loop holds a completion it made itself (a stop that took back a submission the kernel had not taken, see [`yev_stop_event()`](<#yev_stop_event>)), the loop does not block on the ring: it takes a completion if one is ready, and returns to the queue if not.
+Every cycle begins with [`gobj_deliver_posted_events()`](../gobj/events_state.md#gobj_deliver_posted_events), which delivers what the gobjs posted with [`gobj_post_event()`](../gobj/events_state.md#gobj_post_event). It happens before the completions, so an event posted while the loop was not yet running does not wait for a completion that possibly never arrives. While messages are pending, or the loop holds a completion it made itself (a stop that took back a submission the kernel had not taken, see [`yev_stop_event()`](<#yev_stop_event>)), the loop does not block on the ring: it takes a completion if one is ready, and returns to the queue if not.
 
 ---
 

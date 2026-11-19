@@ -16,14 +16,14 @@ an action and the result it waits for, with a timeout per job.
 | Property | Value |
 |----------|-------|
 | **States** | `ST_IDLE` (working), `ST_WAIT_STOPPED` (its end waits for the next turn of the loop) |
-| **Input events** | from `gobj_results`: `EV_ON_OPEN`, `EV_ON_MESSAGE`, `EV_ON_CLOSE`, `EV_STOPPED`; `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside); `EV_FINISH_TASK` (private, posted to itself; in `ST_IDLE` only the one of a run before a restart, dropped) |
+| **Input events** | from `gobj_results`: `EV_ON_OPEN`, `EV_ON_MESSAGE`, `EV_ON_CLOSE`, `EV_STOPPED`. Also `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside), and `EV_FINISH_TASK` (private, posted to itself. In `ST_IDLE`, only the one of a run before a restart arrives, and it is dropped.) |
 | **Output events** | `EV_END_TASK` |
 
 ### Key attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `jobs` | `json` | The jobs: a list of `{"exec_action", "exec_result", "exec_timeout"}`. The first two are names of local methods of `gobj_jobs`; `exec_timeout` is in milliseconds. |
+| `jobs` | `json` | The jobs: a list of `{"exec_action", "exec_result", "exec_timeout"}`. The first two are names of local methods of `gobj_jobs`. `exec_timeout` is in milliseconds. |
 | `input_data` | `json` | Data for the jobs, as they want. |
 | `output_data` | `json` | Data the jobs leave, as they want. A timeout adds `"comment": "Task failed by timeout"`. |
 | `gobj_jobs` | `json` | The gobj that defines the jobs: a json integer with its `hgobj`, or the name of a service. |
@@ -34,7 +34,7 @@ an action and the result it waits for, with a timeout per job.
 
 At its start the task runs the first action if `gobj_results` says it is
 `connected`, or waits for its `EV_ON_OPEN`. An action returns `0` to wait for
-the result (`CONTINUE_TASK()`; the job's timeout is armed) or `-1` to stop
+the result (`CONTINUE_TASK()`, and the job's timeout is armed) or `-1` to stop
 (`STOP_TASK()`). The result arrives as `EV_ON_MESSAGE` of `gobj_results`,
 and goes to the job's result method: `-1` stops, anything else goes on to the
 next job.
@@ -111,13 +111,13 @@ belongs to a job that is over: a late answer is not processed, and the end is
 published once. A job's action whose result came inside it leaves the task as
 that result left it (it arms no timeout, and does not end the task again).
 
-The owner may act in that turn too, and it wins (7.27.0):
+The owner can act in that turn too, and it wins (7.27.0):
 
-- a task its owner STOPS publishes no `EV_END_TASK` (the owner left it), and
+- A task its owner STOPS publishes no `EV_END_TASK` (the owner left it), and
   a volatile one is destroyed all the same. A stopped task is destroyed by
   nobody else: an owner that stops a task it no longer wants destroys it
-  (`C_AUTH_BFF` does when the browser goes away);
-- a task its owner starts AGAIN drops the end of the run before (each end
+  (`C_AUTH_BFF` does when the browser goes away).
+- A task its owner starts AGAIN drops the end of the run before (each end
   names its run, and `mt_start` begins a new one), so `EV_FINISH_TASK` is
   declared in `ST_IDLE` too, where only such an end can arrive.
 
@@ -230,7 +230,7 @@ Same as [C_TIMER](#gclass-c-timer).
   cancel is a stop after all: `EV_STOPPED` is said and the arm dropped. Up to
   7.25.22 nothing was said.
 - **A stopped timer never ends the loop.** Its callback answers 0 whatever
-  the state of its gobj; the yuno's loop ends with `set_yuno_must_die()`.
+  the state of its gobj. The yuno's loop ends with `set_yuno_must_die()`.
   Up to 7.25.22 it answered -1 when its gobj was not running, and `yev_loop`
   ends the loop on a -1: a child timer stopped while the yuno ran -- a
   service stopped alone, clearing and stopping its own timer in `mt_stop`
@@ -257,7 +257,7 @@ yunos that answer a `run-yuno`, `kill-yuno`, `play-yuno` or `pause-yuno`.
 | Property | Value |
 |----------|-------|
 | **States** | `ST_IDLE` (counting), `ST_WAIT_STOPPED` (expired, its final count waits for the next turn of the loop) |
-| **Input events** | `EV_COUNT` (an event to count), `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside), `EV_COUNT_EXPIRED` (private, posted to itself; in `ST_IDLE` only the one of a run before a restart, dropped) |
+| **Input events** | `EV_COUNT` (an event to count), `EV_TIMEOUT` (its own `C_TIMER`, or sent from outside), `EV_COUNT_EXPIRED` (private, posted to itself. In `ST_IDLE`, only the one of a run before a restart arrives, and it is dropped.) |
 | **Output events** | `final_event_name` (default `EV_FINAL_COUNT`) |
 
 ### Key attributes

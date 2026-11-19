@@ -165,8 +165,8 @@ the id of the identity card and as the `host` of each message.
   `"42"`) is replaced by a new uuid, written to the store, with one WARNING
   (gobj-js 7.26.29).
 
-Before 7.26.28, the function gave a new uuid on each call when the store could
-not keep it, and `null` without `crypto.randomUUID()`.
+Before 7.26.28, the function gave a new uuid on each call when the store was not able
+to keep it, and `null` without `crypto.randomUUID()`.
 
 ```javascript
 const a = node_uuid();   // "3f2c9a6e-0d4b-4c1e-9a7f-5b8e2d1c4a90"

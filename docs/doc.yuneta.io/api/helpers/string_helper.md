@@ -94,7 +94,7 @@ logged (with the stack), `errno` is `ENAMETOOLONG`, and `bf` holds only the
 segments that fitted, terminated. Do not use that cut path: it names another
 file, often a parent directory of the one asked for. Up to 7.29.2 the cut path
 was returned as if it were whole, and only syslog was told. A `NULL` `bf` or a
-`bfsize` of 0 returns `NULL` too, with an ERROR and `errno` `EINVAL`; nothing is
+`bfsize` of 0 returns `NULL` too, with an ERROR and `errno` `EINVAL`, and nothing is
 written. (Up to 7.29.3 both returned `bf` with no log, and with a `bfsize` of 0
 the buffer stayed unterminated.)
 
@@ -496,15 +496,15 @@ audit record all ask it (the audit record, its stricter twin).
 
 A name is a secret's, in any case, when it holds one of `passw`, `pwd`,
 `passphrase`, `secret`, `token`, `jwt`, `bearer`, `authorization`, `cookie`,
-`credential`, `salt`; or one of `apikey`, `sessionid`, `sessionkey`,
+`credential`, `salt`, or one of `apikey`, `sessionid`, `sessionkey`,
 `authdata` once `_`, `-`, `.` and blanks are taken out (`api_key`,
-`X-Api-Key`, `__session_id__`); or one of `pass`, `pin`, `otp` as a WHOLE
-segment -- a run of letters and digits: `pass`, `db_pass`, `user-pin`,
+`X-Api-Key`, `__session_id__`), or one of `pass`, `pin`, `otp` as a WHOLE
+segment (a run of letters and digits): `pass`, `db_pass`, `user-pin`,
 `sim_pin`, `user[pin]`, `otp` are secrets, and `passive`, `bypass`, `compass`,
-`ping`, `mapping`, `spinner`, `otpx`, `pin2` are not (7.27.0+); or both `priv`
+`ping`, `mapping`, `spinner`, `otpx`, `pin2` are not (7.27.0+), or both `priv`
 and `key` (`private_key`). Not secrets: the PATH of a key or a certificate
 (`ssl_certificate_key`), a public `cert_pem`, `max_sessions`, `authz`,
-`auth_method`; and a name with a SEGMENT (split by `_`, `-`, `.` and blanks)
+`auth_method`, and a name with a SEGMENT (split by `_`, `-`, `.` and blanks)
 that names something ABOUT a credential: `endpoint`, `url`, `uri`, `domain`,
 `path`, `file`, `public`, `pub`, `count`, `counts`, `type`, `name`, `len`,
 `length`, `size`, `max`, `min`, `ttl`, `timeout`, `expiry`, `expires`, `mode`
@@ -522,8 +522,8 @@ after `Bearer` or `Basic` ([`mask_secrets_inline()`](#mask_secrets_inline)).
 secret's too.** `pass`, `pin` and `otp` are whole segments, so `gpio_pin` (a
 pin of a board), a `pass` that counts passes, `first_pass` and an
 application's `sum_sla_pass` are taken for secrets: a trace or a dump
-shows their values as `********`. It errs on the safe side -- telling them from
-`db_pass` or `sim_pin` would need to know what a name means. The names are
+shows their values as `********`. It errs on the safe side: to tell them from
+`db_pass` or `sim_pin`, the function must know what a name means. The names are
 compared in ASCII, whatever the locale (7.27.0+: a Turkish `LC_CTYPE` did not
 take `PIN` for `pin`).
 
@@ -547,7 +547,7 @@ BOOL is_secret_name(
 
 **Returns**
 
-`TRUE` if it is the name of a secret; `FALSE` if not, or when `name` is NULL.
+`TRUE` if it is the name of a secret, and `FALSE` if not, or when `name` is NULL.
 
 **Example**
 
@@ -595,7 +595,7 @@ BOOL is_secret_name_any(
 
 **Returns**
 
-`TRUE` if it holds a part of a secret's name; `FALSE` if not, or when `name`
+`TRUE` if it holds a part of a secret's name, and `FALSE` if not, or when `name`
 is NULL.
 
 **Example**
@@ -638,11 +638,11 @@ If `s` is NULL, the function does nothing. The function modifies the input strin
 (json_mask_secrets)=
 ## [`json_mask_secrets()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/helpers.c#L3920)
 
-A json as a log or a trace may show it. At any depth, the value of a key whose
+A json as a log or a trace can show it. At any depth, the value of a key whose
 name is a secret's ([`is_secret_name()`](#is_secret_name)) is `"********"`,
 whatever its json type (not an absent one, a null or an empty string, so "not
-set" still shows); so is the `value` of a dict whose `attribute` names a
-secret (a write-attr); and every string, under ANY key, is masked as
+set" still shows). So is the `value` of a dict whose `attribute` names a
+secret (a write-attr). Every string, under ANY key, is masked as
 [`mask_secrets_inline()`](#mask_secrets_inline): a JWT, the credential after
 `Bearer` or `Basic`, a secret `name=value` or `name: value` in it (7.27.0+:
 up to 7.26.9 a JWT under a plain key showed). A string with a NUL inside (a
@@ -670,8 +670,8 @@ json_t *json_mask_secrets(
 A NEW reference, to decref: a masked copy (the dicts and lists on the way to
 a masked value are copied, the rest is shared), or `jn` itself when there was
 nothing to mask. `NULL` for `NULL`. A dict or list met twice is masked once,
-the same everywhere; a cycle (jansson lets `json_object_set()` build one) is
-`"<cycle>"`; a dict or list reached at 64 levels (as in gobj-js) is
+the same everywhere. A cycle (jansson lets `json_object_set()` build one) is
+`"<cycle>"`. A dict or list reached at 64 levels (as in gobj-js) is
 `"<deeper not shown>"`. With the memo the limit is about the FIRST time a dict
 is met: one met first near the limit is `"<deeper not shown>"` everywhere it
 appears, and one masked first higher up shows whole wherever else it appears,
@@ -725,9 +725,9 @@ JSON_DECREF(kw_shown)
 
 A text (a command line) with the value of every `name=value` whose name is a
 secret's ([`is_secret_name()`](#is_secret_name)) written as `********`,
-quoted or not; the same for a `name: value`, its name in quotes or not -- a
+quoted or not. The same for a `name: value`, its name in quotes or not (a
 json, a header, a label: `"password": hunter2`, `Authorization: Basic x`,
-`bearer: tok` (7.27.0+) --; and the `value=` of a write-attr whose
+`bearer: tok` (7.27.0+)), and the `value=` of a write-attr whose
 `attribute=` names a secret. A value that is a scheme and its credential is
 masked WHOLE: `token=Bearer abc` is `token=********`, and so is
 `Authorization: Bearer abc` -- `Authorization: ********` (up to 7.26.9 it
@@ -742,11 +742,11 @@ label's value hid the `=` of the `name=value` inside it (`x-auth-token:
 password=a,b` showed `,b`). The rule of the `name=value` reads the text with
 the names of now, jumping over nothing, so a `name=value` inside the word
 after `Bearer` is judged even when that word is no credential (`Bearer pwd=x`
-is `Bearer pwd=********`); and, wherever they can read it otherwise, as two
-released versions read it, each reading whole: as 7.26.9 read it, with its
-names -- `pass`, `pin` and `otp` were none, so the value of a name of a
+is `Bearer pwd=********`). Wherever they can read it otherwise, the rule also
+reads the text as two released versions read it, each reading whole: as 7.26.9 read it, with its
+names (`pass`, `pin` and `otp` were none, so the value of a name of a
 segment jumped over no `name=value` after it: `db_pass='password'=hunter2` is
-`db_pass=********=********` --, and as gobj-js 7.26.20 read it, jumping over
+`db_pass=********=********`), and as gobj-js 7.26.20 read it, jumping over
 its shapes. Measured position by position against the library of 7.26.9, on
 438 008 generated texts: nothing that 7.26.9 masked shows, inline or in a
 dump. Against gobj-js 7.26.20, what shows is the word after a bare `Bearer`
@@ -788,7 +788,7 @@ an ASCII character decoded (not `%00`, and not `%C3%A9`: a byte over `0x7F`
 stays encoded), and what they mask in the view is masked on the characters it
 came from, a `%XX` whole. The view is decoded twice at most, so a value
 encoded inside an encoded value (`%253D`, a name encoded twice:
-`%2570assword`) is read too; a third level is not.
+`%2570assword`) is read too, but a third level is not.
 
 | Text | Shown |
 |---|---|
@@ -809,9 +809,9 @@ before a `/`, `?`, `#`, a blank, a quote, `<`, `>` or an end of line --
 `https://bob:hunter2@git.example/x` is `https://bob:********@git.example/x`.
 A user alone (`ssh://git@host`) and a port (`http://[::1]:8080/`) are kept.
 The name of a `name: value` is the word before the `:` (since the last
-blank, `=` or `:`: `{"password": x`, `password12:30` are names too; `pass`,
+blank, `=` or `:`: `{"password": x`, `password12:30` are names too, and `pass`,
 `pin` and `otp` count after its last `&`, `?` or `;`, as above). Each is
-judged by its last 128 bytes; a text over 4 MB, or one whose masked copy
+judged by its last 128 bytes. A text over 4 MB, or one whose masked copy
 cannot be allocated, is `"<not shown: too large to mask>"`: it is linear, and
 fails safe. An unquoted value of a `name=value` runs to the next `word=` (or
 the end): a password written with blanks (`password=correct horse battery`,
@@ -822,7 +822,7 @@ password=x'` keeps its closing quote). The value of a `name: value` is a
 quoted text to its closing quote, a json object or list to its closing
 bracket, the text of a json inside a json, its quote escaped, to the quote
 escaped the same way (`x='{\"password\":\"hunter2\"}'` is
-`x='{\"password\":********}'`; it showed `hunter2`), a scheme and the word
+`x='{\"password\":********}'`, where it showed `hunter2` before), a scheme and the word
 after it, or one word, to a blank or one of `,;&)]}<>"'`.
 
 **By its shape** (7.27.0+), the shapes the agent's audit record redacts:
@@ -833,16 +833,16 @@ after it, or one word, to a blank or one of `,;&)]}<>"'`.
   and part of its payload. The dots at the end of the run are not its own: a
   JWT ends a sentence (`... eyJ.eyJ.sig.`). A run with no `.`
   (`eyJhbGciOiJIUzI1NiJ9`, a base64url json) is no JWT, and neither is one
-  whose only dots end it (`eyJhIjoxfQ.`: a header, 7.27.0+); where the text
+  whose only dots end it (`eyJhIjoxfQ.`: a header, 7.27.0+). Where the text
   was cut (a dump, the window of a capped log line), a run that reaches the
   end is masked whatever its dots.
 - The credential after the scheme word `Bearer` or `Basic` (any case, a word
   of its own, a blank after it). It is masked when it CAN be a credential:
-  - it is in quotes (`Bearer "tok"`), or follows the scheme written twice
-    (`Bearer Bearer tok`, a header prefixed twice): whatever its shape;
-  - else it is the word after the blanks, as far as the token after
+  - It is in quotes (`Bearer "tok"`), or follows the scheme written twice
+    (`Bearer Bearer tok`, a header prefixed twice): whatever its shape.
+  - Else, it is the word after the blanks, as far as the token after
     `Bearer` went in gobj-js 7.26.20 and in the agent's audit record of
-    7.26.9 -- to a blank, an end of line, a quote or one of `,;}]` --, masked
+    7.26.9 (to a blank, an end of line, a quote or one of `,;}]`), masked
     WHOLE, its dots at the end too, when it is **not a word of prose**, judged
     without those dots (the end of a sentence). A word of prose is ASCII
     letters only, in runs joined by one `-`, `.` or `/` (`self-service`,
@@ -850,7 +850,7 @@ after it, or one word, to a blank or one of `,;&)]}<>"'`.
     (`bond`, `Bond`, `BOND`), and shorter than 24 characters. A credential
     holds a digit, a symbol of its own (`_~+=%`...) or a character that is no
     ASCII, mixes its case past its first letter, or is long. For `Bearer` it
-    has 8 characters at least; for `Basic` its run of base64 decodes to bytes
+    has 8 characters at least. For `Basic`, its run of base64 decodes to bytes
     that hold a `:` (a `user:password`), whatever follows the run in the word
     (`(Basic dXNlcjpwYXNz)`) and whatever its length. In the first version of
     this rule the token was cut at the first byte of no token68 (`Bearer
@@ -898,11 +898,11 @@ when a path carries a secret's name, the query after it is masked
 `/reset_password?k=hunter2` is masked.
 
 **What it does not mask**, by decision: a name that is no secret's even when
-its value is a credential of a protocol the SDK does not speak -- OAuth's
+its value is a credential of a protocol the SDK does not speak: OAuth's
 `code=` (one use, minutes of life, and `code` names status, error and
 country codes everywhere), `X-Amz-Signature=`, Azure's `sig=` (`signature`
-names attack signatures in webstats); a `user:password@host` with no `://`
-before it (a DSN, an scp target); and a token written as the user of a URL
+names attack signatures in webstats), a `user:password@host` with no `://`
+before it (a DSN, an scp target), and a token written as the user of a URL
 (`https://TOKEN@host`: the user is kept).
 
 ```C
@@ -919,7 +919,7 @@ char *mask_secrets_inline(
 
 **Returns**
 
-A `gbmem` string, to `GBMEM_FREE`; or `NULL` when there was nothing to mask,
+A `gbmem` string, to `GBMEM_FREE`, or `NULL` when there was nothing to mask,
 and the text is to be shown as it is.
 
 **Example**
@@ -999,7 +999,7 @@ size_t mark_secrets_inline(
 
 **Returns**
 
-The bytes marked; `0` when there is nothing to mask.
+The bytes marked, or `0` when there is nothing to mask.
 
 **Example**
 
@@ -1026,10 +1026,10 @@ all that a cap of 64 left of a long token, too short to be one, and the name
 of an event that is not public, the stats and the first word of a command out
 of session, and the log line of a peer's app (`EV_REMOTE_LOG`) wrote it. The
 bytes judged are the cap and 256 more (the work stays bounded by the cap, not
-by what a peer sent); a credential that reaches their end is masked whatever
+by what a peer sent). A credential that reaches their end is masked whatever
 its shape, and the `value=` of a write-attr is judged by the whole text. So is
 the password of a URL whose authority reaches their end: from its first `:` to
-their end, `@` or not, since the `@` that ends it may lie past them
+their end, `@` or not, since the `@` that ends it can lie past them
 (7.27.0+), as at the end of a dump
 ([`mask_secrets_in_text()`](#mask_secrets_in_text)): the userinfo ends at the
 LAST `@`, and an IPv6 literal followed by a port (only digits to that end)
@@ -1041,7 +1041,7 @@ too, and there the literal is kept only when its `[` is written as it is (not
 `password=******** url=https://[fe80::1%25eth0]:********`, and
 `next=https%3A%2F%2F%5B2001%3Adb8%3A%3A1%5D%3A1600` cut in its port is
 masked from `%3A` after `2001`. Only the `[` has to be written as it is: the
-rest may be encoded, so `url=https://[2001%3Adb8%3A%3A1]%3A1600` cut in its
+rest can be encoded, so `url=https://[2001%3Adb8%3A%3A1]%3A1600` cut in its
 port keeps the literal and masks `%3A1600`. Encoded, a literal takes up to
 three times its bytes. The 256 bytes
 past the cap keep this away from what is shown unless the authority runs from
@@ -1138,20 +1138,20 @@ The bytes of a traffic dump with the credentials that can be told soundly
 written as `*`, IN PLACE, the length kept (so the offsets and the rest of the
 dump stay as they were):
 
-- the value of an HTTP `Cookie:`, `Set-Cookie:`, `Authorization:` or
+- The value of an HTTP `Cookie:`, `Set-Cookie:`, `Authorization:` or
   `Proxy-Authorization:` header at the start of a line (for the last two
-  after the scheme: `Authorization: Bearer ******`);
-- the value of a `name=value` whose name is a secret's
+  after the scheme: `Authorization: Bearer ******`).
+- The value of a `name=value` whose name is a secret's
   ([`is_secret_name()`](#is_secret_name)), as in a query string, a form body
-  or a command line -- its name the run of name bytes before the `=`, or the
+  or a command line. Its name is the run of name bytes before the `=`, or the
   name as a form writes it, a part of it in brackets or quotes, `%XX`
   decoded: `user[password]=x`, `user%5Bpassword%5D=x`, `'password'=x`,
-  `t%6Fken=x` (7.27.0+; up to then a dump showed them);
-- the password of the userinfo of a URL, `scheme://user:password@host`
+  `t%6Fken=x` (7.27.0+, and up to then a dump showed them).
+- The password of the userinfo of a URL, `scheme://user:password@host`
   (7.27.0+), and, from its first `:` to the end, an authority that reaches
-  the END of the bytes, `@` or not: the `@` may come in the next read
+  the END of the bytes, `@` or not: the `@` can come in the next read
   (`GET https://u:hunter2` is `GET https://u:*******`), and the userinfo ends
-  at the LAST `@`, so an `@` already in the bytes does not end it -- a
+  at the LAST `@`, so an `@` already in the bytes does not end it: a
   password written with a raw `@` (`https://u:p@ss@host`), a user that is an
   email address (`GET imap://bob@example.com:hunter2` is
   `GET imap://bob@example.com:*******`). A port there is masked too (`to
@@ -1160,33 +1160,33 @@ dump stay as they were):
   the bytes do not say they are not a password's. The colons of an IP literal
   followed by a port are no password's: `see http://[::1]:8080` is
   `see http://[::1]:****`, `[fe80::1%25eth0]:80` and `[::ffff:192.0.2.1]:80`
-  keep their literal too. Only an IPv6 literal counts -- eight hex groups of
+  keep their literal too. Only an IPv6 literal counts (eight hex groups of
   four digits at most, one `::` in place of one or more, a dotted IPv4 quad
   with no leading zero in place of the last two, a zone of 64 bytes at most
-  with no `:` -- and only when one to five digits run from its `]:` to the
+  with no `:`), and only when one to five digits run from its `]:` to the
   end: a userinfo can begin with `[`. Anything else is masked from the first `:`: `x https://[dead:beef]:z@h` is
   `x https://[dead:*********`, `x https://[a%x:pass]:80` is
   `x https://[a%x:********`, `see http://[::1]:8o80` is
   `see http://[:********`, and so is a literal cut before its `]`. What follows
   the `@` of a URL `%`-encoded inside a value, read decoded, is masked too: a
   `&` is no end of an authority (`url=https%3A%2F%2Fbob%3Ax%40host&x=1` at the
-  end of the bytes masks `x%40host&x=1`);
-- the value of a json `"name": value` -- and of a `'name': value`, a Python
-  dict or a log of one (7.27.0+) --, and of a `name: value` -- another
+  end of the bytes masks `x%40host&x=1`).
+- The value of a json `"name": value` (and of a `'name': value`, a Python
+  dict or a log of one (7.27.0+)), and of a `name: value` (another
   header, a label: `X-Auth-Token: x`, `bearer: tok`, `user[password]: x`
-  (7.27.0+) -- whose name is a secret's;
-- a URL or a query `%`-encoded inside a value, read decoded by the rules above,
+  (7.27.0+)) whose name is a secret's.
+- A URL or a query `%`-encoded inside a value, read decoded by the rules above,
   twice at most, as [`mask_secrets_inline()`](#mask_secrets_inline) reads it
   (7.27.0+): `GET /cb?next=%2Flogin%3Fpassword%3Dhunter2 HTTP/1.1` is
-  `GET /cb?next=%2Flogin%3Fpassword%3D******* HTTP/1.1`;
-- under such a name a value that is a scheme and its credential is masked
+  `GET /cb?next=%2Flogin%3Fpassword%3D******* HTTP/1.1`.
+- Under such a name, a value that is a scheme and its credential is masked
   WHOLE: `token=Bearer abc`, `"password": Bearer abc`, `password=Basic xyz`.
-  Up to 7.26.9 only the scheme was masked, and the token after it showed;
-- a JWT and the credential after `Bearer` or `Basic`, wherever they are in the
+  Up to 7.26.9 only the scheme was masked, and the token after it showed.
+- A JWT and the credential after `Bearer` or `Basic`, wherever they are in the
   bytes, by the rule of [`mask_secrets_inline()`](#mask_secrets_inline) (a JWE,
-  a JWT the window of a dump cut, a quoted credential; prose is left as it
-  is) -- and at the END of the bytes whatever its shape: a dump is the first
-  bytes of a frame, or one read of a stream, and its end may cut a
+  a JWT the window of a dump cut, a quoted credential, but prose is left as it
+  is), and at the END of the bytes whatever its shape: a dump is the first
+  bytes of a frame, or one read of a stream, and its end can cut a
   credential (`Bearer abcdefg` of a long token, a JWT before its first `.`).
   So a dump that ends on `a basic plan` shows `a basic ****`.
 
@@ -1194,12 +1194,12 @@ Each rule judges the bytes as they came, and the rules of 7.26.9's dump are
 kept whole as one pass, read with its names (7.27.0+): a value masked in place
 by one rule hid the name or the `=` of another (the label `x-auth-token:
 u?password="x"` showed the quoted value of `password=`), and the value of a
-`pin=` -- a secret's name since 7.27.0 -- hid the `=` after it from the rule
+`pin=` (a secret's name since 7.27.0) hid the `=` after it from the rule
 that masked it in 7.26.9 (`pin=1234Authorizationcommand='x'` showed `x`).
 Measured position by position against the library of 7.26.9 on 438 008
 generated texts, nothing that its dump masked shows. A JWT header whose only
 dots end it is no JWT (`eyJhIjoxfQ. x` shows as it is), but at the end of the
-bytes, where a cap may have cut it (`cut eyJhIjoxfQ.` is `cut **********.`).
+bytes, where a cap possibly cut it (`cut eyJhIjoxfQ.` is `cut **********.`).
 
 A byte already masked is not counted twice. The traffic dumps use it
 ([`gobj_trace_dump()`](#gobj_trace_dump),
@@ -1223,7 +1223,7 @@ size_t mask_secrets_in_text(
 
 **Returns**
 
-The number of bytes masked; `0` when there was nothing to mask.
+The number of bytes masked, or `0` when there was nothing to mask.
 
 **Example**
 
@@ -1403,7 +1403,7 @@ A new string, to free with `gbmem_free()`. `NULL`, logged, when an argument is
 
 The occurrences do not overlap: `"aaa"` with `"aa"` replaced by `"b"` is
 `"ba"`. Up to 7.28.4 the result was allocated with libc's `malloc()` and freed
-with `free()`; free it with `gbmem_free()` now.
+with `free()`. Free it with `gbmem_free()` now.
 
 **Example**
 
@@ -1797,19 +1797,19 @@ int utf8_prefix_len(
 | Key | Type | Description |
 |---|---|---|
 | `s` | `const char *` | The string to cap. `NULL` is 0. |
-| `max_bytes` | `int` | The most bytes the cap may hold. |
+| `max_bytes` | `int` | The most bytes that the cap can hold. |
 
 **Returns**
 
 The length of the cap: the whole string when it fits, else at most
-`max_bytes`, ending before the character that would be cut.
+`max_bytes`, ending before the character that does not fit whole.
 
 **Notes**
 
 A cap by bytes (`"%.64s"`) can end in the middle of a character. The json
-built with it is refused -- `json_sprintf()` checks UTF-8, and a command's
-answer falls back to a generic comment -- or logged broken. The logger's own
-`"%.Ns"` uses this function (since SDK 7.27.0), so a log needs nothing; a
+built with it is refused (`json_sprintf()` checks UTF-8, and a command's
+answer then uses a generic comment), or logged broken. The logger's own
+`"%.Ns"` uses this function (since SDK 7.27.0), so a log needs nothing. A
 comment built with `json_sprintf()` does:
 
 ```C
@@ -1872,7 +1872,7 @@ pad a cell.
 (utf8_prefix_columns)=
 ## [`utf8_prefix_columns()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/helpers.c#L1293)
 
-The bytes of the longest prefix of `s` that fits in `max_columns` columns
+The bytes of the longest prefix of `s` that is not wider than `max_columns` columns
 without cutting a character, and the columns that prefix takes.
 
 ```C
@@ -1889,7 +1889,7 @@ int utf8_prefix_columns(
 |---|---|---|
 | `s` | `const char *` | The text of the cell. `NULL` is 0. |
 | `max_columns` | `int` | The width of the cell, in columns. |
-| `columns` | `int *` | Out: the columns of the prefix. May be `NULL`. |
+| `columns` | `int *` | Out: the columns of the prefix. Can be `NULL`. |
 
 **Returns**
 

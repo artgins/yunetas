@@ -78,7 +78,7 @@ realm's, 02775) or of a third user: what is below can be renamed away and
 replaced by a member of the group, so it names nobody. A symlink met inside
 the chain is followed, since only root or the chain's user can have put it
 there, and its target is walked from `/` under the same rules, the user named
-so far still holding (at most 40 links, the kernel's own limit); a `..` is
+so far still holding (at most 40 links, the kernel's own limit). A `..` is
 the parent of the directories walked, and what the directories it leaves had
 named is not carried: `/a/X/../W` does not go through `X`, so the owner of
 `X` is not trusted for it (only what a symlink carried in holds). A node
@@ -91,11 +91,11 @@ laid out as
 .../realms/<owner>/<realm>/<yuno>/data   02775: the chain ends above it
 ```
 
-trusts the files of `yuneta` for a root yuno; a link planted under the 02775
+trusts the files of `yuneta` for a root yuno. A link planted under the 02775
 directory is below the chain and names nobody. A file of another user that
-the group or others can write is refused as well: it can have been edited
-there. Refused, it is not loaded and the saves are refused, with an ERROR;
-the operator gives it to the yuno's user or makes it 0600:
+the group or others can write is refused as well: somebody can edit it
+there. Refused, it is not loaded and the saves are refused, with an ERROR.
+The operator gives it to the yuno's user or makes it 0600:
 
 ```bash
 stat -c '%a %U' /yuneta/realms/<owner>/<realm>/<yuno>/data/*-persistent-attrs.json
@@ -123,11 +123,11 @@ refuses nothing.
 In a directory the yuno cannot write, the save goes IN PLACE, and only into
 a file of the yuno's own, regular and of one name (logged *"Persistent attrs
 saved in place"*). Room is reserved first without growing the file
-(`fallocate(FALLOC_FL_KEEP_SIZE)`; a filesystem without it -- NFSv3, FUSE --
-goes on without the reservation, logged); a shorter content is padded with
+(`fallocate(FALLOC_FL_KEEP_SIZE)`, and a filesystem without it -- NFSv3, FUSE --
+goes on without the reservation, logged). A shorter content is padded with
 blanks and the file is cut only once it is on disk. The old content is read
 before the write: a write that stops half way -- an `ENOSPC` where the room
-could not be reserved, or on a copy-on-write filesystem (btrfs, reflinked
+was not reserved, or on a copy-on-write filesystem (btrfs, reflinked
 XFS) whose reservation does not cover the rewrite -- writes it back, and the
 ERROR says *"written back as it was"*. A crash from the write until its
 first `fsync()` returns, or a write back that fails too (the ERROR then says

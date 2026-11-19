@@ -29,14 +29,14 @@ bytes when there is none, so a consumer has **one** code path and a node with
 no web server still shows its images instead of showing nothing.
 
 **These helpers do not talk to the backend.** Asking is an action and belongs
-in the view's own state machine; they are the two ends of it — read the id out
+in the view's own state machine. These helpers are the two ends of it: read the id out
 of the link before asking, and turn the answer into an element afterwards.
 
 ---
 
 ## Reading the link
 
-A column that holds a link comes back in one of three shapes, and **which one
+A column that holds a link is returned in one of three shapes, and **which one
 is the reader's choice, not the schema's**: the stored `"__assets__^<id>^as_items_image"`,
 the bare `"<id>"` that `fkey_only_id` collapses it to, or an expanded
 `{id}`. Each can come alone or in a list — and an **unset** single-valued fkey
@@ -92,12 +92,12 @@ The marker for an asset that is not there, on its own.
 
 A missing image used to leave a broken box and no word about it, which is
 indistinguishable from a slow one and from a bug — 47 such holes in one day on
-one deployment before anybody noticed. The marker takes the space the image
-would have taken, so a card does not jump, and it says **which** asset is
+one deployment before anybody noticed. The marker takes the space of the
+image, so a card does not jump, and it says **which** asset is
 missing.
 
 The label carries its i18n key (`asset not available`), so it follows a
-language change; `detail` is DATA and is never translated. Import
+language change. `detail` is DATA and is never translated. Import
 `src/yui_asset.css` for it to have a shape.
 
 ---
@@ -135,8 +135,8 @@ avoids:
   a `File`, which is a *reference* and not the bytes. Picking shows the name
   and the size the `File` already carries and reads nothing, so cancelling a
   form does not mean a 40 MB video was read for nothing.
-- **A `File` cannot travel in a kw.** A kw is plain JSON — the machine trace
-  serialises it — and a `File` is a host object. The form **keeps** it and the
+- **A `File` cannot travel in a kw.** A kw is plain JSON (the machine trace
+  serializes it), and a `File` is a host object. The form **keeps** it and the
   host asks for it at save, with `gobj_command(form, "get_picked_files")`.
 - **Reading is a promise, so saving stops being synchronous.** A resolved
   promise is an OS notification and enters the machine as an event

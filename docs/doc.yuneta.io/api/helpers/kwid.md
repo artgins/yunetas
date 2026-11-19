@@ -55,14 +55,14 @@ kw_add_binary_type(
 );
 ```
 
-A new binary type has to be dropped at that frontier too: a peer's integer under its name would be taken for a pointer.
+A new binary type has to be dropped at that frontier too. Otherwise, a peer's integer under its name is taken for a pointer.
 
 ---
 
 (kw_clone_by_keys)=
 ## [`kw_clone_by_keys()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/kwid.c#L2811)
 
-The function `kw_clone_by_keys()` returns a new JSON object containing only the keys specified in `keys`. The keys can be provided as a string, a list of strings, or a dictionary where the keys are the desired fields. If `keys` is empty, the original JSON object is returned. A key is a KEY, not a path: one holding the delimiter is that key (since SDK 7.26.9; until then it was READ as a path and WRITTEN as a key, so the field `b` of `a` came out under one flat key ``a`b``). Use [`kw_clone_by_path()`](#kw_clone_by_path) for paths.
+The function `kw_clone_by_keys()` returns a new JSON object containing only the keys specified in `keys`. The keys can be provided as a string, a list of strings, or a dictionary where the keys are the desired fields. If `keys` is empty, the original JSON object is returned. A key is a KEY, not a path: one holding the delimiter is that key (since SDK 7.26.9. Until then, it was READ as a path and WRITTEN as a key, so the field `b` of `a` came out under one flat key ``a`b``). Use [`kw_clone_by_path()`](#kw_clone_by_path) for paths.
 
 ```C
 json_t *kw_clone_by_keys(
@@ -95,7 +95,7 @@ If `keys` is a dictionary or list, only the keys present in `keys` will be retai
 (kw_clone_by_not_keys)=
 ## [`kw_clone_by_not_keys()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/kwid.c#L2895)
 
-Return a new JSON object excluding the specified keys from the input `json_t *`. The keys can be provided as a string, dictionary, or list. If no keys are specified, an empty JSON object is returned. A key is a KEY, not a path (since SDK 7.26.9; a key holding the delimiter was never excluded).
+Return a new JSON object excluding the specified keys from the input `json_t *`. The keys can be provided as a string, dictionary, or list. If no keys are specified, an empty JSON object is returned. A key is a KEY, not a path (since SDK 7.26.9. Before, a key holding the delimiter was never excluded).
 
 ```C
 json_t *kw_clone_by_not_keys(
@@ -606,7 +606,7 @@ v = kw_find_path(gobj, kw, "topics`names`0", FALSE);           /* NULL, nothing 
 v = kw_find_path(gobj, kw, "topics`ids`1`x", TRUE);            /* NULL, an ERROR: "Segment is not a dict or a list" */
 ```
 
-Up to 7.26.9 it recursed once per segment, and the walk was cut at 64 segments and at a segment of 255 bytes -- each one an ERROR even with `verbose` FALSE, and a path that is there answered as not found. A peer's `print-tranger path=` reached it, so `C_TRANGER` and `C_NODE` walked the path themselves and refused those with a WARNING; they call it now.
+Up to 7.26.9 it recursed once per segment, and the walk was cut at 64 segments and at a segment of 255 bytes -- each one an ERROR even with `verbose` FALSE, and a path that is there answered as not found. A peer's `print-tranger path=` reached it, so `C_TRANGER` and `C_NODE` walked the path themselves and refused those with a WARNING. They call it now.
 
 ---
 
@@ -718,21 +718,21 @@ With `KW_CREATE` the caller means to write inside what it gets, so the function
 answers the dict held by `kw`, or **NULL** -- never an orphan (since SDK
 7.26.9):
 
-- the path is not there: the default is written at `path` and returned, held
-  by `kw`; when it cannot be written (an empty path or segment, a scalar on the
+- The path is not there: the default is written at `path` and returned, held
+  by `kw`. When it cannot be written (an empty path or segment, a scalar on the
   path, an index outside its list) [`kw_set_dict_value()`](#kw_set_dict_value)
-  logs and frees it, and NULL is returned (it returned the freed pointer);
-- the path holds a `null`: it is "no value", and a non-NULL default replaces
-  it, as for a missing key (since SDK 7.26.9); with a NULL default the answer
-  is NULL, unlogged, as for a missing key;
-- the path holds a value of another type: logged, the default freed, NULL
-  (the default came back unwritten, and what the caller wrote into it was
-  lost and leaked);
+  logs and frees it, and NULL is returned (it returned the freed pointer).
+- The path holds a `null`: it is "no value", and a non-NULL default replaces
+  it, as for a missing key (since SDK 7.26.9). With a NULL default, the answer
+  is NULL, unlogged, as for a missing key.
+- The path holds a value of another type: logged, the default freed, NULL
+  (the default was returned unwritten, and what the caller wrote into it was
+  lost and leaked).
 - `kw` is NULL: logged, the default freed, NULL.
 
-Check the answer of a create whose path comes from data.
+Check the answer of a create whose path is taken from data.
 gobj-js does not return null there: its reader logs and gives the default back
-unwritten (since gobj-js 7.26.14, which also replaces a `null` as C does; see
+unwritten (since gobj-js 7.26.14, which also replaces a `null` as C does. See
 [`kw_set_dict_value()` in JS](../js/helpers_kw.md)).
 
 ```C
@@ -778,7 +778,7 @@ Returns the JSON value found at `path`. If the key does not exist, it returns `d
 
 **Notes**
 
-If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_CREATE` is set, `default_value` is inserted into `kw` if the key does not exist; when it cannot be inserted, or `kw` is NULL, the function returns **NULL**, as [`kw_get_dict()`](#kw_get_dict) does (since SDK 7.26.9).
+If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_CREATE` is set, `default_value` is inserted into `kw` if the key does not exist. When it cannot be inserted, or `kw` is NULL, the function returns **NULL**, as [`kw_get_dict()`](#kw_get_dict) does (since SDK 7.26.9).
 
 ---
 
@@ -988,10 +988,10 @@ Returns the JSON value associated with the specified key in the subdictionary. I
 
 **Notes**
 
-If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_EXTRACT` is set, the value is removed from the dictionary before returning. With `KW_CREATE`, a subdictionary that cannot be created (a scalar on `path`) returns **NULL**, logged, and `jn_default_value` is spent (since SDK 7.26.9; it went on reading the freed subdictionary).
+If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_EXTRACT` is set, the value is removed from the dictionary before returning. With `KW_CREATE`, a subdictionary that cannot be created (a scalar on `path`) returns **NULL**, logged, and `jn_default_value` is spent (since SDK 7.26.9. Before, it went on reading the freed subdictionary).
 
 
-`path` is a path to the subdictionary; `key` is a KEY inside it, never split
+`path` is a path to the subdictionary. `key` is a KEY inside it, never split
 at the delimiter (since SDK 7.26.9): an id or a name used as `key` that holds a
 backtick is that key. (A subdictionary that is a list is still indexed by
 `atoi(key)`.)
@@ -1218,7 +1218,7 @@ This function iterates over predefined binary fields and applies their correspon
 (kw_set_dict_value)=
 ## [`kw_set_dict_value()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/kwid.c#L727)
 
-The function `kw_set_dict_value()` writes a value at the specified path of a JSON dictionary, and the value **replaces** what the path holds there, like `json_object_set()`. The dictionaries the path needs are created; a list is walked (a segment is an index) but never created.
+The function `kw_set_dict_value()` writes a value at the specified path of a JSON dictionary, and the value **replaces** what the path holds there, like `json_object_set()`. The dictionaries the path needs are created. A list is walked (a segment is an index) but never created.
 
 ```C
 int kw_set_dict_value(
@@ -1240,7 +1240,7 @@ int kw_set_dict_value(
 
 **Returns**
 
-Returns `0` when the value is written, or `-1` (logged) when nothing is: `kw` is not a dictionary, the path is empty or has an EMPTY SEGMENT (``"a`"``, ``"`a"``, ``"a``b"``; since SDK 7.26.9 -- the segment was dropped, so ``"a`"`` wrote over `a`), a segment in the middle of the path is a scalar or a `null`, an index is not in its list, or a key of the path cannot be added (not valid UTF-8). The `kw` is then left as it was -- except for that last case, where the walk stops at the bad key and the dicts it created before it stay (``"a`\xff`b"`` over `{}` leaves `{"a": {}}`). gobj-js refuses an empty segment the same way.
+Returns `0` when the value is written, or `-1` (logged) when nothing is: `kw` is not a dictionary, the path is empty or has an EMPTY SEGMENT (``"a`"``, ``"`a"``, ``"a``b"``, since SDK 7.26.9. Before, the segment was dropped, so ``"a`"`` wrote over `a`), a segment in the middle of the path is a scalar or a `null`, an index is not in its list, or a key of the path cannot be added (not valid UTF-8). The `kw` is then left as it was -- except for that last case, where the walk stops at the bad key and the dicts it created before it stay (``"a`\xff`b"`` over `{}` leaves `{"a": {}}`). gobj-js refuses an empty segment the same way.
 
 ```C
 json_t *kw = json_pack("{s:i}", "a", 5);
@@ -1259,7 +1259,7 @@ kw_set_dict_value(gobj, kw, "parent`k", json_true());     // -1: "parent" is a s
 
 **Notes**
 
-Until 7.25.4 it wrote only a key that did not exist: over a key that was there it dropped the value and answered `0`, against its own header and against its gobj-js twin, which always overwrote. Every caller meant to overwrite. Two of them paid for it: a stale ref the treedb clears from a STRING fkey column stayed (the node could never be cleaned or force-deleted), and the `__username__` that `C_IEVENT_SRV` sets in the kw a peer sends did not replace one the peer had put there. It also answered `0` when it wrote nothing.
+Until 7.25.4 it wrote only a key that did not exist: over a key that was there it dropped the value and answered `0`, against its own header and against its gobj-js twin, which always overwrote. Every caller meant to overwrite. Two of them paid for it: a stale ref the treedb clears from a STRING fkey column stayed (nobody was able to clean or force-delete the node), and the `__username__` that `C_IEVENT_SRV` sets in the kw a peer sends did not replace one the peer had put there. It also answered `0` when it wrote nothing.
 
 ---
 
@@ -1639,7 +1639,7 @@ The nested JSON, which the caller owns, or NULL with `error` set.
 
 **Notes**
 
-It refuses instead of guessing, and the whole call fails: an id used as a leaf and as a container would rebuild differently depending on the order the ids are read in; an array index over the limit would materialise a million nulls for one id; a path deeper than the limit used to be truncated in silence. A flat dictionary that cannot be rebuilt exactly is not a flat dictionary, and rebuilding most of it is how a configuration comes back subtly different from the one that was saved.
+It refuses instead of guessing, and the whole call fails. Without the refusal, an id used as a leaf and as a container rebuilds differently depending on the order the ids are read in. Without the refusal, an array index over the limit materializes a million nulls for one id. A path deeper than the limit used to be truncated in silence. A flat dictionary that cannot be rebuilt exactly is not a flat dictionary, and rebuilding most of it is how a configuration is restored subtly different from the one that was saved.
 
 ---
 
@@ -1728,7 +1728,7 @@ The id, which the caller frees with `gbmem_free()`, or NULL on error.
 
 **Notes**
 
-A key and an index are two types and not two spellings: as strings, the key `"[0]"` and the index `0` would both be `"[0]"`, which is the ambiguity the `[N]` form exists to remove. Keys are escaped here, so any key can be composed.
+A key and an index are two types and not two spellings: if both are written as strings, the key `"[0]"` and the index `0` are both `"[0]"`, which is the ambiguity the `[N]` form exists to remove. Keys are escaped here, so any key can be composed.
 
 ---
 
@@ -1989,7 +1989,7 @@ The `json_t *` value at the specified path, not owned by the caller. Returns NUL
 
 **Notes**
 
-The path is split at `` ` `` **and** at `.` -- unlike the `kw_get_*()` readers, which split at `` ` `` only. A list on the path is walked by the `"id"` of its records. So a name that comes from data (a topic, a hook, a key a user chose) must not go into the path: one with a `.` addresses another place. Use [`kwid_get_by_keys()`](#kwid_get_by_keys) for those. `KW_VERBOSE` logs only when `kw` is NULL (a missing key is silent); `KW_BACKWARD` walks a list from its end.
+The path is split at `` ` `` **and** at `.` -- unlike the `kw_get_*()` readers, which split at `` ` `` only. A list on the path is walked by the `"id"` of its records. So a name that is taken from data (a topic, a hook, a key a user chose) must not go into the path: one with a `.` addresses another place. Use [`kwid_get_by_keys()`](#kwid_get_by_keys) for those. `KW_VERBOSE` logs only when `kw` is NULL (a missing key is silent). `KW_BACKWARD` walks a list from its end.
 
 ```C
 json_t *flag = kwid_get(gobj, tranger, 0, "topics`users`cols`id`flag");  // a path written in code

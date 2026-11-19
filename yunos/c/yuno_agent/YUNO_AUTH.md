@@ -118,9 +118,9 @@ Implemented in [`kernel/c/root-linux/src/c_auth_bff.c`](https://github.com/artgi
 | Endpoint           | Method | Purpose                                              | Sets cookies?       |
 |--------------------|--------|------------------------------------------------------|---------------------|
 | `/auth/login`      | POST   | Username/password (Resource Owner Password Credentials grant). An IdP answer with no refresh_token clears the refresh_token cookie and answers no `refresh_expires_in`: the session cannot be refreshed (a WARNING says it, once per process). A `429` of the IdP is `429 auth_rate_limited` with the IdP's `Retry-After` when it is delay-seconds (1 to 10 digits) or a real HTTP-date (passed on as IMF-fixdate) | yes              |
-| `/auth/callback`   | POST   | PKCE code exchange (authorization_code grant); no refresh_token in the answer: as `/auth/login`. The `redirect_uri` must be one that `allowed_redirect_uri` allows (§2.5), else `400 redirect_uri_not_allowed` | yes                 |
+| `/auth/callback`   | POST   | PKCE code exchange (authorization_code grant). No refresh_token in the answer: as `/auth/login`. The `redirect_uri` must be one that `allowed_redirect_uri` allows (§2.5), else `400 redirect_uri_not_allowed` | yes                 |
 | `/auth/refresh`    | POST   | Reads refresh_token cookie, gets new access_token. Answers with the identity too (`username`, `email`) — the tokens are httpOnly, so it is the only way a reloaded SPA learns who it is. An IdP answer with no new refresh_token sends no `Set-Cookie` for it: the browser keeps its own (RFC 6749 §6), and the answer has no `refresh_expires_in`. A refresh_token cookie whose name and value pass 4096 bytes (4084 bytes of value or more): `400 token_too_large` | yes |
-| `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies. With no refresh_token cookie (a session opened without one) it does not call the IdP and only clears the cookies, if the request carries the access_token cookie; with no cookie at all it answers `200` with no `Set-Cookie`, so a cross-site form cannot log a user out. A logout served (a cookie, and the SPA's `Origin`) ends in the browser whatever fails: every answer to it clears the cookies, its errors too (`400 token_too_large` for a refresh_token cookie of 4084 bytes of value or more, `500`, `502`, `503`, `504`), a cut connection sends the end-session once more (idempotent, and not sending it leaves the session open at the IdP), and all of it ends within `idp_logout_timeout_ms` (§2.6) | yes (Max-Age=0)     |
+| `/auth/logout`     | POST   | Calls IdP `end_session_endpoint`, clears cookies. With no refresh_token cookie (a session opened without one) it does not call the IdP and only clears the cookies, if the request carries the access_token cookie. With no cookie at all, it answers `200` with no `Set-Cookie`, so a cross-site form cannot log a user out. A logout served (a cookie, and the SPA's `Origin`) ends in the browser whatever fails: every answer to it clears the cookies, its errors too (`400 token_too_large` for a refresh_token cookie of 4084 bytes of value or more, `500`, `502`, `503`, `504`), a cut connection sends the end-session once more (idempotent, and not sending it leaves the session open at the IdP), and all of it ends within `idp_logout_timeout_ms` (§2.6) | yes (Max-Age=0)     |
 | `/auth/token`      | POST   | **Opt-in.** Returns the access_token to JS (multi-backend forwarding). An access_token cookie whose name and value pass 4096 bytes: `400 token_too_large` | no |
 | `OPTIONS *`        | OPTIONS | CORS preflight                                       | no                  |
 
@@ -227,13 +227,13 @@ Set-Cookie: access_token=<jwt>; Max-Age=<expires_in>;
   when that attr is set and the request's `Host` (without its port) is that
   domain or a subdomain of it. On a mismatch, or on a request with no `Host`,
   the BFF omits it and logs a WARNING, and the cookie binds to the exact host. `Domain` extends the cookie
-  to the subdomains; it is not what carries it to another port. A cookie is
+  to the subdomains, but it is not what carries it to another port. A cookie is
   not scoped by port, so a cookie set by the BFF on port 1801 is sent with the
   WebSocket upgrade to ports 1600 / 1800 / etc of the same host name in any
   case.
 - `Max-Age` — `expires_in` for access, `refresh_expires_in` for refresh.
   A lifetime of 0 is a token with no expiry, and its cookie has no
-  `Max-Age` (a cookie of the browser session): `Max-Age=0` would delete it
+  `Max-Age` (a cookie of the browser session): `Max-Age=0` deletes a cookie
   on arrival. Example of a Keycloak offline token
   (`"refresh_expires_in": 0`):
   `Set-Cookie: refresh_token=<jwt>; Path=/; HttpOnly; Secure; SameSite=Strict`.
@@ -253,8 +253,8 @@ Logout clears both with `Max-Age=0`, with a refresh_token cookie (whatever the I
 | `client_id`            | required            | OAuth2 client id. Also the value the JWT's `azp` claim must match. |
 | `client_secret`        | optional            | Empty for public clients with PKCE.                  |
 | `redirect_uri`         | per-request         | From the callback request body.                      |
-| `allowed_origin`       | recommended         | The SPA's origin (`https://app.example.com`): the CORS origin, and the only `Origin` served (see §2.2). It is what pins the scheme. Empty: no CORS, and the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS); `/auth/token` refused. |
-| `allowed_redirect_uri` | optional            | The `redirect_uri` a `/auth/callback` may have: exactly it, or, when it ends with `/` after a scheme and a host (`https://app.example.com/app/`), one that starts with it and whose rest is a path and query in it (visible ASCII, no `\`, no `#`, no `.`, `..` or empty segment, also before a `;`, the last may be empty, and no `%XX` in the path of `.`, `/`, `\`, `;`, `?`, `#`, `%` or a byte out of visible ASCII: `.../app/..;/x` and `.../app/..%2Fx` are refused, `.../app/a%41;v=1` is not). `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `https://app.example.com/`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
+| `allowed_origin`       | recommended         | The SPA's origin (`https://app.example.com`): the CORS origin, and the only `Origin` served (see §2.2). It is what pins the scheme. Empty: no CORS, and the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS). `/auth/token` is refused. |
+| `allowed_redirect_uri` | optional            | The `redirect_uri` that a `/auth/callback` can have: exactly it, or, when it ends with `/` after a scheme and a host (`https://app.example.com/app/`), one that starts with it and whose rest is a path and query in it (visible ASCII, no `\`, no `#`, no `.`, `..` or empty segment, also before a `;`, the last can be empty, and no `%XX` in the path of `.`, `/`, `\`, `;`, `?`, `#`, `%` or a byte out of visible ASCII: `.../app/..;/x` and `.../app/..%2Fx` are refused, `.../app/a%41;v=1` is not). `https://app.example.com.evil.com/` and `https://app.example.com@evil/` never pass `https://app.example.com/`. Empty: not checked, so set it whenever the BFF serves `/auth/callback`. |
 | `cookie_domain`        | optional            | Domain attribute for cookies (no port). Empty: host-only cookies. See §2.4. |
 | `idp_timeout_ms`       | default `30000`     | Bounds the IdP **round-trip once connected** (`C_TASK`'s `exec_timeout`). On expiry the browser gets 504. |
 | `idp_connect_timeout_ms` | default `30000`   | Bounds the **wait to connect** to the IdP. See §2.6.  |
@@ -298,8 +298,9 @@ Three different things are timed, and conflating them is a bug:
   never arrives, unarmed and unbounded, so it never publishes `EV_END_TASK`,
   `discovery_done` stays FALSE, and every browser request queues behind it.
 - **`idp_logout_timeout_ms`** — the whole of a logout. A SPA waits 15 s
-  (`BFF_TIMEOUT_MS`), and the two above are 30 s each, so with the IdP down an
-  answer that clears the cookies would reach nobody. This one is a second
+  (`BFF_TIMEOUT_MS`), and the two above are 30 s each. So, without this
+  timeout and with the IdP down, the answer that clears the cookies reaches
+  nobody. This one is a second
   `C_TIMER`, armed once when the turn of the logout comes (a logout behind
   an earlier request of its connection waits for that request first, which a
   browser never does): it goes on across the connection opening, the resend
@@ -365,8 +366,8 @@ of preference:
 ```
 
 The two IdPs do not share sessions. A refresh token presented to the IdP
-that did not issue it is refused (`invalid_grant`, "Invalid token issuer";
-verified against the two artgins IdPs on 2026-11-17). So the IdP of a
+that did not issue it is refused (`invalid_grant`, "Invalid token issuer",
+as verified against the two artgins IdPs on 2026-11-17). So the IdP of a
 request depends on the request:
 
 | Request | IdP | When that IdP fails |
@@ -378,7 +379,7 @@ request depends on the request:
 An IdP that failed a login is **down**:
 - The logins skip it for `idp_down_retry_ms`. The first login after that
   time tries it again, so there is no timer.
-- It is up again when its connection opens (if it could not connect), or
+- It is up again when its connection opens (if it was not able to connect), or
   when it answers anything except a 5xx. One that did not answer a login
   stays down until it answers or `idp_down_retry_ms` passes.
 - A login waits only `idp_failover_response_ms` for an answer while another
@@ -408,7 +409,7 @@ illustrated by the localhost dev example (`batches/localhost/auth_bff.1801.json:
 "cookie_domain": ""
 ```
 
-In a production deployment, those four values come from the client of the
+In a production deployment, those four values are those of the client of the
 project's Keycloak realm. See §7 for the project conventions.
 
 ### 2.9 Diagnose a failure of the IdP
@@ -454,7 +455,7 @@ Two issues are known and not fixed:
 ### 3.1 The Cookie crossing the WS upgrade
 
 The browser's WebSocket upgrade request includes the cookies set by the
-BFF (same host; a cookie is not scoped by port).
+BFF (same host, and a cookie is not scoped by port).
 [`C_WEBSOCKET`](#gclass-c-websocket) parses the headers of the upgrade and
 passes the `Cookie` header to [`C_IEVENT_SRV`](#gclass-c-ievent-srv) as
 `http_cookie` in the kw of `EV_ON_OPEN`.
@@ -562,8 +563,8 @@ authzs.
 
 A permission check weighs only the roles of the service it asks for. The
 `required_services` of the identity card is read at login, by
-`get_user_roles()`, to say which services the channel may reach (the keys of
-`services_roles`); it never adds the permissions of one service to another.
+`get_user_roles()`, to say which services the channel can reach (the keys of
+`services_roles`). It never adds the permissions of one service to another.
 Up to 7.29.1 the check read `required_services` from the kw of the command
 too -- a kw the client writes -- so `update-node ...` sent to `treedb_A` with
 `"required_services": ["treedb_B"]` in its kw was granted by a child role
@@ -577,8 +578,8 @@ A role grants its `permission`, and each entry of its `permissions` list
 (`{permission, deny}`), for **every** use of that permission. Its
 `parameters` narrow that: a dict of kw keys, each with the value, or the list
 of values, the kw of the check must carry. A grant whose scope does not match
-the kw is left out, as if the role did not have it; an entry of `permissions`
-may carry its own `parameters`, which replace the role's for that entry; a
+the kw is left out, as if the role did not have it. An entry of `permissions`
+can carry its own `parameters`, which replace the role's for that entry. A
 role with no `parameters` grants as before.
 
 ```json
@@ -607,15 +608,15 @@ plain `run-scenarios` lets the role run everything but `s1`, and a check that
 names no `scenario_id` is denied. A `parameters` that is not a dict grants
 nothing, denies everything, and logs an ERROR (*"parameters of a role is not
 a dict: its grant is left out"* / *"... its deny applies to all"*). `deny` of an
-entry is optional (false); up to 7.27.13 an entry without it logged *"path NOT
+entry is optional (false). Up to 7.27.13, an entry without it logged *"path NOT
 FOUND"* on every check.
 
 The scope is what the service asks with, so a service has to SAY which keys
-it builds: a scope may name only the keys the permission declares, the
+it builds: a scope can name only the keys the permission declares, the
 `items` of its `SDATAAUTHZ` (listed as its `parameters` by `authzs`). A key
-the permission does not declare may come from the client's own kw -- a
-client that puts the scoped key beside a request for something else would
-answer the check for it -- so a scope on it grants nothing, denies all, and
+that the permission does not declare can be in the client's own kw (a
+client that puts the scoped key beside a request for something else can
+answer the check for it), so a scope on it grants nothing, denies all, and
 logs an ERROR (*"a role scopes a permission on a key it does not declare"*).
 A declared key must also be a VALUE (a string, a number, a boolean): the one
 json key declared, the `kw` of the global authzs (`__execute_command__`,
@@ -649,7 +650,7 @@ SDATAAUTHZ (DTP_SCHEMA, "read-scenarios",   0,      0,      pm_authz_scenario, "
 
 The control center does it
 for its scenario permissions ([*A user who may see one
-scenario*](#controlcenter-one-scenario)); a service that checks with a kw that
+scenario*](#controlcenter-one-scenario)). A service that checks with a kw that
 does not carry the key refuses every scoped grant. Pinned by
 `tests/c/authz_scoped_permissions`.
 
@@ -696,9 +697,9 @@ ycommand -c 'list-yunos'      # ws://127.0.0.1:1991, no token: yuneta, root
 of its `C_IEVENT_SRV`, connects from `127.0.0.1`, so every browser behind it
 is a local peer. A client that sends an identity card with an empty `jwt`, no
 cookie and the user `yuneta` is `yuneta`, root, with no login at all. Nothing
-else helps: a denied address cuts the users with a token too (they come from
-`127.0.0.1` as well), and the seed `yuneta` cannot be deleted. A yuno behind a
-proxy turns the login by address off with `trust_peer_ip` (7.30.15+;
+else helps: a denied address cuts the users with a token too (they also connect
+from `127.0.0.1`), and the seed `yuneta` cannot be deleted. A yuno behind a
+proxy turns the login by address off with `trust_peer_ip` (7.30.15+,
 `SDF_RD`, default `true`):
 
 ```json
@@ -708,7 +709,7 @@ proxy turns the login by address off with `trust_peer_ip` (7.30.15+;
 ```
 
 Then a peer with no token and no password is refused, from any address, with
-a WARNING *"Without JWT/passw the peer address is not trusted"*; the BFF
+a WARNING *"Without JWT/passw the peer address is not trusted"*. The BFF
 cookie, the `jwt` of the card and a password log in as before. The setting is
 per yuno (all its logins go through its one `C_AUTHZ`), so a yuno behind a
 proxy whose local clients log in without a token gives them one first. The
@@ -725,13 +726,13 @@ location /ws {
 It is fragile: the next `location` added without it opens the trap again.
 The page of [`C_AUTHZ`](../../../docs/doc.yuneta.io/api/gclass/auth.md) and the
 [BFF guide](../../../docs/doc.yuneta.io/guide/guide_oauth2_pkce_bff.md) say the
-same; `tests/c/authz_login` pins it.
+same, and `tests/c/authz_login` pins it.
 
 **`allow_anonymous_in_localhost` true widens it to ANY user.** That attr
 (`SDF_RD`, default `false`) drops the *"only yuneta"* check: a local peer, or
 one of `allowed_ips`, then logs in as whatever username it writes in its
 card, with no password -- from `127.0.0.*` with the roles of that user, which
-may be an administrator's email:
+can be an administrator's email:
 
 ```json
 {"username": "admin@example.com", "jwt": "", "__md_iev__": {...}}
@@ -902,7 +903,7 @@ when all of these are true:
 - **The event is flagged `EVF_AUTHZ_SUBSCRIBE`** in the publisher's
   `event_types`. An event without the flag is never checked.
 - **The subscription is external.** Only `C_IEVENT_SRV` asks, and every
-  subscription that arrives there comes from a peer, with the authenticated
+  subscription that arrives there is from a peer, with the authenticated
   `__username__` that `C_AUTHZ` wrote on the channel. An internal
   `gobj_subscribe_event()` never goes through it and is never checked.
 
@@ -929,7 +930,7 @@ The check sees the subscription as the peer sent it, but the peer does not
 choose how the framework delivers it: `C_IEVENT_SRV` keeps only
 `__first_shot__` of its `__config__`, and removes every subscription of the
 channel with force when it closes. Up to 7.25.4 a peer that held the
-permission could subscribe with `__hard_subscription__`: the subscription
+permission was able to subscribe with `__hard_subscription__`: the subscription
 outlived the session and went to the next user of the channel, past this
 check (see [`ievent.md`](../../../docs/doc.yuneta.io/api/gclass/ievent.md),
 *What a peer may put in a subscription*).
@@ -958,7 +959,7 @@ event_type_t event_types[] = {
 `EV_TRANGER_RECORD_ADDED` is `EVF_AUTHZ_SUBSCRIBE` and its `read` carries the
 alias. The feed is published to every subscriber, so a subscriber keeps to its
 own `rt_id` only with its `__filter__`. Up to 7.25.4, with the gate on, a user
-without `read` could not run `open-rt`, but could subscribe to the event with
+without `read` was not able to run `open-rt`, but was able to subscribe to the event with
 no filter and get every record of the feeds that other users opened, the
 topics of a treedb included.
 
@@ -1041,15 +1042,15 @@ The `C_AUTHZ` gclass reads a small set of attrs at boot (see
 
 | Key                       | Status                | Purpose                                                                                  |
 |---------------------------|-----------------------|------------------------------------------------------------------------------------------|
-| `authz.master`            | bool, default `false` | Whether this instance owns the authz treedb (writer) or follows another (reader). **The service never sets it**: an empty `tranger_path` only builds the path, and the directory is created only by a master. Without it, a store that does not exist yet gives *"No authz db, authz only to local access"* and no treedb; a store another yuno owns is opened as a READ-ONLY replica. The agent says `'Authz.master': true` in its `main.c`. |
+| `authz.master`            | bool, default `false` | Whether this instance owns the authz treedb (writer) or follows another (reader). **The service never sets it**: an empty `tranger_path` only builds the path, and the directory is created only by a master. Without it, a store that does not exist yet gives *"No authz db, authz only to local access"* and no treedb. A store that another yuno owns is opened as a READ-ONLY replica. The agent says `'Authz.master': true` in its `main.c`. |
 | `authz.authz_service`     | preferred             | Service name under which to build/look up the authz tree. Empty → defaults to `yuno_role`. |
 | `authz.authz_yuno_role`   | **`SDF_DEPRECATED`**  | Legacy alias for `authz.authz_service`. Fallback at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/c_authz.c) — only read if `authz_service` is empty. New configs must use `authz.authz_service`. |
 | `authz.tranger_path`      | optional              | External tranger storage path (when sharing the authz treedb across instances).          |
-| `authz.max_token_age`     | int, default `0`      | Seconds a login token may have lived (`now - iat`) to open a session. `0`: no limit (7.30.14+). |
+| `authz.max_token_age`     | int, default `0`      | The maximum age, in seconds (`now - iat`), of a login token that opens a session. `0`: no limit (7.30.14+). |
 | `authz.token_age_exempt_users` | list, default `[]` | Users (the token's `email`) whose token `max_token_age` does not check (7.30.14+). |
 | `authz.trust_peer_ip`     | bool, default `true`  | A peer with no token and no password logs in by its address (`127.0.0.*` as `yuneta`, or `allowed_ips`). `false` in a yuno behind a proxy on the same host (7.30.15+). See [§4.2](#yuno-auth-login-by-address). |
-| `authz.allow_anonymous_in_localhost` | bool, default `false` | With it `true`, a peer logged in by its address may name ANY user, with no password. Leave it `false`. See [§4.2](#yuno-auth-login-by-address). |
-| `authz.on_critical_error` | int, default `2` (`LOG_OPT_EXIT_ZERO`) | What a failure of the authz store does to the yuno. `2`: a write the store refuses (a full disk) exits with code 0, and so does a store that is there and does not open at start up. `0`: a refused write is ONE ERROR and the logins go on; a store that does not open puts the yuno in the *local access only* mode (below). The agent and agent22 set `0` in their `main.c` (`'Authz.on_critical_error': 0`): their store is secondary to their role. Set in the config only. |
+| `authz.allow_anonymous_in_localhost` | bool, default `false` | With it `true`, a peer logged in by its address can name ANY user, with no password. Leave it `false`. See [§4.2](#yuno-auth-login-by-address). |
+| `authz.on_critical_error` | int, default `2` (`LOG_OPT_EXIT_ZERO`) | What a failure of the authz store does to the yuno. `2`: a write the store refuses (a full disk) exits with code 0, and so does a store that is there and does not open at start up. `0`: a refused write is ONE ERROR and the logins go on, and a store that does not open puts the yuno in the *local access only* mode (below). The agent and agent22 set `0` in their `main.c` (`'Authz.on_critical_error': 0`): their store is secondary to their role. Set in the config only. |
 
 **A store that is there and does not open** (its `__timeranger2__.json`
 corrupt, or empty or missing in a replica) is decided by
@@ -1059,14 +1060,14 @@ only to local access"*, and goes on in the same *local access only* mode as a
 `C_AUTHZ` whose store directory does not exist (*"No authz db, authz only to
 local access"*). In that mode (7.30.21+):
 
-- the local user `yuneta` has every permission, and so has the yuno asking
+- The local user `yuneta` has every permission, and so has the yuno asking
   itself (an internal call: no `__username__` nor `__md_iev__` in the kw,
   from a gobj with no user of its own). The agent's own `open-treedb` at
   start up is asked as `yuneta` (its gobj's `__username__`): it opens, and
-  the agent listens;
-- any other user has none: ONE WARNING for each question, *"Authz only to
-  local access: only yuneta has permissions"*;
-- no login token is validated (no `jwks` key is loaded), but the operator
+  the agent listens.
+- Any other user has none: ONE WARNING for each question, *"Authz only to
+  local access: only yuneta has permissions"*.
+- No login token is validated (no `jwks` key is loaded), but the operator
   assertions are: `assertion_jwks` are config keys, loaded whether the store
   opens or not. So an agent22 whose replica does not open still runs the
   commands its controlcenter forwards, except the ones that ask a permission
@@ -1091,7 +1092,7 @@ Up to 7.30.20 every permission of the mode was asked to the treedb that was
 not there, and refused with an ERROR with a stack: the agent exited with
 code 0 at its `open-treedb`, and agent22 refused every forwarded command. The
 page of [`C_AUTHZ`](../../../docs/doc.yuneta.io/api/gclass/auth.md) has the
-whole table; `tests/c/authz_login` pins it.
+whole table, and `tests/c/authz_login` pins it.
 
 Same `Authz.*` keys (capital A) appear in some legacy configs — both
 spellings are accepted by jansson's path resolution, but the canonical
@@ -1101,7 +1102,7 @@ There is also a JWKS migration analogous to §2.5:
 
 | Key                       | Status                | Purpose                                                          |
 |---------------------------|-----------------------|------------------------------------------------------------------|
-| `Authz.jwks`              | preferred             | Array of full JWK objects (the standard format). The `kid` of each is the issuer (`iss`) of its tokens; a `kid` of `*` is refused with an ERROR and not loaded (new in 7.30.18; it verified no token since 7.2.0). Example: [the login keys](../../../docs/doc.yuneta.io/api/gclass/auth.md#authz-jwks). |
+| `Authz.jwks`              | preferred             | Array of full JWK objects (the standard format). The `kid` of each is the issuer (`iss`) of its tokens. A `kid` of `*` is refused with an ERROR and not loaded (new in 7.30.18, and it verified no token since 7.2.0). Example: [the login keys](../../../docs/doc.yuneta.io/api/gclass/auth.md#authz-jwks). |
 | `Authz.jwt_public_keys`   | legacy                | Older `iss` + `pkey` (raw PEM) tuple. Superseded by `Authz.jwks`. Drop from new configs. |
 
 **Gotcha:** if you use the deprecated `authz.authz_yuno_role`, the
@@ -1175,7 +1176,7 @@ Consequences worth knowing before you write an action for this event:
 There is no in-tree refuser since 7.25.14. The one there was,
 `c_controlcenter`'s `ac_user_login()`, refused every login that arrived
 before its `treedb_controlcenter` opened in `mt_play()` (the `authz` service
-is `autoplay: true` and authenticates from boot), because it could not yet
+is `autoplay: true` and authenticates from boot), because it was not yet able to
 copy the user into a `users` topic of its own. Nothing ever read that topic --
 the users are the `authz` store's -- so the topic, the subscription and the
 refusal are gone, and so are the *"Treedb Controlcenter not ready"* warnings
@@ -1250,8 +1251,8 @@ Points found so far (verified this session unless noted):
    authorization of the operator to it. Under a seal the CC is the only door, so
    this trust is the fleet's whole perimeter. And it rests on the TLS of that
    link: since 7.30.4 the agents trust only the CC's own certificate
-   (`certs/controlcenter.crt`, key on the CC's machine, ports 1988/1989); up to
-   7.30.3 they trusted `yuneta_agent.crt`, which every agent serves.
+   (`certs/controlcenter.crt`, key on the CC's machine, ports 1988/1989). Up to
+   7.30.3, they trusted `yuneta_agent.crt`, which every agent serves.
    **Since 7.30.10 the CC knows each node by its agent's own key** (client
    certificate of the link, pinned per node uuid by an operator,
    `accept-node`), and since 7.30.11 that key is the agent's login: no token
@@ -1262,17 +1263,17 @@ Points found so far (verified this session unless noted):
    **Since 7.30.9 a node verifies the operator itself**: the CC signs an
    operator assertion for each command it forwards
    (`__operator_assertion__`, ES256, `aud` = the node uuid, `sub` = the
-   operator, 60 s; key `operator_assertion_key` on the CC's machine, only to
+   operator, 60 s, key `operator_assertion_key` on the CC's machine, only to
    an agent whose identity card says `knows_operator_assertion`), and the
    agent (`verify_operator`, on in its `main.c`) verifies it with
    `Authz.assertion_jwks` and takes the `sub` as `__username__`. A command
-   with no assertion is of the principal `controlcenter`; a bad one is
+   with no assertion is of the principal `controlcenter`. A bad one is
    refused. The operator's login token never leaves the CC, and an
    assertion is good on one node only, so a taken node cannot replay it
    anywhere -- the reason 7.30.6's design (the CC forwarding the login
    token, `send_operator_jwt`) was never switched on and was removed. What
    it does NOT do: protect a node from a CC that is taken, which can sign
-   for anyone (as it could say anyone in `__username__`). Until the matrix
+   for anyone (as it can also say anyone in `__username__`). Until the matrix
    (points 1-3) exists, a verified identity matters only to what checks it
    already (the treedb commands, `open-console`).
 
@@ -1312,8 +1313,8 @@ Points found so far (verified this session unless noted):
     answer bypasses the matrix entirely. Today the working pattern
     (an application gate, `gate_device` in this example)
     is `public_services: ['__top_side__']`: the SPA opens a session straight to
-    the yuno and calls e.g. `set-output`, which carries no
-    `gobj_user_has_authz()` guard — so the authenticated session IS the
+    the yuno and calls, for example, `set-output`, which carries no
+    `gobj_user_has_authz()` guard, so the authenticated session IS the
     permission, and the gate of point 1 never sees it. The alternative is
     `command-yuno` through the agent, which does reach the yuno's `C_AUTHZ`
     with the real operator identity (measured 2026-08-25). The matrix has to
@@ -1366,7 +1367,7 @@ The `command_table` at [`c_authz.c`](https://github.com/artgins/yunetas/blob/7.3
 | `roles`            | List roles                                                    |
 | `user-roles`       | List a user's roles                                           |
 | `user-authzs`      | Effective authzs of a user (after role inheritance)           |
-| `set-max-sessions` | Bound concurrent sessions for a user (writes `max_sessions` only); with no `username`, the service default `max_sessions_per_user` |
+| `set-max-sessions` | Bound concurrent sessions for a user (writes `max_sessions` only). With no `username`: the service default `max_sessions_per_user` |
 
 All are declared with `SDF_AUTHZ_X`, requiring `__execute_command__` — enforced
 only when the broker yuno sets `enable_command_authz` (§4.5). It is off by
@@ -1383,8 +1384,8 @@ for the rest of the writes (`update-user`, `enable-user`, `disable-user`,
 calls (no `__username__`) are not asked. A yuno with **no** users treedb
 (local access only: no JWT is validated there) answers `list-jwk` with the
 keys of its config (`jwks`, empty unless the config sets it), which it never
-uses to validate anything, and refuses `add-jwk` / `remove-jwk` to everybody
--- up to 7.25.22 any valid JWT could add a key there, and the key, never
+uses to validate anything, and refuses `add-jwk` / `remove-jwk` to everybody.
+Up to 7.25.22, any valid JWT was able to add a key there, and the key, never
 used, leaked. A role
 granting it:
 
@@ -1410,7 +1411,7 @@ On a READ-ONLY replica of the users store `EV_ADD_USER` and
 `EV_IDP_USER_CREATED` return `-1` and write nothing. `EV_REJECT_USER` **fails
 closed**: it drops the live sessions of the user whatever happens to the write
 of `disabled` -- refused on a replica, or a failed append -- and returns `-1`
-when that write did not happen (after 7.25.3; the refused write left the user
+when that write did not happen (after 7.25.3, and before that the refused write left the user
 connected, because the sessions were read from the write's `NULL` answer).
 
 Agent-side: [`cmd_authzs_yuno`](https://github.com/artgins/yunetas/blob/7.31.23/yunos/c/yuno_agent/src/c_agent.c#L7793) ([`c_agent.c:7793`](https://github.com/artgins/yunetas/blob/7.31.23/yunos/c/yuno_agent/src/c_agent.c#L7793), registered as
@@ -1479,7 +1480,7 @@ dropping live connections.
 
 `cert_sync_store_dir` and `cert_sync_copy_cmd` are set in the agent's
 configuration only (`SDF_RD`): the command is run with `system()`, and up to
-7.25.21 `write-attr` could set it and persist it. `cert-sync-now` and
+7.25.21 `write-attr` was able to set it and persist it. `cert-sync-now` and
 `cert-sync-status` need the authz of a command (`SDF_AUTHZ_X`).
 
 ```json
@@ -1609,7 +1610,7 @@ creates a user in Keycloak with one command: `register-idp-user`. The local
 
 NOTE: Before SDK 7.9.7 this command was a command of `C_AUTHZ`, and callers sent
 it to the service `authz`. It is now a command of `C_IDP_KEYCLOAK`, and callers
-send it to the service `idp`. `C_AUTHZ` answers what a user may do; it does not
+send it to the service `idp`. `C_AUTHZ` answers what a user is allowed to do, but it does not
 provision accounts. Declare the new service in the yuno config:
 
 ```
@@ -1663,7 +1664,7 @@ enough:
 
 | Client       | Type              | Used by            | Grant                |
 |--------------|-------------------|--------------------|----------------------|
-| SPA client   | public or confidential | auth_bff | `password` (`/auth/login`: Direct Access Grants On); `authorization_code` with PKCE only for `/auth/callback` |
+| SPA client   | public or confidential | auth_bff | `password` (`/auth/login`: Direct Access Grants On), and `authorization_code` with PKCE only for `/auth/callback` |
 | admin client | confidential      | `C_IDP_KEYCLOAK`   | `client_credentials` |
 
 The admin client needs a service account. That service account needs the
@@ -1808,22 +1809,22 @@ is shared with every other product of the same organization: one call must not
 be able to pull all of it. `brief=0` asks for the full representation.
 
 **`update-idp-user` changes only what you pass.** `firstName`, `lastName`,
-`enabled`, `emailVerified` and `requiredActions`; a field you do not pass stays
+`enabled`, `emailVerified` and `requiredActions`. A field that you do not pass stays
 as it is. These parameters, `brief` of `list-idp-users` and `actions` of
-`send-idp-user-actions` are declared `DTP_JSON` (since SDK 7.27.0; they were
+`send-idp-user-actions` are declared `DTP_JSON` (since SDK 7.27.0, before which they were
 `DTP_STRING`, and the command parser now refuses a boolean or a list given to
 a string): the handler reads each one in more than one shape. A boolean is
-`true`/`false` from a SPA, or `1`/`0`, `true`, `yes` on the command line; a
+`true`/`false` from a SPA, or `1`/`0`, `true`, `yes` on the command line. A
 list is a json list, the json of one, or one bare word. Send
 `requiredActions=[]` to clear the pending actions of an account.
 
 **`delete-idp-user` deletes in the IdP only.** The `treedb_authzs` record stays
 where it is. The two planes are deleted one by one on purpose, so nobody loses
-an authorization record to a cascade they did not ask for; use `delete-user` of
+an authorization record to a cascade they did not ask for. Use `delete-user` of
 the `authz` service for the other half.
 
 **`send-idp-user-actions` is the invitation email again**, with the actions you
-choose. The default is `UPDATE_PASSWORD`; `VERIFY_EMAIL` is the other common
+choose. The default is `UPDATE_PASSWORD`, and `VERIFY_EMAIL` is the other common
 one. It needs the same `kc_email_client_id` and `kc_redirect_uri` as the
 registration, and the realm needs SMTP.
 
@@ -1840,7 +1841,7 @@ ycommand -c 'command-yuno id=<yuno> service=idp command=send-idp-user-actions us
 is the default, and then the user enters and can do nothing, which is visible
 and safe.
 
-No role can be hardcoded, because the roles come from the `initial_load` of
+No role can be hardcoded, because the roles are defined in the `initial_load` of
 each realm and none is guaranteed to exist. For the same reason the attr is
 checked before it is used: a `default_role` that is not in `treedb_authzs`
 creates the user with no role and logs an error, instead of failing in silence
@@ -1858,10 +1859,10 @@ Set it in the yuno's config, where the trusted keys are too:
 
 Up to 7.25.21 it was writable and persisted, and the way to set it was
 `write-attr`. But `write-attr` is guarded only by the per-command gate, off by
-default (§4.5): anyone who could send commands to the yuno could set it to
+default (§4.5): anyone who was able to send commands to the yuno was able to set it to
 `root` and so give root to every user an IdP provisions. The same held for
-`jwks`, where `write-attr` could plant a trusted signing key. Both are the
-config's now; a value persisted by an older release is no longer read, and
+`jwks`, where `write-attr` was able to plant a trusted signing key. Both are the
+config's now. A value persisted by an older release is no longer read, and
 the load says so once per start (*"Persistent attrs file holds an attr that
 is not persistent: NOT loaded"*, with the attr's name) -- up to 7.25.22 it
 was dropped in silence, and a node whose keys came only from `add-jwk` lost
@@ -1883,7 +1884,7 @@ history forever — rotate it in Keycloak first.
 ### 8.2 SMTP password in cleartext
 
 `stress/c/listen/deploy-yuno/emailsender.artgins.json:7` has an SMTP
-password field in cleartext JSON; the example carries a placeholder. The
+password field in cleartext JSON, and the example carries a placeholder. The
 rule is the same as for `client_secret` (§8.1): a committed batch carries the
 password blank, and the real value is set only on the node. There is no
 environment-variable or secret-store path for it yet. Once loaded, the

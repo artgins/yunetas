@@ -48,7 +48,7 @@ and authentication options match [`ycommand`](ycommand.md) (default
   `EV_EDIT_CONFIG`, ...), and `ycli` writes it under `~/.yuneta/configs/`,
   opens the editor on it, or leaves a `create-config` on the line. It takes
   one only while a request of those is pending ON THAT CONNECTION, one answer
-  per request; a line counts as a request when the request is its COMMAND:
+  per request. A line counts as a request when the request is its COMMAND:
   its first word, or, of a `command-agent`, the first word of its `cmd2agent`,
   so `command-agent cmd2agent='read-file filename=/etc/hosts'` through a
   control center counts too, and `help cmd=read-file` does not (up to 7.30.26
@@ -68,7 +68,7 @@ and authentication options match [`ycommand`](ycommand.md) (default
   executable (`0700` up to 7.30.26).
   A link left in `~/.yuneta/configs/` under the file's name is not followed:
   the write fails, with an ERROR *"Cannot write the binary file"* naming the
-  path (up to 7.30.26 it wrote through the link, and a file it could not open
+  path (up to 7.30.26 it wrote through the link, and a file that it failed to open
   was taken for written, with nothing said):
 
   ```bash
@@ -79,7 +79,7 @@ and authentication options match [`ycommand`](ycommand.md) (default
 
   A `content64` that is not base64, or not a string, writes nothing, and is a
   WARNING (*"base64 of a peer not decodable, refused"*, *"content64 of a
-  binary file that is not a string, not written"*); the status line says
+  binary file that is not a string, not written"*). The status line says
   *"Binary file NOT saved"*. Up to 7.30.26 the first was an ERROR with a
   stack, the second said nothing, and both said *"Binary file save in"*.
 - **Text and json answers are written the same way** — `read-file` (text)

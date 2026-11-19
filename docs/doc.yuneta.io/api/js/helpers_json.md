@@ -225,8 +225,8 @@ a person reads when two configurations disagree.
 
 **The grammar is identical to the C one**, and it has to stay that way: a flat
 json is written by one side and read by the other. Ids are joined by the
-back-tick; a back-tick inside a key is **doubled**, so no key is forbidden; an
-array index is **`[N]`**; a key that starts with `[` doubles the bracket; and
+back-tick. A back-tick inside a key is **doubled**, so no key is forbidden. An
+array index is **`[N]`**. A key that starts with `[` doubles the bracket. And
 **an empty container is a leaf**, because `{}` and `[]` have no leaves of their
 own. The C side is documented in
 [`kwid.h`](../helpers/kwid.md#json2flat).
@@ -241,7 +241,7 @@ and whose values are the leaves.
 ### [`flat2json(flat)`](https://github.com/artgins/gobj-js/blob/7.31.0/src/helpers.js#L6202)
 
 Rebuilds the nested json of a flat object. It **refuses instead of guessing**
-when an id is a leaf and a container at once: the answer would depend on the
+when an id is a leaf and a container at once. If it guessed, the answer depends on the
 order the ids are read in.
 
 (js_flat_key_join)=
@@ -253,8 +253,8 @@ for a key and a number for an array index.
 (js_flat_key_split)=
 ### [`flat_key_split(key)`](https://github.com/artgins/gobj-js/blob/7.31.0/src/helpers.js#L6116)
 
-The inverse: the segments of a flat id. An index comes back as a **number** and
-a key as a **string** — they are two types and not two spellings, which is what
+The inverse: the segments of a flat id. An index is returned as a **number** and
+a key as a **string**. They are two types and not two spellings, which is what
 keeps the key `"[0]"` apart from the index `0`.
 
 (js_flat_diff)=

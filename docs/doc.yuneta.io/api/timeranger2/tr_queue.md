@@ -62,8 +62,8 @@ int trq_check_backup(
 `0` when there was nothing to do or the backup was done. `-1` when the backup
 is REFUSED: the last [`trq_load()`](<#trq_load>) did not read every pending
 message (`load_failed` is `TRUE` in the `tr_queue_t`). The queue is then empty
-because its load failed, not because its messages were processed, and the
-backup would take for good the pending messages the load could not read --
+because its load failed, not because its messages were processed, and, if made, the
+backup takes for good the pending messages the load failed to read:
 the ones `trq_load()` keeps `first_rowid` for. The refusal is said once, with
 an ERROR, and lasts until a `trq_load()` reads the queue whole (a restart
 after the repair):
@@ -93,7 +93,7 @@ ERROR trq_check_backup: Queue backup failed: the queue goes on in its topic, not
 
 Up to 7.25.4 the queue was left with no topic and the call answered `0`:
 every read logged *"What topic?"*, every ack answered `-1` (the messages were
-sent again after a restart), and no backup happened again; a create that
+sent again after a restart), and no backup happened again. A create that
 failed after the move left the messages in the backup. `tr2q_check_backup()`
 behaves the same.
 
@@ -108,7 +108,7 @@ and the queue says it once, *"Queue without topic, it cannot be opened"*,
 after the causes the open logs. A topic the tranger already has open again
 (an append opens it by name) is taken as it is. Otherwise the queue asks the
 disk quietly first, and tries the open again only when what stopped the last
-one may be gone. After a failed open it asks what that was, the way the open
+one can be gone. After a failed open it asks what that was, the way the open
 reads the topic, and without a log:
 
 | What stopped the open | The open is tried again when |
@@ -117,8 +117,8 @@ reads the topic, and without a log:
 | `topic_desc.json` opens and is not json | the file changes (inode, mode, size, mtime, ctime, taken with `stat()` just before each open) |
 | nothing the queue can see | `topic_desc.json` or `keys/` changes |
 
-The next calls log nothing. Asked through `tranger2_topic()` at every call, a
-topic that cannot be opened would log three errors each time, and the MQTT
+The next calls log nothing. If asked through `tranger2_topic()` at every call, a
+topic that cannot be opened logs three errors each time, and the MQTT
 broker calls `tr2q_check_backup()` every second for each session with nothing
 in flight:
 
@@ -144,7 +144,7 @@ ERROR take_queue_topic: Queue without topic, it cannot be opened      (once)
 
 Each CHANGE of the file is tried once: a new content that still does not load
 logs the three errors of the open again (the new cause), but not the queue's
-line; the good content takes the topic again with the INFO.
+line. The good content takes the topic again with the INFO.
 
 A `keys/` that cannot be listed (here of mode `0`) is said the same way, and
 the topic is taken again once `keys/` can be listed, although
@@ -312,7 +312,7 @@ int trq_load(
 
 **Returns**
 
-`0` when every pending message was read. `-1` when the queue is `NULL`, or when the load could not read every pending message (a row of the queue's md2 that cannot be read: the list says `load_failed`, and the log *"Queue loaded without some of its messages: its first_rowid is not moved nor saved"*). The messages it read ARE in the queue; `first_rowid` is kept as it was, so a load after the store is repaired finds the ones this one missed. Up to 7.25.4 such a load saved the size of the topic as `first_rowid`, and those messages were skipped for ever. The same holds for `tr2q_load()` of the mqtt queues.
+`0` when every pending message was read. `-1` when the queue is `NULL`, or when the load failed to read every pending message (a row of the queue's md2 that cannot be read: the list says `load_failed`, and the log *"Queue loaded without some of its messages: its first_rowid is not moved nor saved"*). The messages it read ARE in the queue. `first_rowid` is kept as it was, so a load after the store is repaired finds the ones this one missed. Up to 7.25.4 such a load saved the size of the topic as `first_rowid`, and those messages were skipped for ever. The same holds for `tr2q_load()` of the mqtt queues.
 
 **Example**
 
@@ -400,7 +400,7 @@ if(jn_msg) {
 
 **Notes**
 
-The message comes back as it was queued. The read of a record adds the `__md_tranger__` of the queue's store, and the append to a queue topic (keyed by rowid) adds a `"__rowid__"` member. `trq_msg_json()` removes both. Up to 7.27.9 it returned them, so a `C_QIOGATE` sent them with every message, and a consumer that stored the frames as they arrived stored the `"__rowid__"` too. The metadata of the message is in [`trq_msg_md()`](#trq_msg_md).
+The message returns as it was queued. The read of a record adds the `__md_tranger__` of the queue's store, and the append to a queue topic (keyed by rowid) adds a `"__rowid__"` member. `trq_msg_json()` removes both. Up to 7.27.9 it returned them, so a `C_QIOGATE` sent them with every message, and a consumer that stored the frames as they arrived stored the `"__rowid__"` too. The metadata of the message is in [`trq_msg_md()`](#trq_msg_md).
 
 ---|---|---|
 | `msg` | `q_msg_t *` | The queue message whose JSON representation is to be retrieved. |

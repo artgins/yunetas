@@ -13,7 +13,7 @@ Source code:
 - [`mqtt_util.h`](https://github.com/artgins/yunetas/blob/7.31.23/modules/c/mqtt/src/mqtt_util.h)
 - [`mqtt_util.c`](https://github.com/artgins/yunetas/blob/7.31.23/modules/c/mqtt/src/mqtt_util.c)
 
-Part of the code comes from the [Mosquitto](https://mosquitto.org/) project
+Part of the code is taken from the [Mosquitto](https://mosquitto.org/) project
 (EPL-2.0 OR BSD-3-Clause), which is why some names keep its prefix.
 
 ---
@@ -154,7 +154,7 @@ json_object_set_new(jn_properties, name, json_string(value));
 (mqtt_pub_topic_check2)=
 ## `mqtt_pub_topic_check2()`
 
-`mqtt_pub_topic_check2()` says whether a topic may be PUBLISHED to: it must
+`mqtt_pub_topic_check2()` says whether a topic can be PUBLISHED to: it must
 not be empty, nor longer than 65535 bytes, nor contain the wildcards `+` or
 `#`, nor have more than `TOPIC_HIERARCHY_LIMIT` (200) `/` separators.
 
@@ -189,7 +189,7 @@ mqtt_pub_topic_check2("", 0);                       // -1, empty
 (mqtt_sub_topic_check2)=
 ## `mqtt_sub_topic_check2()`
 
-`mqtt_sub_topic_check2()` says whether a topic filter may be SUBSCRIBED to.
+`mqtt_sub_topic_check2()` says whether a topic filter can be SUBSCRIBED to.
 The wildcards are allowed where the specification puts them: `+` must fill a
 whole level (between `/`, or at either end), and `#` must be the whole last
 level. The limits of length and hierarchy are the same as for
@@ -301,10 +301,10 @@ json_t *new_mqtt_message(
 | `qos` | `uint8_t` | `0`, `1` or `2`. |
 | `mid` | `uint16_t` | The packet identifier (`0` for QoS 0). |
 | `retain` | `BOOL` | The retain flag. |
-| `dup` | `BOOL` | The DUP flag of the PUBLISH, written as `dup`. It informs whoever reads the record; what goes on the wire when a message is sent again is the dup bit of its queue entry ([`msg_flag_get_dup()`](#module-mqtt-tr2q)), and the broker builds each subscriber's copy with `FALSE`, since the DUP of an incoming PUBLISH is not propagated [MQTT-3.3.1-3]. Up to 7.26.4 it was not written, and `dup` was always `false`. |
+| `dup` | `BOOL` | The DUP flag of the PUBLISH, written as `dup`. It informs whoever reads the record. What goes on the wire when a message is sent again is the dup bit of its queue entry ([`msg_flag_get_dup()`](#module-mqtt-tr2q)), and the broker builds each subscriber's copy with `FALSE`, since the DUP of an incoming PUBLISH is not propagated [MQTT-3.3.1-3]. Up to 7.26.4 it was not written, and `dup` was always `false`. |
 | `properties` | `json_t *` | The MQTT 5 properties as a dict (owned), or `NULL`. |
 | `expiry_interval` | `uint32_t` | The message expiry interval, in seconds. |
-| `t` | `json_int_t` | The time of the message, written as `tm`; the protocol passes [`mqtt_time()`](#mqtt_time). |
+| `t` | `json_int_t` | The time of the message, written as `tm`. The protocol passes [`mqtt_time()`](#mqtt_time). |
 
 **Returns**
 
@@ -330,7 +330,7 @@ A new json, yours:
 then on: decref the record with `KW_DECREF()`, which releases the gbuffer
 with it (see *"`kw["gbuffer"]` is auto-decref'd"* in the framework rules).
 `NULL` when the record cannot be created, logged as *"Mqtt publish: cannot
-create the message"*; the payload and the properties are released then, as
+create the message"*. The payload and the properties are released then, as
 anything owned is (up to 7.26.4 they leaked on that path).
 
 **Example** — a client that publishes a reading:
@@ -382,7 +382,7 @@ back or forward moves the expiries computed with it by the same amount.
 
 Up to 7.26.4 the function carried Mosquitto's monotonic branch
 (`clock_gettime()`), and branches for Windows and macOS, under a guard that
-was never true here (`_POSIX_TIMERS` comes from `<unistd.h>`, which the file
+was never true here (`_POSIX_TIMERS` is defined in `<unistd.h>`, which the file
 does not include, and the `time_clock` it used was defined nowhere): it
 looked monotonic and was not. The value it returns has not changed.
 

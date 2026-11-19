@@ -508,7 +508,7 @@ An empty stub, exported to fill the `global_stats_parser_fn` slot of
 [`gobj_start_up()`](bootstrap.md#js_gobj_start_up). It reads no statistic and
 returns `undefined`. [`gobj_stats()`](#js_gobj_stats) asks the gclass's own
 `mt_stats` method first, and this global parser only for a gclass without
-one; with no global parser it answers `-1` *"\<gobj>, stats parser not
+one. With no global parser, it answers `-1` *"\<gobj>, stats parser not
 available"*.
 
 ```javascript

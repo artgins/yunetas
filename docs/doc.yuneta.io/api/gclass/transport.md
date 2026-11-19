@@ -11,7 +11,7 @@ for non-blocking operations.
 (gclass-c-tcp)=
 ## C_TCP
 
-TCP transport — client and client-of-server. Supports optional TLS/SSL.
+TCP transport: client and client-of-server. Supports optional TLS/SSL.
 
 | Property | Value |
 |----------|-------|
@@ -29,20 +29,20 @@ TCP transport — client and client-of-server. Supports optional TLS/SSL.
 | `crypto` | `json` | TLS configuration (certificates, keys). |
 | `rx_buffer_size` | `integer` | Receive buffer size in bytes. |
 | `timeout_inactivity` | `integer` | Inactivity timeout in milliseconds (`-1`, the default = no timeout). The timer is cleared when the connection ends, a drop included: up to 7.30.16 a drop that waited for a write in flight (`ST_WAIT_STOPPED`) left it armed, and it fired there (*"Event NOT DEFINED in state"*). It is armed only in `ST_CONNECTED`: while a TLS handshake runs the timer is the handshake's deadline (`timeout_tls_handshake`), and up to 7.30.17 each byte read there re-armed it with this time, so a peer that sent a byte now and then kept the handshake open past its deadline. |
-| `timeout_between_connections` | `integer` | Idle delay between reconnection attempts, in milliseconds (default `2000`). `-1` (any negative value is the same): no timer, every connection waits for an `EV_CONNECT` of the owner (see `connect_on_start`). `0` is raised to 1000 ms with ONE warning per gobj (*"timeout_between_connections 0 never reconnects, the floor is used"*): up to 7.26.9 a 0 stopped the reconnect timer and the client never connected again, with no log (7.27.0; the same in `C_UART` and `C_POSTGRES`). Example: `json_pack("{s:s, s:i}", "url", url, "timeout_between_connections", 5000)`. |
+| `timeout_between_connections` | `integer` | Idle delay between reconnection attempts, in milliseconds (default `2000`). `-1` (any negative value is the same): no timer, every connection waits for an `EV_CONNECT` of the owner (see `connect_on_start`). `0` is raised to 1000 ms with ONE warning per gobj (*"timeout_between_connections 0 never reconnects, the floor is used"*): up to 7.26.9 a 0 stopped the reconnect timer and the client never connected again, with no log (7.27.0, and the same in `C_UART` and `C_POSTGRES`). Example: `json_pack("{s:s, s:i}", "url", url, "timeout_between_connections", 5000)`. |
 | `timeout_between_connections_max` | `integer` | If `> timeout_between_connections`, the reconnect delay backs off exponentially from the base up to this cap (ms), resetting to base once a connection is established (for a TLS client, only on a successful handshake). `0` (default) = disabled, legacy fixed interval. A peer that keeps failing no longer hammers at the base cadence. |
 | `connect_on_start` | `bool` | A client connects when it starts (default `true`). `false`: it stays in `ST_DISCONNECTED` until its owner sends `EV_CONNECT`. Only that FIRST connection waits for the owner: once a connection ends (an error, a drop by the peer) the client connects again after `timeout_between_connections`, as any client does, unless that is `-1` (no timer: every connection waits for an `EV_CONNECT` of the owner) -- `json_pack("{s:s, s:b, s:i}", "url", url, "connect_on_start", 0, "timeout_between_connections", -1)`. `C_SMTP_SESSION` starts its transport this way, so a yuno with nothing to send logs in to nobody (added after 7.25.20). Example in a gclass that builds its client: `json_pack("{s:s, s:b}", "url", url, "connect_on_start", 0)` |
-| `disconnect_cause` | `string` | Why the last connection, or the last attempt to connect, ended: the error of the socket (`Connection refused`), a TLS failure with the backend's reason when it has one (`TLS handshake failed: SSL - An invalid SSL record was received`, `TLS: decrypt failed: ...`; up to 7.25.21 the mbedTLS backend gave none), `Local dropping`, `Inactivity timeout`, `Local stop`, a write or a connect that could not start. The FIRST cause of an end is kept: the cancel of the read that a drop or an inactivity close makes (`Operation canceled`) does not replace it. Emptied when a connection attempt starts (`EV_CONNECT`, or the reconnect timer, both through `ac_connect`) and when a connection begins (a clisrv gets no `EV_CONNECT`). A cause longer than 512 bytes is truncated with a warning. The `Disconnected` trace says it as its `cause`. A failed attempt publishes no event, only state changes: an owner that wants the cause reads this attr when it sees the change out of `ST_WAIT_CONNECTED` / `ST_WAIT_HANDSHAKE` -- `gobj_read_str_attr(tcp, "disconnect_cause")` -- rather than `gobj_log_last_message()`, which is the last ERROR of the whole process (added after 7.25.20). |
-| `timeout_stop_tx` | `integer` | A stop (or a drop) waits for the write in flight, which ends when the peer takes its data. A peer that never does (it does not read, its window stays at zero) held the stop for ever -- a clisrv in `ST_WAIT_STOPPED`, and its `C_TCP_S`, waiting for it, never listening again (up to 7.25.21). Now the socket gets a `TCP_USER_TIMEOUT` of this many ms when the stop has to wait for a write: data not acknowledged for that long aborts the connection, the write ends with an error (`disconnect_cause`), and the stop ends. A window that stays at zero counts too: the kernel aborts at its first zero-window probe past the timeout, and the probes back off, so the abort can come some seconds later. The abort is said with ONE warning, *"The peer did not take the data in flight in timeout_stop_tx, connection aborted"* (`peername`, `sockname`, `url`). Up to 7.30.16 this bounded a clisrv only: the stop of a CLIENT closed its socket before looking for it, so a client's stop waited for ever for a peer that did not read. Default `10000`; `0`: no bound. A peer that reads, however slowly, is not affected. A server sets it on its clisrvs with `clisrv_kw`: `json_pack("{s:s, s:{s:i}}", "url", url, "clisrv_kw", "timeout_stop_tx", 1000)`. |
-| `timeout_tls_handshake` | `integer` | The deadline of the TLS handshake, in ms (default `10000`; `0`: none), on a server and on a client. A handshake that has not ended when it runs out drops the connection with a warning, *"TLS handshake not ended in time, connection dropped"* (`peername`, `sockname`, `url`, `suppressed`): ONE per 10 s for the whole yuno, and `suppressed` is how many deadlines in the 10 s before it wrote none (up to 7.30.17 each one wrote its own: a peer that kept opening mute connections wrote the log at its will); a client then reconnects after `timeout_between_connections`, as after any failed connection. See *The deadline of the TLS handshake* (added in 7.30.17). |
-| `rx_paused` | `bool` | Flow control of the host (default `false`, writable). `true`: no more reads of data are started; the read in flight still ends and publishes its `EV_RX_DATA`, and the reads of a TLS handshake go on. `false`: the read held by the pause starts again. See *Flow control: rx_paused* (added after 7.30.18). |
+| `disconnect_cause` | `string` | Why the last connection, or the last attempt to connect, ended: the error of the socket (`Connection refused`), a TLS failure with the backend's reason when it has one (`TLS handshake failed: SSL - An invalid SSL record was received`, `TLS: decrypt failed: ...`, and up to 7.25.21 the mbedTLS backend gave none), `Local dropping`, `Inactivity timeout`, `Local stop`, a write or a connect that was not able to start. The FIRST cause of an end is kept: the cancel of the read that a drop or an inactivity close makes (`Operation canceled`) does not replace it. Emptied when a connection attempt starts (`EV_CONNECT`, or the reconnect timer, both through `ac_connect`) and when a connection begins (a clisrv gets no `EV_CONNECT`). A cause longer than 512 bytes is truncated with a warning. The `Disconnected` trace says it as its `cause`. A failed attempt publishes no event, only state changes: an owner that wants the cause reads this attr when it sees the change out of `ST_WAIT_CONNECTED` / `ST_WAIT_HANDSHAKE` -- `gobj_read_str_attr(tcp, "disconnect_cause")` -- rather than `gobj_log_last_message()`, which is the last ERROR of the whole process (added after 7.25.20). |
+| `timeout_stop_tx` | `integer` | A stop (or a drop) waits for the write in flight, which ends when the peer takes its data. A peer that never does (it does not read, its window stays at zero) held the stop for ever -- a clisrv in `ST_WAIT_STOPPED`, and its `C_TCP_S`, waiting for it, never listening again (up to 7.25.21). Now the socket gets a `TCP_USER_TIMEOUT` of this many ms when the stop has to wait for a write: data not acknowledged for that long aborts the connection, the write ends with an error (`disconnect_cause`), and the stop ends. A window that stays at zero counts too: the kernel aborts at its first zero-window probe past the timeout, and the probes back off, so the abort can come some seconds later. The abort is said with ONE warning, *"The peer did not take the data in flight in timeout_stop_tx, connection aborted"* (`peername`, `sockname`, `url`). Up to 7.30.16 this bounded a clisrv only: the stop of a CLIENT closed its socket before looking for it, so a client's stop waited for ever for a peer that did not read. Default `10000`. `0`: no bound. A peer that reads, however slowly, is not affected. A server sets it on its clisrvs with `clisrv_kw`: `json_pack("{s:s, s:{s:i}}", "url", url, "clisrv_kw", "timeout_stop_tx", 1000)`. |
+| `timeout_tls_handshake` | `integer` | The deadline of the TLS handshake, in ms (default `10000`, `0`: none), on a server and on a client. A handshake that has not ended when it runs out drops the connection with a warning, *"TLS handshake not ended in time, connection dropped"* (`peername`, `sockname`, `url`, `suppressed`): ONE per 10 s for the whole yuno, and `suppressed` is how many deadlines in the 10 s before it wrote none (up to 7.30.17 each one wrote its own: a peer that kept opening mute connections wrote the log at its will). A client then reconnects after `timeout_between_connections`, as after any failed connection. See *The deadline of the TLS handshake* (added in 7.30.17). |
+| `rx_paused` | `bool` | Flow control of the host (default `false`, writable). `true`: no more reads of data are started. The read in flight still ends and publishes its `EV_RX_DATA`, and the reads of a TLS handshake go on. `false`: the read held by the pause starts again. See *Flow control: rx_paused* (added after 7.30.18). |
 | `txBytes` | `integer` | Total bytes written to the socket (stat): what the kernel took, not what the peer received (see *The close resets the connection*). |
 | `rxBytes` | `integer` | Total bytes received (stat). |
-| `txMsgs` / `rxMsgs` | `integer` | Messages of the host taken to be written, and reads that brought data (stats). One message is written at a time, so `txMsgs` moves as the peer takes what was written: a host that watches a slow peer for progress reads it. Counted in clear and over TLS alike; up to 7.30.26 only the clear path counted `txMsgs`, and over TLS it stayed `0`. |
+| `txMsgs` / `rxMsgs` | `integer` | Messages of the host taken to be written, and reads that brought data (stats). One message is written at a time, so `txMsgs` moves as the peer takes what was written: a host that watches a slow peer for progress reads it. Counted in clear and over TLS alike. Up to 7.30.26 only the clear path counted `txMsgs`, and over TLS it stayed `0`. |
 | `max_tx_queue` | `integer` | Most messages waiting behind the one being written (writable, default `0`: no limit). A message over it drops the OLDEST waiting one, with an ERROR every `max_tx_queue` drops. |
 | `cur_tx_queue` | `integer` | Messages waiting behind the one being written (read-only). |
 | `cur_tx_bytes` | `integer` | Bytes of the messages of the host held to be sent: the ones waiting and the one being written, until its write ends (read-only, since 7.30.27). It is the memory a peer that does not read makes the yuno hold, whatever the size of each message: `cur_tx_queue` counts a frame of 1 KB and one of 200 MB the same. Kept as a counter, so a read costs nothing. A host bounds a peer by it, also through the bottom chain of a channel: `if(gobj_read_integer_attr(gobj_channel, "cur_tx_bytes") >= max_bytes) { gobj_send_event(gobj_channel, EV_DROP, 0, gobj); }` |
-| `max_tx_in_progress` | `integer` | Most writes ever in flight at once on the connection (stat, since 7.25.8). `1` is the rule, see *One write in flight*; `0` before the first write. |
+| `max_tx_in_progress` | `integer` | Most writes ever in flight at once on the connection (stat, since 7.25.8). `1` is the rule, see *One write in flight*. `0` before the first write. |
 | `txMsgsDroppedAtStop` | `integer` | Messages queued to send and dropped by a local stop (stat, since 7.30.27), see *What a stop drops*. |
 | `peername` | `string` | Remote peer address (read-only). |
 | `sockname` | `string` | Local socket address (read-only). |
@@ -60,7 +60,7 @@ publishes it when its handshake ends, and with `peer_cert` when the peer
 presented a certificate: its `subject`, `issuer`, `cn`, `dns_names`,
 `not_before`, `not_after`, `serial` and `verified`, as
 [`ytls_get_peer_cert_info()`](#ytls_get_peer_cert_info) gives them. A server
-with a CA asks a certificate of its clients (mutual TLS); `C_PROT_TCP4H`,
+with a CA asks a certificate of its clients (mutual TLS). `C_PROT_TCP4H`,
 `C_CHANNEL` and `C_IOGATE` pass the kw on in their `EV_ON_OPEN`, so a service
 above knows who each channel is. Trust it only with `verified` true:
 
@@ -97,7 +97,7 @@ Its `EV_TIMEOUT` drops the connection:
 
 - on a server, the channel is free again: a peer that opens a TCP connection
   to a `wss`/`tcps`/`https` port and sends nothing, or only the first bytes
-  of a ClientHello, holds it for that long and no longer;
+  of a ClientHello, holds it for that long and no longer.
 - on a client, the connection is dropped and the client reconnects after
   `timeout_between_connections`, as after a refused connect.
 
@@ -107,7 +107,7 @@ reset), and a TLS client whose peer accepted the TCP connection and said
 nothing waited for ever, never reconnecting.
 
 A server sets it on its channels in the `C_TCP` of the tree, or with
-`clisrv_kw` for the legacy method; a client in its own kw:
+`clisrv_kw` for the legacy method. A client sets it in its own kw:
 
 ```C
 'children': [
@@ -148,7 +148,7 @@ cause. The deadlines of a window that no warning wrote are counted, and the
 count is said when the window closes:
 
 - the next deadline within 10 s of the end of the window writes the next
-  warning, and it carries the count (`suppressed`);
+  warning, and it carries the count (`suppressed`).
 - otherwise the count goes in a warning of its own, *"TLS handshakes not
   ended in time, connections dropped, not said in their window"*, written at
   the next deadline or at the stop of any `C_TCP`, the end of the yuno
@@ -170,7 +170,7 @@ carried them as if they were its own window's.
 `tests/c/c_tcp` (`test_tcp_test11`): a client with `timeout_inactivity` 2000
 and `timeout_tls_handshake` 1000 against a peer that drips one byte each
 200 ms is dropped at its deadline (up to 7.30.17 the drip held it open), and
-four deadlines in one window write one warning; three after the window write
+four deadlines in one window write one warning. Three after the window write
 the next one, `"suppressed": 3`, and the two others of that window are said
 at the end of the yuno, `"suppressed": 2`.
 
@@ -203,7 +203,7 @@ While the reading is paused, an end of the connection by the peer is seen
 when the reading resumes (a write sees it at once). The pause is the host's
 and outlives a connection: a host that reuses a client sets it back to
 `false` before starting it. `sgateway` uses it in both directions (see the
-[sgateway](#yuno-sgateway) page; the copy and the pause came after 7.30.18).
+[sgateway](#yuno-sgateway) page. The copy and the pause came after 7.30.18).
 
 ### The stop
 
@@ -211,7 +211,7 @@ Every stop of a running `C_TCP` ends in `ST_STOPPED` and publishes
 `EV_STOPPED` **once**, to its parent (or its `subscriber`):
 
 - at once, inside `gobj_stop()`, when nothing was in flight -- a client
-  already DISCONNECTED, waiting for its reconnect timer;
+  already DISCONNECTED, waiting for its reconnect timer.
 - later, from `ST_WAIT_STOPPED`, when the last read, write or connect is
   canceled or completes.
 
@@ -236,7 +236,7 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 A `C_TCP` destroyed BEFORE its `EV_STOPPED` -- in the turn of the stop, in
 `ST_WAIT_STOPPED` -- is supported, and logs nothing: it is how every yuno ends
 (`stop_services()` and then `gobj_end()`, with no turn of the loop between
-them), and a host may take the same shortcut. The destroy cancels the read and
+them), and a host can take the same shortcut. The destroy cancels the read and
 the write in flight, and the loop frees them when their completions come, with
 no callback. A clisrv's socket, which its stop closes when it ends, is closed
 by the destroy the way the stop closes it: `shutdown(SHUT_WR)` first, so the
@@ -245,8 +245,8 @@ unread, which makes a bare `close()` send a RST. The FIN goes out after what
 the clisrv wrote: while that output is still in the socket's send buffer (a
 peer that does not read), the `close()` of a socket with unread data drops it,
 and the peer gets a RST and no FIN, as at the end of a stop. Up to 7.29.3 the write events
-were not kept, and that completion ran on the freed gobj (a use after free; a
-crash in a plain build); and a clisrv's socket was left open (a socket leaked,
+were not kept, and that completion ran on the freed gobj (a use after free, a
+crash in a plain build). And a clisrv's socket was left open (a socket leaked,
 and the peer never saw the end of the connection). `tests/c/c_tcp`
 (`test_tcp_test9`).
 
@@ -260,14 +260,14 @@ way: only when its last write has completed. A drop or a stop with a write in
 flight waits for it in `ST_WAIT_STOPPED` with the socket open, and a write that
 completes short sends its rest to that socket, bounded by `timeout_stop_tx`.
 A write completes when the kernel has TAKEN its bytes, not when the peer has
-received them; see *The close resets the connection* below for what happens
+received them. See *The close resets the connection* below for what happens
 to the bytes still in the socket.
 Up to 7.30.17 the stop of the connect event closed the socket at once, and a
 rest written in `ST_WAIT_STOPPED` went to that closed number: to EBADF (the
 data lost, with no trace), or to whatever file or socket an `open()`,
 `socket()` or `accept()` had given that number in the meantime. `tests/c/c_tcp`
 (`test_tcp_test10`: a client dropped with 12 MB queued against a peer that
-reads every 20 ms; a file opened right after the drop gets nothing, and the
+reads every 20 ms: a file opened right after the drop gets nothing, and the
 peer gets every byte of the write in flight).
 
 ```C
@@ -288,7 +288,7 @@ and what the buffer still held is lost. `txBytes` counts it all. For
 example, 8 MB written and a drop at once, against a peer that reads slowly:
 the peer gets some 6 MB and a RST. (The CHANGELOG of 7.30.18 says of this case that *"the rest reaches
 its peer"*: what 7.30.18 fixed is that the rest no longer goes to another file
-or socket; it reaches the socket of its connection, and from there the close
+or socket. It reaches the socket of its connection, and from there the close
 decides.) It is a decision of the design, kept: a peer that does not read
 holds no socket after its close. A protocol that must deliver everything
 before closing waits for its peer to acknowledge it (an answer of the
@@ -311,7 +311,7 @@ exists"*), so the client never connected again. `tests/c/c_tcp`
 ### Data sent while closing
 
 A drop, or a disconnection, takes `C_TCP` to `ST_WAIT_STOPPED` until its last
-read, write or connect is canceled or completes; only then does it publish
+read, write or connect is canceled or completes. Only then does it publish
 `EV_DISCONNECTED`. Until then the layers above do not know, and they send.
 That `EV_TX_DATA` goes where the pending queue of a dead connection goes
 (`set_disconnected()` flushes it): away, with no error. What went is counted
@@ -354,8 +354,8 @@ destroyed in `ST_WAIT_STOPPED`).
   `EV_TX_READY`: do not give it to a second transport (or to the same one
   again, or write into it) meanwhile. The refusal above sees a gbuffer
   waiting in the queue of ANY transport, but not one in flight in another
-  one: there two writes would read and consume the same bytes. The check is
-  not made, on purpose: it would need a mark in every gbuffer, kept by every
+  one: there two writes read and consume the same bytes. The check is
+  not made, on purpose: it needs a mark in every gbuffer, kept by every
   consumer, for a misuse no caller in the SDK makes. To send the same bytes
   to two peers, send each its own gbuffer, copied BEFORE the first send:
 
@@ -371,7 +371,7 @@ destroyed in `ST_WAIT_STOPPED`).
 
 `EV_TX_READY` after an empty write: with nothing in flight nor queued, it
 comes ONE turn later (the transport posts it to itself), never inside the
-`gobj_send_event()` of the sender; with a write in flight or queued, the
+`gobj_send_event()` of the sender. With a write in flight or queued, the
 `EV_TX_READY` of that one stands for it. So a host that advances only on
 `EV_TX_READY` goes on after an empty write, and does not recurse into its own
 send. Only where a write is taken: in `ST_CONNECTED`, and, for a client that
@@ -380,7 +380,7 @@ connecting -- an empty write there connects nothing. Where a write is dropped
 (disconnected without `timeout_inactivity`, or closing) an empty one gets no
 `EV_TX_READY` either: the host was told with `EV_DISCONNECTED`. In the fixes
 after 7.29.3 an empty write got no `EV_TX_READY` at all, and such a host
-waited for ever; and then only in `ST_CONNECTED`, so a client that connects on
+waited for ever. And then only in `ST_CONNECTED`, so a client that connects on
 demand waited for ever in `ST_DISCONNECTED`. `tests/c/c_tcp` (`test5`).
 
 ```C
@@ -400,7 +400,7 @@ data ..."*).
 
 ### A write that does not start
 
-`EV_TX_DATA` sends one gbuffer at a time; the next ones wait in a queue.
+`EV_TX_DATA` sends one gbuffer at a time. The next ones wait in a queue.
 A write that the loop refuses to start -- no memory to keep its submission,
 a socket without fd (the cause is logged by `yev_start_event()`) -- will
 never complete, and its bytes are not sent. A stream cannot go on with a
@@ -423,7 +423,7 @@ up with every later write stuck behind it, and a stop waited in
 ### One write in flight
 
 A connection never has more than one write in flight, TLS included. io_uring
-may complete a write SHORT when the socket's send buffer is full, and
+can complete a write SHORT when the socket's send buffer is full, and
 `C_TCP` then sends the rest with the same write: that rest must reach the
 socket before anything written later, and it only does if nothing else was
 submitted in between.
@@ -437,7 +437,7 @@ was still being written. With two in flight, a short one sent its rest AFTER
 the other and the peer failed the record MAC: *"SSL_read() FAILED"*,
 `error:0A000119` *"decryption failed or bad record mac"*, and the connection
 dropped. It shows under a burst on a full socket -- a client resending its
-window when a gate comes back -- and how often depends on the kernel: in a
+window when a gate returns -- and how often depends on the kernel: in a
 stress test on a test VM (kernel 5.14) it dropped links 13606 times in 25
 minutes. Now the encrypted output waits while a write is in flight, and the
 next clear message is taken only when nothing is waiting.
@@ -457,14 +457,14 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-attrs gobj=<full
 `tests/c/c_tcps` (`test_tcps_test5`: 10 bursts of 400 messages of 64 KB over
 TLS against an echo server, every echo checked in order, and
 `max_tx_in_progress == 1` asserted -- it fails with `2` on the code before the
-fix, on every run, while the echoes alone come back intact on most kernels).
+fix, on every run, while the echoes alone return intact on most kernels).
 
 ### What a stop drops
 
 A local stop (`gobj_stop()` of the `C_TCP`, or of a tree that holds it) ends
 the connection: the write in flight goes on to its end, and what is queued
 behind it is dropped. That is said, once per stop, an INFO (the stop is the
-yuno's own, not a fault of the peer), with what went (7.30.27+; up to
+yuno's own, not a fault of the peer), with what went (7.30.27+, and up to
 7.30.26 it went in silence):
 
 - `dropped_msgs`, `dropped_bytes`: the messages of the host that wait their
@@ -495,7 +495,7 @@ ycommand -c 'stats-yuno id=<id> service=<service> stats=__reset__'
 ```
 
 `tests/c/c_tcp` (`test_tcp_test9`: two writes and a stop, on a client and on
-a clisrv, in one turn: one INFO per stop, `txMsgsDroppedAtStop` 1; the client
+a clisrv, in one turn: one INFO per stop, `txMsgsDroppedAtStop` 1. The client
 is started again and stopped again, the count is 2, and `stats __reset__`
 puts it back to 0. `test_tcp_test12`: a TLS client stopped while the record
 of its message waits behind the Finished of its handshake: one INFO,
@@ -506,7 +506,7 @@ of its message waits behind the Finished of its handshake: one INFO,
 (gclass-c-tcp-s)=
 ## C_TCP_S
 
-TCP server — listens on a URL and accepts connections.
+TCP server: listens on a URL and accepts connections.
 Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 
 | Property | Value |
@@ -519,17 +519,17 @@ Creates a child C_TCP (inside a C_CHANNEL) for each accepted client.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Listening URL (for example `tcp://0.0.0.0:1234`). Written while the listen is down (a bad url, or a listen that failed), it is tried at once; written while it listens, it is taken at the next start. See *A listen that fails*. |
+| `url` | `string` | Listening URL (for example `tcp://0.0.0.0:1234`). Written while the listen is down (a bad url, or a listen that failed), it is tried at once. Written while it listens, it is taken at the next start. See *A listen that fails*. |
 | `backlog` | `integer` | Listen backlog. |
 | `shared` | `bool` | Enable port sharing (`SO_REUSEPORT`). |
 | `crypto` | `json` | TLS configuration for accepted connections. |
 | `only_allowed_ips` | `bool` | Accept only the peers in the yuno's `allowed_ips` list (whitelist mode). The `denied_ips` list applies with or without it. |
 | `exitOnError` | `integer` | What a listen that fails does to the yuno (default `-1`). Not `0`: the yuno exits with this code (`-1`: its watcher launches it again), and with code `0` when it is the TLS context (not launched again). `0`: the server degrades and the yuno goes on. Set `0` where the listener is secondary for the yuno, as the agent does. See *A listen that fails*. 7.30.18 ignored it and degraded every yuno. |
-| `listen_retry_msec` | `integer` | How long a listen whose address is in use (`EADDRINUSE`) is tried again, at each tick, before it fails as any other listen (default `5000`; `0`: no fast retry). See *Address in use at the start*. |
+| `listen_retry_msec` | `integer` | How long a listen whose address is in use (`EADDRINUSE`) is tried again, at each tick, before it fails as any other listen (default `5000`, `0`: no fast retry). See *Address in use at the start*. |
 | `listening` | `bool` | Listening now (stat). False while stopped, while an address in use is tried again, and with `exitOnError` `0` while a failed listen is tried again or its url is bad, and while a TLS url has no TLS context. Running and `listening` false: the yuno goes on, and one ERROR said why. |
 | `tls_ready` | `bool` | A TLS url (`use_ssl`) with its TLS context loaded (stat). `use_ssl` true and `tls_ready` false (`exitOnError` `0`): the certificates of `crypto` cannot be loaded, and the server does not listen. See *A TLS server without its TLS context*. |
 | `connxs` | `integer` | Connections held now (stat): the connected clisrv `C_TCP`s of the channels this server serves whose `tcp_s` is this server, read when asked (up to 7.25.20 it read 0). |
-| `tconnxs` | `integer` | Connections accepted since the gobj was created (stat; a stop and a start do not reset it, as `connxs` of `C_TCP` is not): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
+| `tconnxs` | `integer` | Connections accepted since the gobj was created (stat, and a stop and a start do not reset it, as `connxs` of `C_TCP` is not): counted at the accept with `child_tree_filter`, or, with the new method, where each clisrv accepts by itself, the sum of the own `connxs` of the clisrvs whose `tcp_s` is this server (up to 7.25.20 it read 0). |
 | `refusedConnxs` | `integer` | Connections refused at accept by the ip lists (stat, since 7.25.5). |
 | `noChannelConnxs` | `integer` | Connections not accepted because no channel of `child_tree_filter` was free: the server is full (stat, after 7.25.21). |
 | `clisrv_kw` | `json` | Extra kw passed to each child client/server. |
@@ -578,7 +578,7 @@ does not read waits `timeout_stop_tx` at most (see `C_TCP`).
 
 A start that comes while the stop still waits -- a stop and a start in the
 same turn, as a restart does -- does not listen at once: the old socket is
-still open, and a second one could not bind. The server stays running in
+still open, and a second one cannot bind. The server stays running in
 `ST_WAIT_STOPPED`, and listens when the stop ends (`EV_LISTEN_AGAIN`, which it
 posts to itself for the next cycle of the loop):
 
@@ -589,9 +589,9 @@ gobj_start(tcp_s);      // running, still ST_WAIT_STOPPED: listens when the stop
 
 Up to 7.25.20 that start created a second socket, whose bind failed (the
 yuno exited, `exitOnError`), or overwrote the accept still being canceled (a
-leak, *"dup_idx not match"*); a lone stop of a new-method server left its
+leak, *"dup_idx not match"*). A lone stop of a new-method server left its
 clisrvs accepting on the closed socket, and its next start answered *"GObj
-ALREADY RUNNING"* for each one; and a clisrv started again stayed in
+ALREADY RUNNING"* for each one. And a clisrv started again stayed in
 `ST_STOPPED`, so its next stop never canceled its accept, which kept the port
 bound. `tests/c/c_tcp_s_stats`.
 
@@ -659,7 +659,7 @@ ERROR. `tests/c/c_tcp_s_addr_in_use`.
 
 What a listen that fails does is the **yuno's choice**, with `exitOnError`.
 A yuno whose listener is its role (a server of GUIs, a gateway) ends when it
-cannot listen; a yuno for which the listener is one service on top of its
+cannot listen. A yuno for which the listener is one service on top of its
 role (the agent: its role is managing its realms and yunos, and a dead agent
 is reachable only over SSH) keeps going without it.
 
@@ -673,7 +673,7 @@ is reachable only over SSH) keeps going without it.
 
 | The failure | What the server does (`exitOnError` `0`) |
 |---|---|
-| The socket cannot be made: an address held past `listen_retry_msec`, a host not on this machine yet, a name that does not resolve yet, a port it may not bind | ONE ERROR, *"yev_create_accept_event() FAILED"* (`url`, `errno`, `strerror`, `then`). It tries again at each timeout of its timer, the wait doubling from 1 s up to 60 s. Each try writes the cause of [`yev_create_accept_event()`](#yev_create_accept_event) (for an address in use, the WARNING *"bind() FAILED"*); the server says nothing more. One INFO when it listens: *"Listening again after a failed listen"*. |
+| The socket cannot be made: an address held past `listen_retry_msec`, a host not on this machine yet, a name that does not resolve yet, a port it is not allowed to bind | ONE ERROR, *"yev_create_accept_event() FAILED"* (`url`, `errno`, `strerror`, `then`). It tries again at each timeout of its timer, the wait doubling from 1 s up to 60 s. Each try writes the cause of [`yev_create_accept_event()`](#yev_create_accept_event) (for an address in use, the WARNING *"bind() FAILED"*). The server says nothing more. One INFO when it listens: *"Listening again after a failed listen"*. |
 | A bad url: empty, with no schema, of port 0 | One ERROR at each start: *"URL NULL"*, *"Parsing url failed"*, *"Cannot Listen on port 0"*. No try by itself: a url does not fix itself by waiting. Writing a good `url` listens at once, with the same INFO. |
 
 ```json
@@ -689,11 +689,11 @@ is reachable only over SSH) keeps going without it.
 
 7.30.18 degraded every yuno, ignored `exitOnError` (a WARNING when a config
 set it) and said the first failure as *"Listen failed: not listening, trying
-again"*; 7.30.19 gives the choice back, with the defaults and the messages of
+again"*. 7.30.19 gives the choice back, with the defaults and the messages of
 7.30.17. The agent sets `exitOnError` `0` on its 1991 and 1993 in its
 compiled config.
 
-With `exitOnError` `0` a stop takes the tries back; a start tries again. The
+With `exitOnError` `0` a stop takes the tries back, and a start tries again. The
 `then` field of the ERROR says which of the two it is. To see it and to fix
 it:
 
@@ -738,7 +738,7 @@ file and says nothing. When something changed it loads them, and when they
 load it listens, with one INFO. `reload-certs` (the yuno's, or the
 listener's) tries at once, so the agent's cert-sync, which sends it after it
 copies renewed certificates, opens the port without waiting. A stop takes
-back the tries; a start tries again.
+back the tries, and a start tries again.
 
 What is said, in order, for a certificate that is not there:
 
@@ -770,8 +770,8 @@ server without its TLS context: not listening"*.
 
 Up to 7.30.17 ytls exited the yuno with code 0 at the start, whatever the
 yuno wanted: an agent without its pair stayed dead, and on a node with no SSH
-nothing could bring it back. ytls never exits now (`ytls_init()` answers
-`NULL`); the exit is C_TCP_S's, by `exitOnError`. Up to 7.30.14 the mbedTLS backend
+nothing was able to start it again. ytls never exits now (`ytls_init()` answers
+`NULL`). The exit is C_TCP_S's, by `exitOnError`. Up to 7.30.14 the mbedTLS backend
 listened with no context, and the first peer crashed the yuno in
 `ytls_new_secure_filter()`. `tests/c/c_tcps` (`test14`, and
 `test14_mbedtls` when both backends are built).
@@ -794,7 +794,7 @@ does not listen, as above. At `reload-certs` (or a copy of a new pair that
 is half done: the new certificate is there, the old key still is) the
 reload answers `-1` and the server KEEPS the context it had: it goes on
 listening with the old pair. Up to 7.30.18 the mbedTLS backend took both: the
-server listened, said `tls_ready`, and every handshake failed; a reload with
+server listened, said `tls_ready`, and every handshake failed. A reload with
 a new certificate and the old key said *"TLS certificates reloaded"* and
 dropped the good context. `tests/c/ytls/test_server_init_not_fatal`.
 
@@ -872,7 +872,7 @@ authenticate (an MQTT or IoT field port) accepted it.
 | Command | Description |
 |---------|-------------|
 | `help` (`h`, `?`) | Its commands, or the help of one (`cmd=`). Since 7.25.17: it had commands and no `help` before, so asking it answered *"command not available"*. |
-| `reload-certs` | Load the certificate again from the `crypto` attribute (what the certbot deploy hook asks after a renewal); active connections are kept. |
+| `reload-certs` | Load the certificate again from the `crypto` attribute (what the certbot deploy hook asks after a renewal). Active connections are kept. |
 | `view-cert` | The certificate the listener has LOADED -- `subject`, `issuer`, `not_before`, `not_after`, `serial`, `days_remaining` -- and the `url` it listens on. -1 on a listener without TLS. |
 
 A `C_TCP_S` is usually a child of a gate, and a service only when the yuno
@@ -892,7 +892,7 @@ ycommand -c 'command-agent service=agent_secure_port command=view-cert'
  "url": "wss://0.0.0.0:1993"}
 ```
 
-The `url` carries the BIND address; the name a client must dial is the
+The `url` carries the BIND address. The name a client must dial is the
 certificate's CN -- which is how gui_agent's *For TreeDB* export finds
 `wss://agent.artgins.com:1993` (since gui_agent 0.29.5).
 
@@ -902,7 +902,7 @@ certificate's CN -- which is how gui_agent's *For TreeDB* export finds
 ## C_UDP
 
 UDP client transport. Its socket is connected to its `url`: it sends there,
-and reads what comes from there.
+and reads what arrives from there.
 
 `C_UDP` is **not registered by the SDK** and `yunetas.h` does not include
 its header: a yuno that uses it includes `c_udp.h` and registers it.
@@ -922,7 +922,7 @@ gobj_start(priv->gobj_udp);
 | Property | Value |
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_IDLE` (started: it reads and sends), `ST_WAIT_STOPPED` (a stop waiting for its read to be canceled and its send in flight to complete) |
-| **Input events** | `EV_TX_DATA` (in `ST_IDLE`; in `ST_WAIT_STOPPED` it is dropped, see *Receive and stop*) |
+| **Input events** | `EV_TX_DATA` (in `ST_IDLE`, and in `ST_WAIT_STOPPED` it is dropped, see *Receive and stop*) |
 | **Output events** | `EV_RX_DATA`, `EV_TX_READY` (every datagram queued is sent), `EV_STOPPED` (the stop is done) |
 
 A host of `C_UDP` (it is a CHILD: its parent hears it unless a `subscriber`
@@ -941,7 +941,7 @@ is given) declares the three output events in its FSM.
 
 ### Transmit
 
-`EV_TX_DATA` sends one datagram at a time; the others wait in a queue, in
+`EV_TX_DATA` sends one datagram at a time. The others wait in a queue, in
 order, and `EV_TX_READY` is published when the queue is done. An empty
 gbuffer is ignored, with a warning (*"udp tx data empty, ignored"*), and with
 nothing in flight nor queued its `EV_TX_READY` comes one turn later (see
@@ -953,10 +953,10 @@ A datagram that cannot be sent is dropped, and the next one is sent:
 
 - a send that does not start: an ERROR, *"Cannot send datagram: dropped"*.
   When that happens inside the host's `EV_TX_DATA` with nothing else in
-  flight, its `EV_TX_READY` comes one turn later too, never inside the send:
-  a host that sends its next datagram in its `EV_TX_READY` would recurse;
+  flight, its `EV_TX_READY` comes one turn later too, never inside the send.
+  Otherwise a host that sends its next datagram in its `EV_TX_READY` recurses.
 - a datagram the KERNEL refuses (nothing listens at the url:
-  `ECONNREFUSED`; too big: `EMSGSIZE`): a WARNING, *"UDP: datagram refused
+  `ECONNREFUSED`, too big: `EMSGSIZE`): a WARNING, *"UDP: datagram refused
   by the kernel, dropped"*, with the `errno`.
 
 ```C
@@ -994,9 +994,9 @@ its read is canceled and its send in flight completes: a turn after the stop
 at least, since the read is always in flight. The socket is closed when the
 stop ends, so the datagram in flight goes. The datagrams still waiting in the
 queue are dropped (a WARNING says how many). `EV_STOPPED` is the last thing it
-does with itself: the host may destroy it there.
+does with itself: the host can destroy it there.
 
-While the stop waits, the host may not know yet (a stop the `C_UDP` made by
+While the stop waits, the host possibly does not know yet (a stop the `C_UDP` made by
 itself is told only by `EV_STOPPED`) and send: that `EV_TX_DATA` is dropped,
 counted, and said ONCE when the stop ends, *"udp data sent while the client
 stops, dropped"*, a WARNING with `dropped_msgs` and `dropped_bytes`, as
@@ -1056,7 +1056,7 @@ restart.
 (gclass-c-udp-s)=
 ## C_UDP_S
 
-UDP server — listens for datagrams on a configured URL, and sends datagrams
+UDP server: listens for datagrams on a configured URL, and sends datagrams
 to the peer each gbuffer names.
 
 | Property | Value |
@@ -1138,7 +1138,7 @@ the server: logged as an ERROR, *"UDP: read FAILED, the server stops
 listening"*. The only other stops the server makes by itself are about its
 NEXT read: no memory for its new gbuffer (see *Transmit*: the host kept the
 previous one), an ERROR *"UDP: no memory for the next read, the server stops
-listening"*; and a read that cannot be started again (the cause logged by
+listening"*. And a read that cannot be started again (the cause logged by
 `yev_start_event()` first -- no memory to keep the submission, or a gbuffer
 with no room, as an `rx_buffer_size` of 0 makes it), an ERROR *"UDP: the read
 cannot be started again, the server stops listening"*. Both carry the
@@ -1173,7 +1173,7 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 `EV_TX_DATA` carries a gbuffer whose peer address was set with
 `gbuffer_setaddr()` -- the gbuffer of an `EV_RX_DATA` has it already, so an
-answer goes back to the sender. One datagram is sent at a time; the others
+answer goes back to the sender. One datagram is sent at a time. The others
 wait in a queue, in order, and each completion sends the next:
 
 ```C
@@ -1187,11 +1187,11 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 The rx gbuffer is the host's to keep: when the host still holds it after the
 `EV_RX_DATA` (an answer in it waiting in the queue or in flight, or a
 reference kept for later), `C_UDP_S` reads the next datagram into a NEW
-gbuffer, of `rx_buffer_size`; when nobody kept it, the same gbuffer is read
+gbuffer, of `rx_buffer_size`. When nobody kept it, the same gbuffer is read
 into again, as always. Up to 7.25.4 it was always cleared and read into again:
 an answer in it was sent empty (dropped: *"Cannot start event: gbuffer WITHOUT
 data to write"*, *"Cannot send datagram: dropped"*) or with the bytes and the
-peer of the next datagram, and a zero-copy send could read memory the next read
+peer of the next datagram, and a zero-copy send was able to read memory the next read
 was writing. `tests/c/c_udp_s_echo`.
 
 A new datagram is built like this:
@@ -1214,18 +1214,18 @@ send (as in [`C_TCP`](#gclass-c-tcp), *What a host must not send*). An answer
 written in the rx gbuffer is the same rule: that gbuffer goes with the send.
 
 An EMPTY gbuffer is not a datagram to send: it is ignored, with a WARNING
-(*"udp tx data empty, ignored"*); up to 7.29.3 it was dropped with two
+(*"udp tx data empty, ignored"*). Up to 7.29.3 it was dropped with two
 ERRORs. A gbuffer already queued, or the one in flight, is REFUSED: the send
 answers -1, with an ERROR (*"udp tx data already queued or in flight,
-refused"*); up to 7.29.3 it was queued again, which failed and lost a
+refused"*). Up to 7.29.3 it was queued again, which failed and lost a
 reference.
 
 A datagram that cannot be sent is DROPPED, and the next one in the queue is
-sent; nothing leaks, and the server goes on:
+sent. Nothing leaks, and the server goes on:
 
 - a gbuffer with no peer address, or no memory to keep the submission: an
   ERROR, *"Cannot send datagram: dropped"*, after the cause logged by
-  `yev_start_event()`; a stop does not wait for it in `ST_WAIT_STOPPED`;
+  `yev_start_event()`. A stop does not wait for it in `ST_WAIT_STOPPED`.
 - a datagram the KERNEL refuses -- a peer port 0 or an address of another
   family (`EINVAL`, `EAFNOSUPPORT`), a broadcast address without
   `set_broadcast` (`EACCES`), a datagram too big (`EMSGSIZE`): a WARNING,
@@ -1240,14 +1240,14 @@ one. `tests/c/c_udp_s_tx`.
 
 ### Stop and start again
 
-A stop cancels the read and closes the socket; the datagrams still WAITING in
+A stop cancels the read and closes the socket. The datagrams still WAITING in
 the queue are dropped (a WARNING says how many), and the one in flight
 completes on its own. When the read is canceled and the sends are done, the
 server is in `ST_STOPPED` and publishes `EV_STOPPED`. A `C_UDP_S` destroyed
 before its `EV_STOPPED` (in `ST_WAIT_STOPPED`) is supported and logs nothing,
 as with `C_TCP` (it is how every yuno ends): its read and its sends in flight
 are canceled, and the loop frees them with no callback. Up to 7.29.3 the send events were not kept, and their completion ran
-on the freed gobj (a use after free); and the destroy was an ERROR (*"GObj NOT
+on the freed gobj (a use after free). And the destroy was an ERROR (*"GObj NOT
 STOPPED. UV handler ACTIVE!"*), left from the libuv port.
 `tests/c/c_udp_s_tx`.
 
@@ -1258,7 +1258,7 @@ by the loop at the end of its cancel, without calling back. Up to 7.25.4 the
 read of the previous start was started again on the number of the socket the
 stop had closed -- by then any file of the process (logcenter opens its log
 file just before it starts its listener) -- and the server stopped reading with
-nothing logged; and the datagram being sent at the stop was kept, so every
+nothing logged. And the datagram being sent at the stop was kept, so every
 datagram after the start waited behind it for ever. `tests/c/c_udp_s_restart`,
 and `tests/c/c_udp_s_rx` for the receive side.
 
@@ -1266,16 +1266,16 @@ and `tests/c/c_udp_s_rx` for the receive side.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `url` | `string` | Listening URL: `udp://0.0.0.0:5000`, or an IPv6 literal in brackets, `udp://[::1]:5000` (since 7.25.5: an IPv6 peer is kept with its real length and answered; up to 7.25.4 its address was cut to 16 bytes and the reply refused, `-EINVAL`). A secure url (`udps://`) is REFUSED at the start: TLS over datagrams is DTLS, which ytls does not implement. An ERROR, *"A secure url (udps://) is not supported by C_UDP_S: there is no DTLS"*, and the yuno exits with code 0 (`exitOnError`, the default), or with `exitOnError` false the start fails and the yuno goes on. Up to 7.25.4 it was accepted, the server listened with no TLS session, and the first datagram crashed the yuno. |
+| `url` | `string` | Listening URL: `udp://0.0.0.0:5000`, or an IPv6 literal in brackets, `udp://[::1]:5000` (since 7.25.5: an IPv6 peer is kept with its real length and answered, and up to 7.25.4 its address was cut to 16 bytes and the reply refused, `-EINVAL`). A secure url (`udps://`) is REFUSED at the start: TLS over datagrams is DTLS, which ytls does not implement. An ERROR, *"A secure url (udps://) is not supported by C_UDP_S: there is no DTLS"*, and the yuno exits with code 0 (`exitOnError`, the default), or with `exitOnError` false the start fails and the yuno goes on. Up to 7.25.4 it was accepted, the server listened with no TLS session, and the first datagram crashed the yuno. |
 | `use_ssl` | `bool` | Always `false` (see `url`). The commands `reload-certs` and `view-cert` answer -1, *"Listener is not TLS-enabled or not running"*. |
 | `shared` | `bool` | Enable port sharing. |
 | `set_broadcast` | `bool` | Enable broadcast. |
-| `only_allowed_ips` | `bool` | Hear only the peers in the yuno's `allowed_ips` (see *Receive*; `denied_ips` applies with or without it); writable, it takes effect at the next datagram. |
+| `only_allowed_ips` | `bool` | Hear only the peers in the yuno's `allowed_ips` (see *Receive*, and `denied_ips` applies with or without it). Writable, it takes effect at the next datagram. |
 | `rx_buffer_size` | `integer` | Receive buffer size: the gbuffer of each read (a new one when the host kept the previous one, see *Transmit*). |
 | `txMsgs` / `rxMsgs` / `txBytes` / `rxBytes` | `integer` | Counters (stats). |
 | `rxRefusedMsgs` | `integer` | Datagrams dropped by the ip lists (stats, see *Receive*). |
 | `listening` | `bool` | Listening now (stat). False while stopped, and with `exitOnError` false while a failed listen is tried again, and when its url is bad. See *A listen that fails*. |
-| `exitOnError` | `bool` | What a listen that fails does to the yuno (default `true`): `true`, the yuno exits with code 0 (its watcher does not launch it again); `false`, the server degrades and the yuno goes on. 7.30.18 ignored it and degraded every yuno. `C_GSS_UDP_S` passes its own `exitOnError` to its `C_UDP_S`. |
+| `exitOnError` | `bool` | What a listen that fails does to the yuno (default `true`): `true`, the yuno exits with code 0 (its watcher does not launch it again). `false`, the server degrades and the yuno goes on. 7.30.18 ignored it and degraded every yuno. `C_GSS_UDP_S` passes its own `exitOnError` to its `C_UDP_S`. |
 
 ### A listen that fails
 
@@ -1283,7 +1283,7 @@ What a listen that fails does is the yuno's choice, with `exitOnError`. With
 `true`, the default, the yuno exits with code 0 after the ERROR of the cause
 (its `then` says *"exiting with code 0 (exitOnError)"*), and code 0 tells its
 watcher NOT to launch it again: the UDP listener of logcenter is its role. As
-up to 7.30.17; 7.30.18 degraded every yuno and ignored `exitOnError`.
+up to 7.30.17. 7.30.18 degraded every yuno and ignored `exitOnError`.
 
 With `exitOnError` false the server stays running in `ST_STOPPED`,
 `listening` false (its start answers `-1` for a bad url, `0` when a try is
@@ -1294,7 +1294,7 @@ armed), and the yuno goes on:
   *"yev_create_accept_event() FAILED"* (`url`, `errno`, `strerror`), and a
   try at each timeout of its timer, the wait doubling from 1 s up to 60 s.
   Each try writes the cause of `yev_create_accept_event()` (the WARNING
-  *"bind() FAILED"* for an address in use); the server says nothing more.
+  *"bind() FAILED"* for an address in use). The server says nothing more.
   A read that cannot be started is the same, its ERROR *"Cannot start the
   read of the UDP server"* (7.30.18 said *"Cannot start the read of the UDP
   server: not listening, trying again"*), and its cause from
@@ -1339,7 +1339,7 @@ a drop.
 | Property | Value |
 |----------|-------|
 | **States** | `ST_STOPPED`, `ST_DISCONNECTED`, `ST_CONNECTED` |
-| **Input events** | `EV_CONNECT`, `EV_TX_DATA` (in `ST_CONNECTED`; in `ST_DISCONNECTED` it is dropped, with an error), `EV_DROP` (in `ST_CONNECTED`), `EV_TIMEOUT` |
+| **Input events** | `EV_CONNECT`, `EV_TX_DATA` (in `ST_CONNECTED`, and in `ST_DISCONNECTED` it is dropped, with an error), `EV_DROP` (in `ST_CONNECTED`), `EV_TIMEOUT` |
 | **Output events** | `EV_CONNECTED`, `EV_DISCONNECTED`, `EV_RX_DATA`, `EV_TX_READY` (every write queued is done), `EV_STOPPED` (the stop is done) |
 
 A host of `C_UART` (it is a CHILD: its parent hears it unless a `subscriber`
@@ -1361,8 +1361,8 @@ DEFINED in state"* at every stop.
 | `stopbits` | `integer` | Stop bits (`1` or `2`, default `1`). Another value is an error, and `1` is used and written back. |
 | `xonxoff` | `bool` | Software flow control. |
 | `rtscts` | `bool` | Hardware flow control. |
-| `timeout_between_connections` | `integer` | Milliseconds between two opens (default `2000`; `0` is raised to 1000 ms, with one warning). |
-| `max_tx_queue` | `integer` | Writes that may wait behind the one in flight (default `0`: no limit, as in `C_TCP`). When the queue is full the oldest waiting write is dropped, with an error (*"uart tx queue full, the oldest write dropped"*, said for the first drop and then once every `max_tx_queue` drops). Example: `"max_tx_queue": 16`. |
+| `timeout_between_connections` | `integer` | Milliseconds between two opens (default `2000`, and `0` is raised to 1000 ms, with one warning). |
+| `max_tx_queue` | `integer` | Writes that can wait behind the one in flight (default `0`: no limit, as in `C_TCP`). When the queue is full the oldest waiting write is dropped, with an error (*"uart tx queue full, the oldest write dropped"*, said for the first drop and then once every `max_tx_queue` drops). Example: `"max_tx_queue": 16`. |
 
 ```json
 {"name": "serial_bus", "gclass": "C_UART",
@@ -1377,7 +1377,7 @@ output buffer of the tty is full), the rest goes before the next write.
 `EV_TX_READY` is published when the last write queued is done, not once per
 `EV_TX_DATA`. The queue has no limit unless `max_tx_queue` is set. A write
 that the kernel interrupts (`EINTR`: the write of a tty runs blocking in a
-worker of io_uring) goes again; so does a read. Not for ever: 16
+worker of io_uring) goes again. So does a read. Not for ever: 16
 interruptions within one second drop the line, with an error (*"The tty is
 interrupted again and again: the line is dropped"*). A read that cannot be
 started again drops the line too, with an error: it does not stay connected
@@ -1387,9 +1387,9 @@ What a host must not send:
 
 - An empty gbuffer is ignored, with a warning (*"uart tx data empty,
   ignored"*). With nothing in flight nor queued its `EV_TX_READY` comes one
-  turn later, never inside the send; with a write in flight or queued, the
+  turn later, never inside the send. With a write in flight or queued, the
   `EV_TX_READY` of that one stands for it (as in [`C_TCP`](#gclass-c-tcp)).
-  In 7.29.3 it was an error, and a write event lost with its gbuffer; in the
+  In 7.29.3 it was an error, and a write event lost with its gbuffer. In the
   fixes after it, no `EV_TX_READY` came, and a host that advances only on it
   waited for ever.
 - A gbuffer already queued, or the one in flight, is refused: the send
@@ -1445,11 +1445,11 @@ line does exactly that.
 
 A start never opens the device inside `gobj_start()`: it opens it 100 ms
 later, on its timer, the start after a stop like any other. The open of a
-tty is synchronous, so an open inside the start would publish
+tty is synchronous, so an open inside the start publishes
 `EV_CONNECTED` inside the host's `gobj_start()`, before the host is ready
-for it; a `C_TCP`'s `EV_CONNECTED` comes later too, when its connect
+for it. A `C_TCP`'s `EV_CONNECTED` comes later too, when its connect
 completes. A timer, and not an event posted to itself: a stop before the open
-cancels the timer, while a posted `EV_CONNECT` would still come, to a stopped
+cancels the timer, while a posted `EV_CONNECT` still comes, to a stopped
 `C_UART`.
 
 ```C
@@ -1464,7 +1464,7 @@ queued behind it are dropped. So a write that the line does not take (its
 output held by flow control, or by a peer that does not read) never holds a
 stop. A drop and a disconnection cut the writes the same way.
 
-`EV_STOPPED` is the last thing it does with itself: a host may destroy it
+`EV_STOPPED` is the last thing it does with itself: a host can destroy it
 there. A host that destroys it in the `EV_DISCONNECTED` of a stop is wrong
 (the kernel says so: *"Destroying a gobj while its tree is publishing"*),
 and the `C_UART` touches nothing of itself after that publication.
@@ -1487,18 +1487,18 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 Up to 7.29.3 a stop stopped the read and nothing else. Stopped inside its own
 `EV_RX_DATA` it kept its tty open (the next start overwrote the fd, a leak,
 and its `EV_CONNECTED` reached a host that had never been told of the
-disconnection); stopped with the read in flight it stayed in
-`ST_WAIT_STOPPED` for ever, and the next start never opened the device;
+disconnection). Stopped with the read in flight, it stayed in
+`ST_WAIT_STOPPED` for ever, the next start never opened the device, and
 `EV_STOPPED` was never published. And in both cases the callback of the
 stopped `C_UART` answered -1 to the event loop, which **ended the loop, and
 the yuno with it**. A `C_UART` destroyed with a write in flight was used
-after it was freed, when the write completed; one destroyed in
+after it was freed, when the write completed. One destroyed in
 `ST_WAIT_STOPPED` left its tty open. A stop with the read in flight and a
 start in the same turn came back connected, with an error (*"Initial wrong
-task state"*); the first fixes after 7.29.3 refused that start, and the line
+task state"*). The first fixes after 7.29.3 refused that start, and the line
 stayed down for ever, until `ST_WAIT_STOPPED` was taken out.
 `tests/c/c_prot_modbus_m` (`test4`, a Modbus master over a pty, stopped and
-started in one turn; `test5`, a `C_UART` hosted by the test over a pty).
+started in one turn, and `test5`, a `C_UART` hosted by the test over a pty).
 
 ### Trace levels
 

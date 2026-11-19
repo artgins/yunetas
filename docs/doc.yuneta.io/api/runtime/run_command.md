@@ -7,7 +7,7 @@ at its default**, whatever the caller has. A yuno keeps SIGPIPE, SIGTERM,
 SIGALRM, SIGQUIT, SIGINT, SIGUSR1 and SIGUSR2 blocked for its `signalfd`,
 and a blocked or an ignored signal stays so across `exec`: up to 7.29.3
 every program a yuno ran inherited them (`SigBlk: 0x7a06`), so a `timeout`
-it ran could not stop its child with SIGTERM. Check it on a running
+it ran was not able to stop its child with SIGTERM. Check it on a running
 program:
 
 ```bash
@@ -25,8 +25,8 @@ listening socket, a log file, the other end of a pipe), and kept it open
 after the yuno closed it. On a glibc older than 2.34 (no
 `posix_spawn_file_actions_addclosefrom_np()`) each open fd is closed one by
 one, and one at or above the soft limit of open files, which
-`posix_spawn_file_actions_addclose()` refuses, is given `O_CLOEXEC` instead;
-before, such an fd failed the whole spawn. Check it on a running program:
+`posix_spawn_file_actions_addclose()` refuses, is given `O_CLOEXEC` instead.
+Before, such an fd failed the whole spawn. Check it on a running program:
 
 ```bash
 ls -l /proc/<pid>/fd    # 0, 1 and 2 only (and what the program opened)
@@ -55,7 +55,7 @@ gbuffer_t *run_command(const char *command);
 **Returns**
 
 `gbuffer_t` containing the command output, or `NULL` (logged) when the
-command could not be run. The exit status is not returned: use
+command cannot be run. The exit status is not returned: use
 [`run_process2()`](#run_process2) with `sh -c` when it matters.
 
 **Notes**
@@ -127,7 +127,7 @@ int run_process2(
 **Returns**
 
 The status of `waitpid()`: `0` when the program exited with 0 (read the rest
-with `WIFEXITED()` / `WEXITSTATUS()`). `-1`, logged, when it could not be run
+with `WIFEXITED()` / `WEXITSTATUS()`). `-1`, logged, when it cannot be run
 (no such program, not executable) or waited for. The ERROR names the call
 that failed (`"failed"`). A caller whose `SIGCHLD` is `SIG_IGN` gets `-1`:
 the kernel reaps the program, and its status is lost.
@@ -135,10 +135,10 @@ the kernel reaps the program, and its status is lost.
 **Notes**
 
 Unlike `system()`, the caller's `SIGINT` and `SIGQUIT` are not ignored while it
-waits: a yuno takes them from a `signalfd`, and setting them to `SIG_IGN`
-would throw away a stop that arrives meanwhile. Up to 7.28.4 this was a port
-of the `system()` of *The Linux Programming Interface* (GPL-3.0), which did;
-it also answered `127` (in the status) for a program that could not be run.
+waits: a yuno takes them from a `signalfd`, and if it set them to `SIG_IGN`,
+a stop that arrives meanwhile is thrown away. Up to 7.28.4 this was a port
+of the `system()` of *The Linux Programming Interface* (GPL-3.0), which ignored them.
+It also answered `127` (in the status) for a program that it was not able to run.
 
 **Example**
 
@@ -177,8 +177,8 @@ on, and what is typed after it goes on reaching the command. Any other
 stdin ends once, and so the command gets one end of input: a terminal has
 no end that stays, as a pipe has. Only the first reader of the terminal
 sees it, and a second one waits. With `abc` and a newline on a pipe,
-`cat >/dev/null; echo A; cat >/dev/null; echo B` prints `A` and waits;
-typed on a terminal, a second ctrl+d gets to `B`.
+`cat >/dev/null; echo A; cat >/dev/null; echo B` prints `A` and waits.
+Typed on a terminal, a second ctrl+d gets to `B`.
 
 The call ends with the command, not with a process the command left in the
 background: the exit is seen by a pidfd (`pidfd_open()`), so
@@ -216,5 +216,5 @@ int pty_sync_spawn(const char *command);
 
 `0` when the command exited, whatever its exit code (also when the kernel
 reaped it, with `SIGCHLD` ignored: then a command killed by a signal
-answers `0` too); `-1` when it could not be run, was killed by a signal, or
-could not be followed (logged).
+answers `0` too). `-1` when it cannot be run, was killed by a signal, or
+cannot be followed (logged).

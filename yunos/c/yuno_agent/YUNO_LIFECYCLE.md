@@ -107,20 +107,20 @@ agent's primary group. `bin/` is setgid only when the directory above it is:
 agent asks for), and a new directory takes it only from a setgid parent. On
 nodes whose `bin/` directories are `drwxrwxr-x yuneta:yuneta`, without the
 setgid bit, the group is `yuneta` either way. At every launch the agent writes
-each file again: to a temporary file in `bin/` (`.config.XXXXXX`; up to
-7.25.21 `.<n>-<role>^<name>.json.XXXXXX`, eight bytes longer than the file,
-so a name a few bytes under `NAME_MAX` could not be written), created with
+each file again: to a temporary file in `bin/` (`.config.XXXXXX`. Up to
+7.25.21, it was `.<n>-<role>^<name>.json.XXXXXX`, eight bytes longer than the file,
+so a name a few bytes under `NAME_MAX` was not writable), created with
 that mode, then renamed over the old one. So the new file is the
 agent's own whoever owned the old one (for example a file of another user
-that the agent could write only through the group), a symbolic link at that
+that the agent can write only through the group), a symbolic link at that
 name is replaced and never followed, and a failed write leaves the old file
 whole. If a file cannot be written, the yuno is not run (*"A configuration
-file of the yuno cannot be written, not run"*); `bin/` must be writable by
+file of the yuno cannot be written, not run"*). `bin/` must be writable by
 the agent, as it is when the agent creates it. Up to 7.25.20 they were
 `0664`, readable by every user of the node.
 
 The number of files changes with the yuno (a user configuration, required
-services). So an earlier launch may have left `4-<role>^<name>.json` where
+services). So an earlier launch can leave `4-<role>^<name>.json` where
 this one writes only three. The launch script does not name it and the yuno
 never reads it, but its secrets are still in it. At every launch the agent
 narrows each such file (a number over the ones it wrote now) to `0640`. It
@@ -210,8 +210,8 @@ Registered in the agent's command table. Yuno + binary + config commands only
 | Command           | Effect                                                                  |
 |-------------------|-------------------------------------------------------------------------|
 | `install-binary`  | Decode `content64`, introspect role+version, refuse if `(role, version)` already exists, write file, create treedb row. The `id`, the role and version the binary prints, and every tag are **safe names**: only `[A-Za-z0-9._-]`, not empty, not starting with `.`, no `..` (they name `/yuneta/repos/<tags>/<role>/<version>`, and `build_path()` drops a `.` segment, so a version `.` named the role's own directory). `update-binary` and `delete-binary` apply the same rule. |
-| `update-binary`   | Same as install but **overwrites** the row and file of the `(role, version)` the binary declares, which must be installed; a version that is not, or a binary of another role, is refused (use `install-binary`). Up to 7.28.9 it overwrote the PRIMARY row, whatever version it was sent. Description literally says *"WARNING: Don't use in production!"*. |
-| `delete-binary`   | `id=` is **required**: without it the filter is empty and selects every binary (up to 7.29.3, `delete-binary force=1` with no id deleted them all, those in use too). Pass `version=` to durably prune one installed version (per-instance delete). **Without it, or with the version of the primary, it deletes EVERY version of the id**: the delete of the primary takes the whole key. Refuses if a yuno on **that** version still references it -- on any version of the id, when it takes them all: the guard then reads the `yunos` of every version it takes, because each version has its own list (a yuno is linked to the version it was created on), and counts a yuno once. The lists can overlap: a version installed later starts with a copy of the primary's list at its install (the treedb's new instance inherits the fkeys of the primary), so the delete of ONE version counts only the yunos whose `role_version` is that version; up to 7.29.3 only the list of the record given was read, so a yuno on an older version did not block the delete of the primary -- (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`; every version it takes is checked). `force=1` overrides these two guards, and only these. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir) of `/yuneta/repos/<tags>/<role>/<version>`, of each version it takes, and the answer counts them all. Up to 7.29.3 the record of every version went and only the primary's directory: the others stayed in `/yuneta/repos`, named by no record, and the answer said *"1 binaries deleted"*; and with the primary's `version=` only the yunos and the snap of that version were checked. The `data` of the answer has one item per version taken: `{"id", "version", "files", "removed"}`, where `files` is the version's directory (or, for a name that is not safe, the `binary` of the record; `""` when it names none) and `removed` says whether the agent removed it: `false` when [`rmrdir`](#rmrdir) fails (logged), or when the agent cannot look at the directory (`access()` fails with other than `ENOENT` or `ENOTDIR`, logged: it may be there; up to 7.29.3 it was skipped and not named; `ENOTDIR`, a part of the path that is not a directory, means no directory can be there), and then the answer is `-1`, still counts the records deleted, and names the directories to remove by hand (up to 7.29.3 a failed removal was not looked at). A delete the treedb refuses is answered `-1` with its id, version and cause, and what was deleted before it (count, directories left, files kept); up to 7.29.3 the answer was the cause alone. `record_only=1` deletes the record and leaves the files, of any record. A record with a name that is not a safe name (one installed by 7.29.3 or older: a `^`, `@`, a space, an empty version) is refused, record and files, unless `record_only=1`: then its **record** is deleted, a WARNING is logged, and no directory is removed (none is exactly its version's): remove its files by hand. The WARNING (`files`), the comment and the `data` of the answer say where they are: the version's directory, or for a name that is not safe the `binary` that the record says it installed. `force=1` does not delete such a record, and `record_only=1` does not pass the guards: a record that a yuno uses needs both. See the example below the table. |
+| `update-binary`   | Same as install but **overwrites** the row and file of the `(role, version)` the binary declares, which must be installed. A version that is not, or a binary of another role, is refused (use `install-binary`). Up to 7.28.9 it overwrote the PRIMARY row, whatever version it was sent. Description literally says *"WARNING: Don't use in production!"*. |
+| `delete-binary`   | `id=` is **required**: without it the filter is empty and selects every binary (up to 7.29.3, `delete-binary force=1` with no id deleted them all, those in use too). Pass `version=` to durably prune one installed version (per-instance delete). **Without it, or with the version of the primary, it deletes EVERY version of the id**: the delete of the primary takes the whole key. Refuses if a yuno on **that** version still references it -- on any version of the id, when it takes them all: the guard then reads the `yunos` of every version it takes, because each version has its own list (a yuno is linked to the version it was created on), and counts a yuno once. The lists can overlap: a version installed later starts with a copy of the primary's list at its install (the treedb's new instance inherits the fkeys of the primary), so the delete of ONE version counts only the yunos whose `role_version` is that version. Up to 7.29.3, only the list of the record given was read, so a yuno on an older version did not block the delete of the primary -- (validated per-yuno via [`gobj_get_node`](#gobj_get_node), so stale hook refs do not block) **or a snap tags it** (`__md_treedb__.tag`, and every version it takes is checked). `force=1` overrides these two guards, and only these. Then [`gobj_delete_node`](#gobj_delete_node) + [`rmrdir`](#rmrdir) of `/yuneta/repos/<tags>/<role>/<version>`, of each version it takes, and the answer counts them all. Up to 7.29.3 the record of every version went and only the primary's directory: the others stayed in `/yuneta/repos`, named by no record, and the answer said *"1 binaries deleted"*. And with the primary's `version=` only the yunos and the snap of that version were checked. The `data` of the answer has one item per version taken: `{"id", "version", "files", "removed"}`, where `files` is the version's directory (or, for a name that is not safe, the `binary` of the record, or `""` when it names none) and `removed` says whether the agent removed it: `false` when [`rmrdir`](#rmrdir) fails (logged), or when the agent cannot look at the directory (`access()` fails with other than `ENOENT` or `ENOTDIR`, logged: it can be there. Up to 7.29.3, it was skipped and not named. `ENOTDIR`, a part of the path that is not a directory, means no directory can be there), and then the answer is `-1`, still counts the records deleted, and names the directories to remove by hand (up to 7.29.3 a failed removal was not looked at). A delete the treedb refuses is answered `-1` with its id, version and cause, and what was deleted before it (count, directories left, files kept). Up to 7.29.3, the answer was the cause alone. `record_only=1` deletes the record and leaves the files, of any record. A record with a name that is not a safe name (one installed by 7.29.3 or older: a `^`, `@`, a space, an empty version) is refused, record and files, unless `record_only=1`: then its **record** is deleted, a WARNING is logged, and no directory is removed (none is exactly its version's): remove its files by hand. The WARNING (`files`), the comment and the `data` of the answer say where they are: the version's directory, or for a name that is not safe the `binary` that the record says it installed. `force=1` does not delete such a record, and `record_only=1` does not pass the guards: a record that a yuno uses needs both. See the example below the table. |
 | `list-binaries`   | `gobj_list_nodes("binaries", filter)`, returns one node per role — the binary **in use** (primary per `id`). |
 | `list-binaries-instances` | `gobj_list_instances("binaries", "", filter)`, returns one row per installed `(role, version)` so every version is visible. |
 
@@ -238,7 +238,7 @@ refuses: add `force=1` too (the yuno then has no binary to run).
 |-----------------|-----------------------------------------------------------------|
 | `create-config` (alias `install-config`) | Decode `content64`, read `version` from the `__version__` field **inside** it, refuse if `(id, version)` already exists, create the row in `configurations`. The `install-config` alias mirrors `install-binary`. The content is json with its `#^^` comments removed. A `content64` that decodes to nothing or is not json answers `-1` *"<role^name>: Bad json in content64"*, with ONE WARNING and no dump of the content, for example `{"msgset": "Parameter", "msg": "content64 of a config is not json, refused", "command": "create-config", "error": "'}' expected", "line": 1, "column": 122, "len": 122}` (*"content64 of a config is empty, refused"* for nothing). Up to 7.30.26 these were ERRORs with a stack (*"len is ZERO"*, *"json_loads() FAILED"*) and a dump of the whole config, a private key among it. |
 | `update-config` | **Overwrite** the `zcontent` of an EXISTING `(id, version)` row (version again read from `__version__`). Fails *"Configuration not found"* if the row does not exist — it does **not** create. A `content64` that is empty or not json: as `create-config`. |
-| `delete-config` | `id=` is **required** (without it the filter selects every configuration; up to 7.29.3, `delete-config force=1` with no id deleted them all). Pass `version=` to durably prune one config version (per-instance delete). **Without it, or with the version of the primary, it deletes EVERY version of the id**: the delete of the primary takes the whole key. Fails if a yuno on **that** version references it -- on any version of the id, when it takes them all, read from the `yunos` of every version it takes (each version has its own list, which starts as a copy of the primary's at its create, so the delete of ONE version counts only the yunos whose `name_version` is that version; up to 7.29.3 only the list of the record given was read) -- (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs do not block). A snap that holds a version it takes refuses it too (the treedb). `force=1` overrides. A configuration has no files; the answer counts every version taken. Up to 7.29.3 it said *"1 configurations deleted"*, and with the primary's `version=` it checked only the yunos of that version. |
+| `delete-config` | `id=` is **required** (without it the filter selects every configuration. Up to 7.29.3, `delete-config force=1` with no id deleted them all). Pass `version=` to durably prune one config version (per-instance delete). **Without it, or with the version of the primary, it deletes EVERY version of the id**: the delete of the primary takes the whole key. Fails if a yuno on **that** version references it -- on any version of the id, when it takes them all, read from the `yunos` of every version it takes (each version has its own list, which starts as a copy of the primary's at its create, so the delete of ONE version counts only the yunos whose `name_version` is that version. Up to 7.29.3, only the list of the record given was read) -- (validated per-yuno via `gobj_get_node`, so an unused version prunes even while another is in use, and stale hook refs do not block). A snap that holds a version it takes refuses it too (the treedb). `force=1` overrides. A configuration has no files. The answer counts every version taken. Up to 7.29.3 it said *"1 configurations deleted"*, and with the primary's `version=` it checked only the yunos of that version. |
 | `list-configs`  | `gobj_list_nodes("configurations", filter)`, one node per `id` (the primary version). |
 | `list-configs-instances` | `gobj_list_instances(...)`, one row per `(id, version)` so every version is visible. |
 | `view-config`   | A ycommand console helper, not an agent command. It reads the **stored** zcontent for a given `(id, version)`. Does not return the merged effective config that the running yuno sees. For that, ask the yuno itself with `command-yuno service=__yuno__ command=view-config`. |
@@ -272,7 +272,7 @@ ycommand -c 'delete-public-service'                # refused: no id
 | Command            | Effect                                                                      |
 |--------------------|-----------------------------------------------------------------------------|
 | `create-yuno`      | Create a row in `yunos`. Validates realm + binary + config existence.       |
-| `delete-yuno`      | `id=` is **required** (without it, up to 7.29.3, `whole=1` deleted every yuno that was not running, and `yuno_release=` alone deleted that release of every yuno: a release is `<binary version>-<config version>`, shared by many). Pass `yuno_release=` to durably prune one release instance (for example a superseded or higher release), or `whole=1` for the yuno and all its releases. The bare form is **refused**, and so are both together (up to 7.29.3 `whole=1` with a release other than the primary's deleted that release only). The release of the **primary** is not one release (its delete takes every release of the yuno), so with other releases behind it, it is refused without `whole=1`; up to 7.29.3 it deleted them all. It refuses if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or if `tagged`, unless `force=1`. Then it deletes the row. When the delete takes the whole yuno (`whole=1`, or since 7.30.24 `yuno_release=` of its only release) it also removes the yuno's `<domain_dir>/data/C_YUNO-<yuno_name>-persistent-attrs.json` (its saved trace levels and `__yuno__` attrs), so a yuno created again with the same id starts without them; not for a yuno whose binary fixes its `domain_dir` (`logcenter`, `webstats`: reset their trace with `trace-off-yuno` while they run, before `kill-yuno`). Up to 7.30.22 the file stayed. |
+| `delete-yuno`      | `id=` is **required** (without it, up to 7.29.3, `whole=1` deleted every yuno that was not running, and `yuno_release=` alone deleted that release of every yuno: a release is `<binary version>-<config version>`, shared by many). Pass `yuno_release=` to durably prune one release instance (for example a superseded or higher release), or `whole=1` for the yuno and all its releases. The bare form is **refused**, and so are both together (up to 7.29.3 `whole=1` with a release other than the primary's deleted that release only). The release of the **primary** is not one release (its delete takes every release of the yuno), so with other releases behind it, it is refused without `whole=1`. Up to 7.29.3, it deleted them all. It refuses if `yuno_running=true` (checked against the **primary**, since instance rows carry a stale flag) or if `tagged`, unless `force=1`. Then it deletes the row. When the delete takes the whole yuno (`whole=1`, or since 7.30.24 `yuno_release=` of its only release) it also removes the yuno's `<domain_dir>/data/C_YUNO-<yuno_name>-persistent-attrs.json` (its saved trace levels and `__yuno__` attrs), so a yuno created again with the same id starts without them. This does not apply to a yuno whose binary fixes its `domain_dir` (`logcenter`, `webstats`: reset their trace with `trace-off-yuno` while they run, before `kill-yuno`). Up to 7.30.22 the file stayed. |
 | `enable-yuno`      | `yuno_disabled := false`.                                                 |
 | `disable-yuno`     | Pauses the yuno if it plays, SIGKILLs it if it runs, then `yuno_disabled := true`. See §5.6. |
 | `run-yuno`         | Spawn matching `(disabled=false, running=false)` yunos. See §4.            |
@@ -302,7 +302,7 @@ the command takes (`id`, `realm_id`, `yuno_role`, `yuno_name`,
 | `kill-yuno` | stops every running yuno (`app=1`: only those with an id of 1000 or more) |
 | `play-yuno`, `pause-yuno` | plays, or pauses, every running yuno that is not disabled |
 | `enable-yuno`, `disable-yuno` | enables every disabled yuno, or disables every enabled one (`disable-yuno` also pauses and kills them) |
-| `trace-on-yuno level=<levels>`, `trace-off-yuno` | sets the global trace levels given (comma separated) in every yuno, one `set-global-trace level=<l> set=1` each to its root (`__root__`); `trace-off-yuno` resets every global level of every yuno. Each marks the yuno `traced` (true / false), only the yunos it reached: a yuno not connected (stopped, starting, stopping) gets nothing, keeps its saved levels and its `traced`, and the answer names it (`-1` when none was reached; up to 7.30.22 `trace-off-yuno` answered 0 and set `traced` false for it, and the yuno came back traced). `trace-on-yuno` without `level`, or with one that is not global, is refused and does nothing. The yuno answers the agent, which logs a WARNING *"a command of the agent to a yuno failed"* when it refuses. Up to 7.30.21 the pair set the user levels of the root gobj, which has none, and only for a yuno not traced (or traced); up to 7.30.18 it named no gobj and every yuno answered *"gobj not found: ''"* |
+| `trace-on-yuno level=<levels>`, `trace-off-yuno` | sets the global trace levels given (comma separated) in every yuno, one `set-global-trace level=<l> set=1` each to its root (`__root__`). `trace-off-yuno` resets every global level of every yuno. Each marks the yuno `traced` (true / false), only the yunos it reached: a yuno not connected (stopped, starting, stopping) gets nothing, keeps its saved levels and its `traced`, and the answer names it (`-1` when none was reached. Up to 7.30.22, `trace-off-yuno` answered 0 and set `traced` false for it, and the yuno came back traced). `trace-on-yuno` without `level`, or with one that is not global, is refused and does nothing. The yuno answers the agent, which logs a WARNING *"a command of the agent to a yuno failed"* when it refuses. Up to 7.30.21 the pair set the user levels of the root gobj, which has none, and only for a yuno not traced (or traced). Up to 7.30.18, it named no gobj and every yuno answered *"gobj not found: ''"* |
 | `command-yuno` | sends the command to every running yuno that is not disabled |
 | `stats-yuno`, `authzs-yuno` | asks every running yuno that is not disabled (read-only) |
 | `set-tag`, `set-multiple` | writes the tag, or `yuno_multiple`, into every yuno |
@@ -324,12 +324,12 @@ renewal,
 ycommand -c 'command-yuno command=reload-certs service=__yuno__'
 ```
 
-so that every running yuno loads the new certificate. An explicit `all=1`
-would break that hook on every node until the package is upgraded, and when
-the hook fails it falls back to `restart-yuneta`, which restarts every yuno.
-`command-yuno` forwards its whole kw to the yunos, so a flag like `all=1`
-would also reach the command itself. The commands that **delete** need an
-`id` instead; see [`delete-yuno`](#yuno-lifecycle-delete-yuno) and the
+so that every running yuno loads the new certificate. An explicit `all=1`, if required,
+breaks that hook on every node until the package is upgraded. When
+the hook fails, it runs `restart-yuneta` instead, which restarts every yuno.
+`command-yuno` forwards its whole kw to the yunos, so a flag like `all=1`, if added,
+also reaches the command itself. The commands that **delete** need an
+`id` instead. See [`delete-yuno`](#yuno-lifecycle-delete-yuno) and the
 `delete-*` rows above.
 
 ---
@@ -436,7 +436,7 @@ WARNING ... "msg": "identity card refused: its pid is not a process of that yuno
 ```
 
 Up to 7.30.17 every pid that a refused card gave got the SIGKILL, so a
-session could kill any process of the user. With `"pid": -1` that was every
+session was able to kill any process of the user. With `"pid": -1` that was every
 process of the user, `yuneta_agent22` included.
 
 **A card the agent accepts.** The `pid` and `watcher_pid` of an accepted card
@@ -473,8 +473,8 @@ ycommand -c 'play-yuno'         # play already-running yunos → 1 aggregated an
 **Where that answer goes.** It is sent when the counter completes, long after
 the command returned, so it is not carried back by the call: `ac_final_count()`
 resolves the requester by NAME and sends it an `EV_MT_COMMAND_ANSWER`. A local
-`ycommand` is a child of `__input_side__` and is found there; a client behind a
-**controlcenter** is not — its command arrived through the agent's *outbound*
+`ycommand` is a child of `__input_side__` and is found there. A client behind a
+**controlcenter** is not: its command arrived through the agent's *outbound*
 `controlcenter` `C_IEVENT_CLI`, a top-level service. Up to 7.12.x the
 lookup missed and the answer was dropped with *"requester channel child not
 found"* in the agent's log: the yuno was killed, or launched, and the caller
@@ -594,7 +594,7 @@ first-fork survivor in [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.3
 waits and re-execs the same binary: 2 s the first time, doubling up to 60 s
 while each new child ends within 60 s of its start. During that wait the
 watcher is alive, so the agent sees the yuno as alive but not connected and
-does not launch it again; `kill-yuno` ends the watcher at once. It does this **whether the agent runs
+does not launch it again. `kill-yuno` ends the watcher at once. It does this **whether the agent runs
 or not**. A yuno is an autonomous machine, and the watcher is what makes that
 concrete. See
 [`ENTRY_POINT.md`](ENTRY_POINT.md#entry-point-watcher) §4
@@ -638,13 +638,13 @@ What the agent contributes on top:
    yuno's channel, and they are not persistent: a yuno that lost its
    channel, or that outlived a restart of the agent, is "not running" there
    while it lives -- typically one still busy at start (loading a big queue
-   or treedb) when the agent comes back. Before a launch, the two sweeps and
+   or treedb) when the agent starts again. Before a launch, the two sweeps and
    `run-yuno` look in `/proc` for a process of that yuno: `argv[0]` is its
    role and its command line names its configuration files in its `bin/`
    (so a release change does not hide it, nor does a launch by hand with
    its `.sh`), and it runs as the agent's user (the owner of
    `/proc/<pid>`): a look-alike of another user is not taken (in 7.30.18
-   any local user could keep a yuno from being launched with one). If one
+   any local user was able to keep a yuno from being launched with one). If one
    lives, the yuno is skipped with a WARNING that names its pids:
 
    ```
@@ -652,7 +652,7 @@ What the agent contributes on top:
    "yuno_id": "7501", "yuno_role": "db_events", "pids": [6933, 6934]
    ```
 
-   It comes back on its own when it reaches the agent. A `run-yuno` that
+   It returns on its own when it reaches the agent. A `run-yuno` that
    finds only such yunos answers *"N yuno(s) alive but not connected to the
    agent: not launched again"*. `yuno.pid` is not used for this: a yuno
    writes it where its own config says (logcenter's is under
@@ -875,7 +875,7 @@ blocked, stays alive, and the record of the agent stays at `running`.
 
 A `kill -9 <yuno_pid>` from the shell ends the yuno for good: the watcher
 takes a SIGKILL on its child as a decision, not a crash, and exits too
-(`ydaemon.c`; any other signal is a crash, and the child is relaunched
+(`ydaemon.c`. Any other signal is a crash, and the child is relaunched
 after 2s). `kill-yuno force=1` and `set-quick-kill` send
 SIGKILL to both pids, the watcher too. That is the only way for the agent to
 stop a yuno that does not cooperate
@@ -894,14 +894,14 @@ at `run-yuno`. So **changes take effect on next start**. There is no
 re-materialisation of the JSON files on disk for a running yuno. A
 `deactivate-snap` (or `activate-snap`, `yunetas upgrade-yunos`) restarts the
 yunos the change reaches, because it compares with what each yuno was
-launched with (§6.5, *Caveats*); up to 7.29.1 it kept them.
+launched with (§6.5, *Caveats*). Up to 7.29.1, it kept them.
 
 ### 5.6 `disable-yuno` stops a running yuno
 
 `cmd_disable_yuno` pauses the yuno if it plays, SIGKILLs it if it runs, and
 then sets `disabled=true`, which also keeps the next `run-yuno` from picking
 it up. (This section said, until 7.28.11, that the flag alone was flipped and
-the yuno kept running; the code kills it.) `enable-yuno` clears the flag and
+the yuno kept running. The code kills it.) `enable-yuno` clears the flag and
 does not launch it: `run-yuno` does.
 
 ### 5.7 `install-binary` vs `update-binary`
@@ -1098,9 +1098,9 @@ Two things changed, and both matter when reading this chapter:
   ycommand -c 'find-new-yunos create=1 force=1'   # deliberate downgrade
   ```
 
-  A promotion that would go backwards is an **error**, not a silent write.
+  A promotion that goes backwards is an **error**, not a silent write.
 
-So a downgrade is still possible — it just has to be asked for, and it leaves
+So a downgrade is still possible. It has to be asked for, and it leaves
 a trace. If you are chasing "the new binary is installed but the old one keeps
 running", grep the agent log for `does NOT move forward` before anything else.
 
@@ -1115,8 +1115,8 @@ running", grep the agent log for `does NOT move forward` before anything else.
 
 #### Caveats
 
-  - **Only the yunos whose launch changed are restarted** (since 7.28.11;
-  `all=1` for every one, as up to 7.28.10). When `run_yuno()` launches a
+  - **Only the yunos whose launch changed are restarted** (since 7.28.11.
+  `all=1` restarts every one, as up to 7.28.10). When `run_yuno()` launches a
   yuno, the agent writes its launch signature beside the configuration
   files it launches it with, `bin/<role>^<name>.launch.json`
   (`restart_plan.c`: the saved
@@ -1126,9 +1126,9 @@ running", grep the agent log for `does NOT move forward` before anything else.
   `traced`, `start_priority`, and the `yunos` fkeys of the binary and the
   configuration). For each running yuno, `restart_nodes()` keeps its runtime
   (running, pids, channel, launch) before the reload of the treedb, and
-  after it compares the signature it would launch it with NOW against the
-  noted one. The same one gets its runtime back and lives on; a changed one
-  is SIGKILLed and launched again; one that is gone or disabled is killed
+  after the reload it compares the signature of a launch made NOW against the
+  noted one. The same one gets its runtime back and lives on. A changed one
+  is SIGKILLed and launched again. One that is gone or disabled is killed
   and not launched (a disabled yuno does not run, see §5.6). The file
   lives with what it describes: the watcher, or the `.sh` by hand, launches
   the yuno again with the files of `bin/`, and the yuno outlives a restart
@@ -1156,8 +1156,8 @@ running", grep the agent log for `does NOT move forward` before anything else.
   yunos it did not launch, once. The agent logs *"Node restart: only the yunos whose launch
   changed"* with `kept`, `restarted`, `stopped` and `launch_not_known` (the
   restarted ones with no launch noted). Up to 7.28.10 every yuno was killed:
-  the reload loses what the agent keeps in memory of a running yuno, which
-  would otherwise be launched beside itself.
+  the reload loses what the agent keeps in memory of a running yuno, and
+  without the kill the agent can launch it again beside itself.
 
     The comparison is against the LAUNCH after 7.29.1. In 7.28.11-7.29.1 the
     signature of before was read from the treedb when the restart began, so
@@ -1171,8 +1171,8 @@ running", grep the agent log for `does NOT move forward` before anything else.
     The yunos it does kill are SIGKILLed. It relaunches them
   once every process it killed is gone, looked at every 100 ms for 10 s: a
   SIGKILL is delivered, not done, and up to 7.25.21 the relaunch ran at once
-  -- a new instance could meet the old one's exclusive resources, or find it
-  alive and not launch. In 7.25.22 the ones still alive at 10 s were
+  -- a new instance sometimes met the old one's exclusive resources, or found it
+  alive and did not launch. In 7.25.22 the ones still alive at 10 s were
   relaunched anyway: a yuno stuck in a disk wait got a second instance.
 
   Now the ones still alive at 10 s are **spared**: the rest are launched,
@@ -1182,7 +1182,7 @@ running", grep the agent log for `does NOT move forward` before anything else.
   is gone -- every pid killed gone AND no process running the yuno (its role
   and configuration). A pid is gone when it does not exist, is a zombie, or
   runs with another start time than the one recorded at the kill (a pid
-  reused by another process); a task in D state is alive, with or without
+  reused by another process). A task in D state is alive, with or without
   its command line, and so is one whose `/proc/<pid>/stat` cannot be read
   (logged once). A pid already gone when the restart records it is not
   waited for. The window closes with *"yunos spared by the restart:
@@ -1194,8 +1194,8 @@ running", grep the agent log for `does NOT move forward` before anything else.
   disabled, or launched (`run-yuno`) while it runs is not launched by it: in
   the first 10 s it is held apart (its pids are still waited for), in the
   window it leaves it. In the first 10 s, `enable-yuno` takes back a
-  disable -- the yuno is the restart's again unless it was also stopped or
-  launched; in the window it gives nothing back -- run it with `run-yuno`
+  disable: the yuno is the restart's again unless it was also stopped or
+  launched. In the window, it gives nothing back: run it with `run-yuno`
   once it is gone.
 
   ```bash
@@ -1279,10 +1279,10 @@ next `find-new-yunos create=1`, and started again by the next
 > **Working on a node while the snap is active ignores what came after it.**
 > An activation is a filtered load, not a restore. What you edit from inside
 > the snap is saved as the SHOT content plus your change, so the record
-> written between the shot and the rollback stops being the current one — it
+> written between the shot and the rollback stops being the current one. It
 > stays on disk and in the secondary index, but nothing reads it any more.
-> It is per key: a yuno, a binary or a config you never touch comes back as
-> it was when you deactivate. And one operation is not reversible there — a
+> It is per key: a yuno, a binary or a config you never touch is restored as
+> it was when you deactivate. And one operation is not reversible there: a
 > **delete** of something born after the shot is held by no snap, so it goes
 > through, and `deactivate-snap` does not bring it back. Full account in
 > [`YUNO_TREEDB.md`](YUNO_TREEDB.md) §3.9, *Working from a snap*.
@@ -1336,7 +1336,7 @@ ycommand -c 'snap-content name=<tag> topic_name=not_a_topic_of_it'
 ```
 
 (In 7.25.4 and before the command did not ask, and read a topic of the tranger that
-was not of its treedb; the overview counted every topic of the tranger.)
+was not of its treedb. The overview counted every topic of the tranger.)
 
 ### 6.8 Removing a snap (`remove-snap`)
 

@@ -72,7 +72,7 @@ CMake invocation) lives in `tools/README.md`.
 
 - `audit-agents.sh` — say whether `yuneta_agent` and `yuneta_agent22` run the
   binaries that are on disk, or a binary that a build or an upgrade replaced.
-  It changes nothing; [`yunetas restart-agents`](yunetas-cli.md) restarts them
+  It changes nothing. [`yunetas restart-agents`](yunetas-cli.md) restarts them
   in the safe order.
 
 ## The deploy tools — in the `yunetas` CLI
@@ -80,7 +80,7 @@ CMake invocation) lives in `tools/README.md`.
 The tools that talk to a running agent ship inside the
 [`yunetas` CLI](yunetas-cli.md) (`yunetas.agent_tools`), not in `tools/`: the
 CLI and the tools it drives are one package, one version. (They lived in
-`tools/agent/` until SDK 7.8.5; the forwarding shims that stayed there were
+`tools/agent/` until SDK 7.8.5. The forwarding shims that stayed there were
 removed after 7.27.4.)
 
 - [`yunetas sync-binaries`](tools/sync_binaries.md) — reconcile the freshly

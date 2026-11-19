@@ -19,7 +19,7 @@ message.
 | Property | Value |
 |----------|-------|
 | **States** | `ST_DISCONNECTED`, `ST_CONNECTED` |
-| **Input events** | `EV_CONNECTED`, `EV_STOPPED` (disconnected); `EV_SEND_MESSAGE`, `EV_RX_DATA`, `EV_TIMEOUT`, `EV_TX_READY`, `EV_DISCONNECTED`, `EV_DROP` (connected) |
+| **Input events** | `EV_CONNECTED`, `EV_STOPPED` (disconnected). `EV_SEND_MESSAGE`, `EV_RX_DATA`, `EV_TIMEOUT`, `EV_TX_READY`, `EV_DISCONNECTED`, `EV_DROP` (connected) |
 | **Output events** | `EV_ON_MESSAGE`, `EV_ON_HEADER`, `EV_ON_OPEN`, `EV_ON_CLOSE` |
 
 ### Key attributes
@@ -30,11 +30,11 @@ message.
 | `timeout_inactivity` | `integer` | Inactivity timeout in milliseconds (`60000`). |
 | `cert_pem` | `string` | TLS certificate (PEM). |
 | `crypto` | `json` | TLS config forwarded to the bottom C_TCP for `https://` URLs. Default `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` — verifies the server cert against the system CA. Override with `ssl_trusted_certificate` for a private CA, or `ssl_allow_insecure_client: true` to skip verification (MITM risk). |
-| `raw_body_data` | `bool` | `TRUE` to deliver the head in `EV_ON_HEADER` and the body in pieces in `EV_ON_MESSAGE` (`__pbf__`, `__pbf_size__`); the last `EV_ON_MESSAGE`, without `__pbf__`, says the body is whole. Each response of a connection has the headers of its own. |
-| `max_body_size` | `integer` | Longest body of a response kept, in bytes (default `0`: half the max block of the yuno; a bigger value is capped to that half, so the buffer that grows to hold it is always one block that can be allocated). With `raw_body_data` the body is not held: `0` is no limit. See *A response refused* below. |
-| `max_header_size` | `integer` | Longest head of a response (status text, header names and values, and 64 bytes for each header), in bytes (default `65536`; `0` is that too; never more than half the max block). See *A response refused* below. |
-| `max_tx_queue` | `integer` | Requests waiting in the transport from which a server that writes nothing is one that does not read (default `64`; `0`: no limit). See *A server that does not read* below. |
-| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` requests waiting and no write ended (default `30000`; `0`: never). See *A server that does not read* below. |
+| `raw_body_data` | `bool` | `TRUE` to deliver the head in `EV_ON_HEADER` and the body in pieces in `EV_ON_MESSAGE` (`__pbf__`, `__pbf_size__`). The last `EV_ON_MESSAGE`, without `__pbf__`, says the body is whole. Each response of a connection has the headers of its own. |
+| `max_body_size` | `integer` | Longest body of a response kept, in bytes (default `0`: half the max block of the yuno. A bigger value is capped to that half, so the buffer that grows to hold it is always one block that can be allocated). With `raw_body_data` the body is not held: `0` is no limit. See *A response refused* below. |
+| `max_header_size` | `integer` | Longest head of a response (status text, header names and values, and 64 bytes for each header), in bytes (default `65536`, and `0` is that too. Never more than half the max block). See *A response refused* below. |
+| `max_tx_queue` | `integer` | Requests waiting in the transport from which a server that writes nothing is one that does not read (default `64`, `0`: no limit). See *A server that does not read* below. |
+| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` requests waiting and no write ended (default `30000`, `0`: never). See *A server that does not read* below. |
 | `subscriber` | `pointer` | Gobj receiving output events. |
 
 A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_CL is negative: its default taken"*).
@@ -49,10 +49,10 @@ Sent to the client once it is connected (after its `EV_ON_OPEN`). The kw:
 | `resource` | `"/"` | The path of the request. |
 | `headers` | — | A dict of headers, written over the defaults (`User-Agent`, `Connection`, `Accept`, `Host`, and `Content-Type: application/json` when there is `data`). |
 | `data` | — | The body. Any json value (7.27.0+ also a bare string or number), sent compact. |
-| `query` | `""` | With `Content-Type: application/x-www-form-urlencoded`, the form as text, sent as it is (already encoded); empty, the form is built from `data` (a dict: `k1=v1&k2=v2`, each key and value encoded). |
+| `query` | `""` | With `Content-Type: application/x-www-form-urlencoded`, the form as text, sent as it is (already encoded). When it is empty, the form is built from `data` (a dict: `k1=v1&k2=v2`, each key and value encoded). |
 
 With `application/x-www-form-urlencoded` the form is the body, except in a
-**GET**, which carries it as the query of the resource (`/path?k1=v1`); a GET
+**GET**, which carries it as the query of the resource (`/path?k1=v1`). A GET
 with no form has no `?`. A form built from `data` is form-urlencoded, each
 key and each value: the unreserved bytes of RFC 3986 (`A-Z a-z 0-9 - . _ ~`)
 as they are, a space as `+`, any other byte as `%XX`. So a `+`, `%`, `&` or
@@ -60,12 +60,12 @@ as they are, a space as `+`, any other byte as `%XX`. So a `+`, `%`, `&` or
 start of another field: pass the values as they are, never encoded.
 `{"user": "user+1@x.com", "pass": "p a%41&b=c"}` goes as
 `user=user%2B1%40x.com&pass=p+a%2541%26b%3Dc`. Every byte of a string goes,
-a NUL too (`%00`); an empty string goes as `key=` (an empty password is a
-password); a number or a boolean goes as its json text (`{"n": 5, "r": 1.5,
+a NUL too (`%00`). An empty string goes as `key=` (an empty password is a
+password). A number or a boolean goes as its json text (`{"n": 5, "r": 1.5,
 "t": true}` is `n=5&r=1.5&t=true`). A `null`, an object or an array has no
 text in a form: the request is not sent, with ONE error (*"A value of a form
-must be a string, a number or a boolean"*), and the action answers `-1`; so
-is a `data` that is not a dict. The form is built in a buffer of its exact
+must be a string, a number or a boolean"*), and the action answers `-1`. The same
+applies to a `data` that is not a dict. The form is built in a buffer of its exact
 size, so a value as long as the max block allows goes (6 MB with the default
 max block of 16 MB). A form with no fields (`"data": {}`) goes with
 `Content-Length: 0`. Up to 7.29.3 the values were
@@ -115,7 +115,7 @@ ends the connection. While the connection is dropped every request sent is
 refused the same way (`-1`, and one warning per connection, *"HTTP request sent
 while the connection is dropped, refused, the first one of the connection"*): a
 server that never reads can hold the close for as long as the kernel takes to
-give up, and those requests would go nowhere. Up to 7.29.3 the action took them
+give up, and if accepted, those requests go nowhere. Up to 7.29.3 the action took them
 with `0`.
 
 A slow server can be taken as one that does not read. A write ends when the
@@ -145,7 +145,7 @@ case: `RETRY-AFTER`), `body_size` (the bytes of the body), and the body: a
 `""` (`body_size` 2).
 
 **A response refused.** A response whose body passes `max_body_size`, or
-whose head passes `max_header_size`, is not read to its end; nor is one that
+whose head passes `max_header_size`, is not read to its end. Nor is one that
 breaks the protocol after its status line (a CR alone in a header, for one).
 The client logs ONE warning (*"HTTP body larger than its limit, message refused"*,
 *"HTTP headers larger than their limit, message refused"*, or *"Protocol
@@ -157,18 +157,18 @@ sends a request again by itself. Its `headers` hold what came, each a string.
 Bytes that are not a response (garbage alone, or after a whole response) give
 the same warning and drop, and **no** `EV_ON_MESSAGE`: nothing answers, and
 the request waiting has `EV_ON_CLOSE`. With `raw_body_data` nothing is
-published either, in any of these cases: a last `EV_ON_MESSAGE` would say the
+published either, in any of these cases: a last `EV_ON_MESSAGE`, if published, says the
 body is whole, so the subscriber takes `EV_ON_CLOSE` without it for the
 failure. Once the connection is dropped (`EV_DROP`, the inactivity timeout,
 a response refused) nothing more of what was received is published, and a
 request sent before it closes is refused (`-1`, *"HTTP request sent while the
-connection is dropped, refused, the first one of the connection"*); a write
+connection is dropped, refused, the first one of the connection"*). A write
 in flight can keep it open for a while. Up to 7.30.14 a refused response left
 the connection open to requests: they went to the transport, which threw them
 away (*"tcp data sent while the connection closes, dropped"*), and the action
 did not answer `-1`. Up to 7.29.3 a body over the max block logged an ERROR with a stack for every
-piece that arrived, and was handed up cut; a head had no limit, and took a
-time that grew with the square of its size (an 8 MB header, seconds); a
+piece that arrived, and was handed up cut. A head had no limit, and took a
+time that grew with the square of its size (an 8 MB header, seconds). A
 broken response answered nothing.
 
 ```C
@@ -198,15 +198,15 @@ structured events for the application.
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `timeout_inactivity` | `integer` | Inactivity timeout in seconds. |
-| `max_header_size` | `integer` | Longest head of a request (target, header names and values, and 64 bytes for each header), in bytes (default `65536`; `0` is that too; never more than half the max block). |
-| `max_body_size` | `integer` | Longest body of a request, in bytes (default `0`: half the max block; a bigger value is capped to that half). |
-| `max_tx_queue` | `integer` | Answers owed (not sent yet by the application, or waiting in the transport) from which what the peer sends is held, not parsed (default `64`; `0`: no limit). See *A peer that does not read* below. |
-| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` answers waiting in the transport and no write seen to end (default `30000`; `0`: never). See *A peer that does not read* below. |
-| `max_rx_held` | `integer` | Most bytes held behind `max_tx_queue` answers owed (default `1048576`; `0`: no limit). |
-| `timeout_linger` | `integer` | Milliseconds a refused request has to go after its answer (default `2000`; `0`: dropped at once). |
+| `max_header_size` | `integer` | Longest head of a request (target, header names and values, and 64 bytes for each header), in bytes (default `65536`, and `0` is that too. Never more than half the max block). |
+| `max_body_size` | `integer` | Longest body of a request, in bytes (default `0`: half the max block. A bigger value is capped to that half). |
+| `max_tx_queue` | `integer` | Answers owed (not sent yet by the application, or waiting in the transport) from which what the peer sends is held, not parsed (default `64`, `0`: no limit). See *A peer that does not read* below. |
+| `timeout_tx_stall` | `integer` | Milliseconds with `max_tx_queue` answers waiting in the transport and no write seen to end (default `30000`, `0`: never). See *A peer that does not read* below. |
+| `max_rx_held` | `integer` | Most bytes held behind `max_tx_queue` answers owed (default `1048576`, `0`: no limit). |
+| `timeout_linger` | `integer` | Milliseconds a refused request has to go after its answer (default `2000`, `0`: dropped at once). |
 | `subscriber` | `pointer` | Gobj receiving output events. |
 
-A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_SR is negative: its default taken"*). The timers of this gclass are `C_TIMER`s, accurate to the second: `timeout_linger` is a minimum, and may last one second more. `timeout_tx_stall` is a minimum too, and may last about two seconds more: a write ends with no event, so the wait looks at the bytes written every second, and it can see the last write one second late and end one second late. With `timeout_tx_stall` 3000 the connection is dropped from 3 to 5 seconds after the last write.
+A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_SR is negative: its default taken"*). The timers of this gclass are `C_TIMER`s, accurate to the second: `timeout_linger` is a minimum, and can last one second more. `timeout_tx_stall` is a minimum too, and can last about two seconds more: a write ends with no event, so the wait looks at the bytes written every second, and it can see the last write one second late and end one second late. With `timeout_tx_stall` 3000 the connection is dropped from 3 to 5 seconds after the last write.
 
 **A request refused.** A request whose head passes `max_header_size` is
 answered `431 Request Header Fields Too Large`, one whose body passes
@@ -215,11 +215,11 @@ body), with ONE warning (*"HTTP headers larger than their limit, message
 refused"*, *"HTTP body larger than its limit, message refused"*), and no
 `EV_ON_MESSAGE`. HTTP answers go in the order of the requests, so with an
 application that answers later the refusal waits for the answers of the
-requests before it (it goes behind the last one; an application that never
+requests before it (it goes behind the last one, and an application that never
 answers leaves it to `timeout_inactivity`). The connection then lingers
 `timeout_linger` milliseconds from the refusal, the bytes the peer still
 sends read and thrown away, and is dropped: a socket closed with bytes unread
-resets the connection, and the peer could lose the answer. A peer that keeps
+resets the connection, and the peer can lose the answer. A peer that keeps
 sending does not lengthen the wait. A peer that breaks the protocol is dropped
 at once, with ONE warning. Up to 7.29.3 a head had no limit (an 8 MB header
 took seconds, the time growing with the square of its size), and a refused
@@ -237,12 +237,12 @@ in pieces, and the answers owed never pass `max_tx_queue` by more than what
 one read holds, however late the application answers. A peer is dropped, with
 ONE warning, in two cases:
 
-- no write ended in `timeout_tx_stall` milliseconds with `max_tx_queue` answers
+- No write ended in `timeout_tx_stall` milliseconds with `max_tx_queue` answers
   in the transport (*"HTTP peer does not read its answers, connection
   dropped"*). Any write that ends starts the wait again. The timer watches it,
   so a peer that went silent is dropped too. An application that takes its
-  time says nothing of the peer: answers it has not sent do not count here;
-- what is held passes `max_rx_held` bytes (*"HTTP requests held behind the
+  time says nothing of the peer: answers it has not sent do not count here.
+- What is held passes `max_rx_held` bytes (*"HTTP requests held behind the
   answers owed passed max_rx_held, connection dropped"*). This one looks at the
   bytes, not at the peer, and the warning does not say who is slow: a peer that
   pipelines more than `max_rx_held` bytes ahead of its answers is dropped even
@@ -303,9 +303,9 @@ for a gbuffer -- leaves a `500 Internal Server Error` in its place, with
 `Content-Length: 0`: the action logs an ERROR (*"An answer cannot be built (a
 body that cannot be dumped, or no memory), answered 500 in its place"*) and
 answers `-1`, and the next answer still goes to the next request. If not even
-the 500 can be built, the connection is dropped. Up to 7.30.14 a body that
-could not be dumped sent nothing and was counted as sent all the same, so the
-peer took the next answer as the answer of that request; an answer too big for
+the 500 can be built, the connection is dropped. Up to 7.30.14, a body that
+the action failed to dump sent nothing and was counted as sent all the same, so the
+peer took the next answer as the answer of that request. An answer too big for
 a gbuffer crashed the yuno.
 
 ```C
@@ -333,18 +333,18 @@ if(gobj_send_event(channel, EV_SEND_MESSAGE, kw, gobj) < 0) {
 ```
 
 `tests/c/c_prot_http_sr` (`test1`): 600 requests in one write to an
-application that drops at the 3rd deliver 3, with a write in flight too; a
+application that drops at the 3rd deliver 3, with a write in flight too. A
 head over the limit gets 431, a body over it 413, each with one warning, also
-behind an answer that comes later; a peer that reads gets 2000 pipelined
-answers in order, and a slow one is not dropped; a peer that never reads is
+behind an answer that comes later. A peer that reads gets 2000 pipelined
+answers in order, and a slow one is not dropped. A peer that never reads is
 held at `max_tx_queue` and dropped. With an application that answers later,
 10000 pipelined requests stay under `max_tx_queue` plus one read, a peer that
 reads gets every answer in order, and one that does not is dropped from 4 to 6
 seconds after its last write with `timeout_tx_stall` 4000. A last answer that
-brings the transport to `max_tx_queue` starts the wait by itself; a refused
+brings the transport to `max_tx_queue` starts the wait by itself. A refused
 request held behind the answers owed is answered once, after them, even when
-the application answers them seconds later; a peer that keeps sending is not
-dropped at `timeout_inactivity`; an answer that cannot be built (a body that
+the application answers them seconds later. A peer that keeps sending is not
+dropped at `timeout_inactivity`. An answer that cannot be built (a body that
 is not UTF-8, headers that fill the max block) leaves a 500 in its place.
 
 ---
@@ -367,16 +367,16 @@ Works in both client and server modes.
 |-----------|------|-------------|
 | `url` | `string` | Connection URL. |
 | `iamServer` | `bool` | `TRUE` for server mode. |
-| `max_pkt_size` | `integer` | Largest payload of a frame, in bytes (default `0`: what a gbuffer holds, the max block of the yuno less one byte; a bigger value is capped to that). A frame announced bigger closes the connection, with a warning (*"tcp4h head too long"*, with `len` and `max`). Up to 7.25.22 the default was the max block itself, and a frame of exactly that length never ended. |
+| `max_pkt_size` | `integer` | Largest payload of a frame, in bytes (default `0`: what a gbuffer holds, the max block of the yuno less one byte. A bigger value is capped to that). A frame announced bigger closes the connection, with a warning (*"tcp4h head too long"*, with `len` and `max`). Up to 7.25.22 the default was the max block itself, and a frame of exactly that length never ended. |
 | `timeout_handshake` | `integer` | Handshake timeout in milliseconds (default `30000`). |
-| `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
+| `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`). When it runs out, the connection is closed. |
 | `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
 | `cert_pem` | `string` | TLS certificate (PEM). |
 
 The length of a frame is the peer's word, in the 4-byte header (big-endian,
 counting the header itself) before any of its payload. The payload buffer
-starts at 4 KB and grows with what arrives, up to what the frame needs; up to
-7.25.21 the whole length was reserved at the header, so a peer that wrote only
+starts at 4 KB and grows with what arrives, up to what the frame needs. Up to
+7.25.21, the whole length was reserved at the header, so a peer that wrote only
 headers announcing the max block reserved it each time, with no payload sent.
 
 ```C
@@ -431,16 +431,16 @@ with frame masking, ping/pong, and graceful close handshake.
 | `iamServer` | `bool` | `TRUE` for server mode. |
 | `cert_pem` | `string` | TLS certificate (PEM). |
 | `timeout_handshake` | `integer` | Milliseconds from the connection to the end of the handshake (default `30000`), server and client. A part of the handshake does not stop it: when it runs out, a warning (*"Timeout waiting websocket handshake"*) and the connection is dropped. Up to 7.30.15 every read stopped it and nothing armed it again, so a peer that sent one byte (`G`) held its connection, and a channel of the server's pool, for ever. |
-| `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`); when it runs out the connection is closed. |
+| `timeout_payload` | `integer` | Milliseconds to receive the rest of a frame whose header came (default `5000`). When it runs out, the connection is closed. |
 | `timeout_close` | `integer` | Milliseconds a closing client waits for the server to drop the connection before it drops it itself (default `3000`). |
 | `pingT` | `integer` | Ping interval in milliseconds (`0` = disabled). |
-| `max_payload_size` | `integer` | Largest payload of a frame, in bytes (default `0`: what a gbuffer holds, the max block of the yuno less one byte; a bigger value is capped to that -- up to 7.25.22 the default was the max block itself, and a frame of exactly that length never ended). A frame announced bigger is refused: a warning (*"Websocket frame bigger than the max payload, connection closed"*, with `frame_length`) and the connection closed with `1009`. |
+| `max_payload_size` | `integer` | Largest payload of a frame, in bytes (default `0`: what a gbuffer holds, the max block of the yuno less one byte. A bigger value is capped to that -- up to 7.25.22 the default was the max block itself, and a frame of exactly that length never ended). A frame announced bigger is refused: a warning (*"Websocket frame bigger than the max payload, connection closed"*, with `frame_length`) and the connection closed with `1009`. |
 
 The length of a frame is the peer's word, written in its header before any of
 its payload. The payload buffer starts at 4 KB and grows with what arrives, up
 to what the frame needs (a frame of exactly `max_payload_size` included: up to
-7.25.21 it never ended, a gbuffer holding one byte less than its max); up to
-7.25.21 the whole length was reserved at the header, so a few connections that
+7.25.21 it never ended, a gbuffer holding one byte less than its max). Up to
+7.25.21, the whole length was reserved at the header, so a few connections that
 each announced the max block reserved it each with a few bytes sent.
 
 The head of the handshake (request or response) is limited to 64 KB, its
@@ -484,7 +484,7 @@ counts one message per frame of up to 64 KB, where it counted two. Up to
 A **client** masks every frame (RFC 6455 §5.3) with a key from `getrandom()`,
 taken 64 keys at a time. Up to 7.27.7 the key came from `srand(time(0))` and
 `rand()` at every frame: every frame of the same second had the same key, which
-the clock could predict, and the process's own `rand()` sequence was reset at
+the clock made predictable, and the process's own `rand()` sequence was reset at
 every frame. If `getrandom()` fails, an ERROR is logged and the frame gets a
 key from a weak generator.
 
@@ -494,7 +494,7 @@ key from a weak generator.
 gobj to `ST_DISCONNECTED` at once and sends its Close frame. A **server** drops
 the TCP connection there and then. A **client** keeps it, as RFC 6455 asks:
 the server closes the TCP connection (7.1.1), and an endpoint that sent a
-Close may go on receiving (5.5.1). The client drops it itself when
+Close can go on receiving (5.5.1). The client drops it itself when
 `timeout_close` runs out (warning *"Timeout waiting websocket
 disconnected"*).
 
@@ -537,7 +537,7 @@ What arrives in between -- the rest of the frame the client gave up on, the
 server's own Close -- belongs to a session that is over: it is discarded, and
 nothing is published (the `debug` trace level logs it). Up to 7.25.10
 `ST_DISCONNECTED` did not declare `EV_RX_DATA`, and each such read logged
-*"Event NOT DEFINED in state"*; a client too busy to read a frame in time
+*"Event NOT DEFINED in state"*. A client too busy to read a frame in time
 showed it. A client configured to give a slow peer more time:
 
 ```C
@@ -564,13 +564,13 @@ Sec-WebSocket-Protocol: bad value, chat     ->  (none, and a warning)
 The longest value answered is `NAME_MAX` bytes (255): one of 256 gets none.
 A `Sec-WebSocket-Key` that is not 24 characters (16 bytes in base64, RFC 6455
 §4.2.1) is answered `400 Bad Request`, with the warning *"Websocket upgrade
-request refused"*; up to 7.30.14 one over 64 characters was cut where its
+request refused"*. Up to 7.30.14, one over 64 characters was cut where its
 accept is computed, and answered a wrong accept.
 
 ### The handshake a client accepts
 
 A `C_WEBSOCKET` **client** sends a `Sec-WebSocket-Key` of 16 random bytes in
-base64 (from `getrandom()`, the generator of its masking keys; up to 7.30.14
+base64 (from `getrandom()`, the generator of its masking keys. Up to 7.30.14,
 it was the clock, in hex). It opens the session only with a `101` that
 upgrades to websocket and proves the server read its request (RFC 6455
 §4.1): `Upgrade: websocket` and a `Connection` that holds `upgrade` (tokens,
@@ -581,7 +581,7 @@ is refused too. Frames the server writes behind its `101`, in the same read,
 are delivered (up to 7.30.14 they were dropped). A refused handshake
 logs ONE warning (`MSGSET_PROTOCOL`, with `status`, `accept`, `protocol` and
 a dump of the read, capped at 256 bytes), publishes no `EV_ON_OPEN`, and drops
-the connection; the transport reconnects as after any drop. The example of
+the connection. The transport reconnects as after any drop. The example of
 RFC 6455 §1.3:
 
 ```text
@@ -605,12 +605,12 @@ followed by a space).
 
 Up to 7.30.14 the client looked only at the `101` and opened the session with
 any of them. A server that answered a wrong accept worked with a Yuneta
-client and failed with a browser; it now fails with both. A `C_WEBSOCKET`
+client and failed with a browser. It now fails with both. A `C_WEBSOCKET`
 server, and a proxy that passes the upgrade through, answer the right one.
 
-Tests: `tests/c/c_websocket` (`test_websocket_test1`; `test_websocket_test4`
-for the subprotocol a server answers; `test_websocket_test5` for the
-handshake a client refuses; `test_websocket_test6` for a server's half
-handshakes; `test_websocket_test7` for what a client closes for, and a `101`
-with OWS; `test_websocket_test8` for a message that must not cross from one
+Tests: `tests/c/c_websocket` (`test_websocket_test1`, `test_websocket_test4`
+for the subprotocol a server answers, `test_websocket_test5` for the
+handshake a client refuses, `test_websocket_test6` for a server's half
+handshakes, `test_websocket_test7` for what a client closes for and a `101`
+with OWS, and `test_websocket_test8` for a message that must not cross from one
 connection to the next).

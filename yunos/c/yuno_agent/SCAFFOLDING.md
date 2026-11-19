@@ -73,7 +73,7 @@ build. Arguments declared at [`yuno_skeleton.c`](https://github.com/artgins/yune
 The name is **not** an argument: the tool asks for it, then for the
 catalog's per-template `vars` (description, author, license, …). A Yuno
 template asks for the yuno role (at most 15 characters) and the root gobj
-name (default: the role); a GClass template asks for the gclass name; a
+name (default: the role). A GClass template asks for the gclass name. A
 Utility template asks for the utility name, a Project template for the
 project name. The answer is lowercased and becomes `rootname` (`yunorole`,
 `utility`, `project`) in its three case forms.
@@ -149,8 +149,8 @@ Current entries (by line range in the JSON):
 
 Two optional keys:
 
-- `"extends": "<dir>"` — a directory beside the templates, copied into the
-  destination first; the template's own files go on top. A file in both is
+- `"extends": "<dir>"`: a directory beside the templates, copied into the
+  destination first, and the template's own files go on top. A file in both is
   an error (`ERROR File ... ALREADY EXISTS`), never an overwrite.
 - `"keep": ["<key>", ...]` — markers that belong to the generated code, not
   to the template: each `{{key}}` is rendered as itself, and says nothing
@@ -182,8 +182,8 @@ WARNING: {{yunoname}} has no value, rendered empty
 
 Up to 7.28.6 it was rendered empty in silence, and the two yuno READMEs
 carried a `Name: {{yunoname}}` nobody asked for. A yuno's name is chosen
-per instance when the agent creates it, so it has no place in a template;
-use `{{yunorole}}`.
+per instance when the agent creates it, so it has no place in a template.
+Use `{{yunorole}}`.
 
 ### 4.2 Filename placeholders: `+varname+`
 
@@ -457,7 +457,7 @@ cloning from an existing project rather than a template library."*
 
 `ymake-skeleton` is a separate utility (`utils/c/ymake-skeleton/`). It
 turns an existing project into a template that `yuno-skeleton` can
-instantiate; `yclone-project` clones a project directly into a new name.
+instantiate, and `yclone-project` clones a project directly into a new name.
 The `yuno-skeleton` tool is the right pick for greenfield.
 
 ### 9.7 The JS GUI scaffold is the `gui/` of the project templates
@@ -470,7 +470,7 @@ catalog lists in `keep`, so they are left as they are.
 
 gobj-ui's deploy round raises its ranges (`package.json_tmpl`) and runs
 `utils/c/yuno-skeleton/check_project_gui.sh`, which generates a project and
-installs and builds its gui; `yuno_skeleton/templates` checks the rest of it
+installs and builds its gui. `yuno_skeleton/templates` checks the rest of it
 without a network. Loading the generated app in a browser with a clean
 console is still done by hand.
 
@@ -585,13 +585,13 @@ The repository gets `CMakeLists.txt` (builds `yunos/`), `yunos/CMakeLists.txt`
 (finds the SDK through `YUNETAS_BASE`, one `add_subdirectory()` per yuno),
 `yunos/batches/` for the configuration of each node, `README.md`,
 `CHANGELOG.md`, `LICENSE`, `.gitignore` and `gui/`, the web frontend
-(§9.7). `project` writes an MIT `LICENSE`; `project_commercial` a
+(§9.7). `project` writes an MIT `LICENSE`, and `project_commercial` a
 proprietary one that leaves the third-party components under their own
 licenses, and a README section with what a delivery must carry. Yuneta
 itself stays MIT either way.
 
 Both entries of the catalog `extends` the directory `project_base` (copied
-first; their own `LICENSE_tmpl` and `README.md_tmpl` go on top, and a file
+first: their own `LICENSE_tmpl` and `README.md_tmpl` go on top, and a file
 in both is an error), so what they share is written once:
 
 ```json

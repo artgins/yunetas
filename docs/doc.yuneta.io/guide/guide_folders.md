@@ -43,7 +43,7 @@ needs the layers that consume it rebuilt — not the whole stack.
     - `gobj-c`:
       G-Objects, implementation of classes and objects based on a simple Finite State Machine,
       attributes based on JSON, a comprehensive table of class methods,
-      and an API to facilitate communication between objects through events,
+      and an API for communication between objects through events,
       with an integrated publish/subscribe pattern.
 
     - `linux-ext-libs`:

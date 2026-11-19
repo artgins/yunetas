@@ -5,7 +5,7 @@ OAuth 2 / OpenID Connect **Backend-For-Frontend**. It mediates between browser
 SPAs and an identity provider (Keycloak, Google, …) so the SPA never handles
 raw tokens: they are kept server-side and the browser only gets an httpOnly
 cookie. It offers two ways in: `/auth/login` (the password grant, from the
-SPA's own form; what `gui_agent` and `gui_treedb` use) and `/auth/callback`
+SPA's own form, which is what `gui_agent` and `gui_treedb` use) and `/auth/callback`
 (the authorization-code flow with PKCE). The
 [OAuth2 / BFF guide](../guide/guide_oauth2_pkce_bff.md) has the whole contract.
 

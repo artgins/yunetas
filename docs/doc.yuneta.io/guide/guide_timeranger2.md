@@ -81,7 +81,7 @@ process goes on (since 7.25.0). A read that fails has written
 nothing, and with the default `2` it used to be an `exit(0)` that nothing
 relaunches — reachable by paging an iterator whose key was deleted under it.
 The one write that keeps exiting on purpose is a short write of an md2 row:
-continuing would misalign every later append of that file.
+if the process continues, every later append of that file is misaligned.
 
 ```c
 // A master that must not die on a bad disk read, and still stops on a bad write:

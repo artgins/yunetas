@@ -798,7 +798,7 @@ A new item, not yet in the set: add it with [`jwks_item_add()`](#jwks_item_add) 
 (jwks_item_add)=
 ### [`jwks_item_add()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/libjwt/src/jwks.c#L323)
 
-ArtGins addition. Appends an item made by [`jwk_process_one()`](#jwk_process_one) to the set; from then on the set owns it and frees it with the set.
+ArtGins addition. Appends an item made by [`jwk_process_one()`](#jwk_process_one) to the set. From then on, the set owns it and frees it with the set.
 
 ```C
 int jwks_item_add(jwk_set_t *jwk_set, jwk_item_t *item);

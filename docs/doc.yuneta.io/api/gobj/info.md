@@ -123,7 +123,7 @@ The same names are the `options` of the `view-gobj-tree` command, which answers 
 ycommand -c 'command-yuno id=<id> service=__yuno__ command=view-gobj-tree options=["fullname","state","running","playing","play_methods"]'
 ```
 
-Its default `options` leave out `gclass` and `fullname`; ask for the fields by name.
+Its default `options` leave out `gclass` and `fullname`. Ask for the fields by name.
 
 ---
 

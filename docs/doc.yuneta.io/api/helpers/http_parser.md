@@ -17,7 +17,7 @@ body. Both have a limit, set in the struct after
 | Field | Default (`0`) | What it limits |
 |---|---|---|
 | `max_header_size` | `GHTTP_MAX_HEADER_SIZE`, 64 KB | The bytes of the target or status text, the header names and the values of one message, trailers too, plus `GHTTP_HEADER_COST` (64) for each header. Never more than half the max block. |
-| `max_body_size` | half the max block (with `on_message_event`); no limit (with `on_body_event` alone, which holds nothing) | The bytes of the body of one message. Never more than half the max block with `on_message_event`. |
+| `max_body_size` | half the max block (with `on_message_event`), or no limit (with `on_body_event` alone, which holds nothing) | The bytes of the body of one message. Never more than half the max block with `on_message_event`. |
 
 The cost of a header is what it holds in memory beyond its text, which an
 empty header holds too: without it, 240 KB of `a:\r\n` on the wire held 9 MB
@@ -28,14 +28,14 @@ near it: 30 headers cost 1920 bytes.
 
 A message over a limit is refused: ONE warning (*"HTTP headers larger than
 their limit, message refused"* with `header_received`, `max_header_size` and
-the name of the `header`; or *"HTTP body larger than its limit, message
+the name of the `header`, or *"HTTP body larger than its limit, message
 refused"* with `body_received`, `max_body_size`), `headers_refused` or
 `body_refused` set, and [`ghttp_parser_received()`](#ghttp_parser_received)
 answers `-1`. What then:
 
-- a **request** parser publishes nothing; the server answers `431 Request
+- a **request** parser publishes nothing, and the server answers `431 Request
   Header Fields Too Large` or `413 Content Too Large` and drops the
-  connection ([`C_PROT_HTTP_SR`](#gclass-c-prot-http-sr));
+  connection ([`C_PROT_HTTP_SR`](#gclass-c-prot-http-sr)).
 - a **response** parser publishes `on_message_event` without `body` nor
   `gbuffer`, with `"headers_too_large"` or `"body_too_large"`: the limit
   passed, so the request waiting for it is answered
@@ -95,7 +95,7 @@ leaves `{"HOST": "h", "X-A": "one, two, three", ...}`, with ONE warning for the
 `Host` of the trailers.
 
 Each message starts clean. With `on_message_event` the state is released when
-it is published; without it (`raw_body_data`, the handshake of a websocket)
+it is published. Without it (`raw_body_data`, the handshake of a websocket)
 `url`, `jn_headers` and `message_completed` stay readable until the next
 message begins. The limits are per message: two heads of 40 KB on one
 keep-alive connection pass.
@@ -126,7 +126,7 @@ The kw of `on_message_event`:
 | `request_method` | `int` | The method of a request (`llhttp_method_t`). |
 | `headers` | `dict` | The headers, the names in upper case (`CONTENT-TYPE`). |
 | `body_size` | `int` | The bytes of the body. |
-| `body` | json | The body, for `application/json`; `""` when there is no body. |
+| `body` | json | The body, for `application/json`, or `""` when there is no body. |
 | `gbuffer` | `int` | The body in a `gbuffer_t *`, for any other type. |
 | `body_too_large`, `headers_too_large` | `int` | A refused response: the limit it passed (no `body` nor `gbuffer`). |
 | `protocol_error` | `str` | A response that broke the protocol after its status line (no `body` nor `gbuffer`). |
@@ -282,7 +282,7 @@ void ghttp_parser_stop(GHTTP_PARSER *parser);
 
 | Key | Type | Description |
 |---|---|---|
-| `parser` | `GHTTP_PARSER *` | The parser; `NULL` is ignored. |
+| `parser` | `GHTTP_PARSER *` | The parser. `NULL` is ignored. |
 
 **Returns**
 

@@ -63,7 +63,7 @@ json_t *gbuf2json_from_peer(
 
 A `json_t *` (yours) if the data is JSON, `NULL` otherwise.
 
-**A json of a peer has no `"gbuffer"` key, at any depth.** `gbuffer` is the name of the binary field of a kw ([`kw_add_binary_type()`](#kw_add_binary_type)), and [`kw_incref()`](#kw_incref), [`kw_decref()`](#kw_decref), [`kw_twin()`](#kw_twin) and [`kw_duplicate()`](#kw_duplicate) take the integer under it for a pointer wherever a dict of the json ends up as the top level of a kw: a treedb record, an HTTP body, an MQTT payload. Every such key is dropped, and said with ONE warning (`MSGSET_PROTOCOL`, *"Json of a peer with 'gbuffer' keys, a binary field name: dropped"*, the `peername` and the number dropped). A binary field of a peer arrives serialized (`"__gbuffer___"`, see [`kw_deserialize()`](#kw_deserialize)), never as a `"gbuffer"`. Up to 7.30.16 the keys were kept: a `create-node` of a peer with `{"record": {"id": "a", "gbuffer": 4096}}` crashed the yuno. A text that holds neither the name nor a `\u006` or `\u007` (a letter in a json string is spelled literally or with a `\u` escape, and the letters of `gbuffer` escape only as `\u006X` or `\u007X`) is not walked: the check costs a scan of the bytes, not a walk of the json. So `{"gb\u0075ffer": 1}` is walked and its key dropped, while `{"name": "caf\u00e9"}` is not walked. Up to 7.30.17 any `\u` escape walked the json (one `\u00e9` in 1 MB cost +12-30% of the parse).
+**A json of a peer has no `"gbuffer"` key, at any depth.** `gbuffer` is the name of the binary field of a kw ([`kw_add_binary_type()`](#kw_add_binary_type)), and [`kw_incref()`](#kw_incref), [`kw_decref()`](#kw_decref), [`kw_twin()`](#kw_twin) and [`kw_duplicate()`](#kw_duplicate) take the integer under it for a pointer wherever a dict of the json becomes the top level of a kw: a treedb record, an HTTP body, an MQTT payload. Every such key is dropped, and said with ONE warning (`MSGSET_PROTOCOL`, *"Json of a peer with 'gbuffer' keys, a binary field name: dropped"*, the `peername` and the number dropped). A binary field of a peer arrives serialized (`"__gbuffer___"`, see [`kw_deserialize()`](#kw_deserialize)), never as a `"gbuffer"`. Up to 7.30.16 the keys were kept: a `create-node` of a peer with `{"record": {"id": "a", "gbuffer": 4096}}` crashed the yuno. A text that holds neither the name nor a `\u006` or `\u007` (a letter in a json string is spelled literally or with a `\u` escape, and the letters of `gbuffer` escape only as `\u006X` or `\u007X`) is not walked: the check costs a scan of the bytes, not a walk of the json. So `{"gb\u0075ffer": 1}` is walked and its key dropped, while `{"name": "caf\u00e9"}` is not walked. Up to 7.30.17 any `\u` escape walked the json (one `\u00e9` in 1 MB cost +12-30% of the parse).
 
 ```json
 {"gbuffer": 4096, "a": {"gbuffer": 1, "l": [{"gbuffer": 2}, 3]}, "b": "gbuffer"}
@@ -233,7 +233,7 @@ if(drop_binary_keys(jn_msg) > 0 && !priv->binary_key_said) {
 (json_error_for_log)=
 ## `json_error_for_log()`
 
-The text of a jansson error as a log may show it (7.27.0+). jansson ends the text of a parse error with the bytes near it -- `premature end of input near '"hunter2'` -- and those bytes are what the JSON carried: the value of a secret among them, whatever the dump of the same bytes masks. This writes the text without them into `bf` and returns it. Log the error's `position` (and `line`, `column`) with it: they say where the error is.
+The text of a jansson error as a log can show it (7.27.0+). jansson ends the text of a parse error with the bytes near it -- `premature end of input near '"hunter2'` -- and those bytes are what the JSON carried: the value of a secret among them, whatever the dump of the same bytes masks. This writes the text without them into `bf` and returns it. Log the error's `position` (and `line`, `column`) with it: they say where the error is.
 
 The SDK logs a jansson error through it wherever the JSON can carry a secret: [`gbuf2json()`](#gbuf2json), [`gbuf2json_from_peer()`](#gbuf2json_from_peer), [`anystring2json()`](#anystring2json), [`string2json()`](#string2json), [`anyfile2json()`](#anyfile2json), the persistent-attrs file, a timeranger2 record that is not JSON, the yuno's own config.
 
@@ -366,7 +366,7 @@ Returns a pointer to the newly allocated `gbuffer_t` structure, or `NULL` if mem
 If memory allocation for the buffer fails, an error is logged, and `NULL` is returned.
 
 The buffer grows as data is appended, doubling, up to `max_memory_size`: a
-growth that would double past it takes the buffer to the max when what is
+growth whose doubling goes past it takes the buffer to the max when what is
 needed fits, so a buffer started small can hold `max_memory_size - 1` bytes.
 Up to 7.25.21 that growth was refused (*"MAXIMUM SPACE REACHED"*), and the
 buffer stopped at its last doubling under the max.
@@ -410,7 +410,7 @@ The function decodes the base64-encoded data from the JSON object and reconstruc
 (gbuffer_deserialize_from_peer)=
 ## [`gbuffer_deserialize_from_peer()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/gbuffer.c#L1715)
 
-[`gbuffer_deserialize()`](#gbuffer_deserialize) of a serialized gbuffer RECEIVED from a peer: the `"__gbuffer___"` of a frame, which [`kw_deserialize()`](#kw_deserialize) turns into the `gbuffer` of the kw. A `data` that is missing, not a string, or not base64 is the peer's doing, not a broken invariant of ours, so the failure is ONE warning (`MSGSET_PROTOCOL`, no stack) that names the peer (the `peername` of the transport under `gobj`) and the length of `data`, with its first 256 bytes in a trace dump: *"Serialized gbuffer of a peer without a 'data' string, refused"* or *"Serialized gbuffer of a peer whose 'data' is not base64, refused"*. [`gbuffer_deserialize()`](#gbuffer_deserialize) logs an ERROR with a stack: it is for what we serialized ourselves (a queue of our own store). It is the deserializer of the `gbuffer` binary type; up to 7.30.15 that was `gbuffer_deserialize()`, and any peer, before any login, could write an ERROR with a stack per frame.
+[`gbuffer_deserialize()`](#gbuffer_deserialize) of a serialized gbuffer RECEIVED from a peer: the `"__gbuffer___"` of a frame, which [`kw_deserialize()`](#kw_deserialize) turns into the `gbuffer` of the kw. A `data` that is missing, not a string, or not base64 is the peer's doing, not a broken invariant of ours, so the failure is ONE warning (`MSGSET_PROTOCOL`, no stack) that names the peer (the `peername` of the transport under `gobj`) and the length of `data`, with its first 256 bytes in a trace dump: *"Serialized gbuffer of a peer without a 'data' string, refused"* or *"Serialized gbuffer of a peer whose 'data' is not base64, refused"*. [`gbuffer_deserialize()`](#gbuffer_deserialize) logs an ERROR with a stack: it is for what we serialized ourselves (a queue of our own store). It is the deserializer of the `gbuffer` binary type. Up to 7.30.15, that was `gbuffer_deserialize()`, and any peer, before any login, was able to write an ERROR with a stack per frame.
 
 ```C
 gbuffer_t *gbuffer_deserialize_from_peer(
@@ -612,8 +612,8 @@ json_t *gbuffer_serialize(
 
 A JSON object containing the serialized [`gbuffer_t *`](#gbuffer_t), including its label, mark, and Base64-encoded data.
 `NULL` (logged, *"Cannot serialize a secret gbuffer"*) when the gbuffer is
-secret ([`gbuffer_set_secret()`](#gbuffer_set_secret)): its bytes would go as
-base64 into a json that the traffic traces print, and neither copy would be
+secret ([`gbuffer_set_secret()`](#gbuffer_set_secret)): if serialized, its bytes go
+as base64 into a json that the traffic traces print, and neither copy is
 wiped. `NULL` (logged, *"gbuffer_serialize() with NULL gbuf"*) when `gbuf` is
 `NULL`: up to 7.25.21 that was a segfault.
 
@@ -714,7 +714,7 @@ static inline int gbuffer_setaddr(
 | Key | Type | Description |
 |---|---|---|
 | `gbuf` | `gbuffer_t *` | The gbuffer that keeps the address. |
-| `addr` | `const struct sockaddr *` | The address: a `struct sockaddr_in` (IPv4), a `struct sockaddr_in6` (IPv6), or any other address that fits in a `struct sockaddr_storage`. It is copied. |
+| `addr` | `const struct sockaddr *` | The address: a `struct sockaddr_in` (IPv4), a `struct sockaddr_in6` (IPv6), or any other address that a `struct sockaddr_storage` can hold. It is copied. |
 | `addrlen` | `socklen_t` | The length of `addr`. |
 
 **Returns**
@@ -841,17 +841,17 @@ If a label is already set, it is freed before assigning the new one. The functio
 (gbuffer_set_secret)=
 ## [`gbuffer_set_secret()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/gbuffer.c#L616)
 
-Marks the [`gbuffer_t *`](#gbuffer_t) as holding a secret -- a credential sent
+Marks the [`gbuffer_t *`](#gbuffer_t) as holding a secret: a credential sent
 as data, such as an SMTP `AUTH` line. A secret gbuffer:
 
 - is never dumped: [`gobj_trace_dump_gbuf()`](#gobj_trace_dump_gbuf) and
   [`gobj_trace_dump_full_gbuf()`](#gobj_trace_dump_full_gbuf) print
   `"<N bytes hidden>"` (and `"secret": true`) instead of its bytes, so the
-  `traffic` trace of `C_TCP`, `C_UDP` and `C_UDP_S` does not show it;
-- is wiped (zeroed) when it is freed, and its old block is wiped when it grows;
+  `traffic` trace of `C_TCP`, `C_UDP` and `C_UDP_S` does not show it.
+- is wiped (zeroed) when it is freed, and its old block is wiped when it grows.
 - keeps the flag through the tx queues, and passes it to the destination
-  of [`gbuffer_append_gbuf()`](#gbuffer_append_gbuf) -- before the copy, so a
-  destination left with part of the secret by a failed append is flagged too;
+  of [`gbuffer_append_gbuf()`](#gbuffer_append_gbuf) (before the copy, so a
+  destination left with part of the secret by a failed append is flagged too).
 - is never serialized: [`gbuffer_serialize()`](#gbuffer_serialize) refuses it
   (`NULL`, logged), so a secret never leaves the yuno as base64 in a json
   (a kw with it that crosses an ievent loses its `gbuffer`, logged too).
@@ -915,7 +915,7 @@ BOOL gbuffer_is_secret(
 
 **Returns**
 
-`TRUE` if it is secret; `FALSE` if not, or (logged) when `gbuf` is `NULL`.
+`TRUE` if it is secret, and `FALSE` if not, or (logged) when `gbuf` is `NULL`.
 
 **Example**
 
@@ -1067,9 +1067,9 @@ Returns a pointer to a `gbuffer_t` containing the serialized JSON data: `gbuf` w
 
 **Notes**
 
-The function uses `json_dump_callback()` to serialize the JSON object into the buffer. If `gbuf` is NULL, a new buffer is made: for a dump of up to 4 KB, of the size of the dump (it has no free space); for a bigger one, of 4 KB grown as the dump needs, up to `gbmem_get_maximum_block()`. A caller that appends to the buffer it gets grows it.
+The function uses `json_dump_callback()` to serialize the JSON object into the buffer. If `gbuf` is NULL, a new buffer is made. For a dump of up to 4 KB, the buffer has the size of the dump (it has no free space). For a bigger one, the buffer starts at 4 KB and grows as the dump needs, up to `gbmem_get_maximum_block()`. A caller that appends to the buffer it gets grows it.
 
-A dump that cannot finish logs an ERROR with a stack, *"Cannot dump the json whole, the gbuffer holds only its start"*, and the gbuffer still comes back, holding the start of the json only. Two things stop a dump: a json jansson refuses to dump (a cycle, `a` holding `b` holding `a`), and a `gbuf` that cannot grow to take it (the growth and the append log their own errors first). Up to 7.28.7 the start of the json came back without a word, and a peer that got it refused the frame (*"frame is not json"*), far from the cause.
+A dump that cannot finish logs an ERROR with a stack, *"Cannot dump the json whole, the gbuffer holds only its start"*, and the function still returns the gbuffer, holding only the start of the json. Two things stop a dump: a json jansson refuses to dump (a cycle, `a` holding `b` holding `a`), and a `gbuf` that cannot grow to take it (the growth and the append log their own errors first). Up to 7.28.7, the function returned the start of the json without a word, and a peer that got it refused the frame (*"frame is not json"*), far from the cause.
 
 **Example**
 

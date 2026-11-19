@@ -2,7 +2,7 @@
 
 Read and write gobj attributes. Attributes are typed fields declared through the GClass's SData schema and can be marked writable, persistent, statistic and more.
 
-**The default value of an attribute** is the text in the fourth field of its `SDATA()`. A boolean, an integer or a real default is read by the same grammar as a config and a command parameter ([`command_parameter_from_text()`](../parsers/command_parser.md#command_parameter_from_text)): an empty text is `0` or `false`; `true`/`false`, `yes`/`no`, `on`/`off` for a boolean; a JSON number, the whole text. So a default can be copied into a config as it is. A default that does not read as its type is the gclass's bug: an ERROR when the gobj is created, and the zero of the type. Since 7.27.0; up to 7.26.9 a default had a grammar of its own (`atoi()`, `strtoll()` in base 0): `"yes"` and `"on"` were `false`, `"12abc"` was 12, and `"0660"` an octal 432 that no config could write.
+**The default value of an attribute** is the text in the fourth field of its `SDATA()`. A boolean, an integer or a real default is read by the same grammar as a config and a command parameter ([`command_parameter_from_text()`](../parsers/command_parser.md#command_parameter_from_text)): an empty text is `0` or `false`. A boolean takes `true`/`false`, `yes`/`no` or `on`/`off`. A number is a JSON number, the whole text. So a default can be copied into a config as it is. A default that does not read as its type is the gclass's bug: an ERROR when the gobj is created, and the zero of the type. This holds since 7.27.0. Up to 7.26.9, a default had a grammar of its own (`atoi()`, `strtoll()` in base 0): `"yes"` and `"on"` were `false`, `"12abc"` was 12, and `"0660"` an octal 432 that no config can write.
 
 ```C
 SDATA (DTP_BOOLEAN,     "use_tls",          SDF_RD,     "yes",      "Use TLS"),
@@ -208,7 +208,7 @@ gobj_is_writable_attr(gobj, "max_sessions_per_user");   // FALSE
 
 Retrieves a list of persistent attributes for a given `hgobj` or all services if `gobj` is `NULL`.
 It is what `list-persistent-attrs` shows, so the [`SDF_SECRET`](#SDF_SECRET)
-attributes come masked (`"********"`, since 7.25.19); the file on disk keeps
+attributes come masked (`"********"`, since 7.25.19). The file on disk keeps
 the real value.
 
 ```C
@@ -274,8 +274,8 @@ Replaces, in a dict of attributes of `gobj` (what
 [`gobj_list_persistent_attrs()`](#gobj_list_persistent_attrs) answer), the
 value of every [`SDF_SECRET`](#SDF_SECRET) attribute by `"********"`, whatever
 its json type (a number or a boolean too). Only an absent value, a json null
-or an empty string stays as it is, so "not set" still shows. For what is SHOWN; what is saved or used reads the
-attributes as they are -- the persistence itself reads through
+or an empty string stays as it is, so "not set" still shows. It is for what is SHOWN. What is saved or used reads the
+attributes as they are: the persistence itself reads through
 `gobj_read_attrs()`, which is why the masking is a separate step and not a
 flag of the read.
 
@@ -291,7 +291,7 @@ int gobj_mask_secret_attrs(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The gobj whose attrs table says which attributes are secret. |
-| `jn_attrs` | `json_t *` | A dict keyed by attribute name. Not owned; masked in place. |
+| `jn_attrs` | `json_t *` | A dict keyed by attribute name. Not owned. Masked in place. |
 
 **Returns**
 
@@ -332,7 +332,7 @@ A config variable is masked in the `"<prefix>.__json_config_variables__"`
 dicts when it FEEDS a secret -- a secret attribute written `(^^var^^)` -- or
 when its name is a secret's ([`is_secret_name()`](#is_secret_name):
 `smtp_password`, `api_token`, ...). The `create_delete2` trace masks the
-variables it prints the same way; there a variable also feeds a secret when
+variables it prints the same way. There, a variable also feeds a secret when
 its value is the value that secret already got. A variable that feeds a
 secret of a service the configuration does not describe (one created later
 with `gobj_service_factory()`), and whose name is no secret's, is shown.
@@ -347,7 +347,7 @@ int gobj_mask_secret_config(
 
 | Key | Type | Description |
 |---|---|---|
-| `jn_config` | `json_t *` | A yuno configuration (`yuneta_json_config()`), or a copy of one. Not owned; masked in place. |
+| `jn_config` | `json_t *` | A yuno configuration (`yuneta_json_config()`), or a copy of one. Not owned. Masked in place. |
 
 **Returns**
 
@@ -749,7 +749,7 @@ Returns 0 on success, or -1 if the attribute is not found or an error occurs.
 
 If the attribute does not exist, an error is logged. The function makes sure that the provided value is decremented after use.
 
-The value is read as the attribute's type by the grammar of the command parser ([`command_parameter_from_json()`](#command_parameter_from_json), 7.27.0+), and a json null given to a `DTP_STRING` is `""`; so is every value written from json -- [`gobj_write_attrs()`](#gobj_write_attrs), the config of `gobj_create()`, the persistent attributes loaded. A json string given to a boolean, an integer, a real, a list or a dict is read from its text; a number or a boolean as the exact type. A value that does not read as the type is not written: `-1`, one ERROR (*"Attribute value of the wrong type, not written"*) naming the attribute, its type and why, the value masked, and the attribute keeps its value. A `DTP_STRING` takes any json as its text, a `DTP_JSON` any json as it is.
+The value is read as the attribute's type by the grammar of the command parser ([`command_parameter_from_json()`](#command_parameter_from_json), 7.27.0+), and a json null given to a `DTP_STRING` is `""`. So is every value written from json: [`gobj_write_attrs()`](#gobj_write_attrs), the config of `gobj_create()`, the persistent attributes loaded. A json string given to a boolean, an integer, a real, a list or a dict is read from its text. A number or a boolean is read as the exact type. A value that does not read as the type is not written: `-1`, one ERROR (*"Attribute value of the wrong type, not written"*) naming the attribute, its type and why, the value masked, and the attribute keeps its value. A `DTP_STRING` takes any json as its text, a `DTP_JSON` any json as it is.
 
 **Example**
 
@@ -1012,7 +1012,7 @@ Returns `0` on success, or `-1` if the attribute does not exist.
 
 If the attribute does not exist in the `hgobj`, a warning is logged. If the `hgobj` has a `mt_writing` method, it is called after updating the attribute.
 
-A `NULL` value writes a json null, and [`gobj_read_str_attr()`](#gobj_read_str_attr) then answers `NULL`; `empty_string()` reads it as empty. A json null given to a string attribute by [`gobj_write_attr()`](#gobj_write_attr), a config or the persistent attributes is the empty string `""`, as the default of a string attribute (7.27.0+; it was the text `"null"`, which `empty_string()` reads as a value).
+A `NULL` value writes a json null, and [`gobj_read_str_attr()`](#gobj_read_str_attr) then answers `NULL`. `empty_string()` reads it as empty. A json null given to a string attribute by [`gobj_write_attr()`](#gobj_write_attr), a config or the persistent attributes is the empty string `""`, as the default of a string attribute (7.27.0+, but before it was the text `"null"`, which `empty_string()` reads as a value).
 
 **Example**
 

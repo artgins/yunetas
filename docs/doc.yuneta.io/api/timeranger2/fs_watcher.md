@@ -36,7 +36,7 @@ fs_event_t *fs_create_watcher_event(
 | `user_data` | `void *` | User-defined data passed to the callback function. |
 | `user_data2` | `void *` | Additional user-defined data passed to the callback function. |
 
-With `FS_FLAG_MOVED_AS_DELETED` a subdirectory renamed away (out of the watched directory, or to another name in it) is told as `FS_SUBDIR_DELETED_TYPE`, by its OLD name -- for a watch that is not recursive (in a recursive one the moved directory's own watch would keep its old path). The master of a timeranger2 topic watches `disks/` this way: a reader closes its feed by renaming `disks/<rt_id>/` away before removing it.
+With `FS_FLAG_MOVED_AS_DELETED` a subdirectory renamed away (out of the watched directory, or to another name in it) is told as `FS_SUBDIR_DELETED_TYPE`, by its OLD name -- for a watch that is not recursive (in a recursive one, after the move, the moved directory's own watch keeps its old path). The master of a timeranger2 topic watches `disks/` this way: a reader closes its feed by renaming `disks/<rt_id>/` away before removing it.
 
 ```C
 fs_event_t *fs_event = fs_create_watcher_event(
@@ -54,7 +54,7 @@ open-files limit"*, with `dir_fds` of the process, `dir_fds_of_this_watcher`
 and `soft_limit`), and says it again only after they fell under the half. The
 limit is the process's: up to 7.25.21 each watcher counted only its own, so
 four followers of 400 directories each, under a limit of 1024, never said it. A directory whose descriptor cannot be opened (EMFILE) is
-watched by its path; the first failure is an ERROR, the next ones are only
+watched by its path. The first failure is an ERROR, the next ones are only
 counted, and the count is said when a descriptor opens again (*"Directories
 watched through their descriptor again"*, `watched_by_path`). A yuno raises its
 own soft limit to its hard one at its start (C_YUNO `limit_open_files`, `0` by
@@ -63,7 +63,7 @@ default).
 With `FS_FLAG_RECURSIVE_PATHS` every subdirectory is watched, hidden ones
 (`.name`) included, whenever it appears: there at the start, made later
 (`IN_CREATE`), met by the pass after an overflow, or by the re-watch of one
-that could not be watched. Up to 7.25.22 the first walk left the hidden ones
+whose watch failed. Up to 7.25.22 the first walk left the hidden ones
 out while the others took them, so a `.cache` there before the watch was
 deaf, and one made after it was heard.
 
@@ -77,9 +77,9 @@ With `FS_FLAG_DIR_FDS` each SUBDIRECTORY watched is opened first and watched thr
 
 **Returns**
 
-Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure representing the watcher event, or `NULL` on failure -- a path that is not a directory, no inotify instance, or a root that cannot be watched (`ENOSPC` at `fs.inotify.max_user_watches`, logged). Up to 7.25.20 a root that could not be watched gave a watcher all the same, running and watching nothing.
+Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure representing the watcher event, or `NULL` on failure -- a path that is not a directory, no inotify instance, or a root that cannot be watched (`ENOSPC` at `fs.inotify.max_user_watches`, logged). Up to 7.25.20 a root whose watch failed gave a watcher all the same, running and watching nothing.
 
-With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and after each slice of the pass that follows an overflow (`offset` = where the stream is), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way. It notes the directory at its event, and asks where the queue ends once, at the end of the batch: [`fs_queued_events_end()`](#fs_queued_events_end) walks the whole inotify queue, and asked at each new directory it made a flood of 69632 new keys quadratic (18 s of a drain of 21). The order is the contract: first LOOK at each directory (who it is: the watch it was seen with, and its descriptor -- see [`FS_FLAG_DIR_FDS`](#fs_watcher_dir_fd); without one, inode and birth), THEN ask where the queue ends, and read a directory only if it is still the one looked at. A change made by another process after the look is either queued before the answer (and read before the directory is) or it changed the directory (and the read is skipped). With the question first and the look after, a directory removed and made again between the two is read as the new one, while the event of its removal is queued past the answer. The window is not small: the owner's own callbacks for the directories before it in the batch run there.
+With `FS_FLAG_BATCH_END` the owner is also called with `FS_BATCH_END_TYPE` after each batch read from inotify (`offset` = where the batch ends), and after each slice of the pass that follows an overflow (`offset` = where the stream is), and every event carries `offset` and `offset_end`, its place in the watcher's stream: what the owner left for "when the stream is past here" can be done there. A timeranger2 follower defers the scan of a key directory that way. It notes the directory at its event, and asks where the queue ends once, at the end of the batch: [`fs_queued_events_end()`](#fs_queued_events_end) walks the whole inotify queue, and asked at each new directory it made a flood of 69632 new keys quadratic (18 s of a drain of 21). The order is the contract: first LOOK at each directory (who it is: the watch it was seen with, and its descriptor -- see [`FS_FLAG_DIR_FDS`](#fs_watcher_dir_fd), and without one, inode and birth), THEN ask where the queue ends, and read a directory only if it is still the one looked at. A change made by another process after the look is either queued before the answer (and read before the directory is) or it changed the directory (and the read is skipped). With the question first and the look after, a directory removed and made again between the two is read as the new one, while the event of its removal is queued past the answer. The window is not small: the owner's own callbacks for the directories before it in the batch run there.
 
 A file created in a directory that is noted or placed is left to the read of that directory, which takes all its files in order. Read at its own event, a second file of a new key came before the first.
 
@@ -176,7 +176,7 @@ watcher BY NOW end, in the watcher's stream of events. Every event the
 watcher hands over carries its own place in that stream, `fs_event->offset`
 (the bytes read from inotify before it). An event handed over later with an
 `offset` below the answer was already queued when the question was asked:
-what it says may be what the owner has just read from the disk.
+what it says can be what the owner just read from the disk.
 
 ```C
 uint64_t fs_queued_events_end(
@@ -211,7 +211,7 @@ Between two batches the kernel completes the watcher's read at any return to
 user space (an interrupt's too): its events are out of the kernel's queue and
 not yet handed over. The completion is looked for in the loop's ring
 ([`yev_get_waiting_completion()`](#yev_get_waiting_completion)) before and
-after asking the kernel; the same answer both times means nothing moved in
+after asking the kernel. The same answer both times means nothing moved in
 between (there is one read at a time, and once completed it waits for the
 loop). Only when completions overflowed the ring, and whether one of this
 read waits cannot be seen, is a read counted whole: the answer is then past
@@ -220,7 +220,7 @@ the end, never short.
 An answer past the end is closed by the watcher itself. It notes it, and on
 the next turn of the loop (and after each batch while it is open) it looks
 again: once no completion of its read waits in the ring and the kernel holds
-nothing, everything queued when it was asked has been handed over, so the
+nothing, everything queued when it was asked is handed over, so the
 stream JUMPS to that answer and the owner is called with `FS_BATCH_END_TYPE`
 at it (with `FS_FLAG_BATCH_END`). The offsets after it continue from there: an
 offset is a place in the stream to compare, not a count of bytes read. Up to
@@ -243,7 +243,7 @@ events of the longest name (up to 7.25.20 one: a backlog of 65536 events was
 
 A timeranger2 follower uses it to tell apart what it already said from what
 is new. At an overflow it reads `keys/` and tells the keys gone from there
-deleted; the signal of such a delete can still be in the queue, behind the
+deleted. The signal of such a delete can still be in the queue, behind the
 overflow, and must not be told again:
 
 ```C
@@ -291,12 +291,12 @@ int fs_watcher_dir_fd(
 **Returns**
 
 The descriptor, owned by the watcher: do not close it, and take it again at
-each event (it may be closed at the next one). `-1` and `errno`:
+each event (it can be closed at the next one). `-1` and `errno`:
 
-- `ENOENT`: the directory is gone, or `wd` is not watched;
+- `ENOENT`: the directory is gone, or `wd` is not watched.
 - `ENOTSUP`: watched without a descriptor -- no `FS_FLAG_DIR_FDS`, the root
-  (nothing above it would close it when it goes), or the descriptor could not
-  be opened (logged). Use the path, as without the flag.
+  (nothing above it can close it when it goes), or the descriptor did not
+  open (logged). Use the path, as without the flag.
 
 **Notes**
 
@@ -304,7 +304,7 @@ A descriptor open on a directory holds its inode: the kernel then holds back
 its `IN_DELETE_SELF` and `IN_IGNORED` until the descriptor is closed. The
 watcher closes it when the directory's parent reports it deleted
 (`IN_DELETE|IN_ISDIR`) and it has no link left (`st_nlink` 0), and when a
-new directory is watched at its path; then its events come, and the watch
+new directory is watched at its path. Then its events come, and the watch
 goes as without the flag. The cost is one descriptor per subdirectory
 watched (a timeranger2 follower: one per key directory of each feed), and an
 `open()` per directory watched.
@@ -337,24 +337,24 @@ case FS_FILE_CREATED_TYPE: {
 ## Queue overflow (`IN_Q_OVERFLOW`)
 
 Each watcher owns one inotify instance with a bounded kernel event queue
-(`fs.inotify.max_queued_events`; the deb/rpm packagers set 65536). Under a
+(`fs.inotify.max_queued_events`, which the deb/rpm packagers set to 65536). Under a
 burst the kernel drops the events that do not fit and signals a single
 `IN_Q_OVERFLOW`: from there the watcher cannot know every change it missed.
 
 What the lost events said is still on the filesystem, so the watcher recovers
-in place (since 7.25.9; in slices since 7.25.10):
+in place (since 7.25.9, and in slices since 7.25.10):
 
 1. a WARNING, *"inotify IN_Q_OVERFLOW: events lost, rescanning the watched
-   tree"*, with the watched `path`;
+   tree"*, with the watched `path`.
 2. the owner's callback is called ONCE with **`FS_OVERFLOW_TYPE`**
    (`directory` = the watched path): do there what is global and cheap. An
-   owner may stop the watcher there (`fs_stop_watcher_event()`): then no
+   owner can stop the watcher there (`fs_stop_watcher_event()`): then no
    pass is started, and the watcher goes when the batch ends (up to 7.25.20
-   the pass was still set up -- its index built, its timer created and
-   armed -- and thrown away);
+   the pass was still prepared, with its index built, its timer created and
+   armed, and then thrown away).
 3. a **pass** over the tree follows: every directory, the root included, is
    handed to the owner as **`FS_RESCAN_DIR_TYPE`** (`directory` = that
-   directory) -- read it again, what it holds may never have been told. In a
+   directory). Read it again: it can hold changes that were never told. In a
    recursive watch a directory born while its `IN_CREATE` was dropped is
    watched before it is handed over, and so is one deleted and created again
    meanwhile: every directory of the pass is watched again
@@ -362,30 +362,30 @@ in place (since 7.25.9; in slices since 7.25.10):
    wd that differs from the one the table holds for that path replaces it.
    Up to 7.25.20 a path found in the table was taken as watched, and a
    directory reborn during an overflow (another inode, its `IN_IGNORED` lost)
-   was never heard again; the table also let an `IN_IGNORED` pass without
+   was never heard again. The table also let an `IN_IGNORED` pass without
    taking out its wd, which it does now. The ROOT is watched again too, in a
    watch that recurses and in one that does not: up to 7.25.20 the pass
    watched again the directories it met, never the root it started from, and
    a root deleted and created again during an overflow went deaf. At the end
    of the pass a directory of the table that the pass did not meet and that
    is no longer there is stopped too. The entry of a wd stopped goes with its
-   `IN_IGNORED`; when that was dropped with the overflow, it goes once the
-   stream is past where the `IN_IGNORED` would have come
+   `IN_IGNORED`. When that was dropped with the overflow, it goes once the
+   stream is past the place of the dropped `IN_IGNORED`
    (`fs_queued_events_end()` at the stop): up to 7.25.21 it stayed for good.
    The watcher does not follow moves: a directory that is not there is gone
-   for it;
+   for it.
 4. the pass runs **a slice of 20 ms per loop turn**, and an INFO closes it:
    *"watched tree rescanned after lost inotify events"*, with `directories`,
    `ms`, and where that time went: `slices`, `ms_owner` (in the owner's
    callbacks), `ms_watcher` (the walk itself), `ms_loop` (the loop's own work
    between slices) and `max_loop_ms` (its longest turn). Another overflow during a pass schedules one more whole pass after it
-   (starting again would starve the end of the tree under overflows that keep
+   (if the pass starts again, the end of the tree starves under overflows that keep
    coming).
 
 In 7.25.9 the owner rescanned the whole tree inside the one `FS_OVERFLOW_TYPE`
 call. A timeranger2 follower of 50000 keys on the busy disk of node B took
 56 s, then 243 s -- the yuno deaf to its agent, its commands and its timers all
-that time. The slices keep it answering; the pass costs the same.
+that time. The slices keep it answering, and the pass costs the same.
 
 What the pass costs is mostly the owner's: the watcher's own part is a
 `readdir()` per directory and a lookup in an index of the watched paths, built
@@ -395,7 +395,7 @@ key directories a pass took 7 minutes. `tests/c/timeranger2/test_fs_watcher_over
 measures it (the pass less the owner's time, per directory) on a tree of 4096
 directories and on one of 69632, on the same machine, and fails when the big
 one costs more than twice the small one plus 20 us: with the index once per
-pass, 14 and 20 us here; rebuilt per slice, 31 and 437. (Up to 7.25.22 it
+pass, 14 and 20 us here, and rebuilt per slice, 31 and 437. (Up to 7.25.22 it
 failed above a fixed 200 us, which a slower machine reached with the code
 right.)
 
@@ -408,7 +408,7 @@ A pass closes with its own account (since 7.25.12), so a long one says why:
 ```
 
 Here the owner took most of it (a test's owner that sleeps 100 us per
-directory); a large `ms_loop` would say the slices were waiting for a busy
+directory). A large `ms_loop` says that the slices were waiting for a busy
 loop instead.
 
 What it said on a production node, a timeranger2 follower of about 50 000 keys
@@ -417,7 +417,7 @@ while its master wrote a backlog of ~9 GB (2026-09-27): passes of 142-335 s,
 watcher** -- whatever the length of the pass. The owner's time is the records
 it hands over: the same tree with nothing pending took 1 s, 0.35 s of it in
 the owner. So a long pass is a follower working through a backlog at its own
-pace (there, ~80 % of a core), not a slow walk; it ends about a minute after
+pace (there, ~80 % of a core), not a slow walk. It ends about a minute after
 the master stops writing, and the loop never waited more than 239 ms for a
 slice.
 
@@ -460,15 +460,15 @@ What the owners of the tree do:
   watermark of every feed. Which one is first is said by the sequence: the
   follower keeps, per key, the highest sequence it applied
   (`deletes_applied`, on the topic). A signal above it is a delete not
-  applied yet; one at or below it, a delete another feed heard first --
+  applied yet. One at or below it is a delete another feed heard first:
   the feed is told (its `key_deleted` callback fires) and nothing is
-  forgotten: the key may be back, loaded by a feed that heard its new
+  forgotten: the key can be back, loaded by a feed that heard its new
   record. However late a feed hears a signal, and whenever it was opened
   (before the delete, while it was in flight, or after another feed heard
   it), the sequence tells. Up to 7.25.22 the signal was the key's own
   directory, with nothing to tell one delete from another, and the
   follower matched them by their place in each feed's queue (debts, doubts,
-  the place each feed was watched from): a second delete of a key could be
+  the place each feed was watched from): a second delete of a key was sometimes
   taken for the first, and a feed opened after another one heard a delete
   took its signal for a new one -- the key forgotten again (a key written
   again meanwhile went with it) and a delete told twice at an overflow.
@@ -477,8 +477,8 @@ What the owners of the tree do:
 
   Each feed hears the signals in the master's order (the master signals a
   delete to every feed before the next one), so the last one a feed heard
-  (`delete_seq_heard`) says it will hear none below; a feed opened starts
-  one below the last any feed heard (the delete in flight may still reach
+  (`delete_seq_heard`) says it will hear none below. A feed opened starts
+  one below the last any feed heard (the delete in flight can still reach
   it). What was applied below every feed's mark reaches none of them and is
   pruned, so `deletes_applied` stays as short as the deletes in flight.
 
@@ -487,7 +487,7 @@ What the owners of the tree do:
   what is listed next), then the topic's `keys/`, once: a key in the cache
   and not on disk was deleted and heard by no feed (forgotten here, and
   applied up to that sequence, so its signal is known when another feed
-  hears it); a delete applied above what this feed heard was heard by
+  hears it). A delete applied above what this feed heard was heard by
   another feed (told to this one, unless the key is on disk again: deleted
   and written again while the events were lost, it lives). INFO *"keys
   deleted while the inotify events were lost"*. Up to 7.25.20 a feed that
@@ -515,7 +515,7 @@ What the owners of the tree do:
   a key and writes it again before the follower reads the signal, the
   key's directory is there again with the NEW key's links while the delete
   is still queued (up to 7.25.22 the signal itself was a directory named
-  after the key, made and removed, and it could be that directory). Read at the signal's place, the new key's file was taken
+  after the key, made and removed, and the directory found was possibly that one). Read at the signal's place, the new key's file was taken
   against the OLD key's cell of the cache: one new record was never
   handed, five came as rowids 4 and 5 (and the next append handed R1..R6),
   and the delete heard after took the live key out of the cache. Up to
@@ -524,22 +524,22 @@ What the owners of the tree do:
   (`scans_pending`) until the stream is past `fs_queued_events_end()` --
   the master is one process and writes the key again only after it
   signalled this feed, so whatever can still remove the directory is queued
-  by then; a delete of the key heard before drops it (the directory's own
-  `IN_CREATE` reads it later); and it reads only the directory seen then:
+  by then. A delete of the key heard before drops it (the directory's own
+  `IN_CREATE` reads it later). Also, it reads only the directory seen then:
   the one of the watch set at its `IN_CREATE`, through that watch's
-  descriptor (`FS_FLAG_DIR_FDS`; inode and birth only without one). The feed is told `deleted`, then the new key's
-  records from rowid 1. So for ANY key: a key the follower never saw may
-  have been born, deleted and written again in the part of the stream not
+  descriptor (`FS_FLAG_DIR_FDS`, and inode and birth only without one). The feed is told `deleted`, then the new key's
+  records from rowid 1. So for ANY key: a key the follower never saw can
+  be born, deleted and written again in the part of the stream not
   read yet ([R1 DEL] was handed, the key out of the cache, and the next
-  append handed R1 R2), and a key may be deleted and written again more
+  append handed R1 R2), and a key can be deleted and written again more
   than once there ([DEL R1 DEL], [DEL R1 R2 R3 DEL]). Up to 7.25.20 a key
   not in the cache and not owed was read at once. The pass after an
   overflow defers its key directories the same way. The directories are
   noted at their event (`scans_new`) and placed at the end of the batch, or
   of the slice of the pass: each one is LOOKED AT (still there, through
   its descriptor) and
-  then where the queued events end is asked, once for up to 256 of them;
-  only with nothing queued after the batch is it read at once, and a read,
+  then where the queued events end is asked, once for up to 256 of them.
+  Only with nothing queued after the batch is it read at once, and a read,
   at once or later, is done only if the directory is still the one looked
   at. Up to the fix the question came first and the look after: a key
   deleted and written again between them -- where the record callbacks of
@@ -568,7 +568,7 @@ What the owners of the tree do:
 
   In a MASTER the watcher's echo of a delete forgets nothing:
   `tranger2_delete_key()` forgot the key when it deleted it, and the master
-  may have written it again before its own rt_disk feed (a configuration of
+  can write it again before its own rt_disk feed (a configuration of
   tests) hears the echo. Up to 7.25.20 the echo took the live key out of the
   master's cache. And since the master's cache cannot say later that a
   delete was lost, `tranger2_delete_key()` applies the delete itself (in
@@ -577,12 +577,12 @@ What the owners of the tree do:
   overflowed is told it (up to 7.25.20 it never heard it). Such a feed is handed
   no RECORD, by design: the master's cache counts each one at its append,
   so the link the feed hears is nothing new (a master feeds its lists from
-  memory, with `tranger2_open_rt_mem()`); only the deletes reach it.
+  memory, with `tranger2_open_rt_mem()`). Only the deletes reach it.
 
   At each `FS_RESCAN_DIR_TYPE`: the master hard-links each new md2 into
   `disks/<rt_id>/<key>/` and the follower consumes the link when it reads it,
   so a link still there IS a record not handed over yet, and the key directory
-  is read (when the stream is past what could still remove it, above). Both
+  is read (when the stream is past what can still remove it, above). Both
   are idempotent: nothing is handed over twice.
 - **timeranger2, the master's watch of `disks/`**: at `FS_OVERFLOW_TYPE`, the
   feeds whose directory went are closed, and a feed is opened for every
@@ -596,7 +596,7 @@ A subdirectory met by a recursive watch whose watch cannot be made -- out of
 watches (`fs.inotify.max_user_watches`, `ENOSPC`) or of kernel memory
 (`ENOMEM`) -- is handed as created with `subdir_wd` -1, and nothing made in it
 is heard. It is kept, and tried again at the end of each batch of the
-watcher (64 per batch); once its watch is made it is handed AGAIN as
+watcher (64 per batch). Once its watch is made it is handed AGAIN as
 created, now with its `subdir_wd`, at the batch's end, so its owner reads
 what was made in it meanwhile. One gone by then is forgotten (its parent
 said it). Under `FS_FLAG_RECURSIVE_PATHS` what was made under it was not
@@ -609,7 +609,7 @@ whole in that turn (a `keys/` of 100 000 keys is one `readdir` of it). A
 directory gone between its watch and its listing says nothing (its parent's
 `IN_DELETE` does). The first failure is an ERROR, *"Cannot watch a
 directory, out of inotify watches or memory: tried again at each batch (and
-the next ones that fail, counted)"*; at the end of the batch where none is
+the next ones that fail, counted)"*. At the end of the batch where none is
 left, a warning, *"Directories watched again: every one that could not be is
 watched now"*. Up to 7.25.22 a subdirectory made meanwhile was never
 watched. Up to 7.25.21
@@ -678,7 +678,7 @@ case FS_WATCHER_GONE_TYPE:
 
 What the owners do: a timeranger2 rt_disk feed drops its watcher and its
 accounts of deletes, and says it is deaf (*"rt_disk feed deaf: its watcher
-is gone"*); every reader of the feed's watcher skips a feed without one. The
+is gone"*). Every reader of the feed's watcher skips a feed without one. The
 master's watch of `disks/` says new feeds are not heard any more. `C_FS`
 says the path is not watched any more (its `size_dl_watch` reads 0).
 `utils/c/fs_watcher` prints *"Watcher gone"*.
@@ -700,19 +700,19 @@ its queue is that echo, which is why a single burst can overflow it twice.
   while the queue is full. Every record reaches the feed exactly once, the
   deleted key is heard once, and a key born during the overflow is watched
   afterwards. With the code that aborted, the test aborts. It needs about four
-  open files per key and raises its soft limit to the hard one, as a yuno does;
-  below that it is skipped. Before it, cheap cases that always run: two
+  open files per key and raises its soft limit to the hard one, as a yuno does.
+  Below that it is skipped. Before it, cheap cases that always run: two
   feeds of one topic, the whole-topic one overflowed (by directories created
   and removed in one of its key directories) while a key is deleted, and the
-  one keyed on that key hearing it first -- both hear the delete once; the
+  one keyed on that key hearing it first (both hear the delete once). The
   same with the signal of the delete queued BEHIND the overflow (the test
   reads some of the full queue itself, then deletes), with one feed and with
-  two -- told once, and nobody left owing it; a feed opened while a delete
-  was in flight -- it owes nothing, and when the key is born again, the
+  two (told once, and nobody left owing it). A feed opened while a delete
+  was in flight (it owes nothing, and when the key is born again, the
   other feed overflowed and the key deleted again, the overflowed feed is
-  told the second delete; and an old delete heard by a slow feed after the
-  key came back -- the live key stays in the cache, nobody owes anything,
-  and the key's next record arrives.
+  told the second delete). An old delete heard by a slow feed after the
+  key returned (the live key stays in the cache, nobody owes anything,
+  and the key's next record arrives).
 - `test_fs_watcher_overflow`: the watcher alone, with an owner slow on purpose
   (100 us per directory) and a periodic timer probing the loop. `max_queued_events`
   + 4096 directories are created with the loop stopped: every one is told to the

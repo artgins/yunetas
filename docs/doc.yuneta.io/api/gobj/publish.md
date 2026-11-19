@@ -76,7 +76,7 @@ dict, its subscriber, event, renamed event, flags and the `__config__`,
 `__global__`, `__local__` and `__filter__` it holds, and every publication
 and every search of a subscription read them there. The dicts this
 function returns are those subscriptions, to read and to hand to
-[`gobj_unsubscribe_list()`](#gobj_unsubscribe_list); a value written into
+[`gobj_unsubscribe_list()`](#gobj_unsubscribe_list). A value written into
 one of them afterwards is not seen by the framework (a key replaced, that
 is: the content of its `__filter__` dict, changed in place, is). Up to
 7.27.7 a publication read 3 to 8 keys of every dict by hash.
@@ -91,7 +91,7 @@ gobj_unsubscribe_list(publisher, subs, FALSE);  // owned: the dicts are the subs
 (gobj_find_subscriber_refusing_event)=
 ## [`gobj_find_subscriber_refusing_event()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/gobj-c/src/gobj.c#L10730)
 
-Finds the first subscriber that a publication of `event` would reach and that does not take the event in its current state: [`gobj_send_event()`](#gobj_send_event) would answer it *"Event NOT DEFINED in state"*, an ERROR with a stack.
+Among the subscribers that a publication of `event` can reach, finds the first one that does not take the event in its current state. For that subscriber, [`gobj_send_event()`](#gobj_send_event) answers *"Event NOT DEFINED in state"*, an ERROR with a stack.
 
 ```C
 hgobj gobj_find_subscriber_refusing_event(
@@ -104,16 +104,16 @@ hgobj gobj_find_subscriber_refusing_event(
 
 | Key | Type | Description |
 |---|---|---|
-| `publisher` | `hgobj` | The gobj that would publish the event. |
-| `event` | `gobj_event_t` | The event it would publish. |
+| `publisher` | `hgobj` | The gobj that is to publish the event. |
+| `event` | `gobj_event_t` | The event that it is to publish. |
 
 **Returns**
 
-The first subscriber that would refuse the event, or `NULL` when every subscriber takes it (an action for it in its current state, or a `mt_inject_event`). Also `NULL` when it cannot be told before publishing: the publisher's gclass has `mt_publish_event`, `mt_publication_pre_filter` or `mt_publication_filter`. A subscription with a `__filter__` is not judged. A system event that a subscriber does not have is skipped, as [`gobj_publish_event()`](#gobj_publish_event) skips it.
+The first subscriber that refuses the event, or `NULL` when every subscriber takes it (an action for it in its current state, or a `mt_inject_event`). Also `NULL` when it cannot be told before publishing: the publisher's gclass has `mt_publish_event`, `mt_publication_pre_filter` or `mt_publication_filter`. A subscription with a `__filter__` is not judged. A system event that a subscriber does not have is skipped, as [`gobj_publish_event()`](#gobj_publish_event) skips it.
 
 **Notes**
 
-For a gclass that publishes again what a PEER sent. An event of a peer that the yuno does not take now is the peer's fault and is refused at the frontier with a warning; the same event sent by the yuno's own code stays the loud error. It allocates nothing: pointer compares over the subscriptions and the actions of each subscriber's state. Used by `C_IOGATE` for every inter-event a session receives (7.30.27+).
+For a gclass that publishes again what a PEER sent. An event of a peer that the yuno does not take now is the peer's fault and is refused at the frontier with a warning. The same event sent by the yuno's own code stays the loud error. It allocates nothing: pointer compares over the subscriptions and the actions of each subscriber's state. Used by `C_IOGATE` for every inter-event a session receives (7.30.27+).
 
 ```C
 hgobj subscriber = gobj_find_subscriber_refusing_event(gobj, iev_event);
@@ -226,11 +226,11 @@ publisher, directly or with one of its ancestors, the subscribers after it do
 not get the event. The kernel learns it from the frame of the publication,
 which [`gobj_destroy()`](creation.md#gobj_destroy) marks, never from the
 publisher's memory. Up to 7.26.9 it read the publisher's `obflag` after each
-subscriber, in freed memory once the publisher was gone, and could go on to
+subscriber, in freed memory once the publisher was gone, and was able to go on to
 the next subscriber with a freed publisher.
 
-The kernel survives it; the publisher may not, because its code goes on after
-the call returns. So a subscriber that destroys the publisher's tree is an
+The kernel survives it, but the publisher possibly does not, because its code
+goes on after the call returns. So a subscriber that destroys the publisher's tree is an
 ERROR (*"Destroying a gobj while its tree is publishing"*), except in the
 publisher's `EV_STOPPED`, which by the stop contract is the last thing the
 publisher does with itself. Defer anything else with
@@ -291,15 +291,15 @@ Returns a JSON object representing the subscription if successful, or `NULL` on 
 The `event` must be in the publisher's output event list unless the `gcflag_no_check_output_events` flag is set.
 If a subscription with the same parameters already exists, it will be overridden: the function logs a warning (*"subscription(s) REPEATED, will be deleted and override"*, with the kw capped to 256 bytes and no stack trace: a repeat is the caller's, not a broken invariant), removes it with [`gobj_unsubscribe_list()`](#gobj_unsubscribe_list) without `force`, and adds the new one.
 The `__config__` field in `kw` can include options such as `__hard_subscription__` (permanent subscription), `__own_event__` (prevents further propagation if the subscriber handles the event) and `__rename_event_name__` (the event is delivered under another name, and the kw gets `__original_event_name__`).
-These three keys are taken out of the `__config__` that the subscription stores (they become its flags), and a renamed event adds `__original_event_name__` to the stored `__global__`. The `kw` of a repeat, and of [`gobj_unsubscribe_event()`](#gobj_unsubscribe_event), is compared as it would be stored, so the same `kw` always finds the subscription it made. Up to 7.25.4 the `kw` was compared as it came: a repeated `__hard_subscription__`, `__own_event__` or `__rename_event_name__` subscription was made a second time (each event arrived twice), and the withdrawal of an `__own_event__` or `__rename_event_name__` subscription with the same `kw` found nothing.
+These three keys are taken out of the `__config__` that the subscription stores (they become its flags), and a renamed event adds `__original_event_name__` to the stored `__global__`. The `kw` of a repeat, and of [`gobj_unsubscribe_event()`](#gobj_unsubscribe_event), is compared in the form in which it is stored, so the same `kw` always finds the subscription it made. Up to 7.25.4 the `kw` was compared as it came: a repeated `__hard_subscription__`, `__own_event__` or `__rename_event_name__` subscription was made a second time (each event arrived twice), and the withdrawal of an `__own_event__` or `__rename_event_name__` subscription with the same `kw` found nothing.
 The renamed event is part of what a subscription IS, because it is what the subscriber receives: a `kw` that renames matches only a subscription renamed to the same event. A `kw` that does not rename is, as for every other part of the `kw`, a wildcard: it matches renamed subscriptions too. So the result depends on the ORDER:
 
-- a renamed subscription made over a plain one of the same event is a second subscription (each event arrives once under each name); so are two renames of one event (`EV_A` and `EV_B`); each is withdrawn by its own `kw`;
-- a plain subscription made over a renamed one matches it as a repeat and REPLACES it (the *"REPEATED"* warning; one subscription is left, the plain one);
-- a plain [`gobj_unsubscribe_event()`](#gobj_unsubscribe_event) removes the plain subscription and every renamed one of that event and subscriber.
+- A renamed subscription made over a plain one of the same event is a second subscription (each event arrives once under each name). So are two renames of one event (`EV_A` and `EV_B`). Each is withdrawn by its own `kw`.
+- A plain subscription made over a renamed one matches it as a repeat and REPLACES it (the *"REPEATED"* warning, and one subscription is left, the plain one).
+- A plain [`gobj_unsubscribe_event()`](#gobj_unsubscribe_event) removes the plain subscription and every renamed one of that event and subscriber.
 
 A `__rename_event_name__` that no gclass declares is no rename: it stays in the stored `__config__`, and is compared as any other key of it. From 7.25.5 to 7.25.20 the renamed event was not compared: a renamed `kw` found the plain subscription, or another rename, as a repeat of itself and replaced it, and withdrawing either rename removed both.
-A HARD subscription is not overridden, because only `gobj_unsubscribe_list()` with `force` removes it. When one matches, no new subscription is made: the function logs a warning (*"Hard subscription REPEATED, the one there is kept and returned"*) and returns the hard subscription that is there. `__hard_subscription__` itself is not compared: subscribing hard twice with the same `kw` gives one subscription. A hard subscription over a PLAIN one with the same parameters replaces it, as any override does. Up to 7.25.4 a repeated hard subscription was made a second time with no log, and the subscriber got each event twice; a hard one over a plain one did not replace it either.
+A HARD subscription is not overridden, because only `gobj_unsubscribe_list()` with `force` removes it. When one matches, no new subscription is made: the function logs a warning (*"Hard subscription REPEATED, the one there is kept and returned"*) and returns the hard subscription that is there. `__hard_subscription__` itself is not compared: subscribing hard twice with the same `kw` gives one subscription. A hard subscription over a PLAIN one with the same parameters replaces it, as any override does. Up to 7.25.4 a repeated hard subscription was made a second time with no log, and the subscriber got each event twice. A hard one over a plain one did not replace it either.
 
 ```C
 json_t *subs1 = gobj_subscribe_event(publisher, EV_ON_MESSAGE,
@@ -322,7 +322,7 @@ gobj_subscribe_event(publisher, EV_ON_MESSAGE, kw_rename, subscriber);
 gobj_subscribe_event(publisher, EV_ON_MESSAGE, 0, subscriber);  // replaces the renamed one, a WARNING
 ```
 
-The subscription is made only if the publisher's `mt_subscription_added` accepts it: when it answers `-1` (it says why, in its own log) the subscription is removed from both lists and the function returns `NULL`. Up to 7.25.20 a refused subscription leaked (its creation reference was never dropped): one per refusal, for example each subscription that `C_IEVENT_CLI` could not send to its peer.
+The subscription is made only if the publisher's `mt_subscription_added` accepts it: when it answers `-1` (it says why, in its own log) the subscription is removed from both lists and the function returns `NULL`. Up to 7.25.20 a refused subscription leaked (its creation reference was never dropped): one per refusal, for example each subscription that `C_IEVENT_CLI` was not able to send to its peer.
 
 ---
 
@@ -351,7 +351,7 @@ int gobj_unsubscribe_event(
 
 **Returns**
 
-Returns -1 when `publisher` or `subscriber` is NULL (logged); otherwise 0, also when nothing was removed (the log says why).
+Returns -1 when `publisher` or `subscriber` is NULL (logged). Otherwise it returns 0, also when nothing was removed (the log says why).
 
 **Notes**
 
@@ -359,7 +359,7 @@ If the `event` is not found in the publisher's output event list, an error is lo
 If multiple subscriptions match the given parameters, all of them will be removed.
 If no matching subscription is found, an error is logged (*"No subscription found"*).
 A subscription that matched but is gone by the time its turn comes (the publisher's `mt_subscription_deleted`, run for an entry before it, withdrew it) counts as removed: nothing is logged, and it is not taken for a hard subscription kept.
-A HARD subscription (`__hard_subscription__` in its `__config__`) is never removed here: only [`gobj_unsubscribe_list()`](#gobj_unsubscribe_list) with `force` removes it. Since 7.25.5 a hard subscription that matches is logged as a warning (*"Hard subscription not removed, only gobj_unsubscribe_list() with force removes it"*, with the count in `hard`); up to 7.25.4 it was counted as removed, and nothing was logged.
+A HARD subscription (`__hard_subscription__` in its `__config__`) is never removed here: only [`gobj_unsubscribe_list()`](#gobj_unsubscribe_list) with `force` removes it. Since 7.25.5 a hard subscription that matches is logged as a warning (*"Hard subscription not removed, only gobj_unsubscribe_list() with force removes it"*, with the count in `hard`). Up to 7.25.4, it was counted as removed, and nothing was logged.
 The function decrements the reference count of `kw` before returning.
 
 ```C

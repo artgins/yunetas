@@ -224,7 +224,7 @@ none: only `traced` changed.
 The pair reaches only a yuno connected to the agent. A yuno stopped, starting
 or stopping gets nothing, keeps its saved levels and its `traced`, and the
 answer names it (`-1` when no yuno was reached). So reset a stopped yuno's
-trace after it runs again; it starts with its saved levels:
+trace after it runs again. It starts with its saved levels:
 
 ```bash
 ycommand -c 'trace-off-yuno id=3'
@@ -278,7 +278,7 @@ right after the children are built.
 **A gobj's trace is saved only for a named service** (7.27.3+), under its
 service name whatever name the command was given. `set_user_gobj_traces()`
 finds a gobj with `gobj_find_service()`, so the trace of any other gobj -- a
-timer, a channel, a connection -- could never be found again: it lasts until
+timer, a channel, a connection -- cannot be found again: it lasts until
 the yuno ends. Up to 7.27.2 it was saved anyway, under the name given (the gobj
 tree of gui_agent gives the FULL name), and the next start logged *"GClass NOT
 FOUND: <name>"* as an ERROR. Such an entry is now dropped at the next start
@@ -307,7 +307,7 @@ So a default that the user turned off stays off:
 
 With this attr, `timer_periodic` is not silenced after a restart, although
 `main.c` silences it, and `C_TIMER` keeps its `machine` no-trace. (A scope saved
-by an older release is the list of levels that were set one by one; it now
+by an older release is the list of levels that were set one by one. It now
 replaces the defaults of `main()` too.) A gobj-name key, which
 `reset-all-traces gobj=…` writes, keeps its old level-by-level list.
 
@@ -318,7 +318,7 @@ no message first. Always pair the enable and the disable in the same session.
 > An entry whose key names a gclass that no longer exists is skipped **without
 > a log** at start up ([`c_yuno.c:4992`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/root-linux/src/c_yuno.c#L4992), a deliberate exception to the
 > no-silent-errors rule: a mistyped gclass name is the common case). So a trace
-> that does not turn on after a restart usually means a typo in the persisted
+> that is not active after a restart usually means a typo in the persisted
 > attr. Read it with `list-persistent-attrs`, and clear it with
 > `remove-persistent-attrs`.
 
@@ -486,7 +486,7 @@ cp /yuneta/realms/agent/agent/logs/yuneta_agent-4.log /tmp/ \
 ```
 
 **A full disk stops only that file.** Every 100 records the handle checks the
-free space of its own disk; below `min_free_disk_percentage` (default 10%) it
+free space of its own disk. Below `min_free_disk_percentage` (default 10%) it
 drops its records, and it writes again by itself when the space is back. It
 prints one line to stdout and syslog when it stops and one when it resumes
 (up to 7.25.4 one full disk stopped every file log of the process until it
@@ -690,7 +690,7 @@ nearest first:
   For example `password`, `user_passw`, `client_secret`,
   `kc_admin_client_secret`, `access_token`, `api_key`, `x-api-key`,
   `http_cookie`, `__session_id__`, `auth_data`, `visitor_salt`, `private_key`.
-  The list comes from a scan of every attribute and command parameter of the
+  The list is the result of a scan of every attribute and command parameter of the
   SDK and of the projects. The path of a key or a certificate
   (`ssl_certificate_key`), a certificate (`cert_pem`) and the ids of treedb
   (`pkey`, `rkey`) are not secrets, and stay. `cookie_domain` is redacted
@@ -725,9 +725,9 @@ nearest first:
   ```
 
   Also whatever `mask_secrets_inline()` masks in a string, by the same rules
-  and the same function (`mark_secrets_inline()`, `string_helper.md`; each
+  and the same function (`mark_secrets_inline()`, `string_helper.md`, and each
   run of what it marks is one `<redacted>`): a JWT or a JWE (`eyJ…`,
-  base64url and a `.`: two parts or more, a cap may have cut it; a `.` after
+  base64url and a `.`: two parts or more, as a cap can cut it. A `.` after
   it, as at the end of a sentence, is not its own), the credential after
   `Bearer` or `Basic`, a `name: value` whose name is a secret's
   (`X-Auth-Token: x`, `bearer: tok`), every word of a password written with
@@ -958,7 +958,7 @@ nearest first:
   no `\` as one, so nobody can tell which `'` opens a string and which
   one closes it: the JSON reader of the text took `'\''` as a string and
   wrote the password after it in clear. From that word on, the line is
-  `<...>`, the word's key kept (a word left after it could be a secret
+  `<...>`, the word's key kept (a word left after it can be a secret
   only by what came before it, as after `Basic`). These commands:
 
   ```text
@@ -1093,8 +1093,8 @@ normal day 2 KB to 2.6 MB. With this format a deploy day writes a few KB.
 keystroke typed into an agent console, with the keystroke in `content64`. The
 audit keeps only the **fact**: who, when, which console, how many writes and
 bytes. **Nothing of what was typed is written, not even a hash**: the sha256
-of one byte can be read back with a table of 256 entries, so a hash would
-give the typed text (and a typed password) back.
+of one byte can be read back with a table of 256 entries, so if the audit kept a hash,
+the hash gives the typed text (and a typed password) back.
 
 The writes of one user (the same user and the same `source`) into one console
 make a **burst**. A burst lasts 60 seconds from its first write.
@@ -1117,7 +1117,7 @@ The records of a burst do not overlap, so the sum of their `writes` and `bytes`
 is the whole burst. A burst ends:
 
 - when its 60 seconds have passed, at the next command of any kind (a burst
-  of a console that nobody uses any more waits in memory until then; its first
+  of a console that nobody uses any more waits in memory until then, and its first
   record is already on disk),
 - when another user or another source writes into its console (so the writes
   of each user are always recorded apart),
@@ -1200,7 +1200,7 @@ sweep that removes something writes one INFO line to the agent log:
 |---|---|---|
 | `use_audit_command_file` | `1` | Write the audit files. |
 | `max_megas_audit_file` | `500` | Size of one piece of a day, in MB. A bigger day continues in `.OLD.<n>` pieces. |
-| `audit_keep_days` | `7` | Days of audit files kept. `0` keeps all (the behaviour up to 7.25.4). |
+| `audit_keep_days` | `7` | Days of audit files kept. `0` keeps all (the behavior up to 7.25.4). |
 | `min_free_disk_percentage` | `20` | Stop writing the audit when the disk has less free space (checked every 100 records), and write it again when the space is back. A new day still runs the retention while the disk is full: the retention is what frees the space. If the new file of that day cannot be opened, the open is tried again every 100 records until it works, and then the retention runs. |
 
 With the new record format the directory is a few MB a week. The retention
@@ -1262,7 +1262,7 @@ This is the most useful trace for the behavior of a gobj. It is defined in
 Two output formats, switched by the integer variable `trace_machine_format`.
 
 **Format 1 — one line per transition. THE DEFAULT**, on a node and in the
-browser alike (`gobj.c`: `trace_machine_format = 1;  // 0 legacy, 1 simpler`;
+browser alike (`gobj.c`: `trace_machine_format = 1;  // 0 legacy, 1 simpler`, and
 gobj-js followed at 7.13.7):
 
 ```
@@ -1462,14 +1462,14 @@ the local log file, plus the bodies of the ievent messages.
 Each button of the window turns trace bits on or off with the trace commands of
 the JS `C_YUNO`, which has the commands and the attrs of the C one
 (`set-global-trace`, `set-global-no-trace`, `set-gclass-trace`,
-`set-gclass-no-trace`; `trace_levels`, `no_trace_levels`). The yuno persists
+`set-gclass-no-trace`, and `trace_levels`, `no_trace_levels`). The yuno persists
 them through the functions that the app gives to `gobj_start_up()`, and
 restores them in its `mt_create` with the same rule as C: a saved scope
 replaces the defaults of `main.js`.
 
 | Button | What it sets |
 |---|---|
-| Automata | global `machine`; a second click adds `ev_kw` |
+| Automata | global `machine`, and a second click adds `ev_kw` |
 | Creation | global `create_delete` |
 | Start / Stop | global `start_stop` |
 | Subscriptions | global `subscriptions` |
@@ -1760,10 +1760,10 @@ and add the sizes of step 1. The header line of the report prints the window
 it used, so a malformed value shows up as `window_max: 0`.
 
 Worked example (an application's `db_history`, 2026-09-20): sixteen blocks read as six json
-arrays plus two strings of 91 and 93 characters; `YUNETA_TRACK_MEM_DUMP=1`
+arrays plus two strings of 91 and 93 characters. `YUNETA_TRACK_MEM_DUMP=1`
 printed the text of the strings, which named the field (`notes` of six
-`places` nodes); the window gave the stacks, which put the allocation in the
-treedb load — and that was the trap, because the holder was a configuration
+`places` nodes). The window gave the stacks, which put the allocation in the
+treedb load. That was the trap, because the holder was a configuration
 built afterwards. What closed it was reproducing the leak in an isolated copy
 of the yuno (see below) with a single call to the command that builds it.
 

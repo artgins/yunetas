@@ -52,7 +52,7 @@ decision.
 | 7.25.5 | 7.25.4 | [7.25.5.html](https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [7.25.5.json](https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.json) |
 
 The report is one self-contained page (no script, no external file). GitHub
-shows it as source code; the "view" link renders it. How a report is made, and
+shows it as source code. The "view" link renders it. How a report is made, and
 the schema of its `.json`, are in
 [`performance/reports/README.md`](https://github.com/artgins/yunetas/blob/7.31.23/performance/reports/README.md).
 
@@ -69,10 +69,10 @@ report adds one point.
 
 The C_TREEDB open of 7.25.5 compares two separate runs: 7.25.4 (medians of an
 earlier run) and 7.25.5 as shipped (the tag-time run). Every other point of the
-table comes from one alternated A/B run. Each point is the figure its own
-report measured, so two neighbouring points come from two runs, days apart:
+table is from one alternated A/B run. Each point is the figure its own
+report measured, so two neighbouring points are from two runs, days apart:
 the A/B of 7.25.20 measured 7.25.5 again, the A/B of 7.25.21 measured
-7.25.20 again, the A/B of 7.25.22 measured 7.25.21 again, the A/B of 7.26.0 measured 7.25.22 again, the A/B of 7.26.9 measured 7.26.0 again (7.26.1 to 7.26.8 shipped no report; it was redone after the release), the A/B of 7.27.0 measured 7.26.9 again, the A/B of 7.27.5 measured 7.27.0 again (7.27.1 to 7.27.4 shipped no report; 7.27.5's was written the day after the release), the A/B of 7.27.7 measured 7.27.5 again, with 7.27.6 (no report) in the same rotation, the A/B of 7.27.10 measured 7.27.7 again (7.27.8 and 7.27.9 changed no measured code), the A/B of 7.27.11 measured 7.27.10 again, the A/B of 7.28.0 measured 7.27.11 again (7.27.12 to 7.27.21, lite releases of the agent and the controlcenter, are inside it), the A/B of 7.28.2 measured 7.28.0 again (7.28.1, the agents' pid file, is inside it), the A/B of 7.28.4 measured 7.28.2 again (7.28.3, the stop of the agent, is inside it), the short A/B of 7.28.5 measured 7.28.4 again, only the figures of the treedb and of the inter-yuno events, and the short A/B of 7.28.8 measured 7.28.5 again, only the inter-yuno events (7.28.6 and 7.28.7 changed no measured code), the A/B of 7.29.0 measured 7.28.8 again (7.28.9 to 7.28.11 shipped no study and are inside it), the A/B of 7.29.2 measured 7.29.0 again (7.29.1 changed no C of the libraries or yunos, only a comment in `helpers.c` and a new test), the A/B of 7.29.3 measured 7.29.2 again, the A/B of 7.30.0 measured 7.29.3 again, pinned to one CPU for the first time, the A/B of 7.31.0 measured 7.30.0 again (7.30.1 to 7.30.26 shipped no study and are inside it), and the A/B of 7.31.1 measured 7.31.0 again; their figures are in the sections below. Between two such
+7.25.20 again, the A/B of 7.25.22 measured 7.25.21 again, the A/B of 7.26.0 measured 7.25.22 again, the A/B of 7.26.9 measured 7.26.0 again (7.26.1 to 7.26.8 shipped no report, and it was redone after the release), the A/B of 7.27.0 measured 7.26.9 again, the A/B of 7.27.5 measured 7.27.0 again (7.27.1 to 7.27.4 shipped no report, and 7.27.5's was written the day after the release), the A/B of 7.27.7 measured 7.27.5 again, with 7.27.6 (no report) in the same rotation, the A/B of 7.27.10 measured 7.27.7 again (7.27.8 and 7.27.9 changed no measured code), the A/B of 7.27.11 measured 7.27.10 again, the A/B of 7.28.0 measured 7.27.11 again (7.27.12 to 7.27.21, lite releases of the agent and the controlcenter, are inside it), the A/B of 7.28.2 measured 7.28.0 again (7.28.1, the agents' pid file, is inside it), the A/B of 7.28.4 measured 7.28.2 again (7.28.3, the stop of the agent, is inside it), the short A/B of 7.28.5 measured 7.28.4 again, only the figures of the treedb and of the inter-yuno events, and the short A/B of 7.28.8 measured 7.28.5 again, only the inter-yuno events (7.28.6 and 7.28.7 changed no measured code), the A/B of 7.29.0 measured 7.28.8 again (7.28.9 to 7.28.11 shipped no study and are inside it), the A/B of 7.29.2 measured 7.29.0 again (7.29.1 changed no C of the libraries or yunos, only a comment in `helpers.c` and a new test), the A/B of 7.29.3 measured 7.29.2 again, the A/B of 7.30.0 measured 7.29.3 again, pinned to one CPU for the first time, the A/B of 7.31.0 measured 7.30.0 again (7.30.1 to 7.30.26 shipped no study and are inside it), and the A/B of 7.31.1 measured 7.31.0 again. Their figures are in the sections below. Between two such
 reports a figure can move by a few percent with no change of the code (the
 master open of 7.25.20 measured 78.2 ms in its own report and 82.4 ms in the
 A/B of 7.25.21, another day): read a trend against the A/B of its report.
@@ -104,8 +104,8 @@ below. The event loop echo is back in the A/B: the kernel changed under it.
 
 The appends of 7.25.20, 7.25.21, 7.25.22, 7.26.0, 7.26.9, 7.27.0, 7.27.5, 7.27.7, 7.27.10, 7.27.11, 7.28.0, 7.28.2 and 7.28.4 are measured on whole-release builds (see
 below), not on the four padded links of 7.25.5. The tm query of 7.25.5 to
-7.25.22 is the one of a topic its release had marked; 7.26.0 has no tm markers
-and reads every row of the key (a topic 7.25.22 had not marked took 402 ms).
+7.25.22 is the one of a topic its release marked. 7.26.0 has no tm markers
+and reads every row of the key (a topic 7.25.22 did not mark took 402 ms).
 
 ## What each figure means
 
@@ -116,7 +116,7 @@ and reads every row of the key (a topic 7.25.22 had not marked took 402 ms).
 | tm query | A read of a time range of a key: what a dashboard or a report pays to load one minute of data. |
 | Iterator open, page (master, replica) | What a client of a store pays to start reading a key and to pull one page of it, on the yuno that owns the store (master) and on one that follows it (replica). From 7.27.5 on (`perf_timeranger2 read`). |
 | treedb update, link, create, delete | The cost of one change in the graph database: a node changed in memory, a node changed and saved, a relation made or undone, a node created or removed. The CPU time of the process, per operation. |
-| C_TREEDB open | The start-up of a yuno with many treedbs. With an unchanged schema it is the everyday case; the first open (seed) and the open with a newer schema are one-time costs. |
+| C_TREEDB open | The start-up of a yuno with many treedbs. With an unchanged schema it is the everyday case. The first open (seed) and the open with a newer schema are one-time costs. |
 | Agent audit record | What every command sent to the agent pays to be audited. |
 | Log record | What a yuno pays for one line of its log file. |
 | Event loop echo | The ceiling of the io_uring event loop alone: 1 KB messages echoed per second, no gobj layer. |
@@ -135,12 +135,12 @@ and reads every row of the key (a topic 7.25.22 had not marked took 402 ms).
 ## 7.31.1 against 7.31.0
 
 7.31.1 takes llhttp 9.4.4, the HTTP parser vendored in gobj-c: in the lenient
-header mode, which `ghttp_parser.c` turns on, a header value goes back to the
+header mode, which `ghttp_parser.c` sets, a header value goes back to the
 fast scanner after a byte that only that mode accepts (nodejs/llhttp#882). It
 is the only C change, and `llhttp.c.o` is the only object of the SDK with
-other machine code; the stripped binaries keep the size of 7.31.0. Measured
+other machine code. The stripped binaries keep the size of 7.31.0. Measured
 against 7.31.0, the last release with a study, before the tag (main at
-`3c53c9075`; the release commit after it changes no `.c` file): 10 rounds,
+`3c53c9075`, and the release commit after it changes no `.c` file): 10 rounds,
 each binary pinned to one CPU, the machine at rest. The same 66 figures as
 7.31.0, its figures here and in its `.json`, with no report page of its own.
 
@@ -180,9 +180,9 @@ to claim. The HTTP round trips through `C_PROT_HTTP_SR` moved -0.9%
 and 18 rounds of review: 64,908 lines added and 12,757 removed in `.c` and
 `.h` over 7.30.0. The agent, the control center, the MQTT broker and gates,
 the transports and the inter-yuno events were hardened against peers that lie,
-flood or do not read; consoles got flow control; the deprecated `C_PROT_MQTT`
+flood or do not read. Consoles got flow control. The deprecated `C_PROT_MQTT`
 was removed. Measured against 7.30.0, the last release with a study, before
-the tag (main at `22199d4b8`; the commits after it change only the control
+the tag (main at `22199d4b8`, and the commits after it change only the control
 center, ycli and ycommand, on no measured path): 10 rounds, each binary pinned
 to one CPU, with a load average of 1 to 2. This release has a page:
 [7.31.0.html](https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/7.31.0.html)
@@ -212,7 +212,7 @@ moved with the machine, not with the code: the same binary of 7.30.0 measured
 418,900 appends per second and 61,320 TCP round trips per second in this A/B,
 against 430,594 and 64,160 in its own report. Read a move of the trend against
 the A/B of its report. The yunos are 63 to 117 KB larger (stripped), 0.5 to
-1.1%; the control center and the agent grow most (116 and 98 KB).
+1.1%. The control center and the agent grow most (116 and 98 KB).
 
 ## 7.30.0 against 7.29.3
 
@@ -264,8 +264,8 @@ The gains that the release set out to get:
 
 The time of a header in 7.29.3 grew with the square of its size, with the event
 loop of the yuno held for every client. By default 7.30.0 refuses a head over
-64 KB; the limit was raised for these two rows, to compare the same work. The
-BFF login loses 6.8 us; 3.1 us are named above (1.4 the queue read by name, 1.2
+64 KB. The limit was raised for these two rows, to compare the same work. The
+BFF login loses 6.8 us. 3.1 us are named above (1.4 the queue read by name, 1.2
 the head, 0.5 the checks of the tokens and the form), and the rest is spread
 over the profile, with no function above 0.3 us.
 
@@ -339,7 +339,7 @@ a run of the benchmark (360,000 appends) `build_path()` is called 82 times,
 at the opens, and the date reader never. In the binary, 3,003 of the 3,237
 functions moved, most by 1,536 or 64 bytes, and 21 of them, none on the
 append path, to another 64-byte alignment. The appends without a reader, in
-the same binary, measured -2.37% (t = -2.6), inside their noise; measured
+the same binary, measured -2.37% (t = -2.6), inside their noise. Measured
 again, -0.74% and -0.89%, and +0.20% relinked with the libraries of 7.29.2.
 The TCP echoes, slower by about 2% in 7.29.2 by placement, are 1.5% faster
 here (t = 2.2 and 2.7), on the same machine code. The code is the same, so
@@ -357,7 +357,7 @@ ids of its lists is refused at the open, the websocket reads a short
 `getrandom()` to its end, and `publish-stats` refuses a service name that no
 service can have. The rest is in yunos and tools no benchmark runs (the
 agent, the controlcenter, `archive_keeper`, M-Bus, the cloners). Measured
-against 7.29.0, the last release with a study, before the tag; 7.29.1
+against 7.29.0, the last release with a study, before the tag. 7.29.1
 changed no C of the libraries or yunos (a comment in `helpers.c` and a new
 test). The same 47 figures as 7.29.0, 8 rounds, its figures here and in its
 `.json`, with no report page of its own.
@@ -409,7 +409,7 @@ peer to ytls and `C_TCP` (mutual TLS). Measured against 7.28.8, the last
 release with a study: 7.28.9 to 7.28.11 shipped none and are inside the
 comparison (they changed the date reading of gobj-c, `C_WEBSOCKET` and
 `C_YUNO`). Every benchmark whose binary links that code ran, 47 figures, 8
-rounds; the raw event loop and MQTT run none of it. The report:
+rounds. The raw event loop and MQTT run none of it. The report:
 [7.29.0.html](https://github.com/artgins/yunetas/blob/7.29.0/performance/reports/7.29.0.html)
 ([view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.29.0/performance/reports/7.29.0.html)).
 
@@ -433,9 +433,9 @@ all on code that did not change in the measured path:
 
 | Figure | 7.28.8 | 7.29.0 | Change | Why |
 |--------|--------|--------|--------|-----|
-| TCP echo (`perf_tcp_test4`) | 63,506 | 61,798 | -2.7% (t = -4.3) | The TCP path in the clear is the same code (`C_TCP` changed only after a TLS handshake). The 7.29.0 binary relinked with the libraries of 7.28.11: 63,373 against 62,190 (10 rounds); with only the root-linux of 7.28.11, whose code on that path is the same: 61,505. Placement. |
+| TCP echo (`perf_tcp_test4`) | 63,506 | 61,798 | -2.7% (t = -4.3) | The TCP path in the clear is the same code (`C_TCP` changed only after a TLS handshake). The 7.29.0 binary relinked with the libraries of 7.28.11: 63,373 against 62,190 (10 rounds). With only the root-linux of 7.28.11, whose code on that path is the same: 61,505. Placement. |
 | TLS echo (`perf_tcps_test4`) | 46,759 | 45,296 | -3.1% (t = -3.6) | Five builds in one rotation (10 rounds): 45,875 in 7.28.8, 45,910 in 7.28.9, 45,353 in 7.28.10, 45,434 in 7.28.11, 44,785 in 7.29.0: steps of about 1%, none outside its noise. The TLS echo that also appends every message, the same TLS code, measured +1.3%. Placement. |
-| treedb: update a node and save it | 4.014 us | 4.186 us | +4.3% (t = 5.5) | `tr_treedb.c` and the append of timeranger2 are the same code. Relinked with the libraries of 7.28.11: 4.112 against 4.147 us (+0.85%); with only the timeranger2 of 7.28.11: 4.205 us, slower. Placement. |
+| treedb: update a node and save it | 4.014 us | 4.186 us | +4.3% (t = 5.5) | `tr_treedb.c` and the append of timeranger2 are the same code. Relinked with the libraries of 7.28.11: 4.112 against 4.147 us (+0.85%). With only the timeranger2 of 7.28.11: 4.205 us, slower. Placement. |
 | Appends with a live reader | 342,402 | 354,461 | +3.5% (t = 3.8) | The same append code. Not claimed. |
 | Records read with an iterator | 556,692 | 573,331 | +3.0% (t = 3.5) | The same read code. Not claimed. |
 | 400 000 appends into 20 000 files (`build_appends`) | 1,301 ms | 1,274 ms | -2.1% (t = -3.4) | The same append code. Not claimed. |
@@ -478,7 +478,7 @@ benchmarks of the treedb (`perf_tr_treedb`, `perf_tr_treedb_read`,
 `perf_c_treedb`) and of the inter-yuno events (`perf_ievent`), 18 figures,
 against 7.28.4, the last release with a study, before the tag. 8 rounds, its
 figures here and in its `.json`, with no report page of its own. The other
-figures run no changed code; their last measure is the study of 7.28.4.
+figures run no changed code. Their last measure is the study of 7.28.4.
 
 ```{figure} ./_static/perf/perf_change_7.28.5.svg
 :alt: The change of the time one operation takes, 7.28.5 against 7.28.4, one bar per figure, for the 18 figures of the treedb and of the inter-yuno events. No price and no gain: every one within its noise; the largest change is the link or unlink of two nodes, +1.67% (t = 2.4).
@@ -500,7 +500,7 @@ free space of its disk once a second. Every yuno reads its memory and the free
 space of its disks once a second, for its stats. And the controlcenter sends
 the steps of a stop, a pause or a report at once. None of them is on the path
 of a benchmark. It is measured against 7.28.2, the last release with a study,
-before the tag; 7.28.3 (the stop of the agent) is inside it. A fix release: 8
+before the tag. 7.28.3 (the stop of the agent) is inside it. A fix release: 8
 rounds, 12 for the appends and the reads, its figures here and in its
 `.json`, with no report page of its own.
 
@@ -515,7 +515,7 @@ is faster. Grey is within the noise of its rounds.
 No price. Every one of the 50 figures stays inside its noise. One crossed it
 in the rotation of the study: the TLS echo, +1.87% round trips (t = 3.5, 8
 rounds). Run again alone, 7.28.2 and 7.28.4 alternated for 10 rounds, it
-measured +0.99% (t = 1.0); the changed code is not on its path. The yunos are
+measured +0.99% (t = 1.0). The changed code is not on its path. The yunos are
 4 KB bigger stripped, the controlcenter 12 KB.
 
 This run measured 7.28.2 again, and lower than its own report: 419,617 appends
@@ -531,7 +531,7 @@ both sides ran on the same day.
 yuno runs: up to 7.28.1 it went deaf to SIGQUIT and the rest, and only a
 SIGKILL ended it (`read_signals_again()` in `c_yuno.c`). The change runs once
 per signal. It is measured against 7.28.0, the last release with a study,
-before the tag; 7.28.1 (the agents' pid file) is inside it. A fix release: a
+before the tag. 7.28.1 (the agents' pid file) is inside it. A fix release: a
 smaller study (8 rounds, 12 for the appends and the reads), its figures here
 and in its `.json`, with no report page of its own.
 
@@ -546,7 +546,7 @@ is faster. Grey is within the noise of its rounds.
 No price. Every one of the 50 figures stays inside its noise. One crossed it
 in the rotation of the study: the TCP echo with an append per message,
 -0.94% (t = -5.3, 8 rounds). Run again alone, 7.28.0 and 7.28.2 alternated
-for 10 rounds, it measured +0.64% (t = 0.6); the changed code is not on its
+for 10 rounds, it measured +0.64% (t = 0.6). The changed code is not on its
 path. The yunos are the same size (stripped: +0 or +4 KB).
 
 ## 7.28.0 against 7.27.11
@@ -556,7 +556,7 @@ and reviewed commit by commit, and it makes jansson Yuneta's own JSON library
 (`github.com/artgins/jansson`, tag `2.15.1-yuneta.1`). It is measured against
 7.27.11, the last release with a study, before the tag. The releases between
 them (7.27.12 to 7.27.21, lite releases of the agent and the controlcenter)
-changed only `c_authz.c` in the kernel and are inside the same comparison; no
+changed only `c_authz.c` in the kernel and are inside the same comparison. No
 figure got slower, so no tag between them had to be measured on its own.
 Each release is built with its own jansson: 7.27.11 with upstream v2.15.1 and
 the old patch (atomic reference counts), 7.28.0 with the fork, built with
@@ -578,11 +578,11 @@ is faster. Blue is faster outside the noise of its rounds, grey within it.
 Operations per second on one core, as each benchmark counts them.
 ```
 
-No price. 40 of the 50 figures are faster outside their noise; the other ten
+No price. 40 of the 50 figures are faster outside their noise. The other ten
 stay inside it. The event loop alone (`perf_yev_ping_pong`: io_uring, no gobj,
 no json) is where it was, +0.5% (t = 1.2): the gain is in the layers above it.
 
-**Where the gain comes from.** A third build ran in the same rotation: the C
+**Where the gain is from.** A third build ran in the same rotation: the C
 code of 7.28.0 with the jansson of 7.27.11 (8 rounds, 12 for the appends and
 the reads). What it leaves of a gain is jansson's:
 
@@ -605,14 +605,14 @@ it is written and parsed when it is read (the dump gathered in a buffer, a
 short string in one block, the lexer reading runs of plain bytes). The treedb
 and the network owe most of theirs to the rest of the round: the open of a
 treedb reads the newest record of each key only and rebuilds its hooks
-indexed; a publication reads its subscriptions from a C record, and an
-`EV_STATE_CHANGED` that nobody would see is not built; a websocket server
+indexed. A publication reads its subscriptions from a C record, and an
+`EV_STATE_CHANGED` that nobody sees is not built. A websocket server
 frame goes in one write. The share is of the time one operation takes.
 
 **The rotatory.** Two of its figures measured slower in the rotation of the
 study: the log record +1.0% (t = 3.4) and the audit record with its retention
 +1.8% (t = 8.0). `rotatory.c` and the path of a record are the same in both
-releases (`rotatory.o` has the same machine code; `rotatory_write()` moved
+releases (`rotatory.o` has the same machine code, and `rotatory_write()` moved
 7,296 bytes). A controlled rotation of five binaries, 16 rounds, ran 7.27.11,
 7.28.0, and the same 7.28.0 relinked with 64, 128 and 192 bytes of pad before
 the libraries: against 7.27.11 the log record measured +1.45% for 7.28.0 and
@@ -621,10 +621,10 @@ retention +2.16% and +0.74%, +1.06% and +0.06%. The same code moves with its
 placement: code placement, not code.
 
 **The new benchmarks.** `perf_ievent`, `perf_mqtt` and `perf_tr_treedb_read`
-are new in 7.28.0; they were built in the tree of 7.27.11 too, with its
+are new in 7.28.0. They were built in the tree of 7.27.11 too, with its
 allocators, so they have both sides. `perf_tr_treedb_read` stopped at its
 own N (8 000) on a build with `CONFIG_DEBUG_TRACK_MEMORY` (*"REACHED
-MAX_SYSTEM_MEMORY"*: the default 64 MB of gbmem); it raises the limit now.
+MAX_SYSTEM_MEMORY"*: the default 64 MB of gbmem). It raises the limit now.
 
 The yunos are 0.3% larger stripped (+29 KB to +51 KB).
 
@@ -653,7 +653,7 @@ functions (no breakpoint of them is hit under `gdb`), but the change moved its
 hot code (the event loop, gobj, llhttp, jansson) 128 bytes. A controlled
 re-run of 24 rounds rotated three binaries: 7.27.10, 7.27.11, and the code of
 7.27.10 relinked with the placement of 7.27.11 (a pad of 120 bytes in
-`tr_treedb.o`; 17,258 of 17,926 functions at the addresses of 7.27.11). It
+`tr_treedb.o`, and 17,258 of 17,926 functions at the addresses of 7.27.11). It
 measured 7.27.11 +0.08% (t = 0.05). Without one slow round of 7.27.10 (5,888
 against ~8,300) it is -1.15% (t = -1.6), and the code of 7.27.10 with the new
 placement -1.38% (t = -1.8), the same: what moves follows the placement of
@@ -680,7 +680,7 @@ members, and dumped it again to store it. With the text path, on the same
 machine and with the same SDK, it stores **2.2 times more frames per second**
 (24,736 -> 53,308, 100 000 frames, 4 alternated rounds). On a Xeon E-2386G
 it holds 20 000 records per second for 10.5 minutes at
-55% of one core, ~27.6 us a frame (it was ~42 us); reading three members of a
+55% of one core, ~27.6 us a frame (it was ~42 us). Reading three members of a
 frame of ~1 KB costs 0.75 us there, against 19.85 us for the parse, delete,
 dump and free of the whole.
 
@@ -697,15 +697,15 @@ No price. The one loss the study found is fixed in the release: before the
 tag, the json append of `test_topic_pkey_integer` measured -0.87% appends per
 second (t = -2.6) and -1.18% with a live reader (t = -2.8) after 48 rounds. An
 A/B with only `timeranger2.c` changed placed it in commit `8d7e2a85f`, the
-split of the append in two (-1.6%, t = -3.2; -2.0% with a reader, t = -4.0):
+split of the append in two (-1.6%, t = -3.2, and -2.0% with a reader, t = -4.0):
 `append_content()` read the `system_flag` of the topic json a second time on
-every append. Passing it the flag the append had already read removed it
-(+0.07%, t = 0.1); every benchmark that appends was measured again with the
+every append. Passing it the flag the append already read removed it
+(+0.07%, t = 0.1). Every benchmark that appends was measured again with the
 fix, and those are the figures of this report.
 
 Faster outside the noise, without a change aimed at it: the appends of
 `perf_timeranger2`, 600 000 into one key (-2.8% of time, t = -5.8) and
-400 000 into 20 000 files (-1.6%, t = -3.5), since the same commit; the cause
+400 000 into 20 000 files (-1.6%, t = -3.5), since the same commit. The cause
 was not isolated. Four figures sit at the edge of their noise after 24
 rounds without crossing it, and their code did not change: the open of a
 store as a replica and as the master (+1.1%), link or unlink (+1.4%), a tm
@@ -733,7 +733,7 @@ is faster. Red is a price, grey is within the noise of its rounds.
 
 | Price | 7.27.5 | 7.27.7 | Change | Appeared in | What it buys |
 |-------|--------|--------|--------|-------------|--------------|
-| treedb: forced delete of a node (CPU per operation) | 43.6 us | 52.8 us | +21.1% (t = 41) | 7.27.6, commit `503c23efb` (7.27.6: 52.7 us; 7.27.7 +0.3% on it, t = 0.8) | Every key a delete removes is first moved out of `keys/` whole, by a `rename()`, then removed. A removal that failed half way left part of the key's files: the key, read again from them, moved the rows after the hole, and its next appends took `g_rowid`s that followers and clients had seen. 7.27.5 moved only a key with a base. |
+| treedb: forced delete of a node (CPU per operation) | 43.6 us | 52.8 us | +21.1% (t = 41) | 7.27.6, commit `503c23efb` (7.27.6: 52.7 us, 7.27.7 +0.3% on it, t = 0.8) | Every key a delete removes is first moved out of `keys/` whole, by a `rename()`, then removed. A removal that failed half way left part of the key's files: the key, read again from them, moved the rows after the hole, and its next appends took `g_rowid`s that followers and clients had seen. 7.27.5 moved only a key with a base. |
 
 The 9.2 us split in two, measured with an attribution build of 7.27.7 that
 reads the start time of the process once (never shipped): 47.7 us, so about
@@ -743,7 +743,7 @@ start time of a process does not change, so that half can be paid once per
 process.
 
 Every other figure moved inside its spread (|t| < 3): the read path of the
-master and of a replica (48 rounds; a page of 1 row on a replica 6.27 ->
+master and of a replica (48 rounds, and a page of 1 row on a replica 6.27 ->
 6.31 us), the appends (+0.5%), the opens of a store, the treedb writes, the
 agent audit, the event loop, TCP (+2.4% round trips, t = 2.3, 24 rounds),
 TLS and the BFF logins. The yunos are 0-0.08% larger (stripped, at most
@@ -790,7 +790,7 @@ rotation (us per operation):
 | A page of 100 rows, master | 257.9 | 258.8 | 262.8 | 259.6 | 261.7 | 265.7 | 265.7 | 264.6 |
 
 7.27.1 to 7.27.4 read at 7.27.0's speed. The check of a replica comes with
-`83a771089` (*the followers hear a purge of old key files*); a page of 100
+`83a771089` (*the followers hear a purge of old key files*). A page of 100
 rows moves with `bd3fdce51` (*`tranger2_delete_key_files()`, the master side
 of retention*), on the master too. The check stays: skipping it while the
 replica seems to have missed nothing leaves a window (a signal not yet read
@@ -800,7 +800,7 @@ The master's read path, the appends (+1.1%), the opens of a store, the treedb
 writes, the agent audit, the event loop, TCP, TLS and the BFF logins moved
 inside their noise: the gobj and TCP changes of 7.27.2 to 7.27.4 cost
 nothing measurable. 7.27.1 changed only the external libraries (OpenSSL
-3.6.3 -> 3.6.5, PCRE2); both sides here run with those of 1.24, and that
+3.6.3 -> 3.6.5, PCRE2). Both sides here run with those of 1.24, and that
 change was measured on its own when it shipped (the TLS echo -0.9%, t =
 -0.6). The yunos are 0.4-0.5% larger than in the 7.27.0 report (stripped,
 about 50 KB): retention.
@@ -826,7 +826,7 @@ is faster. Red is a price, grey is within the noise of its rounds.
 |-------|--------|--------|--------|--------------|
 | treedb: update a node in memory (CPU per operation) | 2.31 us | 2.46 us | +6.5% (t = 5.4) | The NUL checks of every treedb write: the id and each pkey2 value, and a walk of the kw for a NUL before any fkey reference is read. A NUL cut a name where C read it, so a node was indexed under one name and saved with another. Attributed by relinking (`perf` is not permitted on the machine): the 7.26.9 timeranger2 library with the 7.27.0 gobj-c is not slower, and the 7.27.0 `tr_treedb.c` with only those two checks taken out runs at 2.328 us against 2.327 us of 7.26.9. | 1.16 |
 
-The saved update moved +3.9% (t = 1.7), inside its noise; the attribution run,
+The saved update moved +3.9% (t = 1.7), inside its noise. The attribution run,
 16 quieter rounds, measured +3.6% (t = 4.4) with the checks and -0.4% without
 them: the same price, about 0.1 us of CPU per write. Everything else moved
 inside its spread (|t| < 3), the price of 7.26.9 included (the event loop echo
@@ -837,10 +837,10 @@ parser and the new checks.
 ## 7.26.9 against 7.26.0
 
 7.26.9 is a hardening release (sixteen rounds of review): the kw readers, the
-names that come from data, two name rules, the logger and what C_NODE accepts
+names taken from data, two name rules, the logger and what C_NODE accepts
 from a peer. This study compares it with 7.26.0, the last release with a
-study, so it covers 7.26.1 to 7.26.9; it replaces the one made at the tag
-against 7.26.8, a release nobody had measured. Each move is placed in its
+study, so it covers 7.26.1 to 7.26.9. It replaces the one made at the tag
+against 7.26.8, a release nobody measured. Each move is placed in its
 release, and in its commit where that was cheap, by building the tags and
 commits between them. One of its changes is a gain: the treedb looks its
 topics, hooks and fkeys up by key (`KWID_GET_BY_KEYS()`) instead of formatting
@@ -859,17 +859,17 @@ rounds.
 |--------|--------|--------|--------|-------------|-----|
 | treedb: link or unlink two nodes (CPU per operation) | 8.59 us | 7.54 us | -12.2% (t = -18) | 7.26.9, mostly `f4be7d750` (7.26.8 8.62, `9d8f7c584` 8.28, `f4be7d750` 7.53 us) | The hook map and the fkey column looked up by key, one hash lookup per segment. | 4.70 |
 | treedb: delete a parent with its children | 2,536 us | 2,281 us | -10.1% (t = -6.5) | 7.26.9, mostly `f4be7d750` | The same lookups, once per child. |
-| treedb: open (per node loaded) | 311.6 us | 282.8 us | -9.2% (t = -11) | 7.26.9, mostly by `9d8f7c584` (309.5 -> 286.7 us) | The same lookups, for every node linked again; most of it comes with the commits that read a name from data as a key. |
+| treedb: open (per node loaded) | 311.6 us | 282.8 us | -9.2% (t = -11) | 7.26.9, mostly by `9d8f7c584` (309.5 -> 286.7 us) | The same lookups, for every node linked again. Most of it comes with the commits that read a name from data as a key. |
 | treedb: forced delete | 44.3 us | 42.6 us | -3.7% (t = -3.1) | 7.26.9 | The same lookups of the hooks it walks. |
 
 | Price | 7.26.0 | 7.26.9 | Change | Appeared in | What it buys |
 |-------|--------|--------|--------|-------------|--------------|
-| C_TREEDB: first open of 40 treedbs (`perf_c_treedb` seed) | 10.29 s | 10.97 s | +6.7% (t = 5.7) | 7.26.7, commit `50c6cd78f` (7.26.6 10.33 s, 7.26.7 10.98 s) | Every treedb has a system topic `__icons__` for the icons a user adds, created at its first open: 40 topics more, each with its fsyncs. A one-time cost; the everyday open did not move (+1.2%, t = 0.4). |
+| C_TREEDB: first open of 40 treedbs (`perf_c_treedb` seed) | 10.29 s | 10.97 s | +6.7% (t = 5.7) | 7.26.7, commit `50c6cd78f` (7.26.6 10.33 s, 7.26.7 10.98 s) | Every treedb has a system topic `__icons__` for the icons a user adds, created at its first open: 40 topics more, each with its fsyncs. A one-time cost. The everyday open did not move (+1.2%, t = 0.4). |
 | 600 000 appends to one key (`perf_timeranger2` `tm_build_appends`) | 1,604 ms | 1,669 ms | +4.1% (t = 7.3) | 7.26.9, in steps over its commits | About 0.11 us per append: the kw calls of each append, hardened -- the readers that answer what the kw holds (`df6c5f06a`, `ac9165b82`: +1.0%), a name from data read as a key (`6193b002c`: +1.7%), `9d8f7c584` +0.6%, the rest after. |
 | 400 000 appends into 20 000 files (`build_appends`) | 1,550 ms | 1,586 ms | +2.3% (t = 4.4) | 7.26.9, the same steps | The same. |
 
 The main append benchmark (`test_topic_pkey_integer`, 4 link layouts) moved
-+0.7% (t = 0.6). The price the study at the tag reported and could not trace,
++0.7% (t = 0.6). The price the study at the tag reported and failed to trace,
 the event loop echo that appends every message (-3.9% against 7.26.8), is not
 there against 7.26.0 (-0.2%, t = -0.2): 7.26.8 had measured high that day.
 Every other figure moved inside its spread (|t| < 3), the read path of the
@@ -880,9 +880,9 @@ master and of a replica among them. The binaries are 0.16-0.24% larger
 
 7.26.0 changes how timeranger2 reads and how its followers hear deletes: the
 md2 rows of a scan are read 1024 at a time with one `pread()`, and the match
-condition is parsed once per scan; the tm markers of 7.25.5..7.25.22 are gone,
-so a tm condition filters every row of any topic; a key delete reaches the
-rt_disk followers with the master's delete sequence; and a link in a treedb
+condition is parsed once per scan. The tm markers of 7.25.5..7.25.22 are gone,
+so a tm condition filters every row of any topic. A key delete reaches the
+rt_disk followers with the master's delete sequence. And a link in a treedb
 publishes the relationship (`with_link_events` on by default), not the parent
 collapsed whole.
 
@@ -917,7 +917,7 @@ written NOT durably now: 134.0 ms and 10.33 s, within the noise of 7.25.22
 (the 7.26.0 side measured again after the fix, 8 rounds).
 
 Not measured: a key delete on a topic with an rt_disk feed. No benchmark
-deletes keys under a feed; by construction such a delete writes the record of
+deletes keys under a feed. By construction, such a delete writes the record of
 its sequence first, two fsyncs and a rename more than 7.25.22 did. A topic
 without feeds pays nothing.
 
@@ -968,10 +968,10 @@ Operations per second on one core, as each benchmark counts them.
 
 7.25.22 closes two reviews -- of 7.25.21, and of the fixes made for it -- and
 the open defects of the list it inherited: the agents run as native systemd
-units; a connection can be dropped from any callback of TLS or TCP without a
-use of freed memory; a yuno alive but not connected can be killed; the rt_disk
-followers of timeranger2 hear what they used to lose; C_AUTHZ and the IdP stop
-handing roles and keys to whoever asks; a stats reset resets.
+units. A connection can be dropped from any callback of TLS or TCP without a
+use of freed memory. A yuno alive but not connected can be killed. The rt_disk
+followers of timeranger2 hear what they used to lose. C_AUTHZ and the IdP stop
+handing roles and keys to whoever asks. A stats reset resets.
 
 ```{figure} ./_static/perf/perf_change_7.25.22.svg
 :alt: The change of the time one operation takes, 7.25.22 against 7.25.21, one bar per figure. Faster and claimed: a forced treedb delete, -39% of time, because a delete no longer walks every open key. Moved outside their spread on code that did not change, not claimed: the appends of a store of many keys (-8.5% of time), 600 000 appends (+1.9%, +1.6% with a live reader) and a treedb update in memory (+5.0%). Every other figure within its noise.
@@ -994,7 +994,7 @@ release, and none is claimed:
 | Appends per second (`test_topic_pkey_integer`) | 228,532 | 224,185 | -1.9% (t = -4.6) | `tranger2_append_record()` and everything it calls are the same in both releases. | - |
 | The same, with a live reader | 194,479 | 191,447 | -1.6% (t = -3.3) | The same append, and the rt_mem feed did not change. |
 | Appends to a store of many keys (`build_appends`) | 1,709 ms | 1,564 ms | -8.5% (t = -9.9) | The same append code, faster here and slower above. |
-| treedb: update a node in memory | 2.30 us | 2.41 us | +5.0% (t = 8.2) | `tr_treedb.c`, `kwid.c` and jansson did not change; the gobj-c functions it could reach changed only in their trace branches. The same figure moved -5.2% the other way in the A/B of 7.25.21, on unchanged code too. | 1.16 |
+| treedb: update a node in memory | 2.30 us | 2.41 us | +5.0% (t = 8.2) | `tr_treedb.c`, `kwid.c` and jansson did not change. The gobj-c functions it can reach changed only in their trace branches. The same figure moved -5.2% the other way in the A/B of 7.25.21, on unchanged code too. | 1.16 |
 
 Both releases are built whole, so the code lands at other addresses, which
 alone moves a figure by a few percent: that is placement, not speed, and it is
@@ -1044,9 +1044,9 @@ Operations per second on one core, as each benchmark counts them.
 
 7.25.21 is a security and correctness release: credentials are masked in
 every trace, in every kw the kernel dumps, in the traffic dumps and in
-`view-config`; a gbuffer can be marked secret (hidden from the dumps, wiped
-when it is freed, never serialized); `C_TCP` and `C_TCP_S` stop and start
-again cleanly and count their connections; the rt_disk feeds of timeranger2
+`view-config`. A gbuffer can be marked secret (hidden from the dumps, wiped
+when it is freed, never serialized). `C_TCP` and `C_TCP_S` stop and start
+again cleanly and count their connections. The rt_disk feeds of timeranger2
 hear every delete. None of it is on the paths that run every second at the
 default trace levels: the masking runs only when a trace prints. On those
 paths a secret gbuffer costs the test of one flag, and a TCP send one key
@@ -1068,8 +1068,8 @@ outside it, all of them faster, and none is claimed as a gain:
 | Moved | 7.25.20 | 7.25.21 | Change | Why it is not claimed |
 |-------|---------|---------|--------|-----------------------|
 | TCP echo through the gobj stack | 37,909 | 39,715 round trips/s | +4.8% (t = 6.2) | No change takes work off this path (a TCP send gained a key lookup), and the TLS echo, which runs the same `C_TCP` code, did not move (-0.7%). | - |
-| OAuth2 BFF logins | 8,350 | 8,606 per s | +3.1% (t = 3.2) | `c_auth_bff.c` changed by one line; the HTTP path did not change. |
-| 600 000 appends to one key (`tm_build_appends`) | 1,720 | 1,656 ms | -3.7% (t = -3.2) | `tranger2_append_record()` is the same in both releases; the same benchmark moved +3.6% the other way in the 7.25.20 report. |
+| OAuth2 BFF logins | 8,350 | 8,606 per s | +3.1% (t = 3.2) | `c_auth_bff.c` changed by one line. The HTTP path did not change. |
+| 600 000 appends to one key (`tm_build_appends`) | 1,720 | 1,656 ms | -3.7% (t = -3.2) | `tranger2_append_record()` is the same in both releases. The same benchmark moved +3.6% the other way in the 7.25.20 report. |
 
 Both releases are built whole, so the code lands at other addresses, which
 alone moves a figure by a few percent (2.5% on an append, measured for
@@ -1090,7 +1090,7 @@ openresty is downloaded, and no library changed version.
 ## What one machine does with 7.25.21
 
 The benchmarks of `performance/c/` on the build of 7.25.21 at tag time, 5
-rounds; the appends and reads of the ctest binaries are the 7.25.21 side of
+rounds. The appends and reads of the ctest binaries are the 7.25.21 side of
 the A/B run (24 rounds). Mean of the rounds, on the machine described below.
 
 ```{figure} ./_static/perf/perf_throughput_7.25.21.svg
@@ -1128,7 +1128,7 @@ of them was meant to change speed, and one of them is the largest gain of the
 round: since 7.25.7 `SWITCHS` no longer compiles a regular expression each
 time a switch is entered (it leaked it on every `return` from a case, commit
 `3e8ff0508`). `tr_treedb` switches on the type of every column, so every
-treedb write paid a `regcomp(".*")` and a `regfree`; `tr_treedb.c` and
+treedb write paid a `regcomp(".*")` and a `regfree`. `tr_treedb.c` and
 `c_treedb.c` did not change between the two releases.
 
 ```{figure} ./_static/perf/perf_change_7.25.20.svg
@@ -1156,11 +1156,11 @@ Nothing got slower beyond the spread of its rounds. The closest,
 the edge of the spread), runs append code that is the same in both releases:
 `timeranger2.c` changed only in its rt-disk rescan. Both releases are built
 whole, so the code lands at other addresses, which alone moves an append by up
-to 2.5% (measured for 7.25.5); the main append benchmark,
+to 2.5% (measured for 7.25.5). The main append benchmark,
 `test_topic_pkey_integer`, 24 rounds, moved +0.3%.
 
 The method: 7.25.5 and 7.25.20 each built whole from their own tree (a git
-worktree of the tag for 7.25.5; the same `.config`, compiler and external
+worktree of the tag for 7.25.5, with the same `.config`, compiler and external
 libraries), the two binaries of each benchmark run alternately, the order
 flipped every round, with a `sync` and a 3 s pause before each run: 8 rounds,
 24 for the three timeranger2 ctest binaries.
@@ -1214,7 +1214,7 @@ The prices of 7.25.5, and what each one buys:
 |--------|----|-----|
 | Create a topic (timeranger2) | 3.6 -> 118.9 ms for 10 | 2 fsyncs per topic: a power cut never leaves a topic whose files are not on disk. |
 | Change a `topic_version` | 1.7 -> 231.5 ms for 10 | 4 fsyncs per change: never a new `topic_version` over a `topic_cols.json` that is not on disk. |
-| A tm query on a topic of 7.25.4 or earlier | 12.7 -> 391.6 ms | Until `mark-tm-order` migrates the topic (19 ms, once): the old topic does not say that its tm order holds. After the migration the query takes 7.4 ms. (From 7.26.0 the tm markers and `mark-tm-order` are gone: a tm query is a filter on every row again; with 7.26.0's block reads and once-parsed condition it takes ~12.8 ms on the benchmark's store, where a topic marked by 7.25.5..7.25.22 took 7.5 ms.) |
+| A tm query on a topic of 7.25.4 or earlier | 12.7 -> 391.6 ms | Until `mark-tm-order` migrates the topic (19 ms, once): the old topic does not say that its tm order holds. After the migration the query takes 7.4 ms. (From 7.26.0 the tm markers and `mark-tm-order` are gone: a tm query is a filter on every row again. With 7.26.0's block reads and once-parsed condition it takes ~12.8 ms on the benchmark's store, where a topic marked by 7.25.5..7.25.22 took 7.5 ms.) |
 | Open a store as a replica | 89.7 -> 106.5 ms | One more `stat()` per md2 file: a replica looks for the order markers after reading each file, so it cannot miss one the master writes during the open. |
 | C_TREEDB: first open, newer schema | +10%, +9% | The record of the projection in progress, written whole with its fsyncs: a crash in the middle is finished at the next open. |
 | Publish with `__global__` or `__local__` | +0.23 us a delivery | Each such subscription gets its own `kw_twin()` of the event, so a peer's subscription cannot change the event of every later subscriber. Every remote (`C_IEVENT_SRV`) subscription carries `__global__`. |
@@ -1228,7 +1228,7 @@ and in the [CHANGELOG](CHANGELOG.md) ("Performance, against 7.25.4").
 ## What one machine does with 7.25.5
 
 Measured at tag time on the build of 7.25.5: 5 rounds (3 for `perf_c_treedb`
-and `perf_auth_bff`), mean of the rounds. One process; the event loop runs on
+and `perf_auth_bff`), mean of the rounds. One process. The event loop runs on
 one core, and Yuneta scales by running one yuno per core.
 
 ```{figure} ./_static/perf/perf_throughput_7.25.5.svg
@@ -1273,7 +1273,7 @@ so its figures are not in the report.
 - **The build.** RelWithDebInfo (`-O2 -g`), gcc, fully static, OpenSSL, with
   `CONFIG_DEBUG_TRACK_MEMORY` on (every allocation is tracked).
 - **A/B.** The module of the old release is compiled with the headers of the
-  new one and linked before the same libraries; the two binaries run
+  new one and linked before the same libraries. The two binaries run
   alternately, with a `sync` and a pause before each run. For timeranger2 the
   modules are padded to one size and linked four times at four addresses,
   because the address of the libraries alone moves an append by up to 2.5%.

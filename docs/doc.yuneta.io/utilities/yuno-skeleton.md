@@ -18,7 +18,7 @@ yuno-skeleton <SKELETON>             # instantiate one
 | `--skeletons-path` / `-p` | Skeleton directory (default `/yuneta/bin/skeletons`) |
 
 Run with no skeleton to print the available list. The templates are the ones
-under `utils/c/yuno-skeleton/skeletons/`; the build installs them in
+under `utils/c/yuno-skeleton/skeletons/`. The build installs them in
 `/yuneta/bin/skeletons` and replaces the installed copy whole, except
 `skeletons.d/`, where your own templates go.
 
@@ -52,7 +52,7 @@ printf 'my_yuno\n\n1.0.0\nMy yuno\nArtGins\nsupport@artgins.com\nMIT\n' | yuno-s
 sed -i 's|^# add_subdirectory(my_yuno)$|add_subdirectory(my_yuno)|' CMakeLists.txt
 ```
 
-`project` writes an MIT `LICENSE`; `project_commercial` a proprietary one,
+`project` writes an MIT `LICENSE`. `project_commercial` writes a proprietary one,
 and a README section on what a delivery of a closed application must carry.
 Both make `gui/`, the web frontend (Vite, `@yuneta/gobj-js`, the declarative
 shell of `@yuneta/gobj-ui`):
@@ -64,7 +64,7 @@ npm run dev
 ```
 
 The answers are one line per prompt (an empty line takes the default). An
-input that ends before a REQUIRED answer (the name) is an error; an input
+input that ends before a REQUIRED answer (the name) is an error. An input
 that ends earlier than a prompt with a default takes the default, as an
 empty line does:
 

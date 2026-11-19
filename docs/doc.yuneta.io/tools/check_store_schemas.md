@@ -5,7 +5,7 @@ log when a yuno opens them. Read-only, and it needs nothing but `python3`.
 
 **Run it on every store of a node before upgrading its SDK** (7.27.0+). A
 topic already on disk that breaks a rule of a NEW topic is opened as it was,
-and the treedb says so with an ERROR at **every** open; a few faults leave a
+and the treedb says so with an ERROR at **every** open. A few faults leave a
 topic out, and one class refuses it with a CRITICAL. Fix what it prints first:
 a clean store prints only the count of what it read.
 
@@ -28,8 +28,8 @@ ssh <node> python3 - /yuneta/store < tools/treedb/check_store_schemas.py
 ## What it reads
 
 - `<treedb>.treedb_schema.json`, the schema `treedb_open_db()` persists (its
-  `topics` a list or a dict);
-- `<treedb>-<topic>.treedb_schema.json`, the schema of one topic;
+  `topics` a list or a dict).
+- `<treedb>-<topic>.treedb_schema.json`, the schema of one topic.
 - `<msg2db>.msg2db_schema.json`.
 
 ## What it prints
@@ -53,15 +53,15 @@ topic (and column), the fault, and the message the SDK logs.
 | `CUT` | The `__assets__` hook of a `file` column is cut to `NAME_MAX` at the open, with no log. |
 | `LIST` | The id of a list of an index is cut to `NAME_MAX`. **Estimated**: the id holds two things that no file says. The yuno that opens the store, `<role>^<name>` (after 7.27.10), is taken as 32 bytes, longer than a usual `<role>^<name>`, or as the one given with `--list-ids-yuno db_history^7301` (`--list-ids-yuno ""` for an SDK up to 7.27.10). The name of the gobj that owns the tranger is taken as `tranger_<treedb>` (the name `C_TREEDB` gives it), or as the name given with `--list-ids-gobj`. |
 
-A fault a NEW topic would be refused for is a `CRITICAL` when the topic is not
+A fault for which the SDK refuses a NEW topic is a `CRITICAL` when the topic is not
 on disk yet (no `<topic>/topic_desc.json` beside the schema), and an `ERROR`
 when it is.
 
-Exit status: `0` nothing found, `1` a fault found, `2` a file could not be read.
+Exit status: `0` nothing found, `1` a fault found, `2` a file that it was not able to read.
 
 ## What it does not check
 
 The fields of a column against the column meta-schema (`parse_schema_cols()`:
 its types and its flags), which the SDK says as *"a column is not valid (see
 the log)"*. That meta-schema is derived from the `__system__` schema at run
-time, and a copy in the script would drift from it.
+time. If the script holds a copy, the copy drifts from it.

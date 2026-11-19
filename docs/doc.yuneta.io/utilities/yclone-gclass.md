@@ -16,8 +16,8 @@ yclone-gclass postgres authenticate     # c_postgres.{c,h} -> c_authenticate.{c,
 
 Give the names **without** the `c_` prefix or `.c`/`.h` extension. Both names
 are required. No options beyond argp's built-in `--help` / `--version`. The
-files are read from, and written to, the current directory; a destination
-that exists is refused, and a failed `.c` takes the new `.h` away with it.
+files are read from, and written to, the current directory. A destination
+that exists is refused, and a failed `.c` removes the new `.h` with it.
 
 ## What is replaced
 

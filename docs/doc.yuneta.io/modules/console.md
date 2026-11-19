@@ -41,7 +41,7 @@ Every function, with its parameters and an example, is in the
 ### `register_c_editline()`
 
 Registers `C_EDITLINE`. Call it once, in `register_yuno_and_more()`, before
-creating an editline; a second call fails with *"GClass ALREADY created"*.
+creating an editline. A second call fails with *"GClass ALREADY created"*.
 
 ```C
 int register_c_editline(void);

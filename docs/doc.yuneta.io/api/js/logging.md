@@ -52,13 +52,13 @@ Writes a debug message. It stays in the console.
 ### The format of a log line
 
 A message given alone is not a format: a `%s` in its text stays as it is. With
-arguments, the log functions read these conversions; extra arguments go at the
+arguments, the log functions read these conversions. Extra arguments go at the
 end, separated by a space. No value makes a log line throw (since gobj-js
 7.26.17): what has no string form is printed as json, or as `<type: not
 printable>`, and a log function that throws (a remote one over a socket that
 is gone) does not take the caller with it. The REMOTE one, if it logs in
-turn, is not called again from inside itself (since 7.26.18; the console
-functions are not held back by it since 7.26.19); that stops a synchronous
+turn, is not called again from inside itself (since 7.26.18, and the console
+functions are not held back by it since 7.26.19). That stops a synchronous
 loop only, so a teardown unwires it first (`set_remote_log_functions(null)`).
 
 | Conversion | Prints |
@@ -66,8 +66,8 @@ loop only, so a teardown unwires it first (`set_remote_log_functions(null)`).
 | `%s` | The value as text. |
 | `%d`, `%i` | An integer. A BigInt keeps all its digits. |
 | `%f` | A real number. |
-| `%o`, `%O` | An object as JSON; any other value as text (`"abc"` prints `abc`). |
-| `%j` | Any value as JSON (`"abc"` prints `"abc"`; a BigInt, its digits as a string). |
+| `%o`, `%O` | An object as JSON. Any other value as text (`"abc"` prints `abc`). |
+| `%j` | Any value as JSON (`"abc"` prints `"abc"`, and a BigInt, its digits as a string). |
 | `%%` | A `%`. It takes no argument. |
 
 ```js
@@ -119,11 +119,11 @@ trace_json_masked({username: "bob", password: "hunter2"}, "login");
 (js_json_mask_secrets)=
 ### [`json_mask_secrets(json)`](https://github.com/artgins/gobj-js/blob/7.31.0/src/helpers.js#L2029)
 
-A JSON value as a log or a trace may show it, with the rule and the lists of
+A JSON value as a log or a trace can show it, with the rule and the lists of
 the C kernel's `json_mask_secrets()`. At any depth, the value of a key whose
 name is a secret's ([`is_secret_name()`](#js_is_secret_name)) is
-`"********"`, whatever its type (not `undefined`, `null` or `""`); so is the
-`value` of an object whose `attribute` names a secret; and every string, under
+`"********"`, whatever its type (not `undefined`, `null` or `""`). So is the
+`value` of an object whose `attribute` names a secret. And every string, under
 ANY key, is masked as [`mask_secrets_inline()`](#js_mask_secrets_inline): a
 JWT, the credential after `Bearer` or `Basic`, a secret `name=value` or
 `name: value` in it. A string with a NUL
@@ -132,20 +132,20 @@ masked). Up to gobj-js 7.26.19 a JWT under a plain key showed. A key is judged
 as a NAME, never as a value: a key that is itself a credential (an object
 keyed by tokens) is shown as it is, as in C. It answers a masked
 copy (the objects and arrays on the way to a masked value are copied, the
-rest is shared), or the value itself when there was nothing to mask; the
+rest is shared), or the value itself when there was nothing to mask. The
 value is never changed.
 
 Only JSON is walked: plain objects and arrays. A gobj, a DOM node, a class
 instance, a typed array or a function is passed as it is. An object met twice
-is masked once, the same everywhere; a cycle back to one is `"<cycle>"`; an
+is masked once, the same everywhere. A cycle back to one is `"<cycle>"`. An
 object or array reached at 64 levels (as in C) is `"<deeper not shown>"` --
 counted from the FIRST time it is met: one masked higher up shows whole
-wherever else it appears; the walk has a budget of 4 MB units (every node
+wherever else it appears. The walk has a budget of 4 MB units (every node
 one, a key or a string its characters too), and once it is spent it stops: one
 `"<not shown: too large to mask>"` stands for the rest of each object or
 array being walked (it is linear and bounded, as in C, a string counted in
-characters);
-and a failure answers
+characters).
+And a failure answers
 `"<not shown: the masking failed>"`: it never throws.
 
 ```js
@@ -165,25 +165,25 @@ A text (a command line) with the value of every `name=value` and every
 name is a secret's written as `********`, quoted or not, and the `value=` of a
 write-attr whose `attribute=` names a secret. An unquoted value of a
 `name=value` runs to the next `word=`: `password=correct horse battery` is
-masked whole; a value that is a scheme and its credential is masked whole
+masked whole. A value that is a scheme and its credential is masked whole
 (`token=Bearer abc`, `Authorization: Basic x`). And a credential by its
 SHAPE, wherever it is and whatever names it, by the rules of the C kernel's
 [`mask_secrets_inline()`](#mask_secrets_inline): a JWT or a JWE (`eyJ`,
-base64url and a `.`: also one a cap cut; a `.` after it, the end of a
+base64url and a `.`: also one a cap cut. A `.` after it, the end of a
 sentence, is not its own), and after `Bearer` or `Basic` (any case, a word of
 its own) the word that can be a credential -- quoted, after the scheme
 doubled, or not a word of prose (it holds a digit, a symbol of its own or a
-character that is no ASCII, mixes its case, or has 24 characters or more; for
+character that is no ASCII, mixes its case, or has 24 characters or more. For
 `Bearer` 8 at least, for `Basic` a run of base64 that decodes to a
 `user:password`) --, the word to a blank, a quote or one of `,;}]`, masked
 whole. The name of a `name=value` is also the run of name characters before
 the `=`, as in a query string (gobj-js 7.26.22+):
 `GET https://my-file-server.com/get?token=abc&x=1` is
-`GET https://my-file-server.com/get?token=********&x=1`; and the name as a
+`GET https://my-file-server.com/get?token=********&x=1`. And the name as a
 form writes it, a part of it in brackets or quotes, its `%XX` decoded
-(`user[password]=x`, `user%5Bpassword%5D=x`, `t%6Fken=x`; gobj-js 7.26.24+).
+(`user[password]=x`, `user%5Bpassword%5D=x`, `t%6Fken=x`, gobj-js 7.26.24+).
 In the word before the `=`, `pass`, `pin` and `otp` count only after its last
-`&`, `?` or `;` (gobj-js 7.26.25+; 7.26.22 to 7.26.24 gave
+`&`, `?` or `;` (gobj-js 7.26.25+, and 7.26.22 to 7.26.24 gave
 `GET /search?q=boarding+pass&lang=********`). A URL or a query `%`-encoded
 inside a value is read decoded too, twice at most (gobj-js 7.26.25+):
 `GET /cb?next=%2Flogin%3Fpassword%3Dhunter2` is
@@ -193,7 +193,7 @@ inside a value is read decoded too, twice at most (gobj-js 7.26.25+):
 The password of the userinfo of a URL is masked too
 (`https://bob:hunter2@host` is `https://bob:********@host`, 7.26.24+). A JWT
 header whose only dots end it is no JWT (`eyJhIjoxfQ.`, 7.26.22+). Each rule judges the
-text as it came, and a run of characters to mask is one `********`; the
+text as it came, and a run of characters to mask is one `********`. The
 readings of the parameters of gobj-js 7.26.19 and 7.26.20 are rules of their
 own, whole: measured position by position on 438 008 generated texts, nothing
 that 7.26.19 masked shows but where a name is judged as C judges it (its last
@@ -235,10 +235,10 @@ mask_secrets_inline("list-yunos");      // null
 
 `true` if `name` is the name of a secret, by the C kernel's lists: it holds
 `passw`, `pwd`, `passphrase`, `secret`, `token`, `jwt`, `bearer`,
-`authorization`, `cookie`, `credential` or `salt`; or `apikey`, `sessionid`,
-`sessionkey` or `authdata` once `_`, `-`, `.` and blanks are taken out; or
+`authorization`, `cookie`, `credential` or `salt`. Or `apikey`, `sessionid`,
+`sessionkey` or `authdata` once `_`, `-`, `.` and blanks are taken out. Or
 `pass`, `pin` or `otp` as a WHOLE segment, a run of letters and digits
-(`db_pass`, `user-pin`, `sim_pin`; not `passive`, `ping`, `otpx`); or both
+(`db_pass`, `user-pin`, `sim_pin`, but not `passive`, `ping`, `otpx`). Or both
 `priv` and `key`. Any case, folded in ASCII as C folds it (gobj-js 7.26.22+:
 the Kelvin sign is no `k`), and judged by its last 128 bytes of UTF-8, as C
 judges it, where a name is cut. A name with a segment that names something ABOUT a
@@ -295,8 +295,8 @@ Gives one function the say over each console line, on top of the switch above.
 is the default.
 
 The console write occurs before the log callback runs, so nothing after it can
-remove a line. This is the only place to keep a class of lines off the console
-— for example, the timer traffic of the `machine` trace.
+remove a line. This is the only place to keep a class of lines off the console,
+for example the timer traffic of the `machine` trace.
 
 The filter decides the console only. The callback still gets every line. A
 filter that throws is ignored: a broken filter must not silence the log.

@@ -51,7 +51,7 @@ flight on an older kernel. Below 5.6 a yuno cannot run at all.
 |---|---|---|
 | Debian 13 (trixie) | 6.12 | ✅ (staging and production nodes) |
 | Debian 12 (bookworm) | 6.1 | ✅ (production nodes) |
-| Ubuntu 24.04 and later | 6.8+ | ✅ by its kernel (the development machine runs Ubuntu 26.04, kernel 7.0); no package install is tested there |
+| Ubuntu 24.04 and later | 6.8+ | ✅ by its kernel (the development machine runs Ubuntu 26.04, kernel 7.0). No package install is tested there |
 | RHEL / Rocky / Alma 9 | 5.14 | ✅ — Red Hat backports io_uring into its 5.14: on Rocky 9.7 (`5.14.0-611`) every operation above is there, `CANCEL_ALL \| ANY` and `SENDMSG_ZC` included. It is **disabled by default**: [enable it](#io_uring-required) |
 | RHEL / Rocky / Alma **8** | 4.18 | ❌ **no io_uring at all**: Yuneta does not run |
 | Any other kernel below 5.19 | | ❌ not supported |
@@ -334,18 +334,18 @@ and with no difference of layout. The full inventory is in
 >
 > The unit is named like the SysV script (`/etc/init.d/yuneta_agent`), so
 > systemd uses it instead of the unit it generated from the script, and
-> `service yuneta_agent ...` reaches it too (the main agent's unit alone;
+> `service yuneta_agent ...` reaches it too (the main agent's unit alone,
 > `service yuneta_agent22 ...` reaches agent22's). The script stays, and
 > under systemd it drives the PAIR of units: `sudo /etc/init.d/yuneta_agent
 > start` starts both (agent22 once the main agent is up), `stop` stops the
 > main agent alone (agent22, the escape hatch, keeps running, as the SysV
-> `stop` always did), `status` reports both; an agent started by hand
+> `stop` always did), `status` reports both. An agent started by hand
 > outside its unit is stopped first and started in it. Up to 7.25.21 there was no native unit: an agent
 > started by hand was invisible to systemd, and `yuneta_agent22` had no unit
 > at all. The web server has its own unit (`yuneta-webserver.service`) and is
 > not started or stopped with the agent.
 >
-> **How an agent outside its unit is recognised.** The SysV script, the
+> **How an agent outside its unit is recognized.** The SysV script, the
 > packages' install scripts and `install-yuneta-service.sh` look for a process
 > named `yuneta_agent` (or `yuneta_agent22`) whose `argv[0]` has that base
 > name, the way the agent's own `--stop` finds it. The SysV script has the
@@ -437,7 +437,7 @@ sudo /usr/libexec/yuneta/yuneta-node-uuid show
 A node installed with 7.29.1 to 7.31.2 gets the uuid of its hardware at its
 first `ensure` of 7.31.3 (a new uuid, and its agent key changes too):
 restart both agents and every yuno, and accept the node again in each
-control center (see below). A uuid set by hand is never changed;
+control center (see below). A uuid set by hand is never changed.
 `yuneta-node-uuid unset` goes back to the uuid of the hardware.
 
 A value that the script knows as a placeholder is not an identity, because
@@ -507,8 +507,8 @@ files:
   `/run` is a tmpfs. Each start with systemd mounts a new tmpfs on `/run`, so
   a file there is from this start.
 - `/.dockerenv` and `/run/.containerenv` do not count.
-- Of `systemd-detect-virt`, only `wsl`, `openvz` and `proot` count: these
-  come from the kernel. Its other answers can come from the files above.
+- Of `systemd-detect-virt`, only `wsl`, `openvz` and `proot` count: the
+  kernel is their source. The files above can be the source of its other answers.
 
 In the initial pid namespace, the script also compares `/` with the root of
 PID 1 (`/proc/1/root`), as `systemd-detect-virt --chroot` does:
@@ -570,9 +570,9 @@ readlink /proc/self/ns/pid       # pid:[4026531836] = the initial namespace
 The package's install stores nothing in a container or a chroot
 (`ensure --installing`), because the install can be the build of an image
 (a `RUN` step of a `docker build` too).
-Without systemd, the install also does not start the agents there: their
-start would store a uuid in the image. Start them in the container
-(`/etc/init.d/yuneta_agent start`); their first start makes the uuid and the
+Without systemd, the install also does not start the agents there. Otherwise,
+their start stores a uuid in the image. Start them in the container
+(`/etc/init.d/yuneta_agent start`). Their first start makes the uuid and the
 agent's pair. A container that starts the agents without their units or the
 SysV script runs both scripts first, as root and in this order: the pair is
 bound to the node uuid (see [the agent's own certificate](#agent-own-certificate)).
@@ -675,7 +675,7 @@ openssl x509 -in /yuneta/agent/certs/yuneta_agent.crt -noout -pubkey \
 
 So a **copy of a node must not keep its key**: a disk or SD copied from a box
 that already started, a VM template, a `docker commit` of a started
-container. Every copy would present the same key, and any of them could
+container. If it keeps it, every copy presents the same key, and any of them can
 claim the node of another. Each pair that `yuneta-agent-cert` makes is bound
 to the node uuid it was made for, written beside it in
 `/yuneta/agent/certs/yuneta_agent.uuid`. A copy whose hardware gives
@@ -683,8 +683,8 @@ another identifier gets its own node uuid on its first start
 (`yuneta-node-uuid`, which runs first), so `ensure` finds a pair made for
 another uuid (`state: cloned`): it makes a new pair and logs a warning. It keeps a copy of the old certificate (it is public), but **not of
 the old key**: that key is the other node's login, so it is overwritten and
-removed. Both agents' units run `ensure` (the two agents serve the same pair;
-the script locks, so their runs do not overlap), so neither serves the copied
+removed. Both agents' units run `ensure` (the two agents serve the same pair,
+and the script locks, so their runs do not overlap), so neither serves the copied
 key. Restart both agents if they were already running, and accept the copy's
 key in the control center as a new node's. A pair made by an earlier version has no
 `yuneta_agent.uuid`: `ensure` binds it to the node uuid it finds, so take
@@ -694,13 +694,13 @@ make (a certificate of your own CA) is never bound and never replaced.
 **A copy that keeps the uuid keeps the key**, and nothing warns. That is the
 case when:
 
-- the box has no hardware identifier (`source: random` in `uuid.json`, not in
-  a container): the copy keeps the random uuid;
-- the copy has the same identifier: a VM copied with its SMBIOS uuid, or a
-  filler DMI uuid that the script does not know as a placeholder;
-- the copy was made before the first `ensure` of 7.30.15: the pair has no
-  `yuneta_agent.uuid`, and its first `ensure` binds it to the copy's uuid;
-- the node builds from source and does not have `yuneta-node-uuid`
+- The box has no hardware identifier (`source: random` in `uuid.json`, not in
+  a container): the copy keeps the random uuid.
+- The copy has the same identifier: a VM copied with its SMBIOS uuid, or a
+  filler DMI uuid that the script does not know as a placeholder.
+- The copy was made before the first `ensure` of 7.30.15: the pair has no
+  `yuneta_agent.uuid`, and its first `ensure` binds it to the copy's uuid.
+- The node builds from source and does not have `yuneta-node-uuid`
   (`install-yuneta-node-uuid.sh`): its uuid is the random one that
   `node_uuid()` wrote, and the copy carries it.
 
@@ -737,7 +737,7 @@ sudo systemctl restart yuneta_agent; sudo systemctl restart yuneta_agent22   # b
 
 A node that builds from source gets the units' step by hand, as for the uuid
 (a drop-in `zz-yuneta-agent-cert.conf` in both units: systemd runs drop-ins
-in the order of their names, so it runs after `yuneta-node-uuid.conf`; the
+in the order of their names, so it runs after `yuneta-node-uuid.conf`. The
 `yuneta-agent-cert.conf` of up to 7.30.14 ran before it and is removed):
 
 ```bash
@@ -787,7 +787,7 @@ runs it. Then the helper restarts the units, but only where
 `yuneta_agent.service` exists, as the SysV script decides. On a node without
 the units it enables and starts the SysV script, also under systemd. Up to
 7.30.16 a systemd without the units was enough: the helper stopped the
-agents that ran outside, could not restart a unit that does not exist, and
+agents that ran outside, failed to restart a unit that does not exist, and
 left them stopped with exit 0. Now, when a restart fails, the helper says so
 and exits 1, and it leaves `yuneta_agent22` as it is.
 
@@ -887,7 +887,7 @@ steps.
 The repo contains a helper script. It installs all the packages below and the
 `kconfiglib` backend for `menuconfig`. It reads `/etc/os-release` to find the
 distro family: Debian and Ubuntu, or RHEL, Rocky, Alma and Fedora. It is in
-the repo, so clone it first (step 4) and come back:
+the repo, so clone it first (step 4), then return to this step:
 
 ```bash
 cd /yuneta/development/yunetas
@@ -1216,8 +1216,8 @@ inotify instance per watched topic (the master's watch of `disks/`, and one per
 default is 128, and some treedb tests open more than that in one process: they
 fail with *"inotify_init1() FAILED"*, errno 24, *"The user limit on the total
 number of INOTIFY INSTANCES has been reached"*. A node installed from the
-`.deb`/`.rpm` already has the right values (`/etc/sysctl.d/99-yuneta-core.conf`);
-a machine that only builds from source needs them set by hand:
+`.deb`/`.rpm` already has the right values (`/etc/sysctl.d/99-yuneta-core.conf`).
+A machine that only builds from source needs them set by hand:
 
 ```bash
 sudo tee /etc/sysctl.d/99-yuneta-inotify.conf <<'EOF'

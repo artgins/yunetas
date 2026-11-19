@@ -49,7 +49,7 @@ queues:
 
 Persistent sessions survive broker restarts, with their subscriptions (saved
 in the session at each SUBSCRIBE and UNSUBSCRIBE and rebuilt when the treedb
-opens; up to 7.31.1 they were lost). `clean_session` clients are transient.
+opens, and up to 7.31.1 they were lost). `clean_session` clients are transient.
 
 **There is no in-memory broker.** `mqtt_persistent_db` must be true (the
 default). The clients, sessions and retained messages live only in the
@@ -82,7 +82,7 @@ With `on_critical_error` `0` the yuno stays up and the broker does not play.
 Its commands that read the treedb, the input side or the subscriptions
 (`list-channels`, `list-sessions`, `list-queues`, `normal-subs`,
 `shared-subs`, `flatten-subs`, `list-retains`, `remove-retains`,
-`clean-queues`) answer `-1` and log nothing; `help` and `authzs` still answer.
+`clean-queues`) answer `-1` and log nothing. `help` and `authzs` still answer.
 Up to 7.30.26 they logged about 25 ERRORs and answered as an empty broker
 (*"Delete 0 retained messages"*):
 
@@ -96,17 +96,17 @@ The queues' tranger is opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`: a
 CRITICAL of timeranger2 ends the broker. The periodic backup of a queue
 (`backup_queue_size` of `C_PROT_MQTT2`) is the exception: a backup whose new
 topic cannot be created (no space, a `mkdir` that fails) moves the backup back
-and the queue goes on in its topic, not backed up; the CRITICAL of the failed
+and the queue goes on in its topic, not backed up. The CRITICAL of the failed
 create is logged and does not exit, so the messages of the queue never stay
 in `<queue>.bak` (see [`tranger2_backup_topic()`](#tranger2_backup_topic)).
-A queue that could not open its topic again after a failed backup takes it
+A queue that failed to open its topic again after a failed backup takes it
 again as soon as it can be opened (see [`trq_check_backup()`](#trq_check_backup)).
 
 (mqtt-broker-treedb-user)=
 **The broker opens its treedb as C code.** At its start (`mt_start`) the broker creates its own `C_TREEDB` service,
 `treedbs`, in `open_database()`, and sends it `open-treedb`
 (`treedb_mqtt_broker`, `filename_mask` `%Y`, `exit_on_error` `0`,
-`impose_c_schema` `1`); it opens its msg2db `msg2db_alarms` on the same
+`impose_c_schema` `1`). It opens its msg2db `msg2db_alarms` on the same
 tranger. At its stop (`mt_stop`) `close_database()` sends `close-treedb`
 and destroys the service. Not at play and pause: the `EV_ON_CLOSE` of the
 sessions must reach the database, so the treedb and its `treedbs` service
@@ -121,7 +121,7 @@ code is not (see [What a peer hands C_TREEDB](#c-treedb-peer-data)). The
 broker passed it in the kw until SDK 7.27.0, when `C_TREEDB` started to
 tell the two apart.
 
-**A broker that runs and never plays** (`run-yuno play=0`, then `kill-yuno`;
+**A broker that runs and never plays** (`run-yuno play=0`, then `kill-yuno`,
 or a standalone broker without `yuno.autoplay`) stops clean: it opened its
 database at the start, and it knows its input side from the start too, the
 service it hands its queues to at the play and takes them back from at the
@@ -131,7 +131,7 @@ from `close_database()`).
 
 **A take-over whose old connection closes late** is quiet. A client id that
 connects again takes the session over, and the broker closes the old
-connection; that close may take a while (an MQTT 5 client that does not
+connection. That close can take a while (an MQTT 5 client that does not
 close after its DISCONNECT waits `timeout_close`, an MQTT 3.1.1 one that does
 not read waits for its answers to be written). When the new connection has
 come and gone meanwhile, with a session that is not kept, the old one's
@@ -180,7 +180,7 @@ the take-over, not left to the end of that close.
 
 **A session that is kept outlives its connection, whatever its Clean
 Start.** In MQTT 5 Clean Start only says whether the CONNECT starts from an
-empty session [MQTT-3.1.2-4]; how long the session lives is its Session
+empty session [MQTT-3.1.2-4]. How long the session lives is its Session
 Expiry Interval, the one of the CONNECT or of its DISCONNECT. The close of a
 connection deletes its queues only when that interval is 0 (in MQTT 3.1.1,
 with a clean session), and the broker deletes them when a kept session
@@ -213,17 +213,17 @@ the next CONNECT of that client id deletes it, and its queues, if it is not
 kept). The queues the connection had open are freed, and so is the rest of a
 read the bound on the answers had paused. Up to 7.30.26 the broker
 kept the pointer of its destroyed treedb and read it there: a use of freed
-memory that ended the process at its stop (SIGSEGV), and that any peer could
-arm by not reading; and the queues of such a connection leaked.
+memory that ended the process at its stop (SIGSEGV), and that any peer was able to
+arm by not reading. Also, the queues of such a connection leaked.
 
 A connection whose transport is STILL stopping when the yuno ends (one the
 bound on the answers dropped, waiting `timeout_stop_tx` for its write in
-flight; or a subscriber that does not read, whose `C_TCP` holds QoS 0
+flight, or a subscriber that does not read, whose `C_TCP` holds QoS 0
 forwards) gets no `EV_ON_CLOSE` at all: the protocol frees its queues when it
 is destroyed, and the session is left as after a crash. Up to 7.30.26 those
 queues leaked: 2 x 768 bytes per session, and with a subscriber that does not
 read while QoS 0 and QoS 1 publications mix, every QoS 1 message its queue
-held (some 20000 blocks with one publisher of 20000 messages); the yuno
+held (some 20000 blocks with one publisher of 20000 messages). The yuno
 ended with *"system memory not free"* and exit 255. For example:
 
 ```text
@@ -274,7 +274,7 @@ json_t *jn_resp = gobj_command(priv->gobj_treedbs,
 | `deny_subscribes` | — | JSON list of topics for which SUBSCRIBE is refused |
 | `mqtt_service` | *(yuno_role)* | Service name (multi-service) |
 | `mqtt_tenant` | *(yuno_name)* | Tenant id (multi-tenant) |
-| `on_critical_error` | `2` | Log options of the broker's critical error (`mqtt_persistent_db` false): `2` = `LOG_OPT_EXIT_ZERO`, exit 0, no auto-restart; `0` = the yuno stays up, the broker does not play and its commands answer `-1` *"broker not playing"* |
+| `on_critical_error` | `2` | Log options of the broker's critical error (`mqtt_persistent_db` false): `2` = `LOG_OPT_EXIT_ZERO`, exit 0, no auto-restart. `0` = the yuno stays up, the broker does not play and its commands answer `-1` *"broker not playing"* |
 | `__username__` | *(the yuno's)* | `SDF_RD`, not configured: the broker writes the yuno's `__username__` here before it opens its treedb, and `C_TREEDB` asks the permission of the broker's `open-treedb` / `close-treedb` with it (see [above](#mqtt-broker-treedb-user)) |
 
 Session limits are from [`C_AUTHZ`](#gclass-c-authz) (for example `Authz.max_sessions_per_user`,
@@ -292,7 +292,7 @@ Per-connection limits live on `C_PROT_MQTT2` and apply to each client:
 | `max_queued_bytes` | `0` | Per-client queue byte cap (0 = no limit) |
 | `message_size_limit` | `0` | Max publish payload accepted (0 = MQTT max) |
 | `max_packet_size` | `0` | Max MQTT packet (v5 advertises it, 0 = no limit) |
-| `max_unwritten_bytes` | `100000` | Memory that the answers to a client (PINGRESP, PUBACK, SUBACK...) may hold in its send queue (`cur_tx_queue` of its `C_TCP`) before its reading is paused until they are written (backpressure): a client that reads is slowed, never dropped, however much it pipelines (1000 QoS 1 in one write, as a client with no in-flight window sends); one that takes nothing during `timeout_close` is dropped with the WARNING *"Mqtt: the peer does not read its answers, connection dropped"*. 0 = no limit. The messages the broker forwards to a subscriber are not answers: they do not count (see the [MQTT page](../modules/mqtt.md)) |
+| `max_unwritten_bytes` | `100000` | Memory that the answers to a client (PINGRESP, PUBACK, SUBACK...) can hold in its send queue (`cur_tx_queue` of its `C_TCP`) before its reading is paused until they are written (backpressure): a client that reads is slowed, never dropped, however much it pipelines (1000 QoS 1 in one write, as a client with no in-flight window sends). One that takes nothing during `timeout_close` is dropped with the WARNING *"Mqtt: the peer does not read its answers, connection dropped"*. 0 = no limit. The messages the broker forwards to a subscriber are not answers: they do not count (see the [MQTT page](../modules/mqtt.md)) |
 
 `max_inflight_messages` also bounds the INCOMING QoS 2 messages that wait for
 their PUBREL (the receive maximum the broker advertises): a client that sends
@@ -324,15 +324,15 @@ broker's and a client's (a client with `tranger_queues`). The messages above
   one.** An outgoing message with `expiry_interval` is checked when it goes in
   flight: expired, it is discarded, and the queued messages go in flight while
   there is room and are sent. Up to 7.25.4 nothing moved after an expiry: the
-  queued messages waited for more traffic that might never come.
+  queued messages waited for more traffic, which possibly never came.
 - **No backup while messages are queued.** `tr2q_check_backup()` is called
-  every second when nothing is in flight; with messages still queued it does
+  every second when nothing is in flight. With messages still queued it does
   nothing and answers `0`. A backup re-creates the topic empty, and a queued
-  message keeps only the rowid of its record: after a backup its content could
-  not be read any more (*"No message content in queue entry"*, the message
+  message keeps only the rowid of its record: after a backup its content was not
+  readable any more (*"No message content in queue entry"*, the message
   lost). Up to 7.25.4 the backup was made.
 - **A queued message goes in flight with its content.**
-  `tr2q_move_from_queued_to_inflight()` reads the content FIRST; when it
+  `tr2q_move_from_queued_to_inflight()` reads the content FIRST. When it
   cannot, the message stays queued, with an ERROR *"Cannot load the content of
   a queued message: it stays queued"*, and `-1`. Up to 7.25.4 it was moved in
   flight first: an incoming QoS 2 message then stayed in flight with no content
@@ -362,7 +362,7 @@ and `tests/c/tr_queue` (`test_tr2q_queued`).
 **The out window is the lower of the two maximums.** A MQTT 5 client says in
 its CONNECT how many QoS 1/2 messages it takes unacknowledged (Receive
 Maximum). The broker sends at most the lower of that and its own
-`max_inflight_messages`; the others wait queued, and each ack sends the next.
+`max_inflight_messages`. The others wait queued, and each ack sends the next.
 With `max_inflight_messages` 0 (no maximum of the broker's own) the client's
 Receive Maximum is the limit [MQTT-3.3.4-9]. Up to 7.25.4 the broker checked
 only its OWN maximum: with it at 0 it sent every queued message at once, over
@@ -467,7 +467,7 @@ through the same `mqtt_acl_check()` helper:
   goes through `mqtt_acl_check(..., "write")` when it is sent (at the
   client's unclean end), with the ACL in force then. A refused will is not
   published, with the warning *"Will message refused by the ACL: not
-  published"*. Up to 7.25.22 it bypassed the ACL: a client could publish, as
+  published"*. Up to 7.25.22 it bypassed the ACL: a client was able to publish, as
   its will, to a topic its groups refused.
 
 ```{warning}
@@ -540,7 +540,7 @@ the broker (an ievent session of its `__top_side__`, with any role) can send
 them, and `C_IOGATE` publishes them again as its own. Such an event is refused
 (the action answers `-1`, authz is not asked) with a WARNING (`msgset`
 `Auth`) that names the `src`, the channel and the user of the session, said
-once every 10 seconds; the
+once every 10 seconds, and the
 next one carries `suppressed`, the count of the ones not said:
 
 ```json
@@ -559,7 +559,7 @@ created a user. Regression test: `tests/c/c_mqtt` `broker_treedb_src`.
 |---------|-------------|
 | `list-channels` | Input channels of connected devices |
 | `list-sessions` | Active/persistent sessions |
-| `list-queues` | Per-client message queues: the names, or with `queue=<name>` the messages of one (`level=0..3`, `pending=1`, `qos=`; the conditions add up: `qos=1` lists the PENDING QoS 1 messages, `pending=0 qos=1` the delivered ones) |
+| `list-queues` | Per-client message queues: the names, or with `queue=<name>` the messages of one (`level=0..3`, `pending=1`, `qos=`, and the conditions add up: `qos=1` lists the PENDING QoS 1 messages, `pending=0 qos=1` the delivered ones) |
 | `normal-subs` / `shared-subs` | List normal / shared (`$share`) subscribers |
 | `flatten-subs` | Flattened subscriber view |
 | `list-retains` / `remove-retains` | List / remove retained messages (note: `#` shown as `/`) |
@@ -569,12 +569,12 @@ created a user. Regression test: `tests/c/c_mqtt` `broker_treedb_src`.
 
 `list-queues queue=<name>` of a queue that exists and cannot be opened (its
 `keys/` cannot be listed) answers `-1`, *"cannot open the queue '\<name>', see
-the log"*; one whose messages cannot all be read answers `-1` with the messages
+the log"*. One whose messages cannot all be read answers `-1` with the messages
 it read, *"the list is PARTIAL"*. Up to 7.25.4 both answered `0`: an empty, or
 a short, queue. A store whose topics cannot be listed answers `-1` for
 `list-queues` (*"cannot list the topics of the store, see the log"*) and
 `clean-queues` (*"cannot list the topics of the store, nothing cleaned, see the
-log"*); the cause (`errno`) is in the ERROR *"Cannot list the topics of the
+log"*). The cause (`errno`) is in the ERROR *"Cannot list the topics of the
 store"* that the log carries. Up to 7.25.4 both answered an empty list with
 `0`.
 
@@ -604,7 +604,7 @@ Enable with
 
 Three batteries in
 [`yunos/c/mqtt_broker/tests/`](https://github.com/artgins/yunetas/tree/7.31.23/yunos/c/mqtt_broker/tests),
-one per directory; `tests/mqtt_broker.json` is the broker configuration of all three:
+one per directory. `tests/mqtt_broker.json` is the broker configuration of all three:
 
 | Directory | What it is | Result |
 |-----------|------------|--------|
@@ -627,8 +627,8 @@ kill -INT %1
 Eclipse Mosquitto's own broker tests (about 270, in Python) run against
 `mqtt_broker` through a stand-in for the `mosquitto` binary. The scripts, the
 stand-in and the reference results are in
-[`yunos/c/mqtt_broker/tests/mosquitto/`](https://github.com/artgins/yunetas/tree/7.31.23/yunos/c/mqtt_broker/tests/mosquitto);
-the suite itself is fetched at a pinned commit, not copied into the repository.
+[`yunos/c/mqtt_broker/tests/mosquitto/`](https://github.com/artgins/yunetas/tree/7.31.23/yunos/c/mqtt_broker/tests/mosquitto).
+The suite itself is fetched at a pinned commit, not copied into the repository.
 
 ```bash
 cd yunos/c/mqtt_broker/tests/mosquitto

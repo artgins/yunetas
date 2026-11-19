@@ -105,7 +105,7 @@ slot of a description, or a string in a list of children. Markup that you mean
 gobj-ui passes all its markup that way since 7.26.10. So an app can start with
 [`set_strings_are_text(true)`](../js/helpers_dom.md#js_set_strings_are_text),
 and then a plain string is never markup. Run the check of gobj-ui on the app
-in its `prebuild`; it finds a literal markup or markup that is built with
+in its `prebuild`. It finds a literal markup or markup that is built with
 values:
 
 ```javascript

@@ -65,7 +65,7 @@ A string in the third slot is **markup** when it starts with `<`: it is parsed
 as HTML. Never pass data there (a value from a backend, a name that a user
 typed) as a bare string, or `<img src=x onerror=...>` runs. Pass a Text node,
 which is always text. In a **list** of children, a node (element, svg, Text) is
-appended as it is, and a string is always text (since gobj-js 7.26.2; before, a
+appended as it is, and a string is always text (since gobj-js 7.26.2, but before that version a
 Text node or a string in a list was dropped). A list whose first item is a
 string is read as one description, so put the text in a Text node there.
 Markup that you mean is said with [`html_markup()`](#js_html_markup), and with

@@ -136,8 +136,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 decoded, and it is left out of every frame sent (7.30.27+, see
 [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer)). So a `__temp__`
 that is not a dict was put by code of this yuno: the gate replaces it, with
-one ERROR, *"__temp__ of a message is not a dict, replaced"* (7.30.27+; up to
-7.30.26 it was two ERRORs and the value stayed, and the subscriber read it as
+one ERROR, *"__temp__ of a message is not a dict, replaced"* (7.30.27+. Up to
+7.30.26, it was two ERRORs and the value stayed, and the subscriber read it as
 the channel).
 
 The event of an `EV_ON_IEV_MESSAGE` is one a peer sent, and the gate
@@ -155,7 +155,7 @@ the gate: the frame is dropped, the channel stays, and the subscriber never
 sees it. The subscriber is often the yuno's main gclass, subscribed to every
 event of the gate, and a peer can name any event some gclass has as public.
 Said with a WARNING at most once per 10 s per channel, `suppressed` the ones
-not said since; the rest are said, once, when the channel closes or the gate
+not said since. The rest are said, once, when the channel closes or the gate
 stops (7.30.27+). Up to 7.30.26 each such frame was an *"Event NOT DEFINED in
 state"* in the subscriber, an ERROR with a stack: 200 frames were 200 stacks
 and over 1 MB of log. The same event sent by the yuno's own code is still that
@@ -181,8 +181,8 @@ outage, nor counts as one of its sends. The run ends when a send finds a
 channel (for the drops, when a drop finds its channel), or when the gate
 stops: then ONE INFO says it (*"Sends with no channel ended"*, *"Drops of a
 channel not found ended"*), with the whole run and the ones the brake did not
-say, and the count starts again, so a new outage is said at once (7.30.27+;
-up to 7.30.26 every send said it, the send to all with a stack, and nothing
+say, and the count starts again, so a new outage is said at once (7.30.27+.
+Up to 7.30.26, every send said it, the send to all with a stack, and nothing
 said the end of the run):
 
 ```text
@@ -191,7 +191,7 @@ ERROR: {"msg": "No channel FOUND to send", "event": "EV_SEND_MESSAGE", "repeated
 INFO:  {"msg": "Sends with no channel ended", "why": "a channel found to send", "without_channel": 1500, "not_said": 499, ...}
 ```
 
-The messages the gate could not send are counted in its stats,
+The messages that the gate failed to send are counted in its stats,
 `txMsgsNoChannel` (a drop is not a message).
 
 `tests/c/c_iogate_channel`.
@@ -256,15 +256,15 @@ backed by timeranger. Provides ack-based delivery with automatic retry.
 | `min_free_disk_percentage` | `integer` | The gate refuses new messages while the disk of `tranger_path` has less free space than this, in percent (default `10`). `0` or less: it refuses them only when the queue cannot save one. Example: `'kw': {'min_free_disk_percentage': 5}`. |
 | `msgs_in_queue` | `integer` (stats) | Messages in the queue, not acked yet: a gauge, read live. |
 | `pending_acks` | `integer` (stats) | Messages sent and waiting for their ack: a gauge, read live. |
-| `dropped_msgs` | `integer` (stats) | Messages refused because the queue could not save them, or could not be opened, since the yuno started. |
+| `dropped_msgs` | `integer` (stats) | Messages refused because the queue failed to save them, or failed to open, since the yuno started. |
 | `exitOnError` | `integer` | What a queue that cannot be opened at the start does to the yuno (default `-1`). Not `0`: one ERROR, *"Queue cannot be opened: exiting"*, and the yuno exits with this code (`-1`: its watcher launches it again). `0`: the gate degrades and the yuno goes on (see *A queue that cannot be opened*). Example: `'kw': {'exitOnError': 0}`. |
-| `queue_ready` | `bool` (stats) | The queue is open. False while stopped, and when it could not be opened at the start with `exitOnError` `0` (see *A queue that cannot be opened*). |
+| `queue_ready` | `bool` (stats) | The queue is open. False while stopped, and when it failed to open at the start with `exitOnError` `0` (see *A queue that cannot be opened*). |
 
 `msgs_in_queue` and `pending_acks` are stats attributes, so they are in the
 stats of the gate itself and in those of a `C_MQIOGATE` above it, one entry
 per child (up to 7.25.21 only the gate's own `mt_stats` said them, which a
-`C_MQIOGATE` never asks: the size of a persistent link's queue could not be
-read through it).
+`C_MQIOGATE` never asks: the size of a persistent link's queue was not readable
+through it).
 
 ```bash
 ycommand -c 'stats-yuno id=<id> service=__output_side__'
@@ -278,17 +278,17 @@ A gate whose queue cannot save a message **refuses** it and goes on. The
 What is already in the queue is still delivered. The gate refuses new
 messages:
 
-- while the disk of `tranger_path` has less free space than
+- While the disk of `tranger_path` has less free space than
   `min_free_disk_percentage` (checked every second): so no record is half
-  written on a full disk;
-- after a save that failed, until the next check (one second later).
+  written on a full disk.
+- After a save that failed, until the next check (one second later).
 
 It logs one ERROR when it starts to refuse (*"Queue refuses new messages"*,
 with the `cause` and the `free_percent`), and one INFO when it accepts them
 again (*"Queue accepts new messages again"*, with the count `dropped`). The
 poll of the gate does the check also when no message arrives, so the gate
-recovers by itself when space comes back. Up to 7.28.3 a message that the
-queue could not save aborted the yuno (CRITICAL *"Message NOT SAVED in the
+recovers by itself when disk space is free again. Up to 7.28.3, a message that the
+queue failed to save aborted the yuno (CRITICAL *"Message NOT SAVED in the
 queue"*). The yuno started again, loaded its queue and aborted again on the
 next message, in a loop, for as long as the disk stayed full.
 
@@ -310,7 +310,7 @@ by timeranger2, one ERROR, *"Queue cannot be opened: exiting"* (with `path`,
 (`-1`). Its watcher launches it again, from 2 s up to each 60 s, so the gate
 opens by itself when the cause is gone, the same cadence as the degraded
 gate below. Up to 7.30.17 the yuno went on without its queue and aborted at
-its first message (CRITICAL *"trq_msgs NULL"*); 7.30.18 degraded every gate.
+its first message (CRITICAL *"trq_msgs NULL"*). 7.30.18 degraded every gate.
 
 With `exitOnError` `0` (a queue that is secondary for its yuno), the gate
 **goes on without it**: `queue_ready`
@@ -320,7 +320,7 @@ opened: the gate refuses messages, trying again"* (with `path`, `queue`,
 `topic_name`), after the causes logged by timeranger2, and tries to open the
 queue again at each timeout of its timer, the wait doubling from 1 s up to
 60 s. Each try writes the causes of timeranger2 again. When it opens: one
-INFO, *"Queue opened: the gate accepts messages"*; what the queue held is
+INFO, *"Queue opened: the gate accepts messages"*. What the queue held is
 loaded, and sent if the bottom side is open. An empty `tranger_path`,
 `tranger_database` or `topic_name` is not tried again (they are read only):
 *"Queue cannot be opened, its config is bad: the gate refuses messages"*. A
@@ -386,8 +386,8 @@ and a mark is taken at the next load (the next start of the gate). On a gate
 whose queue is not open (`queue_ready` false) they answer `-1`, *"the queue
 is not open (queue_ready false): nothing marked"*. Up to 7.30.17 they opened
 the queue again over the open one (*"tranger NOT NULL"*, the live store shut
-down) and closed it after them, leaving the gate with no queue; and on a
-queue that could not be opened they crashed the yuno.
+down) and closed it after them. This left the gate with no queue. On a
+queue that failed to open, they crashed the yuno.
 
 ```bash
 ycommand -c 'command-yuno id=<id> service=<the C_QIOGATE> command=queue_mark_pending from-rowid=1200 to-rowid=1300'

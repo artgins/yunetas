@@ -154,7 +154,7 @@ matters.
 
 `msg2db_id_incomplete()` tells whether the history of `id` loaded whole when
 the msg2db was opened. When it did not, the messages served of it are current,
-but a `pkey2` whose newest message could not be read is absent (see
+but a `pkey2` whose newest message was not readable is absent (see
 [`msg2db_open_db()`](<#msg2db_open_db>)).
 
 ```C
@@ -184,7 +184,7 @@ topic logs an error and answers `FALSE`.
 **Notes**
 
 It stays `TRUE` while the msg2db is open, whatever messages arrive: the
-damaged file is still on disk, and other `pkey2` of the id may still be
+damaged file is still on disk, and other `pkey2` of the id can still be
 unknown. A restart after the repair clears it.
 
 A consumer that must not take "unknown" for "none" asks it when
@@ -287,14 +287,14 @@ LAST message it loaded.
 **An id whose history does not load whole** (a md2 file of it that cannot be
 opened or read, see [`tranger2_open_list()`](<timeranger2.md#tranger2_open_list>)). The
 forward load stops before the damage, so the last message it read of a
-`pkey2` may be an OLD one. msg2db does not serve that: it loads the id again
+`pkey2` can be an OLD one. msg2db does not serve that: it loads the id again
 BACKWARD, newest first, and keeps the FIRST message of each `pkey2`. That load
 stops at the damage too, from the other side. So:
 
 - a `pkey2` whose newest message is NEWER than the damage is served, and it is
-  exactly its current message;
+  exactly its current message.
 - a `pkey2` whose newest message is in the damage (or before it) is ABSENT. Its
-  state is unknown: an older message of it may be readable, and it is not
+  state is unknown: an older message of it can be readable, and it is not
   served as current.
 
 The id is marked incomplete ([`msg2db_id_incomplete()`](<#msg2db_id_incomplete>)
@@ -326,7 +326,7 @@ append was never acknowledged. A master tranger cuts the md2 back to its
 whole rows at the open, with one WARNING, and the id loads whole: nothing
 is absent, the id is not incomplete, and its next message is stored and
 served as usual. Up to 7.25.4 the file was left out of the id's history with
-a CRITICAL, and an older message could be served as current.
+a CRITICAL, and an older message was possibly served as current.
 
 ```text
 WARNING: {..., "function": "load_first_and_last_record_md", "msgset": "Tranger",
@@ -350,7 +350,7 @@ of now. What happens to it depends on which file is damaged:
 - the damaged file is an OLDER file: the next message of a `pkey2` is stored,
   and it is served as it arrives. It is current.
 - the damaged file IS the file of the current period: tranger refuses every
-  append into a file it could not open or read
+  append into a file it was not able to open or read
   (*"Cannot append record, its file is flagged unreadable: its row would follow rows no cell counts"*),
   and `msg2db_append_message()` returns `NULL`. So NO new message of the id is
   stored or served, for every `pkey2` of it, the absent ones and the served
@@ -367,7 +367,7 @@ ERROR: {..., "function": "msg2db_open_db", "msgset": "Msg2Db",
 ```
 
 The id stays incomplete in both cases: the damaged file is still on disk, and
-other `pkey2` of it may still be unknown.
+other `pkey2` of it can still be unknown.
 
 **What it means for the alarms of `db_history`** (the msg2db consumers in the
 projects compare the triggers of a new measure with the `triggers` of
@@ -375,11 +375,11 @@ projects compare the triggers of a new measure with the `triggers` of
 was read, nothing changes. For an absent one, until its next message:
 
 - the device reports the alarm's triggers: the alarm is announced as NEW. If
-  it was already active in the message that could not be read, that is a
-  repeated notification;
+  it was already active in the message that was not readable, that is a
+  repeated notification.
 - the device reports no trigger: nothing is recorded (the `!n_new && !n_old`
-  path). If the alarm was active in the message that could not be read, its
-  end is not announced;
+  path). If the alarm was active in the message that was not readable, its
+  end is not announced.
 - the alarm is not in [`msg2db_list_messages()`](<#msg2db_list_messages>), so
   the lists of alarms do not show it.
 
@@ -397,10 +397,10 @@ read). A torn last row does not refuse anything: the master cuts it back at
 the open, as said above.
 
 Up to 7.25.4 the forward load served the OLD message as current, with nothing
-logged: a cleared alarm could come back active, or an active one be taken as
+logged: a cleared alarm possibly returned as active, or an active one possibly read as
 cleared. Now only the alarms whose state is really unknown are absent.
 Repair the key as the treedb page says
-([what the operator does](<treedb.md#treedb-topic-not-loaded-whole>)); after
+([what the operator does](<treedb.md#treedb-topic-not-loaded-whole>)). After
 the repair and a restart, the id is whole and not marked.
 
 ---

@@ -87,14 +87,14 @@ version. A **realm** is the tenant that the yuno instance runs in.
 #define APP_VERSION     "1.9.1" "-" YUNETA_VERSION     // "1.9.1-7.27.11"
 ```
 
-`YUNETA_VERSION` comes from `yuneta_version.h`, which `yunetas.h` includes.
+`YUNETA_VERSION` is defined in `yuneta_version.h`, which `yunetas.h` includes.
 So a new SDK gives every yuno a new version, even when its own code did not
 change: SDK 7.27.12 makes it `1.9.1-7.27.12`. The agent installs that version
 in a new slot, and keeps the slot of `1.9.1-7.27.11`. A snap taken before the
 upgrade can then take the yuno back to its old binary, kernel included.
 Before 7.27.11 the convention was `"1.9.1" ".0"`: a new SDK rebuilt the yuno
 with the same version, the push overwrote its slot (a `REBUILD`), and no snap
-could bring the old kernel back. The agent and the deploy tools compare a
+was able to bring the old kernel back. The agent and the deploy tools compare a
 version number by number, split at `.` and `-`. So `1.9.1-7.27.11` is older
 than `1.9.1-7.28.0`, `1.9.1-8.0.0` and `1.9.2-7.27.11`, and newer than the old
 `1.9.1.0`. Each SDK release is therefore a version bump of every project yuno
@@ -104,10 +104,10 @@ than `1.9.1-7.28.0`, `1.9.1-8.0.0` and `1.9.2-7.27.11`, and newer than the old
 orders the releases of a yuno, `<version>-<config version>`, as one list of
 numbers split at `.` and `-`, so the count of the yuno's own numbers decides
 where the SDK's land. Write `"1.0"` and `1.0-7.27.11` compares NEWER than
-`1.0.1-7.27.11` (its 7 meets the 1); write `"1.0.0"`. Since 7.27.13
+`1.0.1-7.27.11` (its 7 meets the 1). Write `"1.0.0"`. Since 7.27.13
 `install-binary` logs a WARNING for a binary whose version is neither
 `x.y.z` nor `x.y.z-a.b.c` (or the older `x.y.z.0`), and `sync-binaries` (CLI
-1.0.1) prints one; both go on with the push. The older form passes with a `0`
+1.0.1) prints one. Both go on with the push. The older form passes with a `0`
 only: up to 7.29.1 the agent let any `x.y.z.N` pass, and `1.9.1.8` compares
 NEWER than `1.9.1-7.27.11` (its 8 meets the 7).
 
@@ -144,7 +144,7 @@ distribution.
 
 **Safety nets.** Every push tool shows you a classification table, and it asks
 you before it changes anything. `-n` does a dry run: it shows the command of
-every candidate, runs none and asks nothing (since CLI 0.23.1; before, it
+every candidate, runs none and asks nothing (since CLI 0.23.1. Before, it
 asked at the end, and over ssh from a background job it waited for an answer).
 `-a` skips the questions. `upgrade-yunos` shoots a rollback **snap** before it changes anything, so one
 `activate-snap` command undoes a bad release
@@ -287,7 +287,7 @@ To make sure that the node runs the new release:
 ycommand -c 'list-yunos'      # the release column shows the new version, running=true
 ```
 
-A node coming from 7.25.5..7.25.22 keeps the tm markers it wrote; they are
+A node coming from 7.25.5..7.25.22 keeps the tm markers it wrote. They are
 ignored, and there is nothing to migrate: see
 [The tm markers of 7.25.5..7.25.22](#dy-mark-tm-order). An upgrade to 7.26.0
 has three more things to check: see [Upgrading to 7.26.0](#dy-upgrade-726).
@@ -302,19 +302,19 @@ that moves the node to the new release.
 
 `upgrade-yunos` does five operations, in this order:
 
-1. **Preview** — `find-new-yunos` lists the new yuno rows that the tool can
+1. **Preview**: `find-new-yunos` lists the new yuno rows that the tool can
    register. If the list is empty, the tool stops: it shoots no snap and
    restarts nothing.
-2. **Confirm** — the tool asks you for confirmation. `-y` skips the question.
+2. **Confirm**: the tool asks you for confirmation. `-y` skips the question.
    If you answer no, the tool stops and leaves no snap.
-3. **Rollback snap** — `shoot-snap name=pre-upgrade-<YYYYMMDD>`. The name makes
+3. **Rollback snap**: `shoot-snap name=pre-upgrade-<YYYYMMDD>`. The name makes
    the operation idempotent, and the tool uses an already-active snap again.
    `--no-snap` skips this operation. `--snap-name N` gives the snap another
    name.
-4. **Register** — `find-new-yunos create=1` writes the new yuno-instance rows,
+4. **Register**: `find-new-yunos create=1` writes the new yuno-instance rows,
    and the tool prints `N created, M already registered`. When every row of
    the preview is already registered, the tool skips `create=1`.
-5. **Promote and restart** — `deactivate-snap` starts the agent's
+5. **Promote and restart**: `deactivate-snap` starts the agent's
    `restart_nodes()`.
 
 The preview has one line for each yuno that has a newer binary or
@@ -347,7 +347,7 @@ apart, and counts them apart after `create=1`:
 1 created, 1 already registered.
 ```
 
-CLI 0.19.3 and before counted every row of the preview as created; they still
+CLI 0.19.3 and before counted every row of the preview as created. They still
 work with this agent. Get 0.19.4 with `pipx upgrade yunetas`.
 
 The snap comes after the preview, and this order is intentional. A snap tags
@@ -395,7 +395,7 @@ section of `/yuneta/agent/yuneta_agent.json` BEFORE you start the new agent
 
 See [The agent's audit files](#agent-audit-files).
 
-**If the main agent does not come back after the upgrade**, its treedb did not
+**If the main agent does not start again after the upgrade**, its treedb did not
 open: the agent now exits 0 when the schema of its treedb is refused, and it is
 not relaunched. Its log has:
 
@@ -408,10 +408,10 @@ and syslog has *"Cannot start agent treedb: ..."*. Reach the node through
 
 **The first open of each treedb reads what 7.25.4 left in `__system__`.** It
 writes a record, `saved_schemas/<treedb>.upgrade.json` under the `__system__`
-tranger; do not delete it. Expect, once per treedb:
+tranger. Do not delete it. Expect, once per treedb:
 
 - the WARNING *"Restored from the schema from C: ..."*, where a first
-  projection of 7.23.0-7.25.4 died after it wrote its stamp;
+  projection of 7.23.0-7.25.4 died after it wrote its stamp.
 - when the literal of that open is newer, the WARNING *"Removed from __system__
   what an older release left there: ..."* and, in `withdrawn_at_open`, the
   kind `left_by_older_release`, for example
@@ -462,7 +462,7 @@ back (`<file>.tm_unordered`, and `"marks_tm_unordered": true` in a topic's
 `topic_desc.json`), and the `mark-tm-order` command of `C_TRANGER` migrated an
 older topic. They are gone: a tm query (`from_tm` / `to_tm`) is a filter on
 every row of the key, whatever the topic. A store written by those releases
-keeps its markers, ignored; nothing has to be run after the upgrade.
+keeps its markers, ignored. Nothing has to be run after the upgrade.
 
 CAUTION: a **rollback to 7.25.5..7.25.22** meets topics whose
 `topic_desc.json` still says `"marks_tm_unordered": true`, and files the new
@@ -557,7 +557,7 @@ the attribute's own command (`set-max-sessions`, `set-email-user`, ...).
 ### Upgrading to 7.27.0: check the schemas of the stores first
 
 7.27.0 opens a topic already on disk that breaks a rule of a NEW topic as it
-was, and says so with an ERROR at **every** open of its treedb; a few faults
+was, and says so with an ERROR at **every** open of its treedb. A few faults
 leave the topic out, and a few refuse it with a CRITICAL (*"Cannot create topic
 of the schema"*), which exits a yuno whose `on_critical_error` exits. Before the
 upgrade, ask every store of the node what it will say, with
@@ -573,7 +573,7 @@ ssh <node> python3 - /yuneta/store < tools/treedb/check_store_schemas.py
 
 A clean store prints only `checked N schema files: 0 faults, 0 unreadable`.
 Each fault is a line with the level of what the open does and the message it
-logs; fix the schema in the code that owns it (raise its `topic_version` and
+logs. Fix the schema in the code that owns it (raise its `topic_version` and
 `schema_version`, see [`treedb_open_db()`](api/timeranger2/treedb.md#treedb_open_db))
 before the new yunos start, or accept the ERROR it names.
 
@@ -687,11 +687,11 @@ ycommand -c 'activate-snap name=pre-upgrade-<YYYYMMDD>'
 ```
 
 `activate-snap` runs the same restart cycle: it restarts the yunos whose
-launch changes (since 7.28.11; `all=1` for every yuno). With the snap active,
+launch changes (since 7.28.11, and `all=1` for every yuno). With the snap active,
 the OLD releases become primary, so the yunos that the upgrade changed go back
 to what they ran before it, and the rest keep running.
 
-The snap is a pin, and how you remove it depends on where you want to end up.
+The snap is a pin, and how you remove it depends on the state that you want at the end.
 `deactivate-snap` does NOT mean "stay here": before its reload it re-promotes
 the **highest** release of every yuno (`promote_highest_release_yunos()`), and
 while the bad release is still installed, the highest is the bad one.
@@ -769,7 +769,7 @@ Quick decoder:
 |---|---|---|
 | `BUMP` | local version > agent's | `install-binary` or `create-config`. It makes a new slot or record, and it needs a promote |
 | `REBUILD` / `UPDATE` | same version, content differs | `update-binary` (kill→write→restore) / `update-config` (in place) |
-| `INSTALLED` | new version already pushed, not yet primary | nothing — run `yunetas upgrade-yunos` |
+| `INSTALLED` | new version already pushed, not yet primary | nothing. Run `yunetas upgrade-yunos` |
 | `UP-TO-DATE` | nothing to do | skipped |
 | `DOWNGRADE` | local is OLDER than the agent's | binaries: offered but marked red. Configs: never pushed |
 | `no-build` / `agent-only` | exists on one side only | skipped (informational). A missing local build is correct. A missing agent role means [Recipe D](#dy-recipe-new-yuno) |
@@ -792,16 +792,16 @@ compared too.
 | Config pushed but behavior unchanged | A yuno reads config only at (re)start | Re-run with `-r`, or `kill-yuno` + `run-yuno` + `play-yuno` the affected ids |
 | *ERROR: '\*list-binaries' did not return JSON. Is the agent up?* | No agent listening at the url | Check the agent, or pass `-u` (remote: see the wss/OAuth2 section) |
 | `run-yuno` fails *primary binary not found* | Yuno rows registered without their binary, for example `find-new-yunos create=1` before the push | Push the binary (`yunetas sync-binaries`), then `upgrade-yunos` again |
-| Sync proposes nothing for a yuno you just built | The agent does not manage that role on this node | [Recipe D](#dy-recipe-new-yuno) — first-time onboarding is manual |
+| Sync proposes nothing for a yuno you just built | The agent does not manage that role on this node | [Recipe D](#dy-recipe-new-yuno). First-time onboarding is manual |
 
 ## Where the full detail lives
 
-- [The `yunetas` CLI](yunetas-cli.md) — every command and flag of the CLI.
+- [The `yunetas` CLI](yunetas-cli.md): every command and flag of the CLI.
 - [`sync_binaries.py`](tools/sync_binaries.md) /
-  [`sync_configs.py`](tools/sync_configs.md) — classification internals of the
+  [`sync_configs.py`](tools/sync_configs.md): classification internals of the
   wrapped scripts.
-- [Yuno lifecycle](../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md) — the agent's
+- [Yuno lifecycle](../../yunos/c/yuno_agent/YUNO_LIFECYCLE.md): the agent's
   data model, the raw `ycommand` recipes (§6), and the sharp edges (§5) this
   guide's tooling exists to protect you from.
-- [`ycommand`](utilities/ycommand.md) — the control-plane client everything
+- [`ycommand`](utilities/ycommand.md): the control-plane client everything
   here is built on.

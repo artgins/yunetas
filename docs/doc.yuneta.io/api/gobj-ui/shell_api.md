@@ -132,7 +132,7 @@ entries of the action, fires the action again, opens the overlay again, and
 takes the navigation that the user asked for. The function goes back only while
 the URL still sits on the route.
 
-When the close comes from a shell that stops, with the overlay still up (a
+When the close is caused by a shell that stops, with the overlay still up (a
 logout), the function does not go back. It writes the resting route under the
 overlay over the URL in place, with `history.replaceState()`. A `back()` is
 asynchronous, and the stopped shell never hears where it lands. Up to gobj-ui
@@ -231,7 +231,7 @@ Dead entries below an entry of the reader are removed when a Back of the
 reader lands on them (since gobj-ui 7.26.51). This occurs when the reader
 moves while the login page is shown. The shell continues the Back with one
 `history.go(-n)` to the first live entry below them. A Forward onto them
-continues to the first live entry above them; when there is none, the shell
+continues to the first live entry above them. When there is none, the shell
 does not move. The shell gets the direction from the `currententrychange`
 event of the Navigation API. Thus the shell can move the history by itself:
 at its start, and after a Back or a Forward of the reader. An application with
@@ -417,7 +417,7 @@ Changes the icon of an item of the toolbar.
 Writes a badge on an item of the toolbar, such as a count of messages. `0`,
 `""` and `null` hide it, over 99 reads `99+`. The optional `tone` (since
 gobj-ui 7.26.30) is one of `danger` (the default look), `warning`, `info`,
-`success`, `primary` or `link`; an unknown one is logged and drawn with the
+`success`, `primary` or `link`. An unknown one is logged and drawn with the
 default look.
 
 ```js
@@ -432,7 +432,7 @@ yui_shell_set_toolbar_item_badge(shell, "alarms", 0);     // hidden
 The twin of the toolbar's, for an entry of a menu: of `app_config.json`, of a
 submenu, or one given to `yui_shell_set_submenu()`. It reaches every nav that
 draws the entry (a rail on a desktop and an icon bar on a phone draw it twice)
-and is kept across their rebuilds; from then on it wins over the item's own
+and is kept across their rebuilds. From then on it wins over the item's own
 `badge`, which only seeds the first paint. An id no menu declares is a silent
 no-op. Since gobj-ui 7.26.30.
 

@@ -25,7 +25,7 @@ const command_table = [
 [`gobj_command()`](events.md#js_gobj_command) hands the command and its `kw`,
 unchanged, to the first of these that the gclass has:
 
-1. its own `mt_command_parser` method;
+1. its own `mt_command_parser` method.
 2. when the gclass has a command table, the global parser given to
    [`gobj_start_up()`](bootstrap.md#js_gobj_start_up)
    (`global_command_parser_fn`).

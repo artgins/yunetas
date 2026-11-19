@@ -78,7 +78,7 @@ If the `gobj` is a Yuno, it is stored as the global Yuno instance.
 The function checks for required attributes and applies global configuration variables.
 If the `gobj` has a [`mt_create2`](#mt_create2) method, it is called with the provided attributes.
 
-If the `gobj` has a parent, it is added to the parent's child list. A parent that is being destroyed is refused, with an ERROR (*"Cannot create a child of a gobj that is being destroyed"*), and the answer is `NULL` (7.27.0): its children are being destroyed or are gone, so the new one would be freed with it, or never destroyed. It is what a child's `mt_stop` or `mt_destroy` meets when it creates a sibling while its parent is destroyed:
+If the `gobj` has a parent, it is added to the parent's child list. A parent that the kernel is destroying is refused, with an ERROR (*"Cannot create a child of a gobj that is being destroyed"*), and the answer is `NULL` (7.27.0): its children are in destruction or are gone, so a new child, if created, is freed with it, or never destroyed. It is what a child's `mt_stop` or `mt_destroy` meets when it creates a sibling while its parent is destroyed:
 
 ```C
 PRIVATE int mt_stop(hgobj gobj)
@@ -317,7 +317,7 @@ This function does not return a value.
 - That pause and that stop are watched: a stop that publishes `EV_STOPPED` at
   once (a `C_TCP` with nothing in flight) lets its host destroy the gobj in
   there, the whole destroy. Then `gobj_destroy()` returns, with nothing left
-  to do and nothing of the gobj read (7.27.0; up to 7.26.9 it went on with
+  to do and nothing of the gobj read (7.27.0, and up to 7.26.9 it went on with
   the freed gobj). The caller must not touch the gobj after `gobj_destroy()`
   in any case.
 - Its children are destroyed one by one, watched the same way: when the
@@ -349,7 +349,7 @@ logs an ERROR with a stack, and destroys all the same:
 
 - *"Destroying a gobj while its tree is publishing"*: a subscriber destroyed
   the publisher, or one of its ancestors, inside the publication
-  (`C_TIMER` reads its own data right after it publishes `EV_TIMEOUT`);
+  (`C_TIMER` reads its own data right after it publishes `EV_TIMEOUT`).
 - *"Destroying a gobj while one of its actions is still running"*: an inner
   dispatch destroyed a gobj that an outer action, or framework method, of it
   is still running on (a `C_TASK` whose result arrived inside the job's
@@ -362,14 +362,14 @@ every live frame of the subtree except
 
 - the innermost one: it is the code that destroys, and knows it. A gobj that
   destroys itself in its own action, at the end of its work, with nothing of
-  it further up the stack, is legal;
+  it further up the stack, is legal.
 - the `EV_STOPPED` publication of a gobj, and the frames of that gobj it runs
   inside of (the `mt_stop` or the action that published it, an outer
   publication of it). By the stop contract it is the last thing a gobj does
   with itself, its host destroys it there (`C_TCP`, `C_UDP_S`, `C_PTY`), and
   the code it returns to returns at once. NOT a frame of that gobj that began
   inside its `EV_STOPPED` (an action its host sends it from there): it does
-  not know, and it is an ERROR;
+  not know, and it is an ERROR.
 - the kernel's own watch frames (the walks of the tree, and the pause and
   stop inside `gobj_destroy()`), which run no gclass code.
 
@@ -448,7 +448,7 @@ This function does not return a value.
 
 **Notes**
 
-Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a child is already destroyed or in the process of being destroyed, an error is logged. The destroy of one child may destroy others (its stop, for a running one): the walk goes on from the first child left after it. It destroys the children `gobj` has when it begins: a child created while it runs (a host that renews its transport in the transport's `EV_STOPPED`) lives on, as `gobj` does (7.27.0).
+Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a child is already destroyed or in the process of being destroyed, an error is logged. The destroy of one child can destroy others (its stop, for a running one): the walk goes on from the first child left after it. It destroys the children `gobj` has when it begins: a child created while it runs (a host that renews its transport in the transport's `EV_STOPPED`) lives on, as `gobj` does (7.27.0).
 
 ```C
 gobj_destroy_children(host);    // the old children are gone; what host's
@@ -507,7 +507,7 @@ int gobj_destroy_named_children(
 
 **Returns**
 
-Returns `0` on success, or `-1` with an ERROR if `gobj` is `NULL`, or `name` is `NULL` or empty (7.27.0; up to 7.26.9 a `NULL` name crashed).
+Returns `0` on success, or `-1` with an ERROR if `gobj` is `NULL`, or `name` is `NULL` or empty (7.27.0, and up to 7.26.9 a `NULL` name crashed).
 
 **Notes**
 

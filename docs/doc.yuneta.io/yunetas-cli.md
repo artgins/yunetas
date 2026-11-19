@@ -205,7 +205,7 @@ A config is applied in one of two ways:
 - **New version** (`BUMP`): a yuno runs the config version of its own row, and
   only `find-new-yunos create=1` + `deactivate-snap` change that row. A restart
   does not apply a `BUMP`, so `-r` does not restart these yunos. Run
-  `yunetas upgrade-yunos` (since CLI 0.22.0; before, `-r` restarted the yuno
+  `yunetas upgrade-yunos` (since CLI 0.22.0. Before, `-r` restarted the yuno
   on the old version).
 
 ### Start priorities
@@ -253,8 +253,8 @@ yunetas restart-agents        # ask, then restart
    main agent does not come up, so a failure leaves it alone.
 
 When the spare does not run, the command refuses to restart the main agent
-and exits 1 (since CLI 0.23.3): if the main agent then did not come up, the
-node would have no agent at all. Start the spare first, or say that you
+and exits 1 (since CLI 0.23.3): if the main agent then does not start, the
+node has no agent at all. Start the spare first, or say that you
 accept the risk:
 
 ```bash
@@ -263,7 +263,7 @@ yunetas restart-agents --without-spare   # restart the main agent alone
 
 An agent restarted outside its unit does not inherit the operator's
 credentials (`YUNETA_OAUTH_PASSW`, `YUNETA_OAUTH_CLIENT_SECRET`,
-`YUNETA_OAUTH_JWT`): they would stay in the agent and in every yuno it
+`YUNETA_OAUTH_JWT`). Otherwise they stay in the agent and in every yuno it
 launches.
 
 An agent that runs in its systemd unit is restarted with `sudo -n systemctl
@@ -274,7 +274,7 @@ running" and leaves the old one. Run the command as the user that owns the
 agents.
 
 The restart is never automatic after a build. The release suite builds on a
-node in a worktree of its own, and an automatic restart would load that build
+node in a worktree of its own, and an automatic restart then loads that build
 into the node's agents.
 
 (cli-deploy-targets)=
@@ -311,7 +311,7 @@ token.
 A credential that a yuno needs, such as the SMTP password of an emailsender,
 goes in its config file like any other value, and `sync-configs` pushes the file
 as it is. (CLI 0.16.0-0.19.x kept such values out of the file, as
-`"__SECRET__"` placeholders filled from `~/.yuneta/secrets/<node>/`; 0.20.0
+`"__SECRET__"` placeholders filled from `~/.yuneta/secrets/<node>/`. 0.20.0
 removed that: a push from anything but `sync-configs` registered the
 placeholder itself.)
 

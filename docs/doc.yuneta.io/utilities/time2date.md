@@ -12,7 +12,7 @@ time2date [TIME_T]            # no arg => current time; also accepts a date stri
 
 | Option | Purpose |
 |--------|---------|
-| `[TIME_T]` | Epoch seconds as a JSON integer (`1792573200`, `0`, `-5`), or a date with a `T` (`2026-10-01T10:00:00Z`); optional positional, now when absent |
+| `[TIME_T]` | Epoch seconds as a JSON integer (`1792573200`, `0`, `-5`), or a date with a `T` (`2026-10-01T10:00:00Z`). Optional positional, now when absent |
 | `--TZ` / `-z` | Time zone for the conversion |
 | `--miliseconds` / `-m` | Treat the input as milliseconds |
 
@@ -35,7 +35,7 @@ A refusal prints no answer and exits with code -1 (255 in the shell):
   `time2date 2026-10-01Tgarbage` prints
   *"TIME_T refused, a text that is no date: '2026-10-01Tgarbage'"*. Up to
   7.30.14 it printed the epoch (1970) with exit code 0.
-- A zone that libc will not read (`-z Nowhere/Zone`, `-z zone.tab`; see
+- A zone that libc will not read (`-z Nowhere/Zone`, `-z zone.tab`, and see
   [`gmtime2timezone()`](<#gmtime2timezone>)): the ERROR *"Unknown time zone:
   taken as UTC"* is printed once on stdout. Up to 7.30.14 the ERROR went
   nowhere, and the time was printed in UTC with the name of that zone, exit
@@ -49,7 +49,7 @@ A refusal prints no answer and exits with code -1 (255 in the shell):
   1970 with exit code 0, `007` was octal (7) and `0x10` hex (16).
 
 A time before the epoch is a negative number, written after `--` so that it
-is not taken as an option; with `-m` it is divided as a signed number (up to
+is not taken as an option. With `-m`, it is divided as a signed number (up to
 7.30.14 as an unsigned one):
 
 ```bash

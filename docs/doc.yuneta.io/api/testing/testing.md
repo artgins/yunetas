@@ -67,7 +67,7 @@ None.
 
 **Returns**
 
-Returns `0` if the soft limit is now the hard limit. Returns `-1` if `getrlimit()` or `setrlimit()` fails; the error is printed.
+Returns `0` if the soft limit is now the hard limit. Returns `-1` if `getrlimit()` or `setrlimit()` fails. The error is printed.
 
 **Notes**
 
@@ -126,7 +126,7 @@ If `verbose` is enabled, the function prints the test name to the console.
 The function initializes `expected_log_messages`, `unexpected_log_messages`, and `expected` as JSON arrays if they are not provided.
 
 An entry matches the keys it names. The captured log also carries its
-priority as `"__priority__"` (`"ERROR"`, `"WARNING"`, ...; since SDK 7.27.0),
+priority as `"__priority__"` (`"ERROR"`, `"WARNING"`, ..., since SDK 7.27.0),
 so an entry can assert the severity: `{"msg": "Cannot link self node",
 "__priority__": "WARNING"}` fails on the same message logged as an ERROR. An
 entry without it matches any priority.
@@ -167,7 +167,7 @@ The same as [`set_expected_results()`](#set_expected_results).
 | | `set_expected_results()` | `set_expected_results_unordered()` |
 |---|---|---|
 | A captured log matches | the HEAD of the list | ANY entry of the list |
-| A match | consumes the entry | leaves it, so the message may repeat |
+| A match | consumes the entry | leaves it, so the message can repeat |
 | Every entry must be matched | exactly as many times as listed | at least once |
 | A log matching no entry | fails the test | fails the test |
 
@@ -187,7 +187,7 @@ independently, and the driver calls `set_yuno_must_die()` from inside one
 side's close callback, which logs `"Exit to die"` synchronously and shuts the
 yuno down. The other side's last log is swallowed, or is not, depending on
 whether the two close completions land in the same io_uring batch. The
-**count** moved and not only the order, so no ordered list could be right — and
+**count** moved and not only the order, so no ordered list can be right, and
 the test failed on a busy box naming a message that was perfectly correct.
 
 ```C
@@ -291,7 +291,7 @@ Calls `check_log_result()` to validate log messages.
 
 ⚠️ **`jn_found` is OWNED, so a BORROWED pointer must be increfed at the call.**
 `json_array_get()`, `kw_get_dict()`, `treedb_get_node()` and friends answer a
-pointer they still own; handing one straight to `test_json()` spends a reference
+pointer they still own. Handing one straight to `test_json()` spends a reference
 that was never given, and the next `json_decref()` of the container frees the
 same block twice. Three bench tests died of exactly this — with heap corruption
 surfacing somewhere else entirely — because they were written before this

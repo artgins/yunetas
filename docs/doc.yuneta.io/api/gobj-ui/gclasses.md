@@ -30,7 +30,7 @@ toolbar, the menus and the zones. Its API is in [The shell](shell_api.md).
 
 **A view that the shell shows again gets `EV_VIEW_SHOWN`** (gobj-ui 7.27.21).
 The shell keeps a `keep_alive` view when you go to another route, and shows the
-same view when you come back. The view keeps its state, but it also keeps the
+same view when you return. The view keeps its state, but it also keeps the
 data that it read when the shell created it. A view that reads its data only
 then declares `EV_VIEW_SHOWN`, and reads the data again in that action. The
 shell sends the event after `EV_ROUTE_CHANGED`, and only to a view that declares
@@ -164,7 +164,7 @@ itself.
 
 The build stamp is the `<meta name="yuneta-build">` that `yunetaHtmlPlugin`
 writes into `index.html` at build time. The service asks the server at start,
-when the tab or the window comes back to the front, when the browser is online
+when the tab or the window returns to the front, when the browser is online
 again, when a lazy chunk does not load, every hour, and when it gets
 `EV_CHECK_BUILD`. Create it one time, outside the shell, and send it
 `EV_CHECK_BUILD` when the backend connection opens:
@@ -274,7 +274,7 @@ empty and failed when the reader confirmed the value.
 
 The cell shows the time as text in the language of the application, with a
 clock of 24 hours (since gobj-ui 7.26.52). It is the same text that the cells
-of `C_YUI_TREEDB_TOPIC_WITH_FORM` show, and it comes from
+of `C_YUI_TREEDB_TOPIC_WITH_FORM` show, and it is made by
 [`fmt_date_time()`](time.md#js_fmt_date_time):
 
 ```text
@@ -285,14 +285,14 @@ en    Mar 14, 2026, 09:26:53
 When the language changes, the form writes the time cells of each table again,
 cell by cell. It does not draw the rows again, because a row that is drawn again
 builds its nested tables again, empty. A cell with an open editor is not
-changed; when the editor closes, the cell shows the new language. From gobj-ui
-7.26.47 to 7.26.51 the cell showed `2026-03-14 09:26:53`; before, the raw
+changed. When the editor closes, the cell shows the new language. From gobj-ui
+7.26.47 to 7.26.51 the cell showed `2026-03-14 09:26:53`. Before, it showed the raw
 epoch.
 
 A date with one part cleared is not a value (since gobj-ui 7.26.47). Enter keeps
 the editor open, with a red outline and `aria-invalid`, until the date is
 complete or the reader presses Escape. When the reader leaves the cell, the
-edit is cancelled and the cell keeps its time. Before, one Backspace and Enter
+edit is canceled and the cell keeps its time. Before, one Backspace and Enter
 erased the stored time. To clear a time, clear all the parts of the box: an
 empty box writes `null`. When the last part is clear, the box is valid again
 and `aria-invalid` goes (since gobj-ui 7.26.49). In the box, the Left and Right
@@ -305,9 +305,9 @@ hour (since gobj-ui 7.26.49). The browser writes `2026-10-25T02:30:00` back as
 two times in autumn the form wrote the earlier hour: -3600 s.
 
 The time field of the form reads and writes a column as the cell editor does
-(since gobj-ui 7.26.47). A column with no time shows an empty box; before, the
+(since gobj-ui 7.26.47). A column with no time shows an empty box. Before, the
 field showed January 1970 and a save wrote `0`. A `string` column is read and
-written as ISO text; before, the field read it as a number and wrote an epoch.
+written as ISO text. Before, the field read it as a number and wrote an epoch.
 A template field with no real type is an epoch (since gobj-ui 7.26.49). In
 7.26.47 and 7.26.48 the field showed no time and a save wrote `null`:
 
@@ -349,7 +349,7 @@ if(kw.abort_close) {
 ```
 
 The tables of a form select no rows. To select rows with a click, set
-`selectableRows` in `tabulator_settings`; the attribute `selectable` (`true`
+`selectableRows` in `tabulator_settings`. The attribute `selectable` (`true`
 by default) then says whether a click selects. Before gobj-ui 7.26.45 a click
 selected nothing with `selectableRows: true`, and selected a row with
 `selectable: false`.
@@ -365,11 +365,11 @@ The checkbox column (`with_checkbox`) also obeys `selectable`. When the form is
 not selectable, the column is hidden (gobj-ui 7.26.46): the row checkbox of
 Tabulator shows a tick even when the selection is refused, and the header
 checkbox selects all rows without a check. The column follows each write of
-`selectable`, in every table (since gobj-ui 7.26.47; in 7.26.46 the value at
+`selectable`, in every table (since gobj-ui 7.26.47, but in 7.26.46 the value at
 the build of the table stayed). When `selectable` becomes `false`, the selected
 rows are deselected (since gobj-ui 7.26.49). Before, they stayed selected, and
 the reader had no checkbox and no click to remove the selection. The header checkbox is named "select all
-rows" and a row checkbox "select row"; both change language with the form. A
+rows" and a row checkbox "select row". Both change language with the form. A
 click in a nested table selects only in that table.
 
 ```js
@@ -440,7 +440,7 @@ container key to the card of that container.
   the same edge again, or click the canvas, to put it out. A fold that removes
   the child card, or a new document, also puts it out.
 - **The minimap** shows when the graph has `minimap_min_nodes` cards or more
-  (default `10`; `0` = never).
+  (default `10`, and `0` = never).
 - **Fit** zooms out to 2%, so a large document fits on the screen.
 
 For example, a host that wants the minimap only for large documents:
@@ -773,9 +773,9 @@ state and one edge per event that moves between two of them. It is what
 
 The axes and the grid take the ink of the theme, light or dark, and the chart
 draws them again when the theme changes. uPlot always draws an X axis and a Y
-axis; the chart inks both, also when the `axes` attribute gives only one (its
+axis. The chart inks both, also when the `axes` attribute gives only one (its
 default `[{}]`). Before gobj-ui 7.26.40 the Y axis kept the black of uPlot, and
-its values could not be read on the dark scheme. Since 7.28.1 every Y axis
+its values were not readable on the dark scheme. Since 7.28.1 every Y axis
 the host did not size is as wide as its longest label
 (`yui_uplot_axis_size()`): uPlot gives it a fixed 50px, which cut every value
 past five digits (`150,000` drawn as `,0,000`). To keep a fixed width, give
@@ -800,7 +800,7 @@ application, with a clock of 24 hours (since gobj-ui 7.26.52). uPlot writes them
 from its own templates, in English and with 12 hours: `3pm` and `10/14` on the
 axis, `2026-10-14 3:05pm` in the legend. The chart gives uPlot the option
 `fmtDate` from `yui_uplot_fmt_date()` (`src/yui_uplot_time.js`): the axis shows
-`15:00`, and `14/10` in Spanish; the legend shows the text of
+`15:00`, and `14/10` in Spanish. The legend shows the text of
 [`fmt_date_time()`](time.md#js_fmt_date_time). When the language changes, the chart
 draws the axes and the legend again. A uPlot of the application takes the same
 option:

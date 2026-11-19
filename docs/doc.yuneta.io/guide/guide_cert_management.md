@@ -127,9 +127,9 @@ not firing.
 | `cert_sync_copy_cmd` | `sudo -n /yuneta/store/certs/copy-certs.sh` | config only | Privileged copy command, run with `sh -c`, with no signal blocked |
 
 The command and its directory are set in the agent's configuration only, never
-at run time: up to 7.25.21 `write-attr` could set the command the agent runs
+at run time. Up to 7.25.21, `write-attr` was able to set the command the agent runs
 with `system()` (as root, through `sudo`), and persist it. A value persisted
-then is no longer read; set it in `/yuneta/agent/yuneta_agent.json`:
+then is no longer read. Set it in `/yuneta/agent/yuneta_agent.json`:
 
 ```json
 {

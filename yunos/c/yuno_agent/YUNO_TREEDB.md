@@ -136,7 +136,7 @@ O(1) — multiply by 32, seek the `.md2`, read offset+size, seek the
 `.json`. Lookup by time range is O(N) over `.md2` records, which is
 still fast, because each record is 32 bytes.
 
-**A file's time range comes from its first and last rows**, read at load, and
+**A file's time range is taken from its first and last rows**, read at load, and
 that is right only while the file is in time order. A record appended with a
 `__t__` below what its file already holds (a late record: `append-record
 __t__=`, a migration, a clock stepping back) breaks that, so the master drops
@@ -213,7 +213,7 @@ typedef struct {
 The two dead flags are reachable since 7.21.0, when `tranger2_str2system_flag()`
 started mapping each name to its own bit (before, every name landed on the bit
 of the one before it). Do not declare them: the bit is persisted, and the day
-the branch is written it would apply to a store written plain.
+the branch is written, it can apply to a store written plain.
 
 Persisted in `topic_desc.json` at create time ([`timeranger2.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/timeranger2.c))
 and loaded on open.
@@ -299,7 +299,7 @@ Exactly one process owns a store for writing:
   `tranger2_open_rt_disk` so the master can push updates to them via
   hardlinks in the `disks/<rt_id>/` directory.
 
-**The role comes from the configuration, not from a start-up race.** The
+**The role is set by the configuration, not by a start-up race.** The
 `master` attr of the yuno's config goes directly to
 [`tranger2_startup`](#tranger2_startup), and **only a yuno configured as master
 opens `__timeranger2__.json` in exclusive mode**
@@ -365,14 +365,14 @@ treedb, `tranger2_append_record`'s own "NO master" guard was never reached
 (a non-master treedb does not attempt the append), nothing was logged, and the
 row was gone at the next reload. An editor showed a saved record that was
 already lost. The check runs **before** the authz check on purpose: on a replica
-nobody can write, whoever they are, and a `-403` would send an operator looking
-for a permission that would not help.
+nobody can write, whoever they are. If the authz check ran first, a `-403` sends an operator to look
+for a permission that does not help.
 
 **From C too, before anything moves.** `gobj_update_node()` (except a
 `volatil` one, which writes memory only), `gobj_link_nodes()`,
 `gobj_unlink_nodes()` and `gobj_delete_node()` on a replica return `NULL` /
 `-1` and log *"Cannot write a node / link nodes / unlink nodes / delete a node
-on a READ-ONLY replica"*; `gobj_create_node()` is refused by
+on a READ-ONLY replica"*. `gobj_create_node()` is refused by
 `treedb_create_node()` itself. In 7.25.4 link, unlink and a forced
 delete moved the links in MEMORY first and met the refused save last: the
 caller got `-1` and the replica's memory said what its disk did not.
@@ -408,9 +408,9 @@ non-masters a consistent view at the point the directory was wired.
 
 What timeranger2 lends to it is one field: the md2 `user_flag` of a record,
 which the treedb layer uses as the snap's **tag**. Only `shoot-snap` writes
-it, in place, and a record is tagged once. **The whole behaviour — what a
+it, in place, and a record is tagged once. **The whole behavior (what a
 snap writes, what an activated snap reads, what happens to writes made
-meanwhile, and what a snap protects from a delete — is §3.9.**
+meanwhile, and what a snap protects from a delete) is §3.9.**
 
 ### 2.9 The delete-record story
 
@@ -540,9 +540,9 @@ Six things to notice:
    primary's pkey2 value holds the SAME node object as the primary index,
    so a pkey2 lookup of that value answers the primary (C_NODE's delete of
    a node relies on it). [`treedb_save_node()`](#treedb_save_node) points
-   the slot again on every runtime save (since dbf532ec9; before, a runtime
+   the slot again on every runtime save (since dbf532ec9. Before, a runtime
    `update-node` was invisible through `list_instances` until the next
-   reload -- the bug behind `list-binaries` showing a stale binary right
+   reload: that was the bug behind `list-binaries` showing a stale binary right
    after `update-binary`). **The load keeps it too since 7.25.5**: up to
    7.25.4 it built that slot from its own record, a second object with no
    links, until the first save of the primary re-pointed it. An update
@@ -552,12 +552,12 @@ Six things to notice:
    instance pointer held freed memory. **A save keeps it since 7.25.5
    too**: a node whose pkey2 value was changed in place (an update refuses
    it) is refused by `treedb_save_node()` while another slot of its key
-   holds it -- the record would be a new instance on disk, and changed onto
+   holds it. Otherwise, the record is a new instance on disk, and before, when it was changed onto
    the value of the primary, the save re-pointed the primary's slot to it.
    And a create indexes the value its record holds (a column's `default`),
    not the raw value of its kw. **Two more cases keep it after 7.25.4**:
    with more than one pkey2, a save of an instance no longer takes a slot
-   the primary holds (the values they share); and a create that makes the
+   the primary holds (the values they share). Also, a create that makes the
    primary of a key that had instances and no primary -- what a snap active
    shows of a key created after it: the id index holds what the snap tagged,
    the secondary indexes are not filtered -- takes the slot of its value,
@@ -698,7 +698,7 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `persistent` | Written through to timeranger2 on save.                                 |
 | `required`   | Cannot be null at creation.                                             |
 | `notnull`    | Cannot be null ever.                                                    |
-| `hook`       | Parent → children link. In-memory only (rebuilt on load from children's fkeys). Never on the same column as `fkey`: the schema is refused. A link that would hang a node from its own descendant through the SAME hook is refused (a tree is a tree); a cycle through two different hooks is accepted. |
+| `hook`       | Parent → children link. In-memory only (rebuilt on load from children's fkeys). Never on the same column as `fkey`: the schema is refused. A link that hangs a node from its own descendant through the SAME hook is refused (a tree is a tree), but a cycle through two different hooks is accepted. |
 | `fkey`       | Child → parent reference. Persisted. Encoded as `topic^parent_id^hook_name`. A node that is also a parent carries its hook in ANOTHER column. |
 | `uuid`       | On the `id` column: a create that sends no `id` gets a random UUID.     |
 | `rowid`      | On the `id` column: a create that sends no `id` gets one past every id the topic ever handed out. Never reused. |
@@ -706,12 +706,12 @@ Flags (parsed by [`kw_has_word`](#kw_has_word) throughout [`tr_treedb.c`](https:
 | `password`   | Treated as opaque secret on inspection.                                 |
 | `email`/`url`/`enum`/`wild` | Semantic types, mostly informational.                    |
 | `inherit`    | Inherits a value from a related node.                                   |
-| `time`/`now` | The column holds an instant (an integer epoch). `now` means the CLOCK writes it, whatever the kw says, on EVERY write — the create and every update, `writable` or not, persistent or volatile: *when this record was last written*. A `time` column WITHOUT `now` gets the clock at the create when the kw brings no value, and an update leaves it alone: *when this record was born*. (7.24.0 stamped a `now` column on an update only if it was `writable`; since after 7.24.1 `writable` plays no part.) |
+| `time`/`now` | The column holds an instant (an integer epoch). `now` means the CLOCK writes it, whatever the kw says, on EVERY write — the create and every update, `writable` or not, persistent or volatile: *when this record was last written*. A `time` column WITHOUT `now` gets the clock at the create when the kw brings no value, and an update leaves it alone: *when this record was born*. (7.24.0 stamped a `now` column on an update only if it was `writable`. Since after 7.24.1, `writable` plays no part.) |
 
 Absence of `persistent` + absence of `hook`/`fkey` means **volatile** —
 in-memory only.
 
-The whole vocabulary a column may carry is the `enum` of the `flag` column of
+The whole vocabulary a column can carry is the `enum` of the `flag` column of
 `treedb_system_schema.c`, and a flag outside it is refused: `persistent`,
 `required`, `notnull`, `wild`, `inherit`, `readable`, `writable`, `hidden`,
 `stats`, `rstats`, `pstats`, `hook`, `fkey`, `enum`, `template`, `uuid`,
@@ -836,7 +836,7 @@ The fix:
 
 One change does NOT wait for the bump: a schema whose columns are the same
 and say the same things, in a different **order**. The freeze exists so that a
-change to what a column declares cannot arrive unannounced; an order declares
+change to what a column declares cannot arrive unannounced. An order declares
 nothing new, so `tranger2_create_topic()` rewrites the file for it (§3.11).
 
 **A column's description is never changed in place** (7.28.0+). treedb
@@ -941,7 +941,7 @@ A refused write returns NULL (`-1` for links), and `cmd_create_node` /
 `mt_update_node` dropped the return of `treedb_update_node` and answered the
 collapsed view of the unchanged node — a refused update read as a success.
 
-**Who may run each command.** `C_NODE` asks a permission inside every command
+**Who can run each command.** `C_NODE` asks a permission inside every command
 that reads or writes the treedb, with or without the global
 `enable_command_authz` gate. The permission is the name of a role's
 `permission` (or `*`), on the treedb's service. It matters only in a yuno
@@ -974,7 +974,7 @@ ycommand -S treedb_yuneta_agent -c "schema-file"
 `update-node` with `options.create=1` is the upsert the SPAs create with. It
 asks for `update`, plus `create` when the node does not exist yet. A refusal
 answers `-403 No permission to '<permission>' in service '<treedb>'`, and
-nothing is written. Until 2026-09-15 only `nodes` and the node writes asked;
+nothing is written. Until 2026-09-15 only `nodes` and the node writes asked.
 `node`, `link-nodes`, `import-db` and the snaps answered anyone.
 
 A read-only role for one treedb, in that yuno's `treedb_authzs`:
@@ -986,7 +986,7 @@ ycommand -c 'command-yuno id=<yuno> service=treedb_authzs command=create-node to
 ### 3.7 The link/unlink-saves-child rule
 
 **A link writes the CHILD, never the parent**, and it writes only when the
-child actually moved.
+child moved.
 
 The persistent half of a relationship is the child's `fkey` field. The
 parent's `hook` is in memory and is rebuilt on the next load by scanning the
@@ -1048,7 +1048,7 @@ and the watchers.
 ### 3.9 Snapshots (treedb-level)
 
 A snap is a **photo of an instant**, and it is never written into. This
-section is the whole behaviour, as it was walked step by step on a node in
+section is the whole behavior, as it was walked step by step on a node in
 September 2026.
 
 ```c
@@ -1070,16 +1070,16 @@ A snap is a row of the `__snaps__` topic. Its `id` is the tag, a number
 handed out by the `rowid` flag. `shoot-snap` stamps that number on the md2
 `user_flag` of the **current primary record of every key**, in place:
 
-- one record per key, not one per instance: the record that is live at the
-  shot;
-- the meta-topics are skipped — **except `__graphs__`**, which holds how the
+- One record per key, not one per instance: the record that is live at the
+  shot.
+- The meta-topics are skipped, **except `__graphs__`**, which holds how the
   treedb was ARRANGED and is as much what the store looked like as the
   records are, so the photo carries it (see the table below). `__snaps__`
   cannot tag itself, `__assets__` is held by a snap another way
   (`assets_held_by_snaps()` walks the links of the records the snap froze,
   because its blobs are shared by every treedb of the tranger), and
-  `__icons__` is not part of the photo: an icon is how a record looks;
-- a record an earlier snap already tagged cannot take a second tag
+  `__icons__` is not part of the photo: an icon is how a record looks.
+- A record an earlier snap already tagged cannot take a second tag
   (`user_flag` is one `uint16_t`), so that one is **cloned**: the clone is
   appended with the new tag and becomes the newest record of the node. When
   another instance of the key wrote a newer record (a new instance, the
@@ -1094,10 +1094,10 @@ handed out by the `rowid` flag. `shoot-snap` stamps that number on the md2
 **Only `shoot-snap` tags a record, and a record is tagged once.** A save
 never gives a tag, active snap or not. Two earlier rules broke this and are
 gone: a save that inherited the tag the node carried in memory (so the
-latest snap followed every later update and froze nothing; until 7.22.x), and
+latest snap followed every later update and froze nothing, until 7.22.x), and
 a save that took the tag of the ACTIVATED snap (so a binary installed during a
-rollback became part of the photo, which then held two records of one key;
-7.23.x). Since 7.24.0 a save is always untagged.
+rollback became part of the photo, which then held two records of one key,
+in 7.23.x). Since 7.24.0 a save is always untagged.
 
 #### What an activated snap reads
 
@@ -1106,7 +1106,7 @@ Activating a snap is a **filtered load**, and it filters ONE index:
 | Index | With no snap | With snap S activated |
 |---|---|---|
 | primary (`id`) | the newest record of each key | the newest record of each key **tagged S** |
-| secondary (`pkey2`) | the newest record of each `(id, pkey2 value)` | the slot of the primary's own value: the primary, the record **tagged S**; every other value: its newest record, whatever its tag |
+| secondary (`pkey2`) | the newest record of each `(id, pkey2 value)` | the slot of the primary's own value: the primary, the record **tagged S**. Every other value: its newest record, whatever its tag |
 | `__graphs__` | the newest layout of each topic | the layout of each topic **tagged S** |
 
 The slot of the primary's own value is the one exception to "not filtered"
@@ -1130,13 +1130,13 @@ That difference is not a leak, it is **the feature**. Keeping different
 versions of a thing and going back and forward between them needs both
 halves: the primary index puts the node (and, for the agent, the release it
 launches) back to the photo, while the secondary indexes keep every version
-installed since, so nothing is lost while the photo is being looked at.
+installed since, so nothing is lost while somebody looks at the photo.
 
 A snap shot before anything was arranged holds no layout, so activating it
-leaves `__graphs__` empty and the graph comes back to the automatic layout —
+leaves `__graphs__` empty and the graph returns to the automatic layout,
 which is what that photo looked like. **A snap shot by a version that did
 not tag `__graphs__` behaves the same way**: its records are right and its
-arrangement is simply not in it. Shoot a new one to have both.
+arrangement is not in it. Shoot a new one to have both.
 
 An activation changes no record: it sets `active` on the `__snaps__` row and
 the **reload** rebuilds the indexes. In the agent, `deactivate-snap` is what
@@ -1146,11 +1146,11 @@ performs that reload for every yuno (`restart_nodes()`).
 
 It is allowed, and what is written carries tag 0. So:
 
-- the photo does not change, however much is written;
-- what is written does NOT show in the primary index while the snap is
+- The photo does not change, however much is written.
+- What is written does NOT show in the primary index while the snap is
   active (the load keeps only the records tagged S) and joins it at the
-  next reload after the deactivation;
-- it does show at once in the secondary indexes, which do not filter.
+  next reload after the deactivation.
+- It does show at once in the secondary indexes, which do not filter.
 
 An install made during a rollback therefore lands on the node without
 touching the snap it was rolled back to.
@@ -1191,7 +1191,7 @@ any more. That is the whole of "ignoring".
 Three things follow, and they are the ones that surprise:
 
 **It is per key, not per store.** The activation does not put the treedb into
-a past state; it makes the past the thing you WRITE FROM. A node you never
+a past state. It makes the past the thing you WRITE FROM. A node you never
 touch keeps the record written after the shot as its newest one, so the
 deactivation brings it back exactly as it was, post-shot content included.
 Only what you edit is carried back.
@@ -1209,7 +1209,7 @@ already have that id.)
 guards of §3.9 refuse to take a record a snap holds, but a node born after the
 shot is held by no snap: the delete goes through, erases the key, and the
 deactivation does not bring it back. Everything else inside a snap is
-additive; this one is not.
+additive, but this one is not.
 
 | From inside an activated snap | What it does to what came after |
 |---|---|
@@ -1220,9 +1220,9 @@ additive; this one is not.
 | shoot-snap | **refused** (since 7.25.0): *"Cannot shoot a snap while snap 'S' is active: deactivate it first"* |
 
 **No shot from inside a snap.** With S active the primary index holds S's
-records, all of them tagged, so a shot would have to CLONE every key (a record
-takes one tag) — and the clone, being the newest record of its key, becomes
-the primary after the deactivation. The whole treedb would be back to S: the
+records, all of them tagged, so a shot then has to CLONE every key (a record
+takes one tag). If a shot did that, the clone, as the newest record of its key, becomes
+the primary after the deactivation. The whole treedb is then back to S: the
 activation as a RESTORE, which is exactly what this design refuses. So
 `treedb_shoot_snap()` refuses while a snap is active, and also while the treedb
 is still loaded from one (deactivated but not reloaded: *"reload it first"*).
@@ -1266,7 +1266,7 @@ cannot read the records refuses (since 7.25.0: it used to let the
 delete through). A save is untagged,
 so a node or an instance updated after the shot carries 0 while the record
 the snap froze is still under it: the guards walk the records of the key.
-`ignore_snaps=1` overrides both; **`force=1` does not** (since 7.25.0). `force` unlinks the children and nothing else: it used to override
+`ignore_snaps=1` overrides both, but **`force=1` does not** (since 7.25.0). `force` unlinks the children and nothing else: it used to override
 the snapshot guard too, and the agent's `delete-yuno` and gobj-ui's topic
 table force every delete for the children, so no snapshot guard ever fired
 for them. The agent keeps its own contract -- its `force=1` on the
@@ -1299,7 +1299,7 @@ bytes of an asset a shot record names.
   the nodes in memory are the snap's photo, and the asset of a node written
   after the snap read as linked by nobody (*"gc refused: a snap is active,
   ... (deactivate it first)"*). A refused `treedb_gc_files()` takes nothing
-  at all; `treedb_gc_files2()` answers a report that says the refusal AND
+  at all. `treedb_gc_files2()` answers a report that says the refusal AND
   the blobs no row names it swept all the same.
 
 ```C
@@ -1323,12 +1323,12 @@ agent's `find-new-yunos create=1` leaves the same binary in the hook of the
 old release and of the new one. Three rules keep that consistent (the first two since 7.25.0):
 
 - **An unlink takes the child out of the hook of EVERY instance of the
-  parent.** It clears the one ref the child has, so no instance may go on
-  hooking it. It used to leave the other instances holding it, and those
-  could then be neither unlinked nor deleted, even with `force`, until a
+  parent.** It clears the one ref the child has, so no instance can go on
+  hooking it. It used to leave the other instances holding it, and then nobody
+  was able to unlink or delete those, even with `force`, until a
   reload.
 - **A DICT hook keeps the child's PRIMARY instance.** A dict hook holds one
-  entry per child id; a new instance of the child (an `install-binary` of a
+  entry per child id. A new instance of the child (an `install-binary` of a
   new version) no longer replaces the entry unless it is the primary, as an
   array hook keeps the one it has. It took the newest (up to 7.24.1).
 - **A deleted instance leaves the hooks, and a delete of a key looks at every
@@ -1364,7 +1364,7 @@ rules (after 7.25.4):
   of them was the newest record.
 - **A delete of the parent sees them.** Without `force` an instance of a child
   that names the key refuses the delete, held by a hook or not (*"Cannot
-  delete node: has down links"*, with `unheld_instances`); with `force` it
+  delete node: has down links"*, with `unheld_instances`). With `force`, it
   stops naming the key, saved. Those saves, and the saves of the children the
   delete unlinks, are not writes of the child the caller asked for: the
   newest record of each key they touch is written again, last, by the
@@ -1427,13 +1427,13 @@ treedb_unlink_nodes(tranger, "kids", P, b2);   // 0: P holds nothing, b/v1 and b
 the primary of an id is the record with the highest **rowid**, not the
 highest `yuno_release`, so the newest release is re-appended to put it on
 top. That is why a `yunos` key gets one more record per upgrade cycle, with
-the same content as the one under it. It is agent behaviour, deliberate, and
+the same content as the one under it. It is agent behavior, deliberate, and
 it is what makes the reload start the new version.
 
 Snapshots are also how the agent picks which binary version to run when
 several are stored — see [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md) §4.3. The
 binary resolver tries the active snapshot first
-([`gobj_list_snaps`](#gobj_list_snaps)); if that fails it does a direct
+([`gobj_list_snaps`](#gobj_list_snaps)). If that fails, it does a direct
 `(role, role_version)` lookup.
 
 #### A cycle, end to end
@@ -1489,7 +1489,7 @@ the realm — "only a full store wipe removes them". Regression coverage:
 [`tests/c/tr_treedb_immutable`](https://github.com/artgins/yunetas/tree/7.31.23/tests/c/tr_treedb_immutable).
 
 **Declaring the seed: the `initial_load` attr of `C_NODE`.** Marking a record
-immutable protects it; it does not put it there. The records a system cannot
+immutable protects it, but it does not put it there. The records a system cannot
 come up without — the seed role, the admin account, the root of the tree a
 scope hangs from — are declared in the treedb's configuration, and `C_NODE`
 applies them in `mt_start` right after it opens the treedb, master only:
@@ -1519,7 +1519,7 @@ hanging from it through the `users` hook of `roles`.
 
 One entry per topic, a list of records, and **the links ride inside the
 record as fkey values** (`parent_topic^parent_id^hook`) — the same form the
-child stores, so what you declare is what you would read back. Reach it
+child stores, so what you declare is what you read back. Reach it
 through `open-treedb`'s `initial_load` parameter, or set the attr directly
 when a gclass builds its own `C_NODE` (`C_AUTHZ` hands down its
 `Authz.initial_load` that way).
@@ -1527,7 +1527,7 @@ when a gclass builds its own `C_NODE` (`C_AUTHZ` hands down its
 What the loop does on **every** start, in **two passes** — the way
 `treedb_open_db()` brings a store up from disk, records first and links
 second, so that both ends of a link exist before it is written and the order
-of the topics in `initial_load` does not matter (`users` could come before
+of the topics in `initial_load` does not matter (`users` can come before
 `roles` above):
 
 1. **Records.** A record that is **missing** is created, without its fkey
@@ -1545,7 +1545,7 @@ partial-update trap in §3.6).
 
 **A link a seed is declared with is as immutable as the seed.** The
 immutable mark is one md2 bit on the *record*, and `tr_treedb` does not know
-which links matter; the declaration does. So `C_NODE`, the owner of
+which links matter. The declaration does. So `C_NODE`, the owner of
 `initial_load`, refuses the four writes that can cut a declared link, and
 `force` overrides none of them:
 
@@ -1567,13 +1567,13 @@ which links matter; the declaration does. So `C_NODE`, the owner of
   the declared link as surely as an unlink. Re-linking to the very parent the
   seed declares loses nothing and goes through.
 
-No new column flag was needed, and none would do: a flag on the column would
-freeze that column for every record of the topic, and the record's metadata
+No new column flag was needed, and no flag is enough: a flag on the column
+freezes that column for every record of the topic, and the record's metadata
 holds one bit, not a list of refs. The declaration is the list. The links a
 person adds to a seed **afterwards** are ordinary: they can be cut, and a
 node no seed hangs from can be deleted.
 
-A node a seed hangs from should be a seed too. A parent that is not declared
+Make a node that a seed hangs from a seed too. A parent that is not declared
 is created by something else (a batch, a person), so on a fresh store the
 first pass finds it missing and the second logs *"initial_load: parent of a
 seed link not found"* until whatever creates it has run — the link is then
@@ -1627,10 +1627,10 @@ changes the schema*, below). The agent's own schema is the reference:
 `schema_version` 24.
 
 **`topics` and `cols` are keyed by the QUALIFIED name, and the bare one
-lives in `value`.** A name is unique only inside its parent: two topics with
-an `id` column would collide on a single `cols` topic keyed by name, and two
-treedbs with a `users` topic would collide on a single `topics` topic keyed by
-name — `users` is a topic of `authzs`, `mqtt_broker` and `controlcenter`
+lives in `value`.** A name is unique only inside its parent. With a key by name, two topics with
+an `id` column collide on a single `cols` topic, and two
+treedbs with a `users` topic collide on a single `topics` topic:
+`users` is a topic of `authzs`, `mqtt_broker` and `controlcenter`
 alike. So the id of a node is **the id of its parent, a dot, and its own
 name**: `treedb_myapp.yunos` for a topic,
 `treedb_myapp.yunos.yuno_role` for a column. Unique by construction,
@@ -1667,7 +1667,7 @@ save-schema refuses until then"*, and the open projects nothing: the node
 keeps its old meta-schema version and the projection is recorded as
 unfinished (`not_written` names the treedb), so the next open moves the rest.
 (In 7.25.4 a move that died left a qualified copy that the next move
-failed to create, *"Node already exists"*, and the legacy node stayed; and a
+failed to create, *"Node already exists"*, and the legacy node stayed. Also, a
 move with a failed write was followed by the projection of the same open,
 whose stamp raised the meta-schema version, so no later open moved what was
 left and the projection deleted it as a topic no schema declares.)
@@ -1678,28 +1678,28 @@ keyed by rowid, and the qualified ones of 7.13.2) is loaded with the default
 (`draft_changed`, `diff-schema`, what a newer literal withdraws) takes a stored
 `order` that says nothing as no reorder: the node is the file. A projection
 that rewrites the node still writes its position. (The drafts compare
-`order` since 7.25.5; 7.25.4 did not compare it.)
+`order` since 7.25.5, but 7.25.4 did not compare it.)
 
 The keying is also why the descriptor used to validate a *user* column is
 derived, not copied, from that topic: `_treedb_create_topic_cols_desc()`
 renames `value` back to `id` and drops the storage-only fields (`id`,
 `topics`, `order`, `_geometry`). Add a field for user columns to the `cols`
-topic; add a storage-only field there **and** to that skip list.
+topic. Add a storage-only field there **and** to that skip list.
 
 **`order` is what keeps a schema in shape.** The order of the columns is part
 of a schema — it is the order a table paints them in and the order a form asks
 for them — and a projection cannot supply it by itself: its nodes are records,
-they come back in the order the store holds them, which is the order
+returned in the order the store holds them, which is the order
 `readdir()` returns the key directories in. So the projector stamps the
 position each node occupies in the schema compiled in C, and
 `get_treedb_schema()` sorts by it and then **removes it**: in a schema the
-order IS the sequence of the `cols` dict, and a schema carrying both would
-hand every topic a column attribute nobody declared. A node whose `order` says
+order IS the sequence of the `cols` dict, and a schema that carries both
+hands every topic a column attribute nobody declared. A node whose `order` says
 nothing about its place — absent, or the default **9999**: one projected
 before the index existed, or a column created here by hand — goes where the
 schema FILE IN USE declares it, then where C declares it, and last when
 neither knows it. The file comes first because it is what runs and what a save
-is compared with; the literal may be behind it, or tie with it in another
+is compared with. The literal can be behind it, or tie with it in another
 order. For example, a projection from 7.13.1 whose file declares `users` as
 `id, username, zeta, alpha` saves `id, username, zeta, alpha`. (In 7.25.4
 9999 was read as a position: every node of such a projection tied, the
@@ -1717,7 +1717,7 @@ NAME, as the diff finds it, and written under its own id: a column the
 operator moved from `departments` to `users` keeps the id
 `treedb_x.departments.name`, and that node gets its place in `users`. (The
 id composed from the names, `treedb_x.users.name`, is no node: a place written
-there would leave `users` unsaved after every save. The same holds for a topic
+there leaves `users` unsaved after every save. The same holds for a topic
 of another treedb linked here.)
 
 **A save publishes what its places imply.** A node placed in front of its
@@ -1743,13 +1743,13 @@ declares it, then last, and the comparison of drafts does not look at its
 `order`. The save names it: `"places_not_written":
 ["treedb_x.departments.name"]`, and the comment says *"1 node(s) hang from
 more than one parent and get no place of their own (one `order` cannot say a
-place in each)"*. Written from each parent's save, the place in one parent
-would read as a move in the other: every save would flip between saved and
-unsaved, and publish topics nobody edited. And a node that STOPS being shared goes
+place in each)"*. If each parent's save writes it, the place in one parent
+reads as a move in the other. Every save then flips between saved and
+unsaved, and publishes topics nobody edited. And a node that STOPS being shared goes
 where the file of the parent that remains put it: link `treedb_y.extra` into
 `treedb_x`, save and apply `treedb_x`, unlink it from `treedb_y`, and
-`treedb_x` reads no draft. Kept, the `order` would be its place in
-`treedb_y`, and `treedb_x`, edited by nobody, would read `extra` and
+`treedb_x` reads no draft. If the `order` is kept, it is the place in
+`treedb_y`, and `treedb_x`, edited by nobody, reads `extra` and
 `departments` as moved. (A newer literal still takes the
 second parent back at the open, see *"What the operator LINKED
 differently"* below.)
@@ -1759,7 +1759,7 @@ topics of a treedb named `users` (the treedb's own and a topic of another
 treedb linked here), or two columns of a topic named `name`, are one entry:
 the rebuild kept the LAST, and the diff and the writes of the save found the
 FIRST. The link refuses the pair (*"Treedb already has a topic with this
-name"*, *"Topic already has a column with this name"*); a node linked under
+name"*, *"Topic already has a column with this name"*). A node linked under
 its own qualified id (`<parent id>.<name>`) is never refused, because the id
 migration and the projection link it while a legacy or foreign twin is still
 there and take the twin away after. What the link does not see (an autolink
@@ -1787,7 +1787,7 @@ and a rowid named nothing at all: that is how the agent console came to draw a
 graph of cards reading `181`, `225`, `193`. With `pkey2s` in the descriptor a
 reader can tell a key that is not the plain name (its column carries the
 `rowid`, `uuid` or `qualified` flag) from one that is, and label by the
-secondary key instead. The id stays the address; it is not the label.
+secondary key instead. The id stays the address, but it is not the label.
 
 **Who fills it, and who wins.** `C_TREEDB`'s `open-treedb` projects into
 `__system__` what the treedb RUNS. The first time it sees a treedb, it seeds
@@ -1802,7 +1802,7 @@ interchangeable:
 | | Written by | Means |
 |---|---|---|
 | `schema_version` | whoever edits the schema (an editor raises it on save) | what this schema is worth to `treedb_open_db` |
-| `c_schema_version` | only the projection | which version of the C literal this projection came from; `0` when it came from none: seeded from a dynamic schema file, or left unfinished; `-1` when it is unfinished and its record could not be written (see below) |
+| `c_schema_version` | only the projection | which version of the C literal this projection came from. `0` when it came from none: seeded from a dynamic schema file, or left unfinished. `-1` when it is unfinished and the write of its record failed (see below) |
 | `system_schema_version` | only the projection | which version of the **meta-schema** produced it |
 
 A change of the meta-schema re-projects **nothing**. The schema in use can be
@@ -1846,7 +1846,7 @@ topic `c` whose id is `m2.b.c`, and that is not a topic `b.c` of a treedb
 `m2`. The projection of `m2` does not touch it, and `delete-treedb` of `m2`
 deletes no node of `m2.b`. When the topic node of a column is gone too, the
 treedb is the one of the known treedbs that the id names. When more than one
-could own it, the owner is the one that SAYS it owns the node:
+can own it, the owner is the one that SAYS it owns the node:
 
 1. the record of an unfinished projection of that treedb names the id (a
    projection of it that died or failed left the node), or else
@@ -1859,9 +1859,9 @@ any of them removes it. Only the treedb that takes the node says it, ONE
 WARNING per node: *"Node of __system__ that no tree reaches and more than
 one treedb could own: taken by this treedb"*, with `how` (`record`,
 `schema` or `none says it`) and `candidates`. The other treedbs, and a
-treedb that could not own it at all, say nothing. For example, the operator
+treedb that cannot own it at all, say nothing. For example, the operator
 deletes the topic node `m2.b.departments` with `force`: its columns are left
-in no topic, and `m2.b.departments.name` could be the column `name` of the
+in no topic, and `m2.b.departments.name` can be the column `name` of the
 topic `b.departments` of `m2`, or of the topic `departments` of `m2.b`. The
 schema file of `m2.b` declares `departments.name`, so a newer literal of
 `m2` leaves the columns alone, and a newer literal of `m2.b` without
@@ -1886,7 +1886,7 @@ refused.** An id is the parent's id, a dot and the name, so the column
 `x.y` of the topic `u` and the column `y` of the topic `u.x` are both
 `<treedb>.u.x.y`, and the topic `b.c` of the treedb `m2` and the topic `c`
 of the treedb `m2.b` are both `m2.b.c`. Two elements with one id are one
-node. The schema is refused where it would be written: a treedb whose
+node. The schema is refused at each place that writes it: a treedb whose
 schema collides does not open (`-1` *"cannot open treedb '\<name>': no valid
 treedb_schema (see the log)"*), `save-schema` does not save a draft that
 collides, and `apply-schema` does not apply a saved schema that collides.
@@ -1915,7 +1915,7 @@ What the operator LINKED differently is replaced in the same open:
   that topic when the schema declares it elsewhere, or when it is a node of
   another treedb. It is deleted only when it is a node of this treedb that
   the schema declares nowhere. For example, the operator links
-  `treedb_x.departments.name` to `users` too; a newer literal unlinks it
+  `treedb_x.departments.name` to `users` too. A newer literal unlinks it
   from `users`, keeps it in `departments`, and reports `users`.
 - A topic of ANOTHER treedb linked to this treedb's node is unlinked from
   it, never deleted (INFO *"Topic of another treedb, not declared by the
@@ -1984,7 +1984,7 @@ only `users`, the treedb opens `users` at `topic_version` 2 without the
 fkey, and `__system__` loses `treedb_x.departments` and
 `treedb_x.users.departments`. The log says *"Topic not declared by the schema
 from C: removed from __system__"* (`treedb_name`, `topic_name`). The store
-directory `departments/` stays on disk with its records; nothing opens it.
+directory `departments/` stays on disk with its records, but nothing opens it.
 A renamed topic is the same thing: the old name goes, the new one is created.
 
 The DELETE is new after 7.25.4. In 7.25.4 the literal replaced the whole file
@@ -1995,7 +1995,7 @@ again.
 **A snapshot of `__system__` can refuse the delete.** A delete erases the key,
 so `treedb_delete_node()` refuses a node that a snapshot holds (*"cannot
 delete node, a snapshot still holds it"*, an ERROR). The projection is then
-UNFINISHED, and it says so; it is never passed off as done. A write that
+UNFINISHED, and it says so. It is never passed off as done. A write that
 fails (a create, an update or a link of a node, logged as an ERROR) leaves
 it unfinished in the same way.
 
@@ -2019,13 +2019,13 @@ it unfinished in the same way.
 - The open RECORDS what the projection left, in
   `saved_schemas/<treedb>.unfinished.json` under the `__system__` tranger.
   `leftovers` holds every id that the projection left unlike the schema:
-  the two lists, plus the columns of a topic that it could not remove or
+  the two lists, plus the columns of a topic that it failed to remove or
   write, but NOT an id that carries an operator's draft (see below).
   `leftover_nodes` keeps what the projection left at each of these ids:
   only the attributes that a projection writes, or `null` where it left
   nothing. For a topic these are `value`, `order`, `pkey`, `pkey2s`,
-  `system_flag`, `tkey`, `topic_version`, `system_topic` and `main_topic`;
-  for a column, `value`, `order` and every attribute of the column
+  `system_flag`, `tkey`, `topic_version`, `system_topic` and `main_topic`.
+  For a column, `value`, `order` and every attribute of the column
   descriptor (`header`, `type`, `flag`, `enum`, `default`, ...). The links
   (`topics`, `cols`, `treedbs`), the editor geometry and the metadata are not
   kept. No node is kept for an id in `not_written`: its write failed, and
@@ -2053,7 +2053,7 @@ it unfinished in the same way.
 ```
 
 `draft_kinds` holds the kind (`"saved"` or `"unsaved"`) of each operator's
-draft that the projection could not replace, for example
+draft that the projection was not able to replace, for example
 `{"departments": "saved"}`. The open that replaces the draft reports this
 kind (see below).
 
@@ -2137,7 +2137,7 @@ While the record is there:
   `leftover_nodes` takes every leftover as left, and so does a record whose
   `system_schema_version` is not the running meta-schema: a newer
   meta-schema gives every node loaded from disk the fields it added, and
-  every leftover would read as edited. That is said in a WARNING
+  every leftover otherwise reads as edited. That is said in a WARNING
   (*"Leftovers of an unfinished projection were kept under another
   meta-schema: every leftover is taken as left, an edit of one made
   meanwhile is not told apart"*).
@@ -2152,7 +2152,7 @@ While the record is there:
   as `"unsaved"`: no save carries a node that is in no topic. Such a node
   changes no schema, so `saved-schema` does not show it in
   `draft_changed`. For example, the operator creates the column
-  `treedb_x.users.email` and links it to nothing; a newer literal that
+  `treedb_x.users.email` and links it to nothing. A newer literal that
   declares `users.email` takes that node for the column and answers
   `withdrawn_at_open: {"topics": {"users": "unsaved"}, ...}`.
 - `treedbs` and `saved-schema` answer `unfinished_projection`: the ids of
@@ -2161,8 +2161,8 @@ While the record is there:
 - `save-schema` refuses: `-1` *"\<role^name>: the projection of 'treedb_x'
   into __system__ is not complete, 2 node(s) could not be removed or
   written (see the log): a save would publish them"*, with `data:
-  {treedb_name, unfinished_projection}`. A save would publish the removed
-  topic again, and the next apply would bring it back.
+  {treedb_name, unfinished_projection}`. Otherwise, a save publishes the removed
+  topic again, and the next apply brings it back.
 - A record that cannot be WRITTEN (the disk refuses `saved_schemas/`) does
   not make the projection read as complete. The record is kept in memory:
   the process goes on reading it (`unfinished_projection`, no draft for a
@@ -2247,8 +2247,8 @@ write that failed.)
 its first write, a projection PLANS every write (it only reads) and records
 the plan: the record of an unfinished projection, with `"in_progress":
 true`. Then it writes. The projection that completes removes the record,
-after the WARNING of what it withdrew; one that fails writes over it the
-record of what it could not do. So a process that dies between two writes --
+after the WARNING of what it withdrew. One that fails writes over it the
+record of what it was not able to do. So a process that dies between two writes --
 a column created and not linked, a topic deleted and not its columns --
 always leaves a record, and the next open knows which projection was under
 way:
@@ -2293,8 +2293,8 @@ Had the operator edited the header of `users.username` before, it answers
 
 A projection with nothing to write records nothing. A record that cannot be
 written is an ERROR (*"Cannot write a record of saved_schemas/"*, with
-`record: "unfinished projection"`), and the projection goes on: refused, it
-would leave `__system__` unlike the file, and every open would read that as
+`record: "unfinished projection"`), and the projection goes on. If it stopped there, the projection
+leaves `__system__` unlike the file, and every open then reads that as
 drafts. The record is kept in memory, and the node of the treedb is marked
 `c_schema_version: -1` before the first write (see *A record that cannot be
 WRITTEN*, above).
@@ -2353,7 +2353,7 @@ tells a draft from a gap. When the projection differs, the open completes it
 schema from C, and part of it is not (the stamp was written first, by an
 older release, and the process died)"*). A NODE -- a topic or a column,
 never a topic with all its columns -- that differs from the old file AND
-from the literal is the operator's draft, and reported; a node that differs
+from the literal is the operator's draft, and reported. A node that differs
 from one of them only is the projection's. A node that no tree reaches is
 the projection's when it is what the literal writes there and the old file
 does not declare it: a create whose link never happened. In 7.25.4 the open
@@ -2384,7 +2384,7 @@ retry compared with the old file alone, and reported what 7.25.4 wrote of
 the literal as the operator's work.
 
 **The first open by this release, and what an older release left.** A node
-stamped with the version of the file in use may ALSO be a projection that
+stamped with the version of the file in use can ALSO be a projection that
 died after its stamp. 7.23.0 to 7.25.4 gave every imposed treedb its first
 projection over a file already at the literal's version, and so did every
 treedb from before 7.13.0: a process that died after the stamp left a node
@@ -2441,7 +2441,7 @@ left it:
   treedb.)
 
 For example, v1 declared `users` (`id`, `username`, `email`) and
-`departments`; 7.25.4 opened v2, which drops `departments` and `users.email`,
+`departments`. 7.25.4 opened v2, which drops `departments` and `users.email`,
 and both stayed in `__system__`. The first open by this release with v2
 answers `draft_changed: {}` and writes:
 
@@ -2494,7 +2494,7 @@ same as `withdrawn_at_open`, until the next open of that treedb:
 | `"in_use"` | a topic of an apply that RAN: an open read it, and the treedb was running that dynamic schema (new after 7.25.4) |
 | `"saved"` | the draft of a topic that a pending `save-schema` published: an edit of the topic, or its deletion (the operator deleted the topic, and the saved schema does not declare it) |
 | `"unsaved"` | a draft never saved: a topic of `__system__` that differs from the file, a topic of the file that the operator deleted from `__system__`, or a topic that the operator added to `__system__` and the pending saved schema does not declare |
-| `"left_by_older_release"` | no operator's work: a topic, or a column of the topic, that an older release left in `__system__` and no schema declares (see above; new after 7.25.4). Any other kind of the same topic says more, and replaces it |
+| `"left_by_older_release"` | no operator's work: a topic, or a column of the topic, that an older release left in `__system__` and no schema declares (see above, new after 7.25.4). Any other kind of the same topic says more, and replaces it |
 
 A topic that the operator ADDED is `"saved"` only when the pending saved
 schema declares it. For example, the operator edits `users`, runs
@@ -2561,7 +2561,7 @@ raising its topic_version past it: the store keeps running its own"*
 
 **A store can run a topic AHEAD of its file.** When the literal installed over
 the file declares a topic at a `topic_version` BELOW the one the store runs
-(an apply of the operator raised it; 7.25.4 installed literals whole the same
+(an apply of the operator raised it, and 7.25.4 installed literals whole the same
 way), tranger2 keeps the store's topic, and the definition that runs is only
 in its `topic_cols.json`: the file and `__system__` say another. Every open
 that runs the file says it, per topic: *"Schema file in use declares other
@@ -2635,22 +2635,22 @@ The whole matrix, with `impose_c_schema` off on a master:
 
 | File in use | Store runs | Literal | Result |
 |---|---|---|---|
-| 2 | `users` 1 | 3, `users` 2 | the literal runs, whole; the file and `__system__` are the literal |
-| 2, an apply of `users` 2 not opened | `users` 1 | 3, `users` 2 with another content | the literal runs; the apply is withdrawn: `"applied"` |
-| 2 | `users` 1 | 3, `users` 2 with a new fkey, and a new topic `groups` that hooks it | the literal runs; `groups` is created |
-| 2; `__system__` 3 (saved, not applied) | as the file | 3 | the literal runs; the saved schema and its drafts are withdrawn: `"saved"` |
-| 2; an unsaved draft of `departments` | as the file | 3 | the literal runs; the draft is withdrawn: `"unsaved"` |
-| 2; the operator deleted `departments` from `__system__` | as the file | 3, with `departments` | the literal runs; `departments` is created again in `__system__`; the deletion is withdrawn: `"unsaved"`, or `"saved"` when a save published it |
-| 2, an apply of `users` that ran | as the file | 3, `users` with another content | the literal runs; the running dynamic `users` is withdrawn: `"in_use"` |
+| 2 | `users` 1 | 3, `users` 2 | the literal runs, whole. The file and `__system__` are the literal |
+| 2, an apply of `users` 2 not opened | `users` 1 | 3, `users` 2 with another content | the literal runs. The apply is withdrawn: `"applied"` |
+| 2 | `users` 1 | 3, `users` 2 with a new fkey, and a new topic `groups` that hooks it | the literal runs. `groups` is created |
+| 2, with `__system__` 3 (saved, not applied) | as the file | 3 | the literal runs. The saved schema and its drafts are withdrawn: `"saved"` |
+| 2, with an unsaved draft of `departments` | as the file | 3 | the literal runs. The draft is withdrawn: `"unsaved"` |
+| 2, and the operator deleted `departments` from `__system__` | as the file | 3, with `departments` | the literal runs. `departments` is created again in `__system__`. The deletion is withdrawn: `"unsaved"`, or `"saved"` when a save published it |
+| 2, an apply of `users` that ran | as the file | 3, `users` with another content | the literal runs. The running dynamic `users` is withdrawn: `"in_use"` |
 | 2 | as the file | 3, without `departments` | `departments` goes from the file and `__system__`, and does not open |
-| 2 | as the file | 3, without `departments`, a snapshot of `__system__` holds it | the literal runs; `__system__` keeps `departments` (unfinished and recorded, warning, `c_schema_version` 0, retried at every open, no draft, `save-schema` refuses) |
-| 2 | as the file | 3, `departments` renamed `sections` | `sections` is created; `departments` goes |
-| 2 | `users` 1 | 3, `users` changed at 1 | the file and `__system__` say the literal; the store runs its own `users`; warning |
-| none | anything | any | the literal runs, whole; *"No schema file in use: the treedb opens with the schema from C, projected whole over __system__"* |
-| 3 | as the file | 3, same content | the file runs; nothing said |
-| 3 | as the file | 3, another content | the file runs; warning, not applied |
+| 2 | as the file | 3, without `departments`, a snapshot of `__system__` holds it | the literal runs. `__system__` keeps `departments` (unfinished and recorded, warning, `c_schema_version` 0, retried at every open, no draft, `save-schema` refuses) |
+| 2 | as the file | 3, `departments` renamed `sections` | `sections` is created. `departments` goes |
+| 2 | `users` 1 | 3, `users` changed at 1 | the file and `__system__` say the literal. The store runs its own `users`. Warning |
+| none | anything | any | the literal runs, whole. *"No schema file in use: the treedb opens with the schema from C, projected whole over __system__"* |
+| 3 | as the file | 3, same content | the file runs. Nothing said |
+| 3 | as the file | 3, another content | the file runs. Warning, not applied |
 | 2, an apply not opened | `users` 1 | 2 or lower | the file runs: the apply runs at this open |
-| 3 | as the file | 2 | the file runs; *"behind the schema in use"* |
+| 3 | as the file | 2 | the file runs. *"behind the schema in use"* |
 
 With `impose_c_schema` on, the literal runs whatever the file says, unless
 its `schema_version` IS the file's: at a tie `treedb_open_db()` keeps the file
@@ -2658,12 +2658,12 @@ its `schema_version` IS the file's: at a tie `treedb_open_db()` keeps the file
 said as it is without impose (the WARNING of the tie above, `"imposed": 1`).
 `__system__` follows the versions against itself: it is seeded when it has no
 projection, re-made WHOLE when the literal is higher than `__system__`, and
-left as it is otherwise; at a tie with another content it is projected from
+left as it is otherwise. At a tie with another content, it is projected from
 the file, which is what runs. On a replica, nothing is projected and nothing
 is withdrawn: the replica runs the file as it is.
 
 A treedb with no projection yet is seeded with what runs: the literal when it
-is installed, or imposed and not tied with another file; the FILE otherwise.
+is installed, or imposed and not tied with another file, and the FILE otherwise.
 Seeded from the file,
 `c_schema_version` is the literal's version only when the file IS the
 literal, and `0` otherwise, and that open says the tie or *"behind"* as any
@@ -2671,7 +2671,7 @@ other open does. (In 7.25.4 it was the file's number, so after a
 `delete-treedb` of a treedb running a dynamic schema, the tie with a literal
 of the same number was never said.)
 
-The file may hold its topics as a DICT keyed by name, as the file in use of a
+The file can hold its topics as a DICT keyed by name, as the file in use of a
 node opened with `impose_c_schema` off before the draft model does:
 
 ```json
@@ -2723,7 +2723,7 @@ topics: ERROR *"No topics found"*, from `treedb_open_db`), and nothing
 more: `C_NODE` does not set the callback of a treedb that did not open, and
 does not close it. `delete-treedb` of it is refused until it is closed. The
 open below is a peer's (an operator's `open-treedb`), so that operator closes
-it, `force=1` while the yuno plays; a failed open of the yuno's code is
+it, `force=1` while the yuno plays. A failed open of the yuno's code is
 closed by its code:
 
 ```bash
@@ -2739,12 +2739,12 @@ ycommand -c 'command-yuno id=<id> service=treedbs command=close-treedb treedb_na
 `delete-treedb` answered *"while it is OPEN"*.)
 
 **Who closes a treedb from outside** (a `command-yuno` carries the
-operator's `__username__`; new after 7.26.9):
+operator's `__username__`, and this is new after 7.26.9):
 
 | The treedb was opened by | `close-treedb` from outside |
 |---|---|
-| the yuno's code (the agent's, a `db_history`'s, the broker's `treedb_mqtt_broker`) | never, playing or paused, with `force` or without. The code holds pointers to its `C_NODE`, its tranger and what else it opened there (a msg2db `alarms`), and the close freed what they point at. Its lifecycle closes it: `pause-yuno` + `play-yuno` for a yuno that opens its treedbs at play; a restart (`kill-yuno` + `run-yuno`) for `mqtt_broker`, which opens its treedb at its start and keeps it through a pause |
-| an operator's `open-treedb`, the yuno PLAYS | that same user, with `force=1`; another user is refused |
+| the yuno's code (the agent's, a `db_history`'s, the broker's `treedb_mqtt_broker`) | never, playing or paused, with `force` or without. The code holds pointers to its `C_NODE`, its tranger and what else it opened there (a msg2db `alarms`), and the close freed what they point at. Its lifecycle closes it: `pause-yuno` + `play-yuno` for a yuno that opens its treedbs at play, and a restart (`kill-yuno` + `run-yuno`) for `mqtt_broker`, which opens its treedb at its start and keeps it through a pause |
+| an operator's `open-treedb`, the yuno PLAYS | that same user, with `force=1`. Another user is refused |
 | an operator's `open-treedb`, the yuno is PAUSED (a yuno that keeps its `C_TREEDB` through a pause, as `mqtt_broker` does) | any user with `open-close`, with `force` or without: both rules above ask `gobj_is_playing()` |
 
 **Who deletes the schema of a treedb from outside** (`delete-treedb`, new
@@ -2765,13 +2765,13 @@ name is case-sensitive. These checks read a name in three ways:
 - The name of a treedb the yuno's CODE opened is refused to a peer in any
   case, also while that treedb is closed: `close-treedb`, `open-treedb` and
   `delete-treedb`. While it is closed, the answer names it as the peer wrote
-  it. A peer's `open-treedb` of a name whose services would take that
-  treedb's does not open either: an open registers `<name>` (its `C_NODE`)
+  it. A peer's `open-treedb` of a name whose services take the service names of that
+  treedb does not open either: an open registers `<name>` (its `C_NODE`)
   and `tranger_<name>` (its `C_TRANGER`), so `tranger_treedb_x` takes the
   name of the tranger of the code's `treedb_x`, and for a code treedb named
   `tranger_logs` a peer's `Logs` takes it with its own tranger. While the
   code's treedb is open, its services exist and the answer is *"a service
-  named ... exists already"*; while it is closed, the peer gets its own
+  named ... exists already"*. While it is closed, the peer gets its own
   refusal.
 - Any other name of a closed treedb is taken as it is written: `TREEDB_Y`
   and `treedb_y` are two stores, two directories. Only one of them can be
@@ -2869,13 +2869,13 @@ The agent opens its own treedb with `impose_c_schema=1`
 (`c_agent.c`, `mt_play`). When that `open-treedb` answers `-1` it prints
 *"Cannot start agent treedb: \<comment>"* and logs the comment with
 `LOG_OPT_EXIT_ZERO`: the agent EXITS with code 0, and its `ydaemon` watcher
-does not relaunch a child that exits 0, so the agent stays down (a
-relaunch would loop on the same schema). `yuneta_agent22`, which opens no
+does not relaunch a child that exits 0, so the agent stays down (otherwise a
+relaunch loops on the same schema). `yuneta_agent22`, which opens no
 treedb, is the way in. Since a refusal of `treedb_open_db()` now answers
-`-1`, that is also what happens when the agent's store refuses its schema;
-in 7.25.4 the answer was `0` and the agent ran without its treedb.
+`-1`, that is also what happens when the agent's store refuses its schema.
+In 7.25.4, the answer was `0` and the agent ran without its treedb.
 
-7.25.4 installed a newer literal whole, as now; what is new is that
+7.25.4 installed a newer literal whole, as now. What is new is that
 `__system__` is projected from it whole.
 
 Up to 7.19.0 the projector did otherwise, and both halves were wrong. It
@@ -2907,8 +2907,8 @@ changed schema declared stays in the records and is no longer read.
 
 **It is not read, and the master still writes it.** `__system__` is the only
 place a schema can be ASKED for — from ytreedb, from gui_agent, from any node
-command — so a treedb that only ever opened with `impose` would have no
-projection at all, and the schema it runs could be read from its binary and
+command. If the master did not write it, a treedb that only ever opened with `impose` has no
+projection at all, and the schema it runs is readable from its binary and
 nowhere else. Opening with `impose` therefore projects the schema in two
 cases, and only in those two:
 
@@ -2942,9 +2942,9 @@ by mistake — and restart the yuno.
 **The value is configuration, not state: it is NOT persistent.** Set it where
 the yuno is described, preferably its `main.c`, else its config file. A
 C_TREEDB created in code is a service, so the `global` section reaches it by
-its name (`treedbs`) — better than by gclass, which would reach every
+its name (`treedbs`) — better than by gclass, which reaches every
 C_TREEDB of the yuno. `impose_c_schema` is the DEFAULT of every treedb that
-service opens; to let ONE treedb change dynamically and leave the rest
+service opens. To let ONE treedb change dynamically and leave the rest
 imposed, name it in `dynamic_schema_treedbs`:
 
 ```c
@@ -2961,10 +2961,10 @@ PRIVATE char variable_config[]= "\
 
 **No command changes it.** Until 7.25.0 the value persisted and
 `set-impose-c-schema` saved it: a `set=0` outranked the configuration,
-survived every new binary and lived nowhere a deploy could see. The command
+survived every new binary and lived nowhere that a deploy was able to see. The command
 is gone, and not kept as an in-memory switch either: the value is read only
 when a treedb opens, and from outside `close-treedb` never closes a treedb
-the yuno's code opened. So an in-memory value would reach a treedb only at
+the yuno's code opened. So with an in-memory value, the value reaches a treedb only at
 the yuno's next own reopen (`pause-yuno` + `play-yuno` for a yuno that opens
 its treedbs at play), at a moment that has nothing to do with the command,
 and a restart reads the configuration again and drops it. To change it,
@@ -2997,7 +2997,7 @@ json_t *jn_resp = gobj_command(priv->gobj_treedbs, "open-treedb", kw_treedb, gob
 Every treedb of the SDK is forced this way: the agent (`c_agent.c`),
 `controlcenter` and `mqtt_broker`. `C_AUTHZ` opens `treedb_authzs` without
 `open-treedb`, so it gives the same value to its `C_NODE` (attribute
-`impose_c_schema`). Of the projects' `db_history*` yunos, one forces it; the
+`impose_c_schema`). Of the projects' `db_history*` yunos, one forces it, and the
 other two name their treedb in `dynamic_schema_treedbs` in their `main.c`.
 
 The order, from the strongest: the yuno's code, then
@@ -3072,14 +3072,14 @@ differences under 592 on the first run.
 
 **And an attribute the schema never mentions is stored with its DECLARED
 default, which is not the empty value of its type.** The projection of a column
-copies what the schema declares and no more; the stored node went through
+copies what the schema declares and no more. The stored node went through
 treedb, which fills every attribute the descriptor gives a `default`. So the
 attribute is absent on one side and holds its default on the other, and the
 comparison read that as an operator addition. `fillspace` defaults to 10 and
 almost no schema writes it: on a treedb of 45 columns that was **43 differences
-no `Apply` could ever settle**. The projection is deliberately not filled with
-defaults instead — it is what the projector UPSERTS, so a default written there
-would overwrite the value an operator set by hand.
+that no `Apply` was ever able to settle**. The projection is deliberately not filled with
+defaults instead: it is what the projector UPSERTS, so if a default is written there, it
+overwrites the value an operator set by hand.
 
 And the version stamps are not compared as content — whoever publishes a
 change raises them — so only the anomaly is reported: a projection that came
@@ -3095,15 +3095,15 @@ depends on `impose_c_schema`:
 
 | `impose_c_schema` | Opens with |
 |---|---|
-| on (the default; every in-tree yuno forces it from its code) | the literal, **over** a newer file (a dynamic change being reverted) |
-| off | the FILE: the literal is installed only when it is newer, and then WHOLE; the file wins on ties and when it is ahead |
+| on (the default, and every in-tree yuno forces it from its code) | the literal, **over** a newer file (a dynamic change being reverted) |
+| off | the FILE: the literal is installed only when it is newer, and then WHOLE. The file wins on ties and when it is ahead |
 
 `__system__` is where a schema is **edited**: the master projects into it what
 the treedb runs (seeded, and re-made whole when a literal wins), and an
 operator edits it there. Until after 7.24.1 it was also the source of an open with the
 flag off, so every edit — half made or not — was the schema of the next start.
 
-**An edit is a draft; `save-schema` publishes it; `apply-schema` puts it in
+**An edit is a draft, `save-schema` publishes it, and `apply-schema` puts it in
 use.** Writing a `cols` or `topics` node of `__system__` moves no version. The
 cycle is three steps, and each one is a command of `C_TREEDB`:
 
@@ -3118,7 +3118,7 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    over the old file, so a save that dies or finds the disk full leaves the
    pending save as it was (in 7.25.4 the file was truncated and
    rewritten in place, and such a save left a torn file). A second save of the same draft
-   publishes the same numbers. `dry_run=1` answers the schema it would write
+   publishes the same numbers. `dry_run=1` answers the schema that a save writes,
    and writes nothing (the GUI's *export as C literal* uses it). The saved
    schema reads like a literal: no empty attributes, no `_geometry`, no
    projection bookkeeping, and no `default: {}` -- the meta-schema's
@@ -3127,7 +3127,7 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    **The trade-off of a `required` container column.** The meta-schema stores
    `{}` for a column that declares no default, and it cannot tell that `{}`
    from a `default: {}` the author wrote. A default fills the field, so
-   keeping `{}` would turn `required` off; dropping it loses a `default: {}`
+   if the save keeps `{}`, it turns `required` off, and dropping it loses a `default: {}`
    that was really declared. The second is the lesser harm, and it is what
    happens: a column declared in the literal as
 
@@ -3149,10 +3149,10 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    When the draft is the file in use again -- an edit saved, then undone in
    the editor -- and a saved schema newer than the file in use exists, the
    save removes it, logs *"Saved schema withdrawn, the draft is the schema in
-   use"*, and says so; `saved-schema` then answers `can_apply: false` and an
+   use"*, and says so. `saved-schema` then answers `can_apply: false` and an
    empty `draft_changed`. In 7.25.4 the save answered *"nothing to save"*, the
    editor's mark never cleared, and `apply-schema` installed the change that
-   had been taken back. The versions that save wrote into `__system__` stay (a
+   was taken back. The versions that save wrote into `__system__` stay (a
    number there never goes down).
 
    ```bash
@@ -3179,7 +3179,7 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
 2. **`saved-schema treedb_name=X`** answers what was saved, what it changes
    against the file in use (a `flat_diff` of the two: `added`, `removed`,
    `changed`, one row per leaf), and `can_apply`. Topics and columns are keyed
-   by name, and their ORDER is a leaf of its own (new after 7.25.4; in 7.25.4
+   by name, and their ORDER is a leaf of its own (new after 7.25.4. In 7.25.4,
    a save that only moved a column showed nothing but its versions):
 
    ```json
@@ -3220,7 +3220,7 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    `broken: true`, with `stale: false`, `saved: false`, `can_apply: false`,
    and a comment *"the saved schema of 'treedb_x' cannot be read (see the
    log): it is left out of apply-schema, save again to replace it"*. Its
-   version is unknown, so nothing says it is a pending save; the next
+   version is unknown, so nothing says it is a pending save. The next
    `save-schema` writes over it. Until 7.25.4 it answered `saved: false`
    with nothing to say why.
 
@@ -3230,7 +3230,7 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    without topics does not open"*. `apply-schema` refuses it (see below).
 3. **`apply-schema treedb_name=X`** puts the saved schema in place of the file
    in use — only on the master, only when C does not impose that treedb's
-   schema (the literal would overwrite it at the next open), and only when the
+   schema (otherwise the literal overwrites it at the next open), and only when the
    saved `schema_version` is higher. It takes effect at the next open of the
    treedb: restart the yuno that owns it. The file is written to a temporary
    beside it, flushed, and renamed over it: the file in use is the old one or
@@ -3238,10 +3238,10 @@ cycle is three steps, and each one is a command of `C_TREEDB`:
    and a crash or a full disk left it empty -- read as version 0 and recreated
    from the literal at the next open). The answer says `data.applied`. The
    file is written without the `fkey` marks `parse_schema()` derives (a dict on
-   every column a hook points at), as `treedb_open_db()` writes it; until
-   7.25.4 the apply wrote the parsed copy it had validated, marks included.
+   every column a hook points at), as `treedb_open_db()` writes it. Until
+   7.25.4, the apply wrote the parsed copy it had validated, marks included.
    Once in place, the saved schema IS the file in use, and it is removed
-   from `saved_schemas/` (new after 7.25.4; in 7.25.4 it stayed, and
+   from `saved_schemas/` (new after 7.25.4. In 7.25.4, it stayed, and
    `saved-schema` went on answering `saved: true` for it). A saved schema
    with no topics is refused, with the WARNING *"Saved treedb schema with no
    topics: not applied, a treedb without topics does not open"*: `-1`
@@ -3337,10 +3337,10 @@ columns exist in the schema and not in the topic.
 
 **A write here is a schema change, so it answers to the rules of a schema.**
 On top of the ordinary validation of §3.6, writes to these topics are refused
-when they could not produce a working schema — at the point of writing,
+when they cannot produce a working schema — at the point of writing,
 because none of these is loud later:
 
-- a column is checked against the descriptor a user column answers to, the
+- A column is checked against the descriptor a user column answers to, the
   same one `parse_schema_cols()` applies when a schema is opened. Stored
   unchecked, the column breaks the treedb at its **next open**, far from
   whoever wrote it. That includes the two per-column rules the descriptor
@@ -3357,13 +3357,13 @@ because none of these is loud later:
           "flag", "hook", "topics", "topics^<topic id>^cols"),
       json_pack("{s:b}", "refs", 1), src);
   ```
-- `pkey` must be `id` and `system_flag` must be `sf_string_key` —
-  `treedb_open_db()` silently drops a topic that disagrees;
+- `pkey` must be `id` and `system_flag` must be `sf_string_key`:
+  `treedb_open_db()` silently drops a topic that disagrees.
 - `pkey`, `tkey` and `system_flag` **cannot change once the topic exists**:
-  `topic_desc.json` is written at creation and never rewritten, so the change
-  would be stored here, shown by every reader, and ignored by the topic for
-  good;
-- two columns with the same name in one topic, and two topics with the same
+  `topic_desc.json` is written at creation and never rewritten, so without
+  the refusal, the change is stored here, shown by every reader, and ignored
+  by the topic for good.
+- Two columns with the same name in one topic, and two topics with the same
   name in one treedb, are refused **when the node is linked** to its parent,
   which is when the clash becomes real (*"Topic already has a column with
   this name"*, *"Treedb already has a topic with this name"*). The name is
@@ -3392,7 +3392,7 @@ and reopen in `mt_play` -- from outside, that pair is `pause-yuno` +
 closes in `mt_stop` and opens in `mt_start`, so only a restart reopens its
 treedb. `cmd_close_treedb` never closes, from outside, a treedb that the
 yuno's code opened, whether the yuno plays or not, `force` or not (new after
-7.26.9); while the yuno plays any other close needs `force=1`, taken from
+7.26.9). While the yuno plays, any other close needs `force=1`, taken from
 the yuno's C code, and from outside only from the user whose `open-treedb`
 opened the treedb. Note `pause` stops the yuno's other services too, so its
 gate goes down for the cycle.
@@ -3407,13 +3407,13 @@ reaches, and the `treedbs` node LAST) and never touches the client
 treedb's store on disk. It deletes EVERY node of the treedb: a column the
 operator moved to another topic of it, and a topic or column of it that no
 tree reaches (the operator unlinked it). A node of another treedb that
-somebody linked into it is only unlinked: deleted, it would be taken from the
+somebody linked into it is only unlinked. Otherwise, the delete takes it from the
 schema it belongs to. (In 7.25.4 a node in no topic was not seen, and it
 stayed.) `force=1` is required and
-means "yes, delete the schema"; it does not lift the refusal of an OPEN
+means "yes, delete the schema". It does not lift the refusal of an OPEN
 treedb, because an open one goes on answering from its copy in memory with a
 schema that exists nowhere, and the next `open-treedb` dies on the C_TRANGER
-service still alive under its name, leaving the store orphaned. Close first,
+service still alive under its name. That leaves the store orphaned. Close first,
 then delete: a treedb an operator opened is closed by that operator,
 `close-treedb force=1` while the yuno plays, or by any user with
 `open-close` while it is paused (see *Who closes a treedb from outside*
@@ -3426,7 +3426,7 @@ service=treedbs command=delete-treedb treedb_name=treedb_x force=1` answers
 `-1` *"\<role^name>: cannot delete the schema of treedb 'treedb_x': the code
 of the yuno opened it, and its schema is the code's, open or closed"*, with a
 WARNING *"delete-treedb from outside of a treedb the code of the yuno opened,
-refused"*; the yuno's C code deletes it as before. From outside, the name passes the name rule of
+refused"*. The yuno's C code deletes it as before. From outside, the name passes the name rule of
 `open-treedb` first: `x/../treedb_y` reached the files of the open
 `treedb_y` in `saved_schemas/`, and removed its saved schema (up to 7.26.9). A
 treedb whose last `open-treedb` did not open it is refused the same way,
@@ -3464,8 +3464,8 @@ still the treedb's, read from the nodes as a projection reads them
 the answer is `0` with what was deleted. A treedb with nothing left answers
 `0` *"\<role^name>: nothing of the schema of 'treedb_foo' was in
 __system__"*. A node that refuses the delete (a snapshot holds it) answers
-`-1`, keeps the node of the treedb, and lists in `data.deleted` what went; run
-it again once the cause is fixed. (In 7.25.4 a delete cut after its first
+`-1`, keeps the node of the treedb, and lists in `data.deleted` what went. Run
+it again when the cause is fixed. (In 7.25.4 a delete cut after its first
 write answered `-1` *"not projected in __system__"* at every run, and the
 topics and columns stayed.)
 
@@ -3474,8 +3474,8 @@ its children and passes collapsed views where pure nodes are required". Both
 halves were wrong: `mt_delete_node` re-resolves the pure node by `id`, and a
 parent deleted with `force` unlinks its children itself. The real defect was
 that it deleted the schema UNDER a running treedb. Covered by test 12 of
-`c_treedb_system_schema`: deleted closed, nothing of the projection remains;
-deleted open, refused and nothing changes.
+`c_treedb_system_schema`: deleted closed, nothing of the projection remains,
+and deleted open, it is refused and nothing changes.
 
 ---
 
@@ -3576,7 +3576,7 @@ The mark is recomputed from the hooks of the schema in use at every open, and
 so a **renamed hook** — which raises only the PARENT's `topic_version` — left
 the child reloading the old mark: *"Only can be one fkey"* at every open, and
 the links made through the new hook dropped at every restart. A store written
-by an older release still has the mark in its files; it is ignored, and it
+by an older release still has the mark in its files. The mark is ignored, and it
 goes the next time that topic's version rises. Renaming a hook is now: rename
 the column in the parent, raise the parent's `topic_version` and the
 `schema_version`. The references a child already holds name the OLD hook
@@ -3585,8 +3585,8 @@ ignores them, and the first relink, clean or forced delete of that child
 removes them with a warning (*"Parent ref names a hook that no longer
 exists"*, then *"Removing wrong fkey ref"*). Link those children again through
 the new hook if they are to keep their parent. Until after 7.24.1 that unlink
-failed on the missing hook, and the child could be neither relinked, cleaned
-nor deleted, even with `force`. In a STRING fkey column (`yunos.realm_id` is
+failed on the missing hook, and nobody was able to relink, clean
+or delete the child, even with `force`. In a STRING fkey column (`yunos.realm_id` is
 one) the warning said the ref was removed and it was not until after 7.25.4:
 `kw_set_dict_value()` did not write over a key that exists, so the clean and
 the forced delete still failed, for ever (*"Cannot clean the links"*).
@@ -3596,7 +3596,7 @@ its map names a new fkey column) leaves the same kind of residue: the refs in
 the OLD column name a hook that exists and hooks this topic, but not through
 that column. They are stale too, and a relink, clean or forced delete removes
 them with *"Parent ref names a hook that fills another column"*, then
-*"Removing wrong fkey ref"* (after 7.25.3; before, the unlink looked in the new
+*"Removing wrong fkey ref"* (after 7.25.3. Before, the unlink looked in the new
 column, refused, and a forced delete of the child failed for ever). The old
 column, if no hook fills it any more, is an fkey column with no hook: every
 open logs the WARNING *"An fkey column is filled by no hook: its refs link
@@ -3756,7 +3756,7 @@ ycommand -c 'command-yuno id=<yuno> service=<treedb> command=nodes topic_name=<t
 ```
 
 `from` is **1-based**. With **no `limit`** the answer is the plain list it has
-always been, so every client written before this keeps working; asking for a
+always been, so every client written before this keeps working. A request for a
 page gets the envelope `get-page` uses:
 
 ```json

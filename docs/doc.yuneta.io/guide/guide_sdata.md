@@ -157,12 +157,12 @@ SDATA (DTP_INTEGER, "cert_sync_interval_sec",SDF_WR|SDF_PERSIST, "900", "config 
     NAME must be a secret's ([`is_secret_name()`](#is_secret_name):
     `password`, `client_secret`, `jwt`, `sim_pin`, ...), or
     [`gclass_create()`](#gclass_create) refuses the gclass, with an ERROR
-    naming the attribute (7.27.0+; not on the ESP32 port, whose code is
+    naming the attribute (7.27.0+, but not on the ESP32 port, whose code is
     frozen): the flag masks it where its gclass is asked, and everywhere
     else a secret is told by its name. The
     attr is read, written and persisted exactly as without the flag (the
     emailsender still sends its real password, the persistent-attrs file
-    still keeps it); what changes is what is SHOWN: `view-attrs`,
+    still keeps it). What changes is what is SHOWN: `view-attrs`,
     `write-attr`, `list-persistent-attrs`, `view-gobj`, `view-config`, the
     start-up trace of the yuno's attrs and the `create_delete2` trace of a
     gobj being built answer `********` for it, whatever its json type (a
@@ -184,68 +184,68 @@ SDATA (DTP_STRING, "password", SDF_PERSIST|SDF_SECRET, "", "email password"),
 { "C_EMAILSENDER^emailsender": "********" }
 ```
 
-    The persistent-attrs file itself (`<realm>/<yuno>/data/*-persistent-attrs.json`)
-    is written 0600 since 7.25.19: up to 7.25.18 it took the process umask,
-    0666 on every node, and it holds these secrets in clear. A file of
-    the yuno's own that is not as a save writes it -- left wider by an
-    older release, or a hard link -- is REPLACED when it is loaded, by a
-    0600 one with the same content (logged as *"Persistent attrs file
-    replaced by a 0600 one of the yuno's own"*), not only at its next
-    save; nothing is changed through its other names. A file of another
-    user is left as it is, with a warning: a load only reads.
-    A symlink in place of the file is not read (*"Refused the persistent
-    attrs file: it is a symlink"*).
+The persistent-attrs file itself (`<realm>/<yuno>/data/*-persistent-attrs.json`)
+is written 0600 since 7.25.19: up to 7.25.18 it took the process umask,
+0666 on every node, and it holds these secrets in clear. A file of
+the yuno's own that is not as a save writes it -- left wider by an
+older release, or a hard link -- is REPLACED when it is loaded, by a
+0600 one with the same content (logged as *"Persistent attrs file
+replaced by a 0600 one of the yuno's own"*), not only at its next
+save. Nothing is changed through its other names. A file of another
+user is left as it is, with a warning: a load only reads.
+A symlink in place of the file is not read (*"Refused the persistent
+attrs file: it is a symlink"*).
 
-    A save writes a NEW file in the same directory (`<file>.tmp-XXXXXX`,
-    created 0600 with `O_EXCL`), syncs it, and renames it over the old
-    one: a hard link or a symlink in its place is replaced (nothing is
-    written through it), and the old file is never truncated before the
-    new one is complete -- a save that fails leaves it as it was. A
-    `<file>.tmp-XXXXXX` left by a save that did not end is removed at the
-    next load, logged (one that is not a regular file is left, logged).
+A save writes a NEW file in the same directory (`<file>.tmp-XXXXXX`,
+created 0600 with `O_EXCL`), syncs it, and renames it over the old
+one: a hard link or a symlink in its place is replaced (nothing is
+written through it), and the old file is never truncated before the
+new one is complete -- a save that fails leaves it as it was. A
+`<file>.tmp-XXXXXX` left by a save that did not end is removed at the
+next load, logged (one that is not a regular file is left, logged).
 
-    Whose file it is after a save: the yuno's user's. A file there of
-    another user was loaded first, so its attrs are in the save and
-    nothing is lost: run as the yuno's user, the save takes it over
-    (logged at INFO with the old owner); run as root (once, to debug), the
-    new file is given to the old owner, so root never takes the file from
-    the yuno. A file there that CANNOT be read refuses the save (its other
-    attrs would be lost): remove it (its attrs go back to their defaults)
-    or repair it. An empty file is no data and refuses nothing.
+Whose file it is after a save: the yuno's user's. A file there of
+another user was loaded first, so its attrs are in the save and
+nothing is lost: run as the yuno's user, the save takes it over
+(logged at INFO with the old owner). Run as root (once, to debug), the
+new file is given to the old owner, so root never takes the file from
+the yuno. A file there that CANNOT be read refuses the save (otherwise its other
+attrs are lost): remove it (its attrs go back to their defaults)
+or repair it. An empty file is no data and refuses nothing.
 
-    In a directory the yuno cannot write the save goes IN PLACE, into a
-    file of the yuno's own, regular and of one name only: room is reserved
-    first without growing the file, a shorter content is padded with blanks
-    and cut only after it is on disk, and a write that stops half way (a
-    full disk where the room could not be reserved, or on a copy-on-write
-    filesystem) writes the old content back. A crash from the write until
-    its sync returns, or a write back that fails too, can leave a file that
-    cannot be parsed -- the "never truncated" above holds for the rename,
-    not for this path -- and that file refuses the next saves as above. `write-attr` answers a save that fails
-    (*"<gobj>: <attr> written, but NOT saved (see the log)"*, `result`
-    -1); up to 7.25.20 it answered "done" with nothing on disk. A
-    persistent attr of a gobj that is no service is written and NOT
-    persisted, and the answer says so (*"..., NOT persisted (only a
-    service persists its attrs)"*, with a warning in the log).
+In a directory the yuno cannot write the save goes IN PLACE, into a
+file of the yuno's own, regular and of one name only: room is reserved
+first without growing the file, a shorter content is padded with blanks
+and cut only after it is on disk, and a write that stops half way (a
+full disk where the room was not reserved, or on a copy-on-write
+filesystem) writes the old content back. A crash from the write until
+its sync returns, or a write back that fails too, can leave a file that
+cannot be parsed -- the "never truncated" above holds for the rename,
+not for this path -- and that file refuses the next saves as above. `write-attr` answers a save that fails
+(*"<gobj>: <attr> written, but NOT saved (see the log)"*, `result`
+-1). Up to 7.25.20 it answered "done" with nothing on disk. A
+persistent attr of a gobj that is no service is written and NOT
+persisted, and the answer says so (*"..., NOT persisted (only a
+service persists its attrs)"*, with a warning in the log).
 
-    A COMMAND PARAMETER takes the flag too: the `commands` trace prints
-    the command line, and with `ev_kw` its kw, with the parameter masked
-    (see [`command_mask_secret_kw()`](#command_mask_secret_kw)). A key the
-    command table cannot know -- the free keys of a `SDF_WILD_CMD` command,
-    which the agent's `command-yuno` forwards to another yuno -- is masked
-    when its NAME is a secret's ([`is_secret_name()`](#is_secret_name)).
-    And a value that has the shape of a credential is masked under any
-    name: a JWT, the credential after `Bearer` or `Basic` (when it can be
-    one: not a word of prose, see
-    [`mask_secrets_inline()`](#mask_secrets_inline)).
+A COMMAND PARAMETER takes the flag too: the `commands` trace prints
+the command line, and with `ev_kw` its kw, with the parameter masked
+(see [`command_mask_secret_kw()`](#command_mask_secret_kw)). A key the
+command table cannot know -- the free keys of a `SDF_WILD_CMD` command,
+which the agent's `command-yuno` forwards to another yuno -- is masked
+when its NAME is a secret's ([`is_secret_name()`](#is_secret_name)).
+And a value that has the shape of a credential is masked under any
+name: a JWT, the credential after `Bearer` or `Basic` (when it can be
+one: not a word of prose, see
+[`mask_secrets_inline()`](#mask_secrets_inline)).
 
-    A limit: a PARAMETER whose name is not a secret's -- the `content64`
-    of the agent's `write-tty`, `create-config` and `update-config` -- is
-    taken (an attribute is not), and masked by its declaration where the
-    parser is asked (the kw of the authz checker, the `commands` trace),
-    and NOT in the `machine` trace with `ev_kw` of an event that carries
-    it, which masks by names only. Give a secret a secret's name where you
-    can.
+A limit: a PARAMETER whose name is not a secret's -- the `content64`
+of the agent's `write-tty`, `create-config` and `update-config` -- is
+taken (an attribute is not), and masked by its declaration where the
+parser is asked (the kw of the authz checker, the `commands` trace),
+and NOT in the `machine` trace with `ev_kw` of an event that carries
+it, which masks by names only. Give a secret a secret's name where you
+can.
 
 ```C
 SDATAPM (DTP_STRING,    "password",     SDF_SECRET,     0,          "Password"),

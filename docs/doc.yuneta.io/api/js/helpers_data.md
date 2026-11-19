@@ -48,7 +48,7 @@ Before gobj-js 7.26.9, `jdb_init()` created no topic and no hook.
 
 Prepares a `jdb`, and builds one topic for each LEAF of the schema: a key whose
 value is a dict groups topics, it is not one (`{a: {b: [], c: []}}` gives the
-topics ``a`b`` and ``a`c``; since 7.26.10). An empty dict is an empty group:
+topics ``a`b`` and ``a`c``, since 7.26.10). An empty dict is an empty group:
 `{a: {}}` gives no topic at all. With
 `duplicate` set to `true` the function works on a deep copy, and the caller
 keeps its own object. It gives the `jdb` back.
@@ -61,13 +61,13 @@ function builds no topic for it.
 
 Writes a record in a topic, and gives the topic back. A record whose `id` is
 already in the list it goes in is updated, at the root too (since gobj-js
-7.26.11; at the root it was added a second time). The function returns `null`
+7.26.11: before, at the root it was added a second time). The function returns `null`
 and writes a log error when the topic does not exist, when the record has no
-`id`, when `path` is not a string (since 7.26.8; it threw before), when a
-record of `path` is not there (since 7.26.10; it gave the topic back as if it
+`id`, when `path` is not a string (since 7.26.8: it threw before), when a
+record of `path` is not there (since 7.26.10: before, it gave the topic back as if it
 had written), or when the hook of the record `path` ends on is not a list
-(since 7.26.11; it threw), when the record is not an object, or when `path`
-has an empty segment (``"a`"``; since 7.26.12, it threw or was taken as
+(since 7.26.11: before, it threw), when the record is not an object, or when `path`
+has an empty segment (``"a`"``, since 7.26.12: before, it threw or was taken as
 `"a"`). An update that fails leaves the jdb as it was.
 
 ```javascript

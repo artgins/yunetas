@@ -7,7 +7,7 @@ M-Bus (Meter-Bus, EN 13757) master: reads the water, heat, gas and electricity
 meters of a wired M-Bus. The module has two parts:
 
 - [`mbus_telegram.h`](#module-mbus-telegram), the telegram decoder: frames in,
-  json out, with no gobj and no state;
+  json out, with no gobj and no state.
 - `C_PROT_MBUS_M`, the master gclass built on it.
 
 Source code:
@@ -25,7 +25,7 @@ gateway** that passes the bytes as they come. For this gclass both are a
 stream of bytes: a `C_UART` in the first case, a `C_TCP` in the second.
 
 The bus runs at **2400 baud, 8E1** (8 bits, even parity, 1 stop bit) unless
-it is set up otherwise. A long frame is up to 261 bytes, about 1.2 s on the
+its configuration says otherwise. A long frame is up to 261 bytes, about 1.2 s on the
 wire, so a cycle of 250 meters takes minutes. That is fine for meters of water
 and gas.
 
@@ -113,7 +113,7 @@ The same bus behind a gateway:
 | Attribute | Default | Meaning |
 |---|---|---|
 | `url` | | Serial device of the level converter, or `tcp://host:port` of a gateway |
-| `baudrate`, `bytesize`, `parity`, `stopbits` | 2400, 8, `even`, 1 | Serial line, given to the `C_UART`. They also bound how long an answer may last (the wire time of two frames), read from the `C_UART` when each request goes (the bottom of the master, or a `C_UART` under other layers below it: the first gobj of the bottom chain that has a `baudrate`): what the line runs at, so a speed its tty does not know counts at 9600, the speed it runs at (up to 7.29.3 the master counted with its own attrs, once, at create). A `baudrate` of 0 or less is an error, and 2400 is taken and given to the `C_UART`. Behind a `tcp://` gateway, set them to the speed of the gateway's bus: there the master's own attrs count |
+| `baudrate`, `bytesize`, `parity`, `stopbits` | 2400, 8, `even`, 1 | Serial line, given to the `C_UART`. They also bound how long an answer can last (the wire time of two frames), read from the `C_UART` when each request goes (the bottom of the master, or a `C_UART` under other layers below it: the first gobj of the bottom chain that has a `baudrate`): what the line runs at, so a speed its tty does not know counts at 9600, the speed it runs at (up to 7.29.3 the master counted with its own attrs, once, at create). A `baudrate` of 0 or less is an error, and 2400 is taken and given to the `C_UART`. Behind a `tcp://` gateway, set them to the speed of the gateway's bus: there the master's own attrs count |
 | `slaves` | `[]` | The meters. They are read at start, so a change needs a stop and a start |
 | `timeout_polling` | 60000 | Milliseconds from the end of one cycle to the start of the next |
 | `timeout_response` | 500 | Milliseconds of silence allowed: from the request to the first byte of the answer, and from each chunk of bytes to the next. EN 13757-2 gives a meter about 190 ms at 2400 baud to start. The rest is margin for a gateway. It is not the time of the whole answer: a long frame is about 1.2 s on the wire |
@@ -142,9 +142,9 @@ secondary:   SND_UD select (CI 52) -> E5,  REQ_UD2 to FD -> RSP_UD  [...]
   again and does not act again. So:
   - the first `REQ_UD2` carries FCB 1 (`7B`). When a telegram ends with
     `DIF 1F` (more records follow), the FCB is toggled and the next telegram
-    is asked for, up to `max_telegrams`;
+    is asked for, up to `max_telegrams`.
   - the selection (`CI 52`) goes with FCB 1 (`73`). The selection clears the
-    FCB memory of the slave, and libmbus sends it so;
+    FCB memory of the slave, and libmbus sends it so.
   - the write of `set-primary-address` (`CI 51`) is the first `SND_UD` after
     a selection, so it goes with FCB 1 (`73`) too. With FCB 0 a strict meter
     acknowledges it and does not change its address.
@@ -281,7 +281,7 @@ Three commands work on the bus itself. A command checks its arguments,
 **starts its operation and answers at once**. The operation runs when the bus
 is free: at once between cycles, or at the end of the cycle in progress. The
 cycle waits while it runs, and goes on `timeout_polling` after it. Only one
-runs at a time; a second one answers `-1`. **`operation-status`** gives the
+runs at a time. A second one answers `-1`. **`operation-status`** gives the
 state (`waiting`, `running`, `done`, `failed`) and the result. The end is
 logged: *"M-Bus operation done"* as an INFO, with the number found, or *"M-Bus
 operation failed"* as a WARNING, with the reason. A bus that closes fails the
@@ -300,12 +300,12 @@ operation in progress.
   takes tens of seconds.
 - **`set-primary-address secondary=<8 digits> [manufacturer=<3 letters>]
   new_address=<1-250>`**
-  1. selects the meter, which must answer `E5`;
+  1. selects the meter, which must answer `E5`.
   2. writes it the record `01 7A <address>` (`SND_UD`, `CI 51`), which must
-     answer `E5`;
+     answer `E5`.
   3. checks that the meter answers `SND_NKE` at the new address.
 
-  A secondary address with a wildcard is refused: it could select more than
+  A secondary address with a wildcard is refused: it can select more than
   one meter.
 
 ```bash
@@ -330,7 +330,7 @@ ycommand -c 'command-yuno id=<yuno> service=<gate> command=operation-status'
 ```
 
 An entry of `scan-secondary` has the `secondary` and the primary `address`
-the meter answered with (0 when it has none). An entry that could not be told
+the meter answered with (0 when it has none). An entry that it was not possible to tell
 apart carries `"collision": true`, and one that answered the probe but not
 the `REQ_UD2` carries an `error`.
 

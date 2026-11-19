@@ -40,7 +40,7 @@ full rules and `g_rowid` tracing examples.
 
 ## Limits
 
-`timeranger2.h` defines two limits for values that come from outside: a
+`timeranger2.h` defines two limits for values from outside: a
 record's time, and a version.
 
 (timeranger2-max-time)=
@@ -50,7 +50,7 @@ keeps 44 bits of the time. The 16 bits above them hold the user flag and the
 system flag, so [`tranger2_append_record()`](#tranger2_append_record) writes
 the flags over the high bits of a larger time. Then the record keeps another
 time than the name of its file. In seconds the last time is
-559444-03-08T09:40:15 UTC; in milliseconds (`sf_t_ms`, `sf_tm_ms`) it is
+559444-03-08T09:40:15 UTC. In milliseconds (`sf_t_ms`, `sf_tm_ms`), it is
 2527-06-23T06:20:44.415 UTC. The time of the tkey is a time too, and a
 string tkey is a DATE with no year limit (`approxidate_careful()` reads
 `"@99999999999999 +0000"` as that many seconds, times 1000 on an `sf_tm_ms`
@@ -84,7 +84,7 @@ so a version near the end of a `json_int_t` overflowed there. The code keeps
 and compares versions as `json_int_t`, whatever their size. It is asked by
 [`tranger2_topic_var_fault()`](<#tranger2_topic_var_fault>) and by
 `C_TREEDB`'s `open-treedb` and `create-topic` for a peer's schema, and a
-peer's `save-schema` is refused when it would raise the `schema_version` or
+peer's `save-schema` is refused when it tries to raise the `schema_version` or
 a `topic_version` past it (since SDK 7.27.0). So a treedb a peer opens AT
 the maximum cannot save an edit again: give a peer's schema versions far
 below it.
@@ -173,11 +173,11 @@ Returns 0 on success, or a negative value on failure.
 The function makes sure that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
 
 **A time past the 44 bits of an md2 row is kept CUT, and said.** The row
-keeps 44 bits of `__t__` and of `__tm__` ([`TRANGER2_MAX_TIME`](#timeranger2-max-time));
-the flags go over the rest. A `__t__`, or a time of the tkey
+keeps 44 bits of `__t__` and of `__tm__` ([`TRANGER2_MAX_TIME`](#timeranger2-max-time)).
+The flags use the other bits. A `__t__`, or a time of the tkey
 ([`tranger2_record_tkey_time()`](<#tranger2_record_tkey_time>)), that does
 not fit is appended cut, as it always was, and logged as an ERROR (without a
-stack; since SDK 7.27.0, it was cut without a word): *"Record time past what
+stack, since SDK 7.27.0, where before it was cut without a word): *"Record time past what
 an md2 row keeps (44 bits): appended CUT"*, with `topic`, `key`, `__t__`,
 `__tm__` and `tm_wrapped` (the multiplication by 1000 of a date of an
 `sf_tm_ms` topic passed 64 bits). The append returns `0`. A caller that takes
@@ -196,14 +196,14 @@ of a text time bound: `""` is no tkey value (`0`), the text of a JSON integer
 is that integer in the unit of `tm`, a text written as another number (`" 5"`,
 `"5 "`, `"10.5"`, `"007"`, `"1,5"`, `"5 5"`, `"1,5 days ago"`) is refused, a string with a NUL inside
 (`"5\u0000junk"`) is refused, and any other text is a date. A text
-that is refused is refused with a WARNING (the text comes from a peer or a
+that is refused is refused with a WARNING (the text is from a peer or a
 user) and nothing written: *"Cannot append record, its tkey is a text that
 is no date"*, with `why`, `topic`, `tkey` and the first 64 bytes of the text
 in `value`. The append returns `-1`, and the trace shows the first 256 bytes
 of the record, not all of it. The same in
 [`tranger2_append_record_text()`](<#tranger2_append_record_text>). Up to SDK
 7.29.3 `approxidate()` read a text that is no date as NOW, in silence, and
-`"5"` as the 5th of this month; on an `sf_tm_ms` topic `"1761000000000"` was
+`"5"` as the 5th of this month. On an `sf_tm_ms` topic, `"1761000000000"` was
 stored as NOW times 1000 (up to 7.29.2 as the year 57773, cut). Now it is the
 integer `1761000000000`, as a json integer tkey is.
 
@@ -240,7 +240,7 @@ if(tranger2_append_record(tranger, "topic", 0, 0, &md, record) == 0) {
 **A string of a record can hold NUL characters.** `json_dumps()` writes each
 one as the escape `\u0000`, and a read hands it back (the content is loaded
 with `JSON_ALLOW_NUL`). A consumer that reads the string with `kw_get_str()`
-gets the C string up to its first NUL; `json_string_length()` gives the whole
+gets the C string up to its first NUL, but `json_string_length()` gives the whole
 length:
 
 ```C
@@ -254,7 +254,7 @@ record is not json"* (a CRITICAL, with `topic`, `key`, `__t__`, `__offset__`,
 `__size__`, the jansson `error` and its `position`), and the record is not
 handed. A content that this process has not the memory to parse logs *"Cannot
 read the record, this process has not the memory to parse its content
-(MEM_MAX_BLOCK)"* (the same fields; the jansson `error` is *"not enough
+(MEM_MAX_BLOCK)"* (the same fields, and the jansson `error` is *"not enough
 memory"*), and the record is not handed either. The largest memory block
 (`gbmem_get_maximum_block()`) is set by `MEM_MAX_BLOCK` for each yuno, and a
 content smaller than that block can need more to parse: jansson doubles the
@@ -314,7 +314,7 @@ the record began (a row written in part is cut from the `.md2` too): the file
 keeps no record that no row names. If the cut fails as well, it logs *"Cannot
 cut back the content of an append whose md2 row was not written: the content
 file keeps a record no row names"*. A kill or a power cut between the two
-writes still leaves that shape; the next open ignores it with a warning (see
+writes still leaves that shape. The next open ignores it with a warning (see
 *After a restart too*, under [`tranger2_open_iterator()`](#tranger2_open_iterator)).
 Up to 7.25.4 the content was left behind.
 
@@ -379,7 +379,7 @@ WARNING tranger2_append_record: md2 file of the key ends in a part of a row: an 
 
 If that cut fails, the append is refused with `-1` and its content is cut back
 (*"Cannot append record, its md2 file ends in a part of a row that cannot be
-cut back: the append is refused"*); the whole rows stay readable, and the next
+cut back: the append is refused"*). The whole rows stay readable, and the next
 append tries the cut again. The append cuts only a tail that is a torn row
 after good rows, the same check as the open (see
 [`tranger2_open_iterator()`](#tranger2_open_iterator)). For any other tail it
@@ -426,14 +426,14 @@ Up to 7.25.4 nothing cut a torn row back: an append wrote its row after the
 torn bytes, and the cache build left the whole file out of the key, so no read
 found that row.
 
-**An append into a file flagged unreadable** (a `.md2` the cache build could
-not count, see the same section) counts the file again first. If it can be read
+**An append into a file flagged unreadable** (a `.md2` that the cache build was
+not able to count, see the same section) counts the file again first. If it can be read
 now, it gets its cell, the flag of that file goes (*"md2 file of the key
 readable again: it is counted, and the key is not flagged for it"*), and the
 append goes on. If not, the append is refused with `-1` and writes nothing
 (*"Cannot append record, its file is flagged unreadable: its row would follow
-rows no cell counts"*): its row would have been counted as the file's first,
-and a load read an OLD row of the file in its place.
+rows no cell counts"*). Without this refusal, its row is counted as the file's first,
+and a load reads an OLD row of the file in its place.
 
 ```C
 /*  key A: the md2 of day 2 could not be opened at the open (mode 0000)     */
@@ -445,10 +445,10 @@ tranger2_append_record(tranger, "topic", t_day2, 0, &md, rec2);   // 0: day 2 co
 
 The file counted again gets its cell in the MIDDLE of the key, and every
 global rowid after it moves up by the rows of the file. The iterators open on
-the key follow: an unfiltered one takes its segments again at its next page; a
+the key follow: an unfiltered one takes its segments again at its next page. A
 FILTERED one (a paging iterator with an index, see
 [`tranger2_iterator_get_page()`](#tranger2_iterator_get_page)) takes its
-segments and its index again at once, as its open would build them now. So
+segments and its index again at once, as a new open builds them now. So
 its index gains the rows of the file, with their new rowids. Like every append
 after the open of a filtered iterator, the append that caused the count is not
 in its index. For example:
@@ -521,13 +521,13 @@ Everything else is the same as in `tranger2_append_record()`: the checks of the 
 
 These texts are refused with an ERROR, and nothing is written:
 
-- a text that is not one json object: *"Cannot append record, its content is not one json object"*;
-- a text that is not followed by a NUL: *"Cannot append record, content NULL or not followed by a NUL"*;
-- a topic keyed by rowid (`sf_rowid_key`): its records get a `"__rowid__"` member, and a text cannot get one. Use `tranger2_append_record()`;
-- a text that has a `"__md_tranger__"` member. That member is the metadata of another append. The json append removes it; the text append cannot cut it;
-- a string pkey that has a NUL in it (`"dx\u0000evil"`). The json append takes it as `"dx"`.
+- A text that is not one json object: *"Cannot append record, its content is not one json object"*.
+- A text that is not followed by a NUL: *"Cannot append record, content NULL or not followed by a NUL"*.
+- A topic keyed by rowid (`sf_rowid_key`): its records get a `"__rowid__"` member, and a text cannot get one. Use `tranger2_append_record()`.
+- A text that has a `"__md_tranger__"` member. That member is the metadata of another append. The json append removes it, but the text append cannot cut it.
+- A string pkey that has a NUL in it (`"dx\u0000evil"`). The json append takes it as `"dx"`.
 
-The text keeps its spaces and its escapes. A read gets back the same json, not the bytes that `json_dumps()` would write.
+The text keeps its spaces and its escapes. A read gets back the same json, not the bytes that `json_dumps()` writes.
 
 ---
 
@@ -553,7 +553,7 @@ uint64_t tranger2_record_tkey_time(
 |---|---|---|
 | `topic` | `json_t *` | The json of an open topic ([`tranger2_topic()`](<#tranger2_topic>)): its `tkey` and `system_flag` are read. Not owned. |
 | `record` | `json_t *` | The record about to be appended. Not owned, not changed. |
-| `fits` | `BOOL *` | Set to `FALSE` when an md2 row cannot keep the time: negative, past [`TRANGER2_MAX_TIME`](#timeranger2-max-time), a date of an `sf_tm_ms` topic whose multiplication by 1000 passes the 44 bits, or a string that [`tranger2_time_of_text()`](<#tranger2_time_of_text>) refuses: one that is no date, or one written as a number that is not the text of a JSON integer (the return is then `0`; up to SDK 7.29.3 a text that is no date was NOW and fitted). `TRUE` otherwise. |
+| `fits` | `BOOL *` | Set to `FALSE` when an md2 row cannot keep the time: negative, past [`TRANGER2_MAX_TIME`](#timeranger2-max-time), a date of an `sf_tm_ms` topic whose multiplication by 1000 passes the 44 bits, or a string that [`tranger2_time_of_text()`](<#tranger2_time_of_text>) refuses: one that is no date, or one written as a number that is not the text of a JSON integer (the return is then `0`, and up to SDK 7.29.3 a text that is no date was NOW and fitted). `TRUE` otherwise. |
 
 **Returns**
 
@@ -566,7 +566,7 @@ back as a large unsigned value, and `*fits` is `FALSE`.
 
 **Notes**
 
-The append keeps a time that does not fit CUT, and logs it as an ERROR; it
+The append keeps a time that does not fit CUT, and logs it as an ERROR, but it
 does not refuse it. A caller that takes the record from a peer asks this
 first and refuses the record: `C_TRANGER`'s `add-record`, and the treedb
 before a create or a saved update of a node (since SDK 7.27.0).
@@ -641,22 +641,22 @@ int tranger2_time_of_text(
 |---|---|
 | `0`, `*value` `0` | `""`: no time (no bound, no tkey value). |
 | `0`, `*value` the integer | The text of a JSON integer, `-?(0|[1-9][0-9]*)`: `"5"`, `"-86400"`, `"-0"`, `"1761000000000"`. |
-| `-1`, *"a time text longer than 256 bytes"* | Any other text of more than 256 bytes (also as a json string, in [`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>)). No date needs more, and the reader takes time that grows with the length of a text that may come from a peer: a 140 KB text of `"at"`, comments and `"the"` took it seconds. The text of a JSON integer is not of these: of any length it is an integer, and past `INT64_MAX` it is `-2` (below). |
+| `-1`, *"a time text longer than 256 bytes"* | Any other text of more than 256 bytes (also as a json string, in [`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>)). No date needs more, and the reader takes time that grows with the length of a text that can be from a peer: a 140 KB text of `"at"`, comments and `"the"` took it seconds. The text of a JSON integer is not of these: of any length it is an integer, and past `INT64_MAX` it is `-2` (below). |
 | `-1`, *"a number that is not the text of a JSON integer"* | A text written as another number: `" 5"`, `"5 "`, `"007"`, `"-007"`, `"+5"`, `".5"`, `"5."`, `"10.5"`, `"1E5"`, and with a decimal comma, `"1,5"`, `"10,5"`, `",5"`, `"5,"`. It is never read as a date. |
-| `-1`, *"a comma between digits, not a date"* | A comma between two digits among other words: `"1,5 days ago"`, `"1,5days ago"`, `"2026,10,01"`, `"10:00,5"`, `"1,5:29"`, `"yesterday 1,2026"`. `approxidate()` reads them as September 26 (1 and 5 days ago), January 10 of 2026, the 5th, the 1st at 05:29, September 30. Three commas of a date are kept: (1) the decimal comma of the seconds of a clock time, ISO 8601's (`"2026-10-01T10:00:00,500Z"`, `"10:00:00,5"`); (2) a comma that closes a date before its hour, a clock time or an hour with am/pm: `"2026-10-01,10:00"`, `"1 Oct 2026,10:00"`, `"01 10 2026,10:00"`, `"Oct 1,3 pm"`. What is before it must be a date, or the comma is refused: `"1 2,10:00"`, `"12 2026,10:00"`, `"2026,10:00"`, read as February 1, October 12 and the year 2026; (3) a comma between a day (1 or 2 digits) and a year (4 or 2 digits) after the name of a month: `"Oct 1,2026"`, `"Oct 1,26"`. Not when the number after the comma is a count: `"Oct 1,50 days ago"`, as `"1,5 days ago"` is refused. |
-| `-1`, *"numbers separated by blanks or commas, not a date"* | Words that are all digits: `"5 5"`, `"10 5"`, `"2026 10 01"`, `"2026, 10, 01"`, `", 5"`, `"10 2026"`, `"5_5"`; or two or more of them in a row among other words: `"5 5 ago"`, `"1 5 days ago"`, `"2026 10 01 10:00"`, `"12 2026 10:00"`, `"yesterday 1 2026"`, `"2026_10_01"`, `"5 the 5"`. `approxidate()` reads `"5 5"` as May 5, `"2026 10 01"` as January 10 of 2026, `", 5"` as the 5th of this month, `"1 5 days ago"` as September 26, `"12 2026 10:00"` as October 12 and `"yesterday 1 2026"` as September 30. The words are parted as `approxidate_careful()` parts them: by blanks, commas, `_`, and a `.` that is not between two digits (`"Oct.. 1 2026"`, `"3 pm."`; `"01.10.2026"` is one word); where letters and digits touch (`"Oct1"` is `"Oct 1"`, `"1 2thu"` is `"1 2 thu"`, `"5the5"` is `"5 the 5"`), but for an ordinal (`"5th"`) and the `T` of ISO 8601 (`"2026-10-01T10:00"`, `"20261001T1000"`); and by the `-` or `/` of a date with a month name (`"Oct-1-5"` is `"Oct 1 5"`, `"01/Oct/2026"` is `"01 Oct 2026"`). A comment (`"(CEST)"`) is passed over whole, as the reader passes over it, also between a count and its am/pm or unit (`"Oct 1 5 (CEST) pm"` is 17:00 CEST; up to 7.29.3 the reader read 2005-10-01). `ago`, `at`, `on`, `the`, `of` and a weekday are passed over, as it passes over them: they part no digits (`"5 the 5"` is `"5 5"`, May 5) and no month from its day (`"march the 5 2026"` is March 5). A run of digits is a date only as a person writes one: day month year with a year of 4 digits (`"01 10 2026"`, `"01 10 2026 10:00"`; with numbers alone a year of 2 digits is refused, as `"1 2 34"` would be February 1, 2034), or after the name of a month a day, or a day and a year of 4 or 2 digits (`"Oct 1"`, `"1 Oct 2026"`, `"Oct 1 2026"`, `"Oct 1, 2026"`, `"Oct 1 26"`). A month name is 3 letters or more of its English name, in any case (`"Oct"`, `"Sept."`, `"october"`), as `approxidate_careful()` reads one; any other word before the run (`"yesterday"`, a weekday) does not make it a date. After a day and a month name, in either order, only a year of 4 or 2 digits may follow (`"1 Oct 2026"`, `"Oct 1st 26"`, `"Thu Oct 1 10:00:00 2026"`); `"1 Oct 5"`, `"01-Oct 5"`, `"Oct 1st 2"` and `"Oct 1 10:00 5"` are refused (read as 2005 and 2002). An ordinal (`"1st"`, `"5th"`) is a day: after it, with no month name, only a month and a year of 4 digits (`"1st 10 2026"`); `"5th 2026"` (the 5th of a month the text does not say), `"5th 2"` (February 5) and `"1st 10"` are refused. A number alone is no hour: `"Oct 29 10"` is 2010-10-29, a year of 2 digits as in `"Oct 1 26"`; after `at` (or `at the`) a person means a time, and the reader refuses a number alone there, of any value (`"Oct 1 at 10"`, `"at 3"`, `"Oct 1 at 24"`, `"Oct 1 at the 10"`), a count back (`"at 5 days"`, `"at 2 fridays ago"`, `"at -1d"`, `"at last friday"`) and a number with dots and no year of 4 digits (`"at 10.30"`, `"at 10.30.00"`), *"a text that is no date"*; up to 7.29.3 `"Oct 1 at 24"` was 2024-10-01, `"at 10.30"` October 30 and `"at 10.30.00"` 2000-10-30. `"Oct 1 at 10:00"`, `"Oct 1 at 10 pm"`, `"at 15h"` and `"at 10h30"` (15:00 and 10:30, as Spanish and French write them; up to 7.29.3 15 hours back, and 10 hours back from the 30th), `"at 5 Oct 2026"` and `"at 5 of October"` (a day before a month name) are dates. The reader takes `ago` only right after its count: `"1 day 5 ago"` is no date (it was October 4). A number that a unit, `am`/`pm` or a weekday follows is a **count** (`"5 days"`, `"3 pm"`, `"3pm"`, `"2 fridays"`): it ends a run and is not in it, and the run before it must be a date, even of one number. `"Oct 1 2026 3 pm"`, `"01 10 2026 3 pm"`, `"Oct 29 3 PM"`, `"01 10 2026 5 days ago"` are dates; `"12 10 pm"` (read as the 12th at 22:00, where 12:10 pm was meant), `"5 5 pm"`, `"5 at 3 pm"`, `"2026 3 pm"` and `"1 5days ago"` are refused. After a month, a day or a year, a number before a weekday is that date's, not a count: `"Oct 1 2026 Thu"` is October 1; and so is a year (4 digits, 1970-9999) before any weekday: `"Oct 1 2026 thursdays"` is no date, and `"2026 Thu"`, a weekday with no day, is refused by the reader, as `"monday 10:00"` is (see [`approxidate_careful()`](#approxidate_careful)). The weekday is not checked against a date: `"Oct 5 2026 friday"` is Monday, October 5; beside a day counted from today the reader refuses a weekday that is not that day's (`"now Mon"` on a Wednesday; the day the text counted, in the zone said or the UTC offset of now), and a second weekday (`"Mon Thu now"`). A 12 that noon or midnight follows is their hour, right after `at` or with no date before it, as the reader reads it, and it ends a run too: `"Oct 1 2026 at 12 noon"` is a date, `"2026 12 noon"` is refused. `"1700000000 +0000"` (git's raw date), `"01.10.2026"` and epoch seconds alone with a comment (`"1761000000 (UTC)"`, `"(EST) 1761000000"`, 9 digits or more and no leading zero; refused for a while) are not of these shapes, and are dates. Without a comment, a blank or a mark about them leaves a number: `", 1761000000"` and `"_1761000000"` are refused, as `" 1761000000"` is. |
+| `-1`, *"a comma between digits, not a date"* | A comma between two digits among other words: `"1,5 days ago"`, `"1,5days ago"`, `"2026,10,01"`, `"10:00,5"`, `"1,5:29"`, `"yesterday 1,2026"`. `approxidate()` reads them as September 26 (1 and 5 days ago), January 10 of 2026, the 5th, the 1st at 05:29, September 30. Three commas of a date are kept: (1) the decimal comma of the seconds of a clock time, ISO 8601's (`"2026-10-01T10:00:00,500Z"`, `"10:00:00,5"`). (2) A comma that closes a date before its hour, a clock time or an hour with am/pm: `"2026-10-01,10:00"`, `"1 Oct 2026,10:00"`, `"01 10 2026,10:00"`, `"Oct 1,3 pm"`. What is before it must be a date, or the comma is refused: `"1 2,10:00"`, `"12 2026,10:00"`, `"2026,10:00"`, read as February 1, October 12 and the year 2026. (3) A comma between a day (1 or 2 digits) and a year (4 or 2 digits) after the name of a month: `"Oct 1,2026"`, `"Oct 1,26"`. Not when the number after the comma is a count: `"Oct 1,50 days ago"`, as `"1,5 days ago"` is refused. |
+| `-1`, *"numbers separated by blanks or commas, not a date"* | Words that are all digits: `"5 5"`, `"10 5"`, `"2026 10 01"`, `"2026, 10, 01"`, `", 5"`, `"10 2026"`, `"5_5"`, or two or more of them in a row among other words: `"5 5 ago"`, `"1 5 days ago"`, `"2026 10 01 10:00"`, `"12 2026 10:00"`, `"yesterday 1 2026"`, `"2026_10_01"`, `"5 the 5"`. `approxidate()` reads `"5 5"` as May 5, `"2026 10 01"` as January 10 of 2026, `", 5"` as the 5th of this month, `"1 5 days ago"` as September 26, `"12 2026 10:00"` as October 12 and `"yesterday 1 2026"` as September 30. The words are parted as `approxidate_careful()` parts them: by blanks, commas, `_`, and a `.` that is not between two digits (`"Oct.. 1 2026"`, `"3 pm."`, but `"01.10.2026"` is one word), where letters and digits touch (`"Oct1"` is `"Oct 1"`, `"1 2thu"` is `"1 2 thu"`, `"5the5"` is `"5 the 5"`), but for an ordinal (`"5th"`) and the `T` of ISO 8601 (`"2026-10-01T10:00"`, `"20261001T1000"`), and by the `-` or `/` of a date with a month name (`"Oct-1-5"` is `"Oct 1 5"`, `"01/Oct/2026"` is `"01 Oct 2026"`). A comment (`"(CEST)"`) is passed over whole, as the reader passes over it, also between a count and its am/pm or unit (`"Oct 1 5 (CEST) pm"` is 17:00 CEST, and up to 7.29.3 the reader read 2005-10-01). `ago`, `at`, `on`, `the`, `of` and a weekday are passed over, as it passes over them: they part no digits (`"5 the 5"` is `"5 5"`, May 5) and no month from its day (`"march the 5 2026"` is March 5). A run of digits is a date only as a person writes one: day month year with a year of 4 digits (`"01 10 2026"`, `"01 10 2026 10:00"`, but with numbers alone a year of 2 digits is refused, because `approxidate()` reads `"1 2 34"` as February 1, 2034), or after the name of a month a day, or a day and a year of 4 or 2 digits (`"Oct 1"`, `"1 Oct 2026"`, `"Oct 1 2026"`, `"Oct 1, 2026"`, `"Oct 1 26"`). A month name is 3 letters or more of its English name, in any case (`"Oct"`, `"Sept."`, `"october"`), as `approxidate_careful()` reads one. Any other word before the run (`"yesterday"`, a weekday) does not make it a date. After a day and a month name, in either order, only a year of 4 or 2 digits can follow (`"1 Oct 2026"`, `"Oct 1st 26"`, `"Thu Oct 1 10:00:00 2026"`). `"1 Oct 5"`, `"01-Oct 5"`, `"Oct 1st 2"` and `"Oct 1 10:00 5"` are refused (read as 2005 and 2002). An ordinal (`"1st"`, `"5th"`) is a day: after it, with no month name, only a month and a year of 4 digits (`"1st 10 2026"`). `"5th 2026"` (the 5th of a month the text does not say), `"5th 2"` (February 5) and `"1st 10"` are refused. A number alone is no hour: `"Oct 29 10"` is 2010-10-29, a year of 2 digits as in `"Oct 1 26"`. After `at` (or `at the`), a person means a time, and the reader refuses a number alone there, of any value (`"Oct 1 at 10"`, `"at 3"`, `"Oct 1 at 24"`, `"Oct 1 at the 10"`), a count back (`"at 5 days"`, `"at 2 fridays ago"`, `"at -1d"`, `"at last friday"`) and a number with dots and no year of 4 digits (`"at 10.30"`, `"at 10.30.00"`), *"a text that is no date"*. Up to 7.29.3, `"Oct 1 at 24"` was 2024-10-01, `"at 10.30"` October 30 and `"at 10.30.00"` 2000-10-30. `"Oct 1 at 10:00"`, `"Oct 1 at 10 pm"`, `"at 15h"` and `"at 10h30"` (15:00 and 10:30, as Spanish and French write them, and up to 7.29.3 15 hours back, and 10 hours back from the 30th), `"at 5 Oct 2026"` and `"at 5 of October"` (a day before a month name) are dates. The reader takes `ago` only right after its count: `"1 day 5 ago"` is no date (it was October 4). A number that a unit, `am`/`pm` or a weekday follows is a **count** (`"5 days"`, `"3 pm"`, `"3pm"`, `"2 fridays"`): it ends a run and is not in it, and the run before it must be a date, even of one number. `"Oct 1 2026 3 pm"`, `"01 10 2026 3 pm"`, `"Oct 29 3 PM"`, `"01 10 2026 5 days ago"` are dates. `"12 10 pm"` (read as the 12th at 22:00, where 12:10 pm was meant), `"5 5 pm"`, `"5 at 3 pm"`, `"2026 3 pm"` and `"1 5days ago"` are refused. After a month, a day or a year, a number before a weekday is that date's, not a count: `"Oct 1 2026 Thu"` is October 1. So is a year (4 digits, 1970-9999) before any weekday: `"Oct 1 2026 thursdays"` is no date, and `"2026 Thu"`, a weekday with no day, is refused by the reader, as `"monday 10:00"` is (see [`approxidate_careful()`](#approxidate_careful)). The weekday is not checked against a date: `"Oct 5 2026 friday"` is Monday, October 5. Beside a day counted from today, the reader refuses a weekday that is not that day's (`"now Mon"` on a Wednesday: the day the text counted, in the zone said or the UTC offset of now), and a second weekday (`"Mon Thu now"`). A 12 that noon or midnight follows is their hour, right after `at` or with no date before it, as the reader reads it, and it ends a run too: `"Oct 1 2026 at 12 noon"` is a date, `"2026 12 noon"` is refused. `"1700000000 +0000"` (git's raw date), `"01.10.2026"` and epoch seconds alone with a comment (`"1761000000 (UTC)"`, `"(EST) 1761000000"`, 9 digits or more and no leading zero, refused for a while) are not of these shapes, and are dates. Without a comment, a blank or a mark about them leaves a number: `", 1761000000"` and `"_1761000000"` are refused, as `" 1761000000"` is. |
 | `0`, `*value` the date | Any other text that [`approxidate_careful()`](#approxidate_careful) reads: `"2000-01-02T00:00:00+0000"`, `"2000-01-02 00:00:00 +0000"`, `"yesterday"`. |
 | `-1`, *"a text that is no date"* | Any other text: `"garbage"`, `"0x10"`. |
-| `-2`, *"an integer past what a time holds"* / *"a date past what a time holds"* | An integer past `INT64_MAX`, of any length (`"9223372036854775808"`, 300 nines; a development version answered `-1` *"a time text longer than 256 bytes"* from 257 digits on, and a tkey of them was refused as *"a text that is no date"*), or a date that does not fit a `json_int_t` in its unit. |
+| `-2`, *"an integer past what a time holds"* / *"a date past what a time holds"* | An integer past `INT64_MAX`, of any length (`"9223372036854775808"`, 300 nines, and a development version answered `-1` *"a time text longer than 256 bytes"* from 257 digits on, and a tkey of them was refused as *"a text that is no date"*), or a date that does not fit a `json_int_t` in its unit. |
 
 **Notes**
 
-Nothing is logged: the text comes from a peer or a user, and the caller
+Nothing is logged: the text is from a peer or a user, and the caller
 says it. Up to SDK 7.29.3 a bound with no `T` was cut by `strtoll()` (`" 5"`
 was 5, `"10.5"` 10, `"2026-10-01 00:00:00"` 2026) and a tkey was read by
 `approxidate()` (`"5"` the 5th of this month, a text that is no date NOW).
 Unreleased development versions after it read every text that was not
-`-?[0-9]+` as a date: `" 5"` was the 5th, `"10.5"` May 10, in silence; a
+`-?[0-9]+` as a date: `" 5"` was the 5th, `"10.5"` May 10, in silence. A
 decimal comma was too (`approxidate()` reads `"1,5"` as May 1, `"10,5"` as May 10),
 and digits in groups (`"5 5"` May 5, `"2026 10 01"` January 10 of 2026).
 Later a word more kept the misreading (`"1,5 days ago"`, `"5 5 ago"`,
@@ -670,7 +670,7 @@ date (`"yesterday 1 2026"` September 30).
 A **dot** between digits cannot be refused by its shape, as a comma is: it
 is how a day and a month are written (`"1.10 2026"` and `"01.10.2026"` are
 October 1). Only a text that is a number and nothing else (`"10.5"`, `".5"`)
-is refused; any other dot is for `approxidate_careful()` to judge.
+is refused. Any other dot is for `approxidate_careful()` to judge.
 
 Since the release after SDK 7.29.3 (BREAKING) a comma before an hour is kept
 only when it closes a date, and a lone number before an hour with am/pm or a
@@ -695,7 +695,7 @@ ISO 8601 (`"2026-10-01T10:30:00+0200"`).
 A local time with no zone does not depend on the text read before it: one
 that a change of hour repeats is its first one, and one that a change of hour
 skips is read with the offset in force before the change (in Madrid
-`"2026-10-25 02:30"` is 02:30 +0200 and `"2026-03-29 02:30"` 03:30 +0200; up
+`"2026-10-25 02:30"` is 02:30 +0200 and `"2026-03-29 02:30"` 03:30 +0200, and up
 to 7.29.3 the repeated hour was +0200 or +0100 according to the text read
 before it). am/pm with no hour (`"today pm"`), a day word right after `at`
 (`"at yesterday"`, `"at now"`) and `"never"` with a zone (`"never (+0200)"`)
@@ -705,7 +705,7 @@ only a day before it (`"2026-10-01-10:00"` is no date), but one right after
 the digits of a clock time (`"2026-10-01T10:00-05:00"`) or after a clock time,
 noon or epoch seconds said before it, where no clock time can follow
 (`"10:00 2026-10-01-0500"`, `"noon 2026-10-01-0500"`, `"@1790000000-0500"`,
-`"1790000000-0500"`); a minus sign, a count and its unit is a duration there,
+`"1790000000-0500"`). A minus sign, a count and its unit is a duration there,
 as anywhere (`"10:00 2026-10-01-1d"` is September 30 at 10:00), but where an
 offset can stand four digits are that offset, as ISO 8601 writes it: `"10:00
 -0500 hours"`, `"noon -0500 hours"` and `"2026-10-01 -0500 hours"` are no date.
@@ -713,12 +713,12 @@ With no clock time an offset outside -12:00..+14:00 is no
 date (`"now-2026"`, `"yesterday -2300"`). A run of 12 digits with a sign
 after it is no date (`"202610011000-0500"`): it is a date and a time written
 with no `T` (`"20261001T1000-0500"`), and epoch seconds have 11 digits at
-most there; the same 12 digits with nothing else are the text of an integer,
+most there. The same 12 digits with nothing else are the text of an integer,
 read as that integer. A count right after a
 month name, with no day in the text, is no date (`"Oct 1 pm"`, `"Jan 1 pm"`,
-`"Oct 5 days ago"`; up to 7.29.3 they took the day of today), and nor is a day
+`"Oct 5 days ago"`, and up to 7.29.3 they took the day of today), and nor is a day
 counted back that the zone skipped whole (`"yesterday noon"` in Apia on
-2011-12-31); see [`approxidate_careful()`](#approxidate_careful).
+2011-12-31). See [`approxidate_careful()`](#approxidate_careful).
 
 A text in C stops at its first NUL: a json string is read with
 [`tranger2_time_of_json_text()`](<#tranger2_time_of_json_text>), which judges
@@ -846,7 +846,7 @@ json_t *tranger2_backup_topic(
 
 **Returns**
 
-The new, empty topic (not yours), created with the description, cols and var of the old one; or `NULL` (logged) when the backup fails.
+The new, empty topic (not yours), created with the description, cols and var of the old one, or `NULL` (logged) when the backup fails.
 
 **Notes**
 
@@ -858,7 +858,7 @@ The backup CLOSES the topic first, then moves its directory. A failure after tha
 
 So does a failure AFTER the move, when the new topic cannot be created (`ENOSPC`, a `mkdir` that fails): what the create left is removed, the backup is moved back where the topic was, and the topic is opened again, with the same warning. Only when the backup cannot be moved back is nothing opened: a CRITICAL, *"Backup of topic failed, and the backup cannot be moved back: the data of the topic is in the backup"*, with both paths. Up to 7.25.4 the data stayed in the backup and nothing was opened: a queue had no topic until a restart, and, its size read as 0, its backup was never tried again (`tests/c/tr_queue/test_tr_queue_backup_failed`).
 
-That holds for EVERY tranger, also one opened with `on_critical_error` `LOG_OPT_EXIT_ZERO` (the MQTT broker's queues, `C_TRANGER`'s default): the create of a backup runs with the exit bits of `on_critical_error` off (`LOG_OPT_EXIT_ZERO`, `LOG_OPT_EXIT_NEGATIVE`, `LOG_OPT_ABORT`), because its failure is recovered; the CRITICALs are still logged, and the tranger's value is back when the create returns. If the create exited there, the data of the topic would stay in `<topic>.bak` until moved back by hand.
+That holds for EVERY tranger, also one opened with `on_critical_error` `LOG_OPT_EXIT_ZERO` (the MQTT broker's queues, `C_TRANGER`'s default): the create of a backup runs with the exit bits of `on_critical_error` off (`LOG_OPT_EXIT_ZERO`, `LOG_OPT_EXIT_NEGATIVE`, `LOG_OPT_ABORT`), because its failure is recovered. The CRITICALs are still logged, and the tranger's value is back when the create returns. If the create exits there, the data of the topic stays in `<topic>.bak` until moved back by hand.
 
 ```C
 json_t *topic = tranger2_backup_topic(tranger, "queue", 0, 0, TRUE, 0);
@@ -1004,7 +1004,7 @@ This function must be called when a real-time disk stream is no longer needed to
 
 The directory of the feed, `<topic>/disks/<id>/`, is **renamed away first**
 (`disks/.closing.<pid>-<start>.<seq>`) and then removed. The master keeps hard-linking
-the new records into that directory until it hears the feed is gone; removed
+the new records into that directory until it hears the feed is gone. Removed
 where it was, a key directory the master made in between made the removal
 fail (*"rmdir() FAILED ... Directory not empty"*), the directory stayed, and the
 master went on feeding it for ever (up to 7.25.21, seen at 3000 records/s).
@@ -1124,9 +1124,9 @@ directory, `topic_desc.json`, `topic_cols.json`, `topic_var.json`, `keys/` and
 `disks/`. When any of them cannot be made (no space, a `mkdir` that fails),
 the directory it made is removed, nothing is opened or kept in memory, the
 call answers `NULL` and logs *"Cannot create topic: it is not whole, what was
-made is removed"* after the cause; the next create starts again from nothing.
+made is removed"* after the cause. The next create starts again from nothing.
 Up to 7.25.4 each failure was logged and the create went on: a topic
-whose `keys/` (or `disks/`) could not be made was opened and returned as
+whose `keys/` (or `disks/`) was not made was opened and returned as
 created, and a queue backup (see
 [`tranger2_backup_topic()`](#tranger2_backup_topic)) took that half topic as
 the queue's new one.
@@ -1141,7 +1141,7 @@ critical -- `LOG_OPT_EXIT_ZERO`, the default of `C_TRANGER` and what
 the topic left on disk. Up to 7.25.4 it exited in the log of the first
 failure: the `topic_desc.json`, `topic_cols.json` and `topic_var.json` stayed
 without `keys/` or `disks/`, and the next start opened that half topic (or
-could not open it at all, when the failure was the write of
+was not able to open it at all, when the failure was the write of
 `topic_desc.json`).
 
 ```C
@@ -1163,7 +1163,7 @@ refused with *"Cannot open TimeRanger topic. Not found and no master"*.
 
 **Nothing about `tm` order is written.** From 7.25.5 to 7.25.22 a new topic
 carried `"marks_tm_unordered": true` and the master marked a file whose `tm`
-went back (`<file>.tm_unordered`); both are gone, and a store that has them
+went back (`<file>.tm_unordered`). Both are gone, and a store that has them
 keeps them, ignored. A `tm` condition is a filter on every row: see
 [`tranger2_open_iterator()`](#tranger2_open_iterator).
 
@@ -1178,7 +1178,7 @@ keeps them, ignored. A `tm` condition is a filter on every row: see
 
 **A new `topic_version` replaces `topic_cols.json`, then `topic_var.json`**,
 each through a temporary file and a `rename()`, both fsync'ed with their
-directory, so the new version never survives a power cut its cols did not; the
+directory, so the new version never survives a power cut its cols did not. The
 `last_rowid_id` counter of treedb is carried over. The cols go first because
 the version is what says they moved. A file that cannot be written refuses the
 topic: the call answers `NULL`, logs *"Cannot re-create topic_cols.json for a
@@ -1190,10 +1190,10 @@ topic_cols.json"* are logged only for a file written. Up to 7.25.4
 topic opened with no cols file under the new version.
 
 (timeranger2-topic-name-rule)=
-**Topic names.** A topic name is ONE directory under the database, and a segment of the backtick kw paths (`` topics`<name>`cols ``). Every call that takes a topic name — create, open, delete, backup, `tranger2_topic_path()`, `tranger2_write_topic_var()` / `_cols()` — refuses, with the error *"Invalid topic name (path metacharacters not allowed)"*:
+**Topic names.** A topic name is ONE directory under the database, and a segment of the backtick kw paths (`` topics`<name>`cols ``). Every call that takes a topic name (create, open, delete, backup, `tranger2_topic_path()`, `tranger2_write_topic_var()` / `_cols()`) refuses, with the error *"Invalid topic name (path metacharacters not allowed)"*:
 
-- an empty name, `.` and `..`;
-- any name that holds `/` or `` ` ``.
+- An empty name, `.` and `..`.
+- Any name that holds `/` or `` ` ``.
 
 A leading `.` is accepted, unlike a key: MQTT queues are named `<client_id>-IN` / `-OUT`, and the broker accepts a `client_id` such as `.foo`.
 
@@ -1201,14 +1201,14 @@ A leading `.` is accepted, unlike a key: MQTT queues are named `<client_id>-IN` 
 of [`tranger2_open_rt_disk()`](<#tranger2_open_rt_disk>) (the `rt_id` of a
 follower's `open-rt` / `open-list`) becomes the directory
 `<topic>/disks/<id>/`, and the follower removes that directory before creating
-it. An empty id is refused with *"Invalid rt id (empty)"*; `.`, `..`, or an id
-holding `/` with *"Invalid rt id (path metacharacters not allowed)"*, and an id
+it. An empty id is refused with *"Invalid rt id (empty)"*. `.`, `..`, or an id
+holding `/` is refused with *"Invalid rt id (path metacharacters not allowed)"*, and an id
 longer than `NAME_MAX` (255 bytes on Linux) with *"Invalid rt id (longer than
 NAME_MAX)"* (its directory cannot exist). A leading `.` is refused too, with
 *"Invalid rt id (a leading dot is reserved)"*: `disks/.<name>` is where a feed
 goes while it is removed (see [`tranger2_close_rt_disk()`](<#tranger2_close_rt_disk>)).
 A backtick is accepted, since an rt id is not a segment of any kw path (treedb
-names its own feeds `` <treedb>`<topic>`<id> ``). The id may come from a peer,
+names its own feeds `` <treedb>`<topic>`<id> ``). The id can be from a peer,
 so a refused id is logged as a **warning**, without a stack.
 
 ```C
@@ -1261,7 +1261,7 @@ The deletion is **propagated to subscribers**:
 
 - The master removes the live `keys/<key>/` directory FIRST, and signals
   the delete only once it is done (up to 7.25.4 it signalled first, so a
-  key whose directory could not be removed was heard deleted while it was
+  key whose directory the master was not able to remove was heard deleted while it was
   still on disk). It signals it in the directory of **every** rt_disk feed:
   `topic/disks/<rt_id>/<key>/`, where it exists (the feed received records
   of the key), is removed, and then a directory `.d<seq>.<key>` is created
@@ -1272,8 +1272,8 @@ The deletion is **propagated to subscribers**:
   [fs_watcher](fs_watcher.md), the rt_disk feed). A key longer than
   NAME_MAX - 23 bytes is signalled as `.h<seq>.<sha256 of the key>`. A feed
   that received no record of the key since it opened hears the delete too.
-  The sequence is taken only when `disks/` has a feed to tell; its record
-  costs two disk flushes per delete then. **Since 7.26.0**; up to 7.25.22
+  The sequence is taken only when `disks/` has a feed to tell. Its record
+  costs two disk flushes per delete then. **Since 7.26.0**. Up to 7.25.22,
   the signal was the key's own directory (removed, or created and removed),
   so master and followers of a topic upgrade together. When `disks/` cannot be listed (its `opendir()` fails
   with anything but `ENOENT`, or a `readdir()` fails half way), the feeds
@@ -1294,9 +1294,9 @@ The deletion is **propagated to subscribers**:
   checked to be that life's (the md2 against the link, the content once per
   life by path), so they are that life's even if `keys/<key>/` is another
   one by then. Up to 7.25.21 a follower that lagged behind such a master read
-  and unlinked by path, and could hand a later life before an earlier delete
-  (`[R2 DEL]`, the live key out of the cache, the next append handing R1..R4;
-  under a random two-process load 7-11 of 12 feed and key pairs got a life
+  and unlinked by path, and was able to hand a later life before an earlier delete
+  (`[R2 DEL]`, the live key out of the cache, the next append handing R1..R4,
+  and under a random two-process load 7-11 of 12 feed and key pairs got a life
   out of order, none now). The records of a life deleted before the follower
   read it are not handed -- they are gone from disk with it. The follower reads a key directory only if it is still the
   directory it looked at before it asked where its queue ended, and only
@@ -1313,7 +1313,7 @@ The deletion is **propagated to subscribers**:
   a key directory is told from another by its inode alone, and an inode
   freed by a delete can be given to the key written again: said once, with a
   warning (*"No birth time of a directory ..."*). So is a container whose
-  seccomp profile refuses `statx()` (`EPERM`): the inode then comes from
+  seccomp profile refuses `statx()` (`EPERM`): the inode is then read from
   `lstat()`. Any other failure to tell which directory a key directory is
   (`EIO`, `EACCES`) is an ERROR, once per errno in a row, and the directory
   is not read then. Up to
@@ -1334,7 +1334,7 @@ The deletion is **propagated to subscribers**:
   directory could not be read for a passing cause, its read is owed to the
   end of the next batch of events of the feed"*, a WARNING), and the read is
   tried again at the end of the feed's next batch of events, if the
-  directory is still the one seen; the first one that fails again ends that
+  directory is still the one seen. The first one that fails again ends that
   round, and the rest wait for the next batch. When nothing is owed any
   more it is said (*"rt_disk feed: no read of a key directory owed any
   more"*, an INFO). A link heard meanwhile in a directory that owes its
@@ -1342,12 +1342,12 @@ The deletion is **propagated to subscribers**:
   for another cause (`EACCES`) is logged and not owed. No timer: **a feed
   that hears no event at all keeps the read owed until it hears one** -- a
   record of any key that makes a new link, a new file of a key, a delete,
-  or the echo of a link it consumes itself; until then the keys it owes
+  or the echo of a link it consumes itself. Until then, the keys it owes
   are behind the master. A record that cannot be read once its link is consumed is
   read with the key's next link, as before. Up to 7.27.6 such a key stayed
   behind the master for good -- until a new file of the key (a new day) or
-  a new feed -- and a key directory watched by its path (its descriptor
-  could not be opened when it was made) was listed by its path; it is now
+  a new feed -- and a key directory watched by its path (the open of its
+  descriptor failed when it was made) was listed by its path. It is now
   opened and read through that descriptor, like the others
   (`tests/c/timeranger2/test_rt_disk_emfile`):
 
@@ -1417,7 +1417,7 @@ its next records took `g_rowid`s that followers and clients had seen.
 
 A directory that cannot be moved out answers `-1` (*"Cannot delete key,
 rename() of its directory out of keys/ FAILED: the key stays as it was"*) and
-announces nothing. The key is on disk as it was; its cache is read again from
+announces nothing. The key is on disk as it was. Its cache is read again from
 it, and its iterators take their segments again from it: an unfiltered one at
 its next page, a FILTERED one at once, its index built again as an open builds
 it. A moved directory that cannot be removed is the key deleted all the same:
@@ -1455,7 +1455,7 @@ what a retention period is made of. Only the master can delete. The design is
 in `kernel/c/timeranger2/DESIGN-retention.md`.
 
 It deletes every file of the key whose id sorts **before** the id of the file
-that `before_t` would go to. The cut is by file and by the time of the append
+that `before_t` belongs to. The cut is by file and by the time of the append
 (`__t__`), never by `tm`, and no row is read: at least the period asked for is
 kept, and at most one file more. With `filename_mask` `%Y-%m-%d`, "30 days"
 keeps 30 to 31 days.
@@ -1471,16 +1471,16 @@ The base is written with an `fsync()` of the file and of its directory
 never renumbered. The live rowids of the key are then `purged+1 ..
 purged+rows`, and:
 
-- [`tranger2_topic_key_size()`](#tranger2_topic_key_size) counts the live rows;
-- [`tranger2_topic_key_range()`](#tranger2_topic_key_range) adds `"purged"`;
-- a `from_rowid` / `to_rowid` of a match_cond counts from the base (a positive
+- [`tranger2_topic_key_size()`](#tranger2_topic_key_size) counts the live rows.
+- [`tranger2_topic_key_range()`](#tranger2_topic_key_range) adds `"purged"`.
+- A `from_rowid` / `to_rowid` of a match_cond counts from the base (a positive
   bound inside the purged rows is taken to the first live one), and a negative
-  one from the end, as before;
-- position N of a page of an unfiltered iterator is `g_rowid = purged + N`,
+  one from the end, as before.
+- Position N of a page of an unfiltered iterator is `g_rowid = purged + N`,
   with the base the key had when the iterator opened: a purge since the open
-  moves no position (the ones of the rows it took come back empty), and a
-  filtered iterator keeps its index, skipping the rows purged;
-- the next append gets `purged + rows + 1`.
+  moves no position (the ones of the rows it took are returned empty), and a
+  filtered iterator keeps its index, skipping the rows purged.
+- The next append gets `purged + rows + 1`.
 
 ```C
 json_int_t tranger2_delete_key_files(
@@ -1496,7 +1496,7 @@ json_int_t tranger2_delete_key_files(
 | Key | Type | Description |
 |---|---|---|
 | `tranger` | `json_t *` | A pointer to the TimeRanger database instance. It must be the master. |
-| `topic_name` | `const char *` | The topic of the key. The file ids of its `filename_mask` must sort as time ([`tranger2_mask_sorts_as_time()`](#tranger2_mask_sorts_as_time): the year first, numeric fields of a fixed width; `%s`, a `%G` that ends the mask, `%Y-%d` and the `%E`/`%O` modifiers are refused). |
+| `topic_name` | `const char *` | The topic of the key. The file ids of its `filename_mask` must sort as time ([`tranger2_mask_sorts_as_time()`](#tranger2_mask_sorts_as_time): the year first, numeric fields of a fixed width, and `%s`, a `%G` that ends the mask, `%Y-%d` and the `%E`/`%O` modifiers are refused). |
 | `key` | `const char *` | The key whose old files are deleted. |
 | `before_t` | `uint64_t` | The cut, in the topic's unit of `t` (milliseconds with `sf_t_ms`). The files of the records appended before the period of `before_t` are deleted. |
 
@@ -1504,7 +1504,7 @@ json_int_t tranger2_delete_key_files(
 
 The rows deleted, `0` when there was nothing to delete, or `-1` (logged). A
 `-1` is almost always a refusal, with nothing deleted. One `-1` is a purge
-APPLIED: the base was written but its directory could not be `fsync()`ed, so
+APPLIED: the base was written but the `fsync()` of its directory failed, so
 the cache and the followers took the purge, and the files stay on disk until
 the next open of the master removes them (see the notes below).
 
@@ -1543,16 +1543,16 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
 **Notes**
 
 - **Refused** with `-1`, logged, nothing deleted: a cut in the future (its file
-  sorts after the file of now: the file being written would go, and every
-  append of the period after); a `filename_mask` whose ids do not sort as time
+  sorts after the file of now: if accepted, the cut takes the file being written,
+  and every append of the period after). A `filename_mask` whose ids do not sort as time
   ([`tranger2_mask_sorts_as_time()`](#tranger2_mask_sorts_as_time): the
-  `"queue"` of a tr_queue topic, `%d-%m-%Y`, `%Y-%b`; `"tracks-%Y-%m-%d"` is
-  fine); a topic of a treedb or a msg2db
-  open on the tranger (its keys are their nodes); a key flagged `unlisted`, or
+  `"queue"` of a tr_queue topic, `%d-%m-%Y`, `%Y-%b`, but `"tracks-%Y-%m-%d"` is
+  fine). A topic of a treedb or a msg2db
+  open on the tranger (its keys are their nodes). A key flagged `unlisted`, or
   with a file flagged unreadable in the period cut (its rows are in no cell,
-  and the base would miss them); a key not in the cache; a replica.
+  and otherwise the base misses them). A key not in the cache. A replica.
 - **An append into a purged period is refused** afterwards (*"Cannot append
-  record, it falls in a purged period of its key"*): its file would be taken
+  record, it falls in a purged period of its key"*): otherwise, its file is taken
   for a purged one at the next open. Appends with `__t__ = 0` (now) never meet
   it.
 - **A key purged whole** keeps its directory and its base, with 0 rows, and a
@@ -1562,12 +1562,12 @@ tranger2_delete_key_files(K, before_t = 2000-01-02T00:00:00)   -> 3
   removes the ones a crash left behind (and a `.purged.new`, a purge that did
   not happen), a replica skips them. A `.purged` that cannot be read flags the
   key `unlisted` (*"The base of a purged key cannot be read"*): it is not a base
-  of 0, which would number the key from 1 again. A load reads the base again
+  of 0, because a base of 0 numbers the key from 1 again. A load reads the base again
   when the directory or the base changed, or when the read failed for a
   passing cause (EMFILE, ENFILE, ENOMEM, EIO, EINTR, EAGAIN: up to 7.27.6 such
   a key stayed flagged, every load of it empty). A replica that lists a key
   while the master purges it, and finds a md2 gone at its open, reads the base
-  again; when it covers the file the replica numbers the key as the master
+  again. When it covers the file, the replica numbers the key as the master
   (INFO *"md2 file of the key purged by the master while its cache was built:
   its rows are in the base, read again"*).
 - **Followers.** The master makes and removes `disks/<rt_id>/.p.<key>`
@@ -1685,7 +1685,7 @@ json_int_t tranger2_archive_key_files(
 **Returns**
 
 The rows archived (and taken out of the topic), `0` when there was nothing to
-take, or `-1` (logged). A refusal deletes nothing and leaves no batch; the
+take, or `-1` (logged). A refusal deletes nothing and leaves no batch. The
 `-1` of a purge APPLIED with its base not durable is as in
 [`tranger2_delete_key_files()`](#tranger2_delete_key_files), and its batch
 stays.
@@ -1731,7 +1731,7 @@ tranger2_archive_key_files(dev1, before_t = 2000-01-03T00:00:00, ...)   -> 3
   [`tranger2_write_user_flag()`](#tranger2_write_user_flag) or
   [`tranger2_delete_instance()`](#tranger2_delete_instance) changes them there
   too, after its `manifest.json`: two batches of one file id can differ, and
-  the older one may not match its manifest. A reader takes a file id from the
+  it is possible that the older one does not match its manifest. A reader takes a file id from the
   batch with the latest `@<t>`. A base that cannot be written removes the
   batch and answers `-1`.
 - **Refused**, besides the refusals of
@@ -1760,15 +1760,15 @@ tranger2_archive_key_files(dev1, before_t = 2000-01-03T00:00:00, ...)   -> 3
 Do the file ids of a `filename_mask` (a `strftime()` format) sort as time?
 [`tranger2_delete_key_files()`](#tranger2_delete_key_files) deletes the files
 whose id sorts BEFORE the id of the cut, comparing them as strings, so it
-refuses a topic whose mask fails this test: it could not tell which of its
-files are old.
+refuses a topic whose mask fails this test: with such a mask, it cannot tell
+which of its files are old.
 
 The ids sort as time when every field is numeric, of a fixed width, the
 YEAR first, and each field the NEXT one down from the last, with literal text
 anywhere: a field left out mixes the ones below it (`%Y-%d` puts the 9th of
-March before the 10th of February). The fields that may follow each one:
+March before the 10th of February). The fields that can follow each one:
 
-| Field | May be followed by |
+| Field | Can be followed by |
 |---|---|
 | (first) | `%Y`, `%G`, `%F` (`%Y-%m-%d`) |
 | `%Y` | `%m`, `%j` |
@@ -1820,11 +1820,11 @@ tranger2_mask_sorts_as_time("%Y-%e");             // FALSE: " 1" is not "01"
 ## [`tranger2_record_in_purged_period()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/timeranger2.c#L6931)
 
 Does a record fall in a purged period of its key? `TRUE` when
-[`tranger2_append_record()`](#tranger2_append_record) would refuse it for that
+[`tranger2_append_record()`](#tranger2_append_record) refuses it for that
 (*"Cannot append record, it falls in a purged period of its key"*): its `__t__`
 names a file at or before the `upto` of the key's base
 ([`tranger2_delete_key_files()`](#tranger2_delete_key_files)). The append logs
-that refusal as an ERROR; a caller that must give the cause to a PEER asks
+that refusal as an ERROR. A caller that must give the cause to a PEER asks
 first, and answers it. [`C_TRANGER`](#gclass-c-tranger)'s `add-record` does:
 *"record refused by topic 'raw_events': a __t__ in a purged period of its key:
 its old files were deleted"*.
@@ -1832,7 +1832,7 @@ its old files were deleted"*.
 `__t__` and `record` are the ones the append takes. `FALSE` for `__t__ = 0`
 (now: no purge reaches it), a key with no base, a key not in the topic, and a
 record whose key or time cannot be read (the append says why). A key flagged
-`unlisted` (its `.purged`, or its directory, could not be read when the topic
+`unlisted` (its `.purged`, or its directory, was not readable when the topic
 opened) has no base in its cache: its base is read from the disk, quietly, as
 the append reads it when it lists the key again. A base that can be read gives
 the same answer as the append. A base that still cannot be read (a `.purged`
@@ -1858,7 +1858,7 @@ BOOL tranger2_record_in_purged_period(
 |---|---|---|
 | `tranger` | `json_t *` | The TimeRanger database. |
 | `topic_name` | `const char *` | The topic of the record. |
-| `__t__` | `uint64_t` | The time of the append, in the topic's unit of `t` (milliseconds with `sf_t_ms`); `0` is now. |
+| `__t__` | `uint64_t` | The time of the append, in the topic's unit of `t` (milliseconds with `sf_t_ms`). `0` is now. |
 | `record` | `json_t *` | The record, with the topic's `pkey`. Not owned. |
 
 **Returns**
@@ -1944,7 +1944,7 @@ Side effects to be aware of:
   the cell rollup can lie. Cheap to fix on next cold reload. Expensive
  to fix incrementally. Deferred until a consumer needs it.
 - With `zero_payload`, the row is marked deleted BEFORE the wipe. A wipe
-  that fails answers `-1` with the row already dead; a wipe cut part way
+  that fails answers `-1` with the row already dead. A wipe cut part way
   (the file size limit, a full disk) is logged as *"Cannot zero the
   payload, short write: the file size limit or the disk is full"*, with the
   bytes `written` and `expected`, not with an `errno`.
@@ -2040,7 +2040,7 @@ for every inotify event of every feed of the topic (six times in a
 three-feed follower), and not at all for a key that had no record since
 the feed opened.
 
-The callback may close its own feed (`tranger2_close_rt_disk()`). The
+The callback can close its own feed (`tranger2_close_rt_disk()`). The
 watcher is stopped at the end of the batch it is handling, and the rest
 of that batch is dropped.
 
@@ -2304,7 +2304,7 @@ A **purge of the old files of the key**
 ([`tranger2_delete_key_files()`](#tranger2_delete_key_files)) moves no
 position. The positions of an unfiltered iterator count from the base the key
 had when it opened (position N is `g_rowid = base + N`), and the ones of the
-rows purged since come back empty; a filtered iterator keeps its index, which
+rows purged since are returned empty. A filtered iterator keeps its index, which
 holds g_rowids, and skips the rows purged. Counted from the base of NOW, every
 position moved by the rows purged, and a client paging forward skipped live
 rows.
@@ -2325,10 +2325,10 @@ tranger2_iterator_size(it);                             // 6: its positions
 ## [`tranger2_iterator_size()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/timeranger2.c#L17157)
 
 `tranger2_iterator_size()` returns the number of records in the specified iterator.
-For a filtered iterator, the size of its index; for an unfiltered one, its
+For a filtered iterator, the size of its index. For an unfiltered one, its
 page positions: on a key purged since the open
 ([`tranger2_delete_key_files()`](#tranger2_delete_key_files)) they include the
-positions of the rows purged, which come back empty.
+positions of the rows purged, which are returned empty.
 
 ```C
 size_t tranger2_iterator_size(
@@ -2492,7 +2492,7 @@ json_t *tranger2_open_iterator(
 Returns a JSON object representing the iterator. The topic owns it: close it
 with [`tranger2_close_iterator()`](<#tranger2_close_iterator>).
 
-`NULL` (logged; `match_cond` and `extra` are consumed all the same) when the
+`NULL` (logged, and `match_cond` and `extra` are consumed all the same) when the
 topic cannot be opened, `key` is empty, an iterator with this `iterator_id`
 and `creator` is already open, or the index of a filtered paging iterator
 cannot be built.
@@ -2508,8 +2508,8 @@ before it, in the load's direction, were handed (forward: the oldest,
 backward: the newest). What the callback saw, and what `data` holds, is then
 NOT the whole history: a caller that asks the history a question (is any
 record of this key frozen by a snapshot?) must read the flag before it takes a
-"no". Up to 7.25.4 a record whose content could not be read was handed to the
-callback as `NULL` and the load went on; an `only_md` load reads no content,
+"no". Up to 7.25.4 a record whose content was not readable was handed to the
+callback as `NULL` and the load went on. An `only_md` load reads no content,
 and no content fails it.
 
 **After a restart too.** The cache of a topic is built from disk when it is
@@ -2530,7 +2530,7 @@ backward load  -> the rows of day 3, then load_failed
 
 **A key directory that cannot be LISTED is not an empty key.** When the
 cache build cannot open `keys/<key>/` (`EMFILE`, `EACCES`, `ENOMEM`), cannot
-READ it (`readdir()` fails: `EIO`, `ESTALE`; 7.25.4 took that as
+READ it (`readdir()` fails: `EIO`, `ESTALE`, and 7.25.4 took that as
 the end of the directory, and the key was read without the files not listed
 yet), or has no memory for an entry of the listing, none of the key's files is
 known, so the
@@ -2542,7 +2542,7 @@ keyless [`tranger2_open_list()`](#tranger2_open_list) names the key in
 `load_failed_keys`, so treedb refuses a create of that id. An append into the
 key lists it again first: while the directory still cannot be listed the
 append is refused (*"Cannot append record, its key cannot be listed: its row
-would follow rows no cell counts"*); once it can, the key's cache is built from
+would follow rows no cell counts"*). Once it can, the key's cache is built from
 the disk, the flag goes (*"key directory listed again"*, an INFO) and the append
 goes on. Up to 7.25.4 the key loaded as an EMPTY key with `load_failed` false,
 and an append counted its row as the first of its file.
@@ -2566,9 +2566,9 @@ until the topic is opened again:
 - **A load tries the flags again first.** `tranger2_open_iterator()` (and so
   `tranger2_open_list()`) of a flagged key lists the key again when its
   directory changed since it was flagged (its mode or its entries: `ctime`)
-  or could not be opened then and opens now, and counts a flagged `.md2`
+  or failed to open then and opens now, and counts a flagged `.md2`
   again when it changed since it was flagged (its mode or its content:
-  `ctime` or size) or could not be opened then and opens now. A flag whose
+  `ctime` or size) or failed to open then and opens now. A flag whose
   directory or file looks as it did is not tried: a directory that cannot be
   read is not listed, a damaged file not read, and their failure not logged,
   at every load. What still cannot be read stays flagged, and the load says
@@ -2586,10 +2586,10 @@ until the topic is opened again:
                                         again, every row, load_failed false
   ```
 - **A replica's notification lists the key again.** When the master appends
-  to a key the replica could not list, the notification of the new row
+  to a key that the replica was not able to list, the notification of the new row
   (an `rt_disk` feed) lists the key first. The rows of the notified file,
   which nobody was handed, are published to the feeds with their rowids in
-  the WHOLE key; the rows of the key's other files are history, for a load.
+  the WHOLE key. The rows of the key's other files are history, for a load.
   While the directory still cannot be listed, nothing is read (*"New
   records of the key not read: its directory cannot be listed"*).
 - A master's append counts a flagged file, and lists an unlisted key, before
@@ -2603,7 +2603,7 @@ replica, at the notification           -> INFO key directory listed again,
 replica: iterator of A                 -> A@1 A@2 A@3 A@4, load_failed false
 ```
 
-In 7.25.4 a key whose directory could not be listed loaded as an empty key
+In 7.25.4 a key whose directory listing failed loaded as an empty key
 (see above), and the notification counted the notified file alone as the whole
 key (the feed got rowid 1 for the key's 4th row).
 
@@ -2625,7 +2625,7 @@ The next
 append into that day's file names its content with a row of its own, and the
 warning goes. A `.md2` cut to 0 bytes behind the yuno's back has the same
 shape, and loses the rows of its file the same way it did until 7.25.4: a
-`.json` much larger than one record is the sign; put the pair back from a
+`.json` much larger than one record is the sign. Put the pair back from a
 backup.
 
 **A `.md2` whose last row is torn is not damage either.** Its size is not a
@@ -2667,20 +2667,20 @@ memory to parse is not a content that is not whole: the largest memory block
 yuno that wrote it can have a larger block. A content larger than that block
 is read in parts: a NUL before its last byte says that it is not whole, with
 no block of its size, and when its only NUL is its last byte the check cannot
-tell. A content that fits in the block can still need more to parse (a long
-string, a long array or object: jansson doubles its buffers and tables); when
+tell. A content smaller than the block can still need more to parse (a long
+string, a long array or object: jansson doubles its buffers and tables). When
 its parse fails for memory, the check cannot tell either. The tail is not cut
-on a content that the check cannot tell. The rules:
+on a content that the check cannot tell. The two rules, which must both hold:
 
-1. the last 32 bytes of the `.md2`, read as a row, are NOT a row of their own:
+1. The last 32 bytes of the `.md2`, read as a row, are NOT a row of their own:
    their content does not end exactly at the end of the `.json`
-   (`__offset__ + __size__` equal to its size), and it is not whole; and
-2. the last whole row is good, and so is the whole row before it, whose
+   (`__offset__ + __size__` equal to its size), and it is not whole.
+2. The last whole row is good, and so is the whole row before it, whose
    content ends at or before the start of the content of the last one.
 
 Rule 1 stops the cut of every file that 7.25.4 left whose last row still
 names its content as 7.25.4 wrote it, also when the `.json` has content after
-the last row (an append killed between its content and its md2 row; 7.25.4
+the last row (an append killed between its content and its md2 row, and 7.25.4
 did not cut that content back): the last row is a real row, and its content
 is whole wherever the `.json` ends. When the process that checks has not the
 memory to parse that content, the check cannot tell, and that is enough to
@@ -2731,8 +2731,8 @@ before the end of the content of the row before it"*.
 Example: a master with a block of 64 KiB opens a file that 7.25.4 left, whose
 last row names a record of 100 KiB, written by a yuno with a larger block.
 The file is flagged, and no row is lost. The same when the record is a string
-of 40 000 bytes, or an array in 20 000 bytes: it fits in the block, and its
-parse does not (the log also has the ERROR *"SIZE GREATER THAN MAX_BLOCK"* of
+of 40 000 bytes, or an array in 20 000 bytes: it is smaller than the block, but its
+parse needs more (the log also has the ERROR *"SIZE GREATER THAN MAX_BLOCK"* of
 the allocation that failed):
 
 ```text
@@ -2926,9 +2926,9 @@ A **negative** `t` / `tm` bound is relative to the key's last record: its `t`,
 and its `tm` -- the `tm` of the last row of the file that holds the key's
 highest `t`, not the highest `tm` of the key (which a replica and a reloaded
 master do not know: they read the first and last rows of each file).
-`from_t = -N` takes the records after `last_t - N` (that time excluded);
-`to_t = -N`, the ones up to `last_t - N`. The bound is resolved once, when the
-iterator opens, and written back into its `match_cond`; a list of several keys
+`from_t = -N` takes the records after `last_t - N` (that time excluded), and
+`to_t = -N` takes the ones up to `last_t - N`. The bound is resolved once, when the
+iterator opens, and written back into its `match_cond`. A list of several keys
 gives each key's iterator its own copy, so each key is bounded by its own last
 record (before v7 the bound was relative to the TOPIC's last record, of any
 key). The realtime half of a list of several keys keeps the bound unresolved
@@ -2944,7 +2944,7 @@ json_t *match_cond = json_pack("{s:I}",
 
 Up to 7.25.22 a negative bound reached the comparison raw, against an unsigned
 `__t__`, and no record matched -- without a word. (Before v7 it already meant
-"relative to the last record"; that is the meaning restored.)
+"relative to the last record", and that is the meaning restored.)
 
 A **negative** `from_rowid` / `to_rowid` counts rows from the key's end: `-1` is
 its last live row. It is resolved the same way, once, when the iterator opens,
@@ -2988,25 +2988,25 @@ The two axes are not ordered the same way, and the scan knows it:
   `t`. A `tm` condition leaves no file out and ends no scan: it skips rows,
   one by one. Correct, and it reads every md2 row of the key, so its cost
   grows with the files of the key: ~15 ms for a query of one minute on one
-  key of 30 day files x 20000 rows (`performance/c/perf_timeranger2`; the
-  match condition is parsed once per scan, not per row -- it was ~0.15 s).
+  key of 30 day files x 20000 rows (`performance/c/perf_timeranger2`, and the
+  match condition is parsed once per scan, not per row, where it was ~0.15 s before).
   Every
   scan (an iterator's load, its index, its pages, a follower's new rows)
   reads the md2 rows in blocks of 1024, one `pread()` each, never past the
-  rows its segment counts; up to 7.25.22 it made an `lseek()` and a
+  rows its segment counts. Up to 7.25.22, it made an `lseek()` and a
   `read()` per 32-byte row (~0.44 s for that query). The
-  `fr_tm` / `to_tm` of a file in `list-keys` come from its first and last rows
+  `fr_tm` / `to_tm` of a file in `list-keys` are read from its first and last rows
   unless the file was read whole (a late `__t__`): approximate when its `tm`
   goes back. From 7.25.5 to 7.25.22 the master marked a file whose `tm` went
   back and the scan trusted the others (7.4 ms there, after a migration
-  `mark-tm-order`); the markers and the command are gone, and the ones a store
+  `mark-tm-order`). The markers and the command are gone, and the ones a store
   has are ignored.
 - **The marker goes down before the row.** The master writes the marker of a
   record whose `t` goes back BEFORE its md2 row, so a process that dies
   between the two leaves a marker with no row behind it (one whole read of the
   file at the next load), never a row with no marker. A marker that cannot be
   written is logged (*"Cannot mark md2 file, a reload will misread its time
-  range"*); the master still reads that file whole, and writes the marker at
+  range"*). The master still reads that file whole, and writes the marker at
   the next append to the file (*"md2 file marked, the marker missed earlier is
   written"*). A file whose marker cannot exist -- `<file_id>.unordered`
   longer than `NAME_MAX`, or its path `<topic>/keys/<key>/<marker>` of
@@ -3018,15 +3018,15 @@ The two axes are not ordered the same way, and the scan knows it:
   file's range is never taken from its first and last rows. Up to 7.29.3 a
   path too long logged an ERROR with a stack at EVERY late append, and
   a reload took the file as in order (a late row's maximum was hidden from a
-  `t` query); a name too long logged an ERROR at every load. For example, a
+  `t` query). A name too long logged an ERROR at every load. For example, a
   topic directory of 3950 bytes and a key of 120: `keys/<key>/2000-01-01.json`
-  is 4092 bytes, the marker 4097; five late appends log one ERROR, and after a
+  is 4092 bytes, the marker 4097. Five late appends log one ERROR, and after a
   reload a `t` query around the file's maximum still finds it.
   Neither is fsync'ed, like the append itself. A marker lost all
   the same (a power cut, a rollback to a binary that appends without
   markers) is not written again: that file's `t` range is read from its first
   and last rows until it gets a marker. (`tranger2_mark_tm_order()`, which
-  could write it again, went with the tm markers after 7.25.22.)
+  was able to write it again, was removed with the tm markers after 7.25.22.)
 - A file left out by `t` (a `t` range around a file whose rows are out of it)
   is a **hole** in the rowids the scan walks: the
   scan steps over it, and a `from_rowid` / `to_rowid` that falls in it begins
@@ -3135,10 +3135,10 @@ or, when real-time is disabled (`to_rowid` set), the `extra` given, tagged
 `"list_type": "no_rt"`. Close either with
 [`tranger2_close_list()`](<#tranger2_close_list>).
 
-`NULL` (logged; `match_cond` and `extra` are consumed) on error: no topic, no
+`NULL` (logged, and `match_cond` and `extra` are consumed) on error: no topic, no
 `load_record_callback`, a bad `rkey`, a real-time feed that cannot be opened,
-no `extra` for a `no_rt` list -- and when the history of THE key of a list of
-one key (`key` set) could not be loaded whole (the `load_failed` of
+no `extra` for a `no_rt` list, and when the history of THE key of a list of
+one key (`key` set) was not loaded whole (the `load_failed` of
 [`tranger2_open_iterator()`](#tranger2_open_iterator)).
 
 **A keyless list with a key that cannot be loaded** logs the key (*"Cannot
@@ -3172,10 +3172,10 @@ What the callers in the SDK do with it:
 
 | Caller | With `load_failed` |
 |---|---|
-| treedb (every topic, `__snaps__`, `__graphs__`) | remembers the keys; refuses a create of such an id, refuses shoot/activate of a snap when `__snaps__` has any, and its asset guards fail closed (see [TreeDB](treedb.md)). |
+| treedb (every topic, `__snaps__`, `__graphs__`) | remembers the keys, refuses a create of such an id, refuses shoot/activate of a snap when `__snaps__` has any, and its asset guards fail closed (see [TreeDB](treedb.md)). |
 | treedb's snapshot guard of the assets | a walk that did not load everything fails closed: the gc and the delete of an asset refuse. |
-| `tr_queue` / `tr2q_mqtt` (`trq_load()`, `tr2q_load()`) | the pending messages read are in memory; those of a row that cannot be read are not, and are not delivered. The load returns -1 and does NOT move nor save the queue's `first_rowid`, so the next load, once the store is repaired, finds them (up to 7.25.4 it saved the size of the topic, and they were skipped for ever). |
-| msg2db | reloads the key newest first, up to the damage; the id is marked incomplete ([`msg2db_id_incomplete()`](tr_msg2db.md#msg2db_id_incomplete)) and an ERROR names it with `served=N`. See [tr_msg2db](tr_msg2db.md). |
+| `tr_queue` / `tr2q_mqtt` (`trq_load()`, `tr2q_load()`) | the pending messages read are in memory, but those of a row that cannot be read are not, and are not delivered. The load returns -1 and does NOT move nor save the queue's `first_rowid`, so the next load, once the store is repaired, finds them (up to 7.25.4 it saved the size of the topic, and they were skipped for ever). |
+| msg2db | reloads the key newest first, up to the damage. The id is marked incomplete ([`msg2db_id_incomplete()`](tr_msg2db.md#msg2db_id_incomplete)) and an ERROR names it with `served=N`. See [tr_msg2db](tr_msg2db.md). |
 
 Until 7.25.4 such a list was handed over silently, with the key missing.
 
@@ -3267,7 +3267,7 @@ master's `keys/<key>/<file>`, so a key the master stores can be too long for a
 feed. Its records do not reach that feed, and the master logs it ONCE for the
 key and the feed, at its first record (*"Path too long, the records of this
 key do not reach this feed (logged once)"*). An unreleased development version
-logged an ERROR with a stack for every record and every feed; up to 7.29.3 the
+logged an ERROR with a stack for every record and every feed. Up to 7.29.3, the
 path was cut in silence and the link was made from the cut path. For example,
 with a feed directory of 3962 bytes, a key of 200 bytes (no room for
 `<key>`) or of 125 bytes (no room for `/2000-01-01.md2` after it): five
@@ -3347,7 +3347,7 @@ This function is idempotent. This means that calling it multiple times with the 
 
 It returns `NULL`, never a critical, when the name is refused by the [topic name rule](<#timeranger2-topic-name-rule>), and when the directory exists but is not a topic (it has no `topic_desc.json`): *"Not a topic: topic_desc.json not found"*, logged only with `verbose`. A peer can send any name, and with `on_critical_error=2` a critical is an `exit(0)` of the yuno.
 
-It also returns `NULL` when the `keys/` directory of the topic exists and cannot be listed (`EMFILE`, `EACCES`, `ENOMEM`, or a `readdir()` that fails): *"Cannot list the keys of the topic"* (with `errno`), then *"Cannot open topic: its keys cannot be listed"*. On a filesystem whose `readdir()` gives no `d_type` (XFS with `ftype=0`, NFS, FUSE, overlay) each key is asked with `lstat()`, as the entry type tells it: a symbolic link is not a key (up to 7.25.4 `stat()` followed it, and made a key of another key). An `lstat()` that fails with `EACCES` (`keys/` can be read and not searched) takes the entry as a key, as the entry type does, and the listing of that key says the `EACCES` and flags it; one that fails with anything else but `ENOENT` (a key removed meanwhile) fails the listing the same way: *"Cannot list the keys of the topic, lstat() FAILED"*. Up to 7.25.4 that key was taken as "not a directory" and left out with no log, and the topic opened without it. The topic is not left open: opened with no keys, a key nobody read looked like a key that does not exist, and a treedb accepted a create of its id (so up to 7.25.4). The next open, or the next [`tranger2_topic()`](#tranger2_topic), tries again:
+It also returns `NULL` when the `keys/` directory of the topic exists and cannot be listed (`EMFILE`, `EACCES`, `ENOMEM`, or a `readdir()` that fails): *"Cannot list the keys of the topic"* (with `errno`), then *"Cannot open topic: its keys cannot be listed"*. On a filesystem whose `readdir()` gives no `d_type` (XFS with `ftype=0`, NFS, FUSE, overlay) each key is asked with `lstat()`, as the entry type tells it: a symbolic link is not a key (up to 7.25.4 `stat()` followed it, and made a key of another key). An `lstat()` that fails with `EACCES` (`keys/` can be read and not searched) takes the entry as a key, as the entry type does, and the listing of that key says the `EACCES` and flags it. One that fails with anything else but `ENOENT` (a key removed meanwhile) fails the listing the same way: *"Cannot list the keys of the topic, lstat() FAILED"*. Up to 7.25.4 that key was taken as "not a directory" and left out with no log, and the topic opened without it. The topic is not left open: opened with no keys, a key nobody read looked like a key that does not exist, and a treedb accepted a create of its id (so up to 7.25.4). The next open, or the next [`tranger2_topic()`](#tranger2_topic), tries again:
 
 ```C
 json_t *topic = tranger2_open_topic(tranger, "devices", TRUE);
@@ -3771,7 +3771,7 @@ ls -l /yuneta/store/myapp/events/__timeranger2__.json
 # -r--r----- 1 yuneta yuneta 0 ...   <- empty in mode 0440: made again too
 ```
 
-The file is saved and then set to mode `0440`; on a filesystem with delayed allocation (ext4) a power cut can keep the mode and lose the data, so an empty file can be `0440`. The master makes it writable again (mode `rpermission`) before it writes it. Up to 7.30.19 that write failed with *"Cannot create json file"* (`EACCES`) for any user but root, and the yuno exited.
+The file is saved and then set to mode `0440`. On a filesystem with delayed allocation (ext4), a power cut can keep the mode and lose the data, so an empty file can be `0440`. The master makes it writable again (mode `rpermission`) before it writes it. Up to 7.30.19 that write failed with *"Cannot create json file"* (`EACCES`) for any user but root, and the yuno exited.
 
 ```C
 json_t *tranger = tranger2_startup(gobj, json_pack("{s:s, s:s, s:b}",
@@ -3839,9 +3839,9 @@ What the stop does:
   (`ENOLCK`, `EINTR`...). A tranger that did not take its lock back (and did
   not exit) goes on as a replica: it reads, every write is refused, and its
   json says `"master": false, "master_lost": true`.
-  It never takes the lock again, not even once it is free -- its memory did
-  not follow what the other master wrote; shut it down and start it again to
-  be the master. Read `master` again after a restart: it is what the tranger
+  It never takes the lock again, not even once it is free: its memory did
+  not follow what the other master wrote. Stop it and start it again to
+  make it the master. Read `master` again after a restart: it is what the tranger
   holds now. A lookup of a topic that is already open revives nothing.
 - **A TRANSIENT failure demotes for good too.** An `EMFILE` (too many open
   files for a moment), an `EINTR` or an `ENOLCK` at the revive is logged as an
@@ -3849,11 +3849,11 @@ What the stop does:
   and it stays one after the cause is gone. Every write it is asked for is
   refused from then on (each with its own error), and nothing else says so.
   Nothing restarts it: the operator does. Watch for it:
-  - the log line *"Master lock NOT retaken after a stop"* (any of its three
-    endings), at ERROR or CRITICAL;
-  - the `master` attribute of the `C_TRANGER` service, which answers what the
+  - The log line *"Master lock NOT retaken after a stop"* (any of its three
+    endings), at ERROR or CRITICAL.
+  - The `master` attribute of the `C_TRANGER` service, which answers what the
     tranger IS (false once demoted). Read it with `view-attrs` WITHOUT
-    `attribute=`: that form goes through the gclass' `mt_reading`; the
+    `attribute=`: that form goes through the gclass' `mt_reading`, but the
     one-attribute form answers the stored configuration.
 
     ```bash
@@ -3986,7 +3986,7 @@ The description is a projection of the topic, not the topic itself:
 | `system_flag` | The system flag the topic was created with. |
 | `topic_version` | The version of the topic schema. |
 | `system_topic` | `true` when the topic cannot be deleted. |
-| `main_topic` | `true` on the topic the tree of a treedb hangs from, as the schema marks it (a topic hooked to itself, one per treedb; stamped by `treedb_open_db()`). |
+| `main_topic` | `true` on the topic the tree of a treedb hangs from, as the schema marks it (a topic hooked to itself, one per treedb, stamped by `treedb_open_db()`). |
 | `cols` | The column descriptors, as a list. |
 
 A key the topic does not carry is omitted rather than returned empty, so a
@@ -4151,10 +4151,10 @@ tranger2_name_is_identifier("..");          // FALSE
 (tranger2_reserved_name_fault)=
 ## [`tranger2_reserved_name_fault()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/timeranger2.c#L1484)
 
-Why `name` cannot name a NEW topic that comes from outside (a command), or
+Why `name` cannot name a NEW topic from outside (a command), or
 `NULL`. Beside its topics, the directory of a store holds what the libraries
 keep there. A topic with such a name is a directory over that file or
-folder, now or later, when the library writes it (the store may not exist
+folder, now or later, when the library writes it (it is possible that the store does not exist
 yet). So these names are refused:
 
 | Name | Why | What the store keeps there |
@@ -4165,7 +4165,7 @@ yet). So these names are refused:
 | a `.bak` suffix | *"a name ending in '.bak' is the backup of a topic"* | the backup of [`tranger2_backup_topic()`](#tranger2_backup_topic) |
 
 The name rule ([`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>))
-is not asked here: ask it too. The function logs nothing; the caller says
+is not asked here: ask it too. The function logs nothing. The caller says
 what the name was for. A topic that a C caller creates is not asked this:
 the system topics of a treedb, and the queues of the MQTT broker, named
 `<client_id>-IN` / `<client_id>-OUT` after a client id the client chose (a
@@ -4218,7 +4218,7 @@ if(why) {
 (tranger2_topic_var_fault)=
 ## [`tranger2_topic_var_fault()`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/timeranger2.c#L1508)
 
-Why `jn_var` cannot be the `topic_var.json` of a topic that comes from
+Why `jn_var` cannot be the `topic_var.json` of a topic from
 outside (a command), or `NULL`.
 [`tranger2_create_topic()`](#tranger2_create_topic) merges `jn_var` into the
 topic, and a new `topic_version` in it writes the topic's `topic_cols.json`
@@ -4231,17 +4231,17 @@ else must be a dict that:
   `iterators_by_id`, `cache`, `delete_seq`, `delete_seq_max`,
   `deletes_applied`, `delete_ref_keys`, `long_key_refs`, `long_key_hashes`,
   `fs_event_master`, `filename_mask`, `xpermission`, `rpermission`. An open
-  does not read them from the var;
+  does not read them from the var.
 - has no `system_topic`: it marks a topic that nothing deletes, a topic of
-  the system;
+  the system.
 - has a `topic_version` that is an integer from 0 to
   [`TRANGER2_VERSION_MAX`](#timeranger2-version-max), when it has one. A
   string there was an ERROR with a stack at the next change of the topic's
-  version;
+  version.
 - has a `last_rowid_id` (the counter of a rowid key) that is an integer, 0 or
   more, when it has one.
 
-The function logs nothing; the caller says it. `C_TRANGER`'s `create-topic`
+The function logs nothing. The caller says it. `C_TRANGER`'s `create-topic`
 asks it of a peer's `jn_var` (since SDK 7.27.0).
 
 ```C
@@ -4423,10 +4423,10 @@ The file is replaced, never written in place: `topic_cols.json.new` is removed
 if a process left it, created `O_EXCL|O_NOFOLLOW` with the tranger's
 `rpermission`, written, fsync'ed, renamed over the old file, and the directory
 fsync'ed: it survives a power cut too (it is written when a topic is created,
-re-versioned or re-ordered, never per record; up to 7.25.4 it was not
-fsync'ed, and a `topic_version` change could leave the new
+re-versioned or re-ordered, never per record, and up to 7.25.4 it was not
+fsync'ed: a `topic_version` change was able to leave the new
 version on disk over cols lost with the power). The memory takes the new
-columns only when the file did; otherwise the call logs (*"Cannot replace
+columns only when the file did. Otherwise, the call logs (*"Cannot replace
 topic_cols.json, ..."*) and returns `-1` with the old file and the old columns in
 place. Up to 7.25.4 it wrote in place,
 put the columns in memory before writing, and returned `0` whatever happened.

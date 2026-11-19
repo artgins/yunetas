@@ -114,7 +114,7 @@ RTU two more attributes count: `baudrate`, the speed of the line, and
   were polled, the id cut to its low byte. **Over RTU 0 is not polled
   either**: it is the broadcast, and no slave answers it, so each cycle
   waited `timeout_response` for it (up to 7.29.3). A
-  write to 0 still goes out, as a broadcast; a read from 0 is refused (see
+  write to 0 still goes out, as a broadcast. A read from 0 is refused (see
   *Requests*). Over TCP 0 is a unit id like any other.
 
   ```text
@@ -124,11 +124,11 @@ RTU two more attributes count: `baudrate`, the speed of the line, and
       -> {"msg": "Modbus slave id 0 is the BROADCAST in RTU: no slave answers it",
           "slave_id": 0, "valid": "1-247"}
   ```
-- **`mapping`**: `type`, `address`, `size` (registers, at most 125; or bits, at
+- **`mapping`**: `type`, `address`, `size` (registers, at most 125, or bits, at
   most 2000). Each block is one read request. **A block that cannot be read**
   -- an unknown type, an address or size out of range, a block that overlaps
   another, or a slave that cannot be asked -- **is disabled at start and
-  logged once there**, as an error; a slave without blocks too (*"Modbus
+  logged once there**, as an error, and so is a slave without blocks (*"Modbus
   slave without blocks: not polled"*). The cycle skips them with no log and
   no wait.
 
@@ -160,7 +160,7 @@ RTU two more attributes count: `baudrate`, the speed of the line, and
 
   The forms with `_` (`little_endian_byte_swap`) are accepted too.
 - **`multiplier`** has two behaviours: **1 or more is applied as an integer,
-  and its fraction is dropped** (`2.5` multiplies by 2); **below 1 the result
+  and its fraction is dropped** (`2.5` multiplies by 2). **Below 1 the result
   is a real computed in single precision** (`float`, about 7 significant
   digits), so an energy counter of 8 or more digits loses its last ones.
   Leave it at 1 and scale where the reading is consumed when that matters.
@@ -174,7 +174,7 @@ RTU two more attributes count: `baudrate`, the speed of the line, and
 | `timeout_response` | `10` | Seconds a slave has to answer one request |
 | `turnaround_delay` | `200` | Over RTU, milliseconds after a broadcast write (slave 0) **has left the line** before it is answered as done and the next request goes out: the time the slaves need to carry it out (the *turnaround delay* of the Modbus serial line specification, typically 100-200 ms). It is counted from the end of the frame: the wait is the time of the frame on the line (`baudrate`) plus this delay. `0` or a negative value is taken as 0: the wait is then the frame alone. The timer ends at the next tick of the yuno (`timeout_periodic`, 1000 ms by default), so the wait lasts up to one tick more: with the defaults and a short frame, about 1.2 s at most |
 | `baudrate` | `9600` | Over RTU, the speed of the serial line, used to count how long a frame takes on it (11 bits a byte). A `C_UART` below says its own `baudrate`, the speed its line runs at, which wins: the bottom of the master, or a `C_UART` under other layers (the first gobj of the bottom chain that has a `baudrate`). A speed the tty does not know runs at 9600, and its `baudrate` says 9600. The `C_UART` the master creates gets this one. **Behind a `tcp://` gateway to a serial bus, set it to the speed of that bus**: the master cannot see it. That gateway needs a `C_TCP` bottom given by the host: an `"RTU"` master creates a `C_UART`, whatever its `url` says (see above) |
-| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the noise dropped -- the bytes after an answer in its read, the bytes that cannot start an answer, and the bytes that come while a broadcast is in flight (below; those are warned under their own name). One per drop, not per byte |
+| `rx_noise_dropped` | `0` | Stats (read only, counted since the gobj was created): over RTU, the noise dropped -- the bytes after an answer in its read, the bytes that cannot start an answer, and the bytes that come while a broadcast is in flight (below, and those are warned under their own name). One per drop, not per byte |
 
 To change the map of a running master, stop it, write `slaves` and start it
 again (`gobj_write_json_attr()` does not take the reference: free yours):
@@ -192,13 +192,13 @@ that the cycle in flight pointed into.)
 ### The polling cycle
 
 On `EV_CONNECTED` the master publishes `EV_ON_OPEN` and polls 1 s later. A
-cycle reads each block of each slave in order, one request at a time; a
+cycle reads each block of each slave in order, one request at a time. A
 response, an exception or `timeout_response` moves it to the next block. A
 disabled block is skipped (see `mapping` above).
 After the last block of the last slave it publishes, and the next cycle starts
 `timeout_polling` later. When the last request of a cycle ends in a timeout,
 the next cycle starts `timeout_response` later instead: a slave that did not
-answer is given that time again before it is polled. On `EV_DISCONNECTED` it publishes `EV_ON_CLOSE`; a
+answer is given that time again before it is polled. On `EV_DISCONNECTED` it publishes `EV_ON_CLOSE`, and a
 `C_TCP` reconnects on its own.
 
 ### What a message carries
@@ -214,7 +214,7 @@ At the end of each cycle it publishes **one `EV_ON_MESSAGE` per slave**: the
 spans was stored since the previous publication, that is, when its block was
 answered in this cycle. A block that timed out or was answered with an
 exception leaves its variables out of the message, and a slave none of whose
-blocks answered is not published at all; each failure was logged where it
+blocks answered is not published at all. Each failure was logged where it
 started (`Modbus Timeout`, `modbus exception`: see below). So a
 subscriber can receive **a message with fewer variables than the map
 declares**, and must not read a missing one as zero. The cells read before a
@@ -236,7 +236,7 @@ the macro its header defines since this change:
 
 An exception response, or a block that does not answer within
 `timeout_response`, moves the cycle on at once to the next block. Over TCP the
-frame ends at the exception code; RTU adds its CRC, and the exception is taken
+frame ends at the exception code. RTU adds its CRC, and the exception is taken
 only after its CRC is checked. An RTU answer whose CRC does not match fails
 its block the same way (*"Modbus answer with a bad CRC"*), as a warning.
 
@@ -251,7 +251,7 @@ answered, or did not, and nothing is broken on our side), with the
 logged **when the block starts failing**, or starts failing another way (a new
 exception code, or a timeout after an exception), **not on every cycle**: a
 unit id that does not exist answers the same exception every cycle, and that
-is one fact; so is a map whose block asks 1 register where the slave
+is one fact. So is a map whose block asks 1 register where the slave
 answers 2 (up to 7.29.3 that one was logged every cycle).
 When the block answers again, an info says so, with what it failed with:
 
@@ -267,7 +267,7 @@ The exception and the timeout of a **request** (below) are logged every
 time, with the request (`request`), not a block. (Up to SDK 7.27.7 the TCP
 master waited after an exception for a CRC that TCP does not carry, so each
 exception cost `timeout_response` and held the poll of every slave of the
-connection; and every exception and timeout of every cycle was an error.)
+connection. Also, every exception and timeout of every cycle was an error.)
 
 ### Requests: writes, and reads outside the map
 
@@ -299,11 +299,11 @@ gobj_send_event(gobj_modbus, EV_SEND_MESSAGE,
 | Key | | |
 |---|---|---|
 | `operation` | `"write"` | `write` or `read` |
-| `id` | `1` | Slave id, 0-255. Over RTU 0 is the broadcast: a write to it is answered as done without an answer from a slave, and a read from it is refused (*Broadcast*, below); and 248-255 are reserved: a request to one is refused (*"slave id 248 is reserved in Modbus RTU (248-255)"*) |
+| `id` | `1` | Slave id, 0-255. Over RTU 0 is the broadcast: a write to it is answered as done without an answer from a slave, and a read from it is refused (*Broadcast*, below). The ids 248-255 are reserved: a request to one is refused (*"slave id 248 is reserved in Modbus RTU (248-255)"*) |
 | `type` | | Write: `holding_register`, `coil`. Read: also `input_register`, `input_status` |
 | `address` | | 0-65535. With `size`, the last one too: `address + size - 1` is at most 65535 |
 | `size` | `1` | A read: how many (at most 125 registers, 2000 bits). A write takes it from its values |
-| `value` | | A write: a number, or an array of them (at most 123 registers, 1968 coils). A register value is -32768..65535; a coil is ON if not 0 |
+| `value` | | A write: a number, or an array of them (at most 123 registers, 1968 coils). A register value is -32768..65535, and a coil is ON if not 0 |
 
 **Every number of a request** (`id`, `address`, `size`, each `value`) is read
 as the command parser reads an integer: a json integer, a real with no
@@ -328,9 +328,9 @@ decimals (`20.0`), a boolean as 1 or 0, or the whole text of a JSON integer
 as address 0, `"010"` as 8, `20.9` as 20, `"x"` as slave 0, `"12ab"` as 12.)
 
 Anything else in the request travels back in its answer, so a caller can tag
-it. What goes out: a read with function 01, 02, 03 or 04 by its type; a write
-of one holding register with 06, of several with 16; one coil with 05 (ON is
-`0xFF00`), several with 15. Over TCP and RTU; ASCII is not built.
+it. What goes out: a read with function 01, 02, 03 or 04 by its type. A write
+of one holding register goes with 06, of several with 16. One coil goes with 05 (ON is
+`0xFF00`), several with 15. It works over TCP and RTU, and ASCII is not built.
 
 **Every request is answered, with `EV_MODBUS_ANSWER`, also when it fails**:
 
@@ -345,8 +345,8 @@ of one holding register with 06, of several with 16; one coil with 05 (ON is
 ```
 
 `request` comes with its defaults filled in and the value of a write as an
-array; `result` is 0 when done, -1 when not, with the reason in `comment`, and
-the Modbus exception, if the slave sent one, in `error_code`; `values` are the
+array. `result` is 0 when done, -1 when not, with the reason in `comment`, and
+the Modbus exception, if the slave sent one, in `error_code`. `values` are the
 registers of a read, or its bits as 0/1. A write is checked against the echo
 the slave answers with (its address, and its value or quantity): an echo that
 does not match fails it. **A log never shows the values of a write** (it
@@ -369,7 +369,7 @@ fit in a register (-32768..65535)"*): it is the `why` of that log, and the
 The gobj above must declare `EV_MODBUS_ANSWER` in its FSM.
 
 **Broadcast, over RTU.** Slave 0 is the broadcast of the Modbus serial line:
-every slave carries out the write, and **no slave answers it**. So a write to
+every slave executes the write, and **no slave answers it**. So a write to
 slave 0 goes out and no answer is awaited: once its frame has left the line
 and `turnaround_delay` has passed, the time the slaves need to carry it out,
 it is answered as done, and the next request or block goes out. Done means
@@ -429,8 +429,8 @@ dropped, and the bytes after it are taken as the head of a frame of slave 6
 it takes to echo.
 
 **A broadcast that the connection or a stop cuts is not confirmed.** It is
-never answered, so what is cut is its wait: the frame may have been carried
-out. Its answer, and the warning, say so, not *"before its answer"*:
+never answered, so what is cut is its wait: the slaves possibly executed the
+frame. Its answer, and the warning, say so, not *"before its answer"*:
 
 ```json
 {"request": {"operation": "write", "id": 0, ...}, "result": -1, "error_code": 0,
@@ -452,7 +452,7 @@ cycles comes after it (up to 7.29.2 such a request waited
 that whole `timeout_polling` first). One that arrives while a block or another
 request is in flight goes out after it, before the next block. They go **one at a time, in the order they came**,
 so a request that needs another before it in the same connection -- a meter
-password, and the setup it unlocks -- is simply sent after it.
+password, and the setup it unlocks -- is sent after it.
 
 **A request is valid for the connection it was queued in.** When the
 connection drops, the request in flight and every queued one are answered as
@@ -538,7 +538,7 @@ PRIVATE int ac_stop_meter(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 A posted stop comes after the master sent what was queued next: the
 dependent request is sent from the good answer, above, so there is nothing
-queued that the stop would have to catch.
+queued for the stop to catch.
 
 The master survives a stop from anywhere, also from inside its own
 `EV_MODBUS_ANSWER` or `EV_ON_MESSAGE`: after it publishes it checks that it
@@ -555,10 +555,10 @@ loop, which ended the yuno.
 **Which answer is taken.** Only an answer to what is in flight, a block or a
 request. Over TCP it must carry the **transaction id** of the frame sent and
 protocol 0: the late answer of a request that timed out has the same slave,
-function and size as the request sent after it, and would be taken for it --
+function and size as the request sent after it, and without that check it is taken for it:
 a value of another register given as good. Such a frame, and any frame that
-comes while nothing is in flight, is read whole and dropped with a warning;
-what is in flight goes on waiting for its own answer:
+comes while nothing is in flight, is read whole and dropped with a warning.
+What is in flight goes on waiting for its own answer:
 
 ```json
 {"msg": "Modbus frame dropped: not the answer awaited", "in_flight": 1,
@@ -592,14 +592,14 @@ a warning: the bytes are the peer's.
 
 **Bytes that come after an answer in the same read**, over TCP, came before
 the next request went out: the frame they start is not its answer. It is read
-whole (its head may come in the next read) and dropped, with `"in_flight": 0`,
+whole (its head can come in the next read) and dropped, with `"in_flight": 0`,
 and the answer after it is read. **An MBAP length outside 3-254** (the unit
 and a PDU of at most 253 bytes) says nowhere a frame ends: the connection is
 dropped (*"Modbus TCP: bad MBAP length, the connection is dropped"*), which
 answers what was in flight and every queued request as failed (below).
 
 **A byte over TCP that is no frame drops the connection.** TCP loses and adds
-nothing, so such a byte comes from a broken slave or gateway. The head read
+nothing, so such a byte is from a broken slave or gateway. The head read
 across it is shifted, and its MBAP length is out of range (with one stray
 byte it reads `0`): the connection is dropped and made again. That is the
 resync, on purpose: searching the stream for something that looks like an
@@ -619,24 +619,24 @@ waiting for more bytes until `timeout_response`. The next answer starts a
 read of its own: it comes after the next request goes out.
 
 **Over RTU a byte that cannot start an answer is dropped too**, where a frame
-would start (at the start of a read, or after a frame dropped in it): a
+can start (at the start of a read, or after a frame dropped in it): a
 `0x00` (slave 0 is the broadcast, which no slave answers) or a `0xF8`-`0xFF`
 (slave ids 248-255 are reserved). **While a broadcast is in flight every
 byte is dropped there**: no answer can come (*Broadcast*, above). That is the noise byte that comes in a read
 of its own, before an answer or between two: taken as a head, it lost the
 answer after it (up to 7.29.3). A noise byte
-`0x01`-`0xF7` there is still taken as a head: it may be the
+`0x01`-`0xF7` there is still taken as a head: it can be the
 first byte of a late frame of another slave, whose head says how long it is,
-and which is read whole and dropped. Dropping every byte that is not the id of
-the slave asked would cut that frame in pieces, and a piece taken as a head
-would swallow the answer awaited. That noise byte is the limit: the answer
+and which is read whole and dropped. If every byte that is not the id of
+the slave asked is dropped, that frame is cut in pieces, and a piece taken as a head
+swallows the answer awaited. That noise byte is the limit: the answer
 after it is lost (the request fails at `timeout_response`, and the next one
 starts clean).
 
 Each drop is counted in the stats attribute `rx_noise_dropped`, before the
 answer it follows is published. The warning (*"Modbus: bytes after the
 answer, dropped"* or *"Modbus: bytes that cannot start an answer, dropped"*,
-`len`; the bytes during a broadcast have their own, above) is logged **when the noise starts**, once per connection, not for every
+`len`, and the bytes during a broadcast have their own, above) is logged **when the noise starts**, once per connection, not for every
 answer: a line that spikes in every cycle is one fact. It is logged again only
 after a polling cycle that **polled a block** and dropped nothing, which an
 info says (*"Modbus: a cycle came without noise"*, with the count so far). A
@@ -644,7 +644,7 @@ cycle that polled nothing -- a master whose map has no block it can poll, and
 only serves requests -- says nothing of the line: such a master warns once per
 connection. The traffic trace dumps every drop. The transition is the cycle,
 not the answer: a line that spikes on some answers of every cycle stays one
-warning, where a per-answer transition would log at each change.
+warning, where, with a transition per answer, the log has a line at each change.
 
 ```text
 01 03 02 00 46 <crc> 00          one read: the answer, then a noise byte
@@ -667,10 +667,10 @@ ycommand -c 'stats-yuno id=<id> service=__modbus__'   # "rx_noise_dropped": 4
 
 (Up to 7.29.3: an exception was taken whatever its
 function, so over RTU a late one failed the write sent after it, a write that
-was done, and its echo was then dropped; the echo of a write answering a block
-counted as its answer; the bytes after an answer were dropped, half a frame
+was done, and its echo was then dropped. The echo of a write answering a block
+counted as its answer. The bytes after an answer were dropped, half a frame
 included, which left the stream in the middle of one and lost the next
-answer; and a frame of another transaction id with an MBAP length of 65535
+answer. Also, a frame of another transaction id with an MBAP length of 65535
 was "read whole", swallowing every answer of the next `timeout_response`.
 Up to 7.29.2 the transaction id was written and never read,
 an RTU exception was taken before its CRC, and a bad CRC or an MBAP of length
@@ -687,7 +687,7 @@ module:
 ```
 
 (Up to SDK 7.29.2 no request was answered and only writes existed: one
-holding register over TCP went out right; function 05 sent the value as given
+holding register over TCP went out right. Function 05 sent the value as given
 instead of `0xFF00`, several values went out without their quantity and byte
 count, RTU refused every write, and writes queued when the connection dropped
 were sent on the next one. Up to 7.27.7 a write was never taken out of the
@@ -701,7 +701,7 @@ queue, and the polling did not resume after it.)
 `size` (`-1` all data). `address` and `size` are `DTP_JSON` since SDK 7.27.0:
 a number or its text, as the register maps write them (`"address": "4096"`).
 They were `DTP_STRING`, which the command parser now holds to a string, so a
-number from a SPA would be refused. An `address` above `0xFFFF` answers `-1`
+number from a SPA is refused with that type. An `address` above `0xFFFF` answers `-1`
 *"Address out of range"*.
 
 ```C
@@ -722,7 +722,7 @@ trace of `C_PROT_MODBUS_M` **and** that of its `C_TCP` dump it as
 `"<N bytes hidden>"`. The gclass also hides its own dumps of what it
 receives **by the function of the frame**: a write (05, 06, 15, 16) or the
 exception of one -- and anything while a write is in flight, as a broken frame
-may not say its function right. So the late echo of a write, which comes while
+can give a wrong function. So the late echo of a write, which comes while
 a read is in flight, is hidden too (up to 7.29.3 it was
 dumped with its value: the gclass looked only at what was in flight). Reads,
 and their answers, are dumped in full:

@@ -109,7 +109,7 @@ item.click();
 ## States of an action
 
 The functions below write the state of a set of elements. The first three
-write a color; the fourth writes the look of a control that is pressed.
+write a color, and the fourth writes the look of a control that is pressed.
 
 (js_set_submit_state)=
 ### [`set_submit_state($container, selector, set)`](https://github.com/artgins/gobj-ui.js/blob/7.31.6/src/lib_graph.js#L116)
@@ -175,7 +175,7 @@ Add a missing icon as a rule of mask. Never name one on hope.
 
 Tells if `name` is a class that draws an icon in the loaded stylesheets. It asks
 the real stylesheet, so an icon that an app adds is seen too. The answer is kept
-for each name; a change of the user icons clears the answers about `yi-u-` names.
+for each name. A change of the user icons clears the answers about `yi-u-` names.
 
 ```js
 if(!yui_icon_is_defined("yi-bolt")) {

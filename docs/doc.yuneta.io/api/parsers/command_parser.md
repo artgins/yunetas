@@ -72,8 +72,8 @@ too often (*"BAD gbuf_decref()"*).
 |---|---|---|
 | `DTP_STRING` | a string | the text |
 | `DTP_DICT` / `DTP_LIST` | a json object / a json array | its json |
-| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number of the JSON grammar with nothing before or after it, in its range: a JSON integer for a `DTP_INTEGER`, a JSON number for a `DTP_REAL`; a boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a JSON integer |
-| `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date); a text that starts as json (`{`, `[`, `"`) and does not parse is refused -- on the command line or as a default. In `kw` a string is a json too, and stays as it came: `"{x"` given in `kw` arrives as that string |
+| `DTP_INTEGER` / `DTP_REAL` / `DTP_BOOLEAN` | a number or a boolean, never an object or an array | a number of the JSON grammar with nothing before or after it, in its range: a JSON integer for a `DTP_INTEGER`, a JSON number for a `DTP_REAL`. A boolean as `true`/`false`, `yes`/`no`, `on`/`off` or a JSON integer |
+| `DTP_JSON` | anything | its json, or the text itself as a string (a bare word, a date). A text that starts as json (`{`, `[`, `"`) and does not parse is refused, on the command line or as a default. In `kw` a string is a json too, and stays as it came: `"{x"` given in `kw` arrives as that string |
 
 **A json read from text has no `"gbuffer"` key**, at any depth: the parser
 drops each one with one warning ([`drop_peer_binary_keys()`](#drop_peer_binary_keys)).
@@ -90,7 +90,7 @@ with the plain `kw_get_bool()` / `kw_get_int()` / `kw_get_real()` and no
 |---|---|---|---|
 | `true` / `false` | as it is | `1` / `0` | `1.0` / `0.0` |
 | an integer `n` | `true` unless `0` | as it is | `n` as a real |
-| a real `d` | `true` unless `0.0` | `d` when it has no decimals (`2.0` -> `2`); with decimals (`2.7`), or out of the 64 bits, **refused** -- as the text `"2.7"` is | as it is |
+| a real `d` | `true` unless `0.0` | `d` when it has no decimals (`2.0` -> `2`). With decimals (`2.7`), or out of the 64 bits, **refused**, as the text `"2.7"` is | as it is |
 
 A number written as text is a number of the JSON grammar, the whole text:
 nothing before or after it (`" 5"` and `"5 "` are refused), and in its range.
@@ -109,7 +109,7 @@ The text of a real is a JSON NUMBER:
 ```
 
 So `limit=99999999999999999999` is refused (`strtoll()` used to saturate it in
-silence to 2⁶³-1), and so are `nan`, `inf` and `1e999`; `limit=2.0` and
+silence to 2⁶³-1), and so are `nan`, `inf` and `1e999`. `limit=2.0` and
 `force=1.0` are refused, where the json `2.0` is `2` and the json `1.0` is
 `true` -- a json number is converted, a text is read. An underflow is a number
 (`1e-400` is `0.0`), an overflow is refused. Up to 7.26.9 the text went to
@@ -133,9 +133,9 @@ C reads a string up to the NUL, so `"5\u0000junk"` was read as `5` and a
 string reached the handler other than it was sent.
 
 A `null` is no value (but for a `DTP_JSON`), and so is an empty text given in
-`kw` to a number (a form field left empty): the parameter takes its default;
-with no default it is ABSENT from the handler's kw -- the `""` used to reach it
---; and an `SDF_REQUIRED` one is refused with the answer *"parameter 'x' is
+`kw` to a number (a form field left empty): the parameter takes its default.
+With no default, it is ABSENT from the handler's kw (the `""` used to reach it),
+and an `SDF_REQUIRED` one is refused with the answer *"parameter 'x' is
 required"*. On the command line an empty number is `0`, as it always was. The
 line has the last word: a value of `kw` that is refused does not count when the
 same parameter comes as `key=value` -- and it does not reach the handler under
@@ -154,10 +154,10 @@ answered *"extra parameters: ' '"* (`ycommand` trims its line, so only a
 caller that does not trim saw it).
 
 **A required parameter is given without its key or as `key=value`.** The
-leading `SDF_REQUIRED` parameters can be written as words, in their order; from
+leading `SDF_REQUIRED` parameters can be written as words, in their order. From
 the first word that is `<a parameter of the command>=value` on, they are all
 `key=value`, required ones included, in any order. A required parameter the
-line does not give is taken from `kw`; else the answer is *"parameter 'x' is
+line does not give is taken from `kw`. If `kw` does not have it, the answer is *"parameter 'x' is
 required"*. A positional value with a `=` in it whose text before the `=` is
 not a parameter of the command is still refused as before (*"required
 parameter 'x' not found"*). Up to 7.30.26 a required parameter given as
@@ -189,7 +189,7 @@ json, and is matched exactly: a `kw` `"N"` is no parameter `n`.
 
 Anything else is refused before the handler runs, with the answer `-1` that
 names the parameter, the shape expected and the shape given (never the value:
-it may be a secret). A command with a user in `kw` (`__username__`, which
+it can be a secret). A command with a user in `kw` (`__username__`, which
 `C_IEVENT_SRV` puts there) came from outside, and the mistake is the peer's: a
 WARNING (*"Command parameter of the wrong type"*). From C code it is a broken
 contract: an ERROR with a stack.
@@ -232,27 +232,27 @@ reads what it gets (`C_NODE`'s `set-link-events set`, the keycloak
 **What a caller must send (BREAKING, 7.27.0+).** Every parameter is typed,
 so a caller that relied on the handler's own reading gets `-1` now. Refused:
 
-- a number, a boolean, an object or an array given to a `DTP_STRING`
-  (`node_id: 5`);
-- given to a `DTP_INTEGER`: a text that is not a JSON integer (`limit=y`,
+- A number, a boolean, an object or an array given to a `DTP_STRING`
+  (`node_id: 5`).
+- Given to a `DTP_INTEGER`: a text that is not a JSON integer (`limit=y`,
   `"5 "`, `" 5"`, `+5`, `007`, `1e3`, `2.0`, `0x10`, a date), a real with
-  decimals (`2.7`), a number past 64 bits;
-- given to a `DTP_REAL`: a text that is not a JSON number (`.5`, `5.`, `+5`,
-  `007`, `0x10`, `nan`, `inf`), an overflow (`1e999`);
-- given to a `DTP_BOOLEAN`: a text that is not `true`/`false`, `yes`/`no`,
-  `on`/`off` or a JSON integer (`maybe`, `play=y`, `1.0`, `+1`, `007`);
-- an object or an array given to a number or a boolean, a non-object to a
-  `DTP_DICT`, a non-array to a `DTP_LIST`;
-- a string with a NUL inside, given in `kw` to anything but a `DTP_JSON`;
-- a text that starts as json and does not parse, given to a `DTP_JSON` on
+  decimals (`2.7`), a number past 64 bits.
+- Given to a `DTP_REAL`: a text that is not a JSON number (`.5`, `5.`, `+5`,
+  `007`, `0x10`, `nan`, `inf`), an overflow (`1e999`).
+- Given to a `DTP_BOOLEAN`: a text that is not `true`/`false`, `yes`/`no`,
+  `on`/`off` or a JSON integer (`maybe`, `play=y`, `1.0`, `+1`, `007`).
+- An object or an array given to a number or a boolean, a non-object to a
+  `DTP_DICT`, a non-array to a `DTP_LIST`.
+- A string with a NUL inside, given in `kw` to anything but a `DTP_JSON`.
+- A text that starts as json and does not parse, given to a `DTP_JSON` on
   the command line or as a default.
 
 Before, such a value reached the handler, which logged an ERROR or read it as
 something else. Look at the command's `help` for the type of each parameter:
-**the same name can have another type in another command** -- `from_t` /
+**the same name can have another type in another command**: `from_t` /
 `to_t` are a `DTP_JSON` (a date or a number) in `C_TRANGER`'s `open-list` and a
-`DTP_INTEGER` in its `open-iterator`; `options` is a string, an integer or a
-json; `set` is a json in the yuno's trace commands and a boolean or a json
+`DTP_INTEGER` in its `open-iterator`. `options` is a string, an integer or a
+json. `set` is a json in the yuno's trace commands and a boolean or a json
 elsewhere.
 
 **Authorization comes first.** The per-command gate of the parser
@@ -270,13 +270,13 @@ after the typing: the parser does not know it.
 whatever the client put there, so a client cannot choose it. Two things follow,
 and they are the model, not a hole:
 
-- a command that comes in by a `C_IEVENT_CLI` link -- this yuno is the CLIENT
-  of another one, and the other side sends it a command -- is dispatched with
+- A command that comes in by a `C_IEVENT_CLI` link (this yuno is the CLIENT
+  of another one, and the other side sends it a command) is dispatched with
   the kw the server sent. If the server is not an agent and does not stamp
   `__username__`, the command is a C caller's here: trusted, its mistakes are
   ERRORs, and the peer checks of `C_TREEDB` / `C_TRANGER` do not apply. A yuno
-  connects as a client only to a yuno it trusts;
-- a rule of "the same user" (the `force` of `C_TREEDB`'s `close-treedb` on a
+  connects as a client only to a yuno it trusts.
+- A rule of "the same user" (the `force` of `C_TREEDB`'s `close-treedb` on a
   treedb a peer opened) compares that name: everything that comes in under one
   identity of an agent is one user. And a treedb a peer opened, once it is
   closed, is anybody's with the permission: another user can delete it or open
@@ -285,7 +285,7 @@ and they are the model, not a hole:
 Up to 7.26.9 a value of another shape went to the handler as it came, and its
 `kw_get_*()` logged the caller's mistake as an ERROR with a stack -- or read it
 as something else: `C_TREEDB`'s `save-schema` read `"treedb_name": 5` as no
-treedb named, and saved every treedb open; `dry_run=yes` was `atoi()`'d to
+treedb named, and saved every treedb open. `dry_run=yes` was `atoi()`'d to
 FALSE, and the save was real. A `SDF_REQUIRED` parameter given in `kw` was not
 converted at all.
 
@@ -413,7 +413,7 @@ The first word is read ONCE, with [`get_parameter()`](#get_parameter): one
 level of quotes comes off (`'list-yunos' x=1` finds `list-yunos`). That is
 how [`command_parser()`](#command_parser) finds the command it runs, so a
 caller that looks a line up with this function sees the command the parser
-will run -- `command-agent` relies on it to refuse a line that would run
+will run. `command-agent` relies on it to refuse a line that, if accepted, runs
 itself. A word that still holds a quote or a blank names no command:
 
 ```C
@@ -438,7 +438,7 @@ A value of `type` written as TEXT, read exactly as [`command_parser()`](#command
 reads a parameter written on the command line: a number with nothing before or
 after it and in its range, a boolean as `true`/`false`, `yes`/`no`, `on`/`off`
 or a number, an object or a list as its json, a `DTP_JSON` as its json or else
-the text itself; an empty text is `0` or `false`. It is for a command whose
+the text itself. An empty text is `0` or `false`. It is for a command whose
 value takes the type of something else: the yuno's `write-attr value=...`
 reads the value as the type of the ATTRIBUTE.
 
@@ -456,11 +456,11 @@ json_t *command_parameter_from_text(
 |---|---|---|
 | `type` | `data_type_t` | The type to read the text as: `DTP_STRING`, `DTP_INTEGER`, `DTP_REAL`, `DTP_BOOLEAN`, `DTP_DICT`, `DTP_LIST` or `DTP_JSON`. |
 | `text` | `const char *` | The text. `NULL` is an empty text. |
-| `refused` | `const char **` | Out, may be `NULL`: why the text was refused, a short phrase (`"a text that does not read as one"`, `"a number out of its range"`), never the text -- it may be a secret. `NULL` when it was read. |
+| `refused` | `const char **` | Out, can be `NULL`: why the text was refused, a short phrase (`"a text that does not read as one"`, `"a number out of its range"`), never the text, because it can be a secret. `NULL` when it was read. |
 
 **Returns**
 
-A NEW reference to the value, of the exact json type of `type`; `NULL` when the
+A NEW reference to the value, of the exact json type of `type`. `NULL` when the
 text does not read as one.
 
 **Example**
@@ -513,12 +513,12 @@ json_t *command_parameter_from_json(
 |---|---|---|
 | `type` | `data_type_t` | The type to read the value as: `DTP_STRING`, `DTP_INTEGER`, `DTP_REAL`, `DTP_BOOLEAN`, `DTP_DICT`, `DTP_LIST` or `DTP_JSON`. |
 | `value` | `json_t *` | The value, not owned. |
-| `refused` | `const char **` | Out, may be `NULL`: why the value was refused, a short phrase (`"a text that does not read as one"`, `"a real with decimals"`, `"an object"`), never the value -- it may be a secret. `NULL` when it was read, and when there is no value. |
+| `refused` | `const char **` | Out, can be `NULL`: why the value was refused, a short phrase (`"a text that does not read as one"`, `"a real with decimals"`, `"an object"`), never the value, because it can be a secret. `NULL` when it was read, and when there is no value. |
 
 **Returns**
 
 A NEW reference to the value, of the exact json type of `type`. `NULL` with
-`*refused` set when the value does not read as one; `NULL` with `*refused`
+`*refused` set when the value does not read as one. `NULL` with `*refused`
 `NULL` when there is NO value: a `null`, or an empty text given to a number.
 
 **Example**
@@ -563,7 +563,7 @@ belongs to the remote yuno's command). The rest is
 [`json_mask_secrets()`](#json_mask_secrets): a string with a secret
 `name=value` in it (the `command` of `command-yuno`) is masked inside, and so
 is the `value` of a write-attr whose `attribute` names a secret. A secret is masked whatever its
-json type (`"password": 1234` too); only an absent one or an empty string
+json type (`"password": 1234` too). Only an absent one or an empty string
 shows as it is, so "not set" still shows. The kernel uses it for the
 `"command kw"` trace of `gobj_command()` and the `"expanded_command: kw_cmd"`
 trace of [`command_parser()`](#command_parser) (both under `ev_kw`).
@@ -596,7 +596,7 @@ json_t *command_mask_secret_kw(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The gobj whose command table describes the command. |
-| `command` | `const char *` | The command; only its first word is used to find the descriptor. |
+| `command` | `const char *` | The command. Only its first word is used to find the descriptor. |
 | `kw` | `json_t *` | The kw of the command. Not owned. |
 
 **Returns**
@@ -652,7 +652,7 @@ to 7.30.26 it showed `aHVudGVyMg==` as the user). With no command table --
 `gobj` NULL, or a command its table does not have: the ievents trace of a
 command to a remote service -- the line is masked by names only, and a word
 that ends in `=` or `==`, or begins with `=`, is no `key=value`: `<...>` (a
-password in base64 ends so; the agent's audit file takes the same rule; up to
+password in base64 ends so, the agent's audit file takes the same rule, and up to
 7.30.26 it was shown whole). A first word with a blank, a quote or a
 backslash in it (its own enclosing quotes apart) is no command name: `<...>`,
 the rule of the agent's audit file. In its own quotes a whole line is one word,
@@ -661,14 +661,14 @@ shows `<...> note=x` (up to 7.30.26 the parser ran `login` with `note=x`, and
 the trace showed `login bob hunter2 note=x`). A command name alone in its
 quotes stays: `'list-yunos'` is `list-yunos`. In a line of `help` the value of
 `cmd` is a command line too: it is shown masked the way the header of the help
-shows it, with the command table of the gobj where the help finds that command
--- `gobj`, or with `level=1`/`level=2` a bottom gobj or a child; with no
+shows it, with the command table of the gobj where the help finds that
+command: `gobj`, or with `level=1`/`level=2` a bottom gobj or a child, or with no
 `level` on the line (it can come in the kw) at any level
 (`help cmd="login bob hunter2"` is `help cmd='login bob ********'`, or
-`help cmd='login <...>'` with no table; up to 7.30.26 the trace showed `help
+`help cmd='login <...>'` with no table, and up to 7.30.26 the trace showed `help
 cmd=login bob hunter2`). The table of `gobj` itself does not know a child's
-`SDF_SECRET` parameter: `help cmd='create-config id=x content64=<s>' level=2`
-would show `<s>`. In a `SDF_WILD_CMD` command a value
+`SDF_SECRET` parameter: with that table alone, `help cmd='create-config id=x content64=<s>' level=2`
+shows `<s>`. In a `SDF_WILD_CMD` command a value
 with a `=` is a command line going on, shown `key='...'` masked by names. The
 whole line then goes through [`mask_secrets_inline()`](#mask_secrets_inline):
 `write-attr attribute=password value=X` shows `value=********`. What
@@ -816,9 +816,9 @@ whose first word is such a word.
 That masking holds because a required secret is always the LAST required
 parameter: [`gclass_create()`](#gclass_create) refuses a command table where
 a required secret (`SDF_SECRET`, or a secret's name) is followed by another
-required parameter. There a secret written with blanks would spill into the
+required parameter. In such a table, a secret written with blanks spills into the
 next one: `login correct horse battery` gives `correct` to the secret,
-`horse` to the next parameter -- shown in the traces and its errors -- and
+`horse` to the next parameter (shown in the traces and its errors), and
 echoes `battery`. Declare a second required parameter BEFORE the secret, or
 make it optional:
 

@@ -37,7 +37,7 @@ chosen for OVH-hosted nodes — see [§6](#6-break-glass-the-provider-console-is
 | `C_PTY` pseudoterminal gclass           | **Exists** | [`kernel/c/root-linux/src/c_pty.c`](../../../kernel/c/root-linux/src/c_pty.c) |
 | Agent/agent22 create a PTY for the CC   | **Exists** | [`yuno_agent22/src/c_agent22.c`](../yuno_agent22/src/c_agent22.c) (`gobj_create_service(name, C_PTY, …)`) |
 | Outbound controlcenter client (`tcps://`) | **Exists** | both `main.c` (`controlcenter` service, `C_IEVENT_CLI` → `C_PROT_TCP4H`) |
-| Dual-homing (agent `:1988` / agent22 `:1989`, `.com`/`.ovh`; `:1994`/`:1995` before 7.30.4) | **Exists** | both `main.c` `__output_url__` |
+| Dual-homing (agent `:1988` / agent22 `:1989`, `.com`/`.ovh`, and `:1994`/`:1995` before 7.30.4) | **Exists** | both `main.c` `__output_url__` |
 | `node_owner != "none"` gates the CC link | **Exists** | [`c_agent.c`](src/c_agent.c) `mt_start`, [`c_agent22.c`](../yuno_agent22/src/c_agent22.c) `mt_play` |
 | Long-lived controlcenter JWT + cert auto-sync | **Exists** | agent config `controlcenter.jwt`, `cert_sync_*` (see [`YUNO_AUTH.md`](YUNO_AUTH.md)) |
 | **agent22 survives an empty `node_owner`** | **Proposed** (Hardening #0) | today it `exit(0)`s — [§5.1](#51-hardening-0-agent22-must-never-suicide) |
@@ -108,8 +108,8 @@ reachable **three** ways, and they are **not** equivalent:
 The two agents exist so **each can maintain the other**. The agent is a
 standalone daemon (not a managed yuno), so updating an agent binary is a
 replace + `sudo systemctl restart yuneta_agent` (or `yuneta_agent22`: each
-agent has its own unit since 7.25.21; `--stop` / `--start` on a node without
-them) run **on the box, from a root console** — and you must open that
+agent has its own unit since 7.25.21, and `--stop` / `--start` on a node without
+them) run **on the box, from a root console**. You must open that
 console through the *other* agent's plane:
 
 - To update / restart **`yuneta_agent`** → open a console through **agent22**
@@ -277,14 +277,14 @@ Verified against [`c_agent.c`](src/c_agent.c) (2026-07-22 command surface):
 - Certs: `cert-sync-now`, `cert-sync-status`.
 - **Accepting a new node in its control center** (2026-11-17, 7.31.12/13). The
   control center pins a node's uuid to its key (`accept-node`), and until
-  7.31.11 the key could only be read on the node, by SSH (`openssl x509 …
+  7.31.11 the key was readable only on the node, by SSH (`openssl x509 …
   | sha256sum`). Now it needs no SSH: the install prints it
   (`[postinst] This node for its control center: node_id=… spki_sha256=…`,
   from `yuneta-agent-cert key`), `list-nodes` shows the start of the key
   each node presented, and `accept-node node_id=… presented=<start>` pins
   the presented key when it starts as the operator compared (7.31.13). A node not accepted
   yet is not reachable through the control center, so the install output
-  is the out-of-band channel; keep it with the provisioning record. For a
+  is the out-of-band channel. Keep it with the provisioning record. For a
   batch of nodes (a migration of the control center) an operator opens an
   enrollment for some minutes (7.31.15, `open-enrollment`), which accepts
   the key of each node with no key accepted.
@@ -309,7 +309,7 @@ here is a candidate for promotion to Tier 1:
   overwrites it after (the copy is the operator's from then on), only picks up
   a newer built-in if the old copy is moved aside before it restarts: an `mv`
   on the node, then the relay through the agent (Tier 1). Same gap as the
-  missing `write-file`; a `move-file`, or a command of the yuno itself that
+  missing `write-file`. A `move-file`, or a command of the yuno itself that
   re-seeds its copy, is the Tier-1 answer.
 - **Publishing a SPA bundle** into a vhost (`rsync dist/ → /yuneta/gui/<fqdn>/`).
   Same gap as above and today's most frequent one: every front-end release
@@ -323,7 +323,7 @@ here is a candidate for promotion to Tier 1:
   at random, up to 1,464 drops per hour, while the agent's
   `wss://` channel was not affected. Relaxing `LoginGraceTime` and `MaxStartups`
   brought the drops to zero, but only the seal removes the exposure. A
-  `write-file`, or a vhost-aware command, would promote it to Tier 1.
+  `write-file`, or a vhost-aware command, can promote it to Tier 1.
 - OS administration: `systemctl`, `nftables`, `sysctl`, `tmpfiles.d`,
   `core_pattern`/apport, certbot renewals, nginx/openresty reload, the node's
   time zone (`timedatectl set-timezone`, and the restart of `rsyslog`/`crond`
@@ -432,7 +432,7 @@ measurement method and the client-side trust asymmetry in
 **Resolved (2026-08-25): the CLI's node registry no longer assumes SSH.**
 `~/.yuneta/nodes.json` now carries, per node, `url` (`wss://<host>:1993`),
 `issuer`, `client_id`, `user_id` and the TLS pinning pair
-(`ssl_trusted_certificate`, `ssl_server_name`); `ssh` is an optional fallback
+(`ssl_trusted_certificate`, `ssl_server_name`). `ssh` is an optional fallback
 used only by `--tunnel`, and `url` wins when both are present. A node can be
 registered with a `url` and **no** `ssh` field at all, so a sealed node is
 already registrable. Note the client_id is the **node's own**
@@ -452,21 +452,21 @@ problem: there was nobody to read the permissions. Their own logs said it
 plainly — `{"function": "authz_checker", "msg": "No gclass authz found"}`.
 
 None of them listens outside its node (loopback ports only), so **SSH
-was the only way to touch them**. Under a seal there would have been none at
-all — a Tier-3 entry created by omission rather than by a missing command, and
-invisible until someone tries.
+was the only way to touch them**. Before the fix, a seal left no way at
+all. That was a Tier-3 entry created by omission rather than by a missing command, and
+invisible until someone tried.
 
 The fix is per-yuno configuration, not framework: declare the `authz` service
 (`C_AUTHZ`, priority 0) and point it at the node's authzs store as a
 **follower** (`Authz.master: false`, `Authz.authz_service: <store>`). The
 store's master stays the yuno that carries `Authz.initial_load` (the node's
-`db_history`). `master` governs who may WRITE
-the authz store — it is not a privilege level, and a follower authorizes just
+`db_history`). `master` governs who can WRITE
+the authz store. It is not a privilege level, and a follower authorizes just
 as well as a master.
 
 **Sealing prerequisite.** Before sealing a node, check that every yuno with no
-public listener actually has the service. `command-yuno id=<id>
-service=__yuno__ command=services` names it; a yuno that answers `-403` to a
+public listener has the service. `command-yuno id=<id>
+service=__yuno__ command=services` names it. A yuno that answers `-403` to a
 plain `list-keys` or `topics` is the symptom.
 
 **Live confirmation of the identity propagation asserted above.** With

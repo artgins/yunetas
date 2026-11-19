@@ -22,15 +22,15 @@ error of the decoder.
 libmbus's decoding of the 78 real telegrams in libmbus's test collection. 893
 of the 909 records are equal. The other 16 differ on purpose:
 
-- a BCD with a digit in error is `null` here, where libmbus makes up a number;
-- a "date of" VIFE (`6F`, the date of a maximum) is a date here, where libmbus
-  reads a temperature of 41 million °C;
-- a date that was never set is `null`;
-- a date with a field out of its range (an hour 31, a year 127) is `null`.
+- A BCD with a digit in error is `null` here, where libmbus makes up a number.
+- A "date of" VIFE (`6F`, the date of a maximum) is a date here, where libmbus
+  reads a temperature of 41 million °C.
+- A date that was never set is `null`.
+- A date with a field out of its range (an hour 31, a year 127) is `null`.
   This one came after the comparison: since then, storage 510 of the
   Landis+Gyr T230 (a type F date with every year bit set, a slot never
-  written) is `null` here and `2027-01-01T00:00` in libmbus;
-- the fixed data structure (`CI 73`) is not decoded.
+  written) is `null` here and `2027-01-01T00:00` in libmbus.
+- The fixed data structure (`CI 73`) is not decoded.
 
 The module's test (`tests/c/mbus_telegram`) keeps six of those telegrams.
 
@@ -242,7 +242,7 @@ json_t *mbus_decode_user_data(
 | Key | Type | Description |
 |---|---|---|
 | `frame` | `const mbus_frame_t *` | A long frame found by [`mbus_parse_frame()`](#mbus_parse_frame). |
-| `more_follows` | `BOOL *` | Set when the telegram ends with `DIF 1F`: the meter has more records, asked for with the FCB toggled. May be `NULL`. |
+| `more_follows` | `BOOL *` | Set when the telegram ends with `DIF 1F`: the meter has more records, asked for with the FCB toggled. Can be `NULL`. |
 | `why`, `why_size` | `char *`, `size_t` | The reason of a refusal. |
 
 **Returns**
@@ -309,7 +309,7 @@ the text the meter sends.
 Dates come as text: `"2026-10-23"` (type G), `"2026-10-23T14:05"` (type F),
 `"2026-10-23T14:05:30"` (type I) or `"14:05:30"` (type J). Identity numbers
 come as text too (`fabrication_number`). These have `"value": null`: a real
-that is NaN or `+-Inf` (json has no number for them; the other records of the
+that is NaN or `+-Inf` (json has no number for them, but the other records of the
 telegram are decoded), a BCD with a digit in error, a date marked invalid,
 never set, or with a field out of its range (year 0-99, month 1-12, day 1-31,
 hour 0-23, minute and second 0-59), and a record that carries a record-error

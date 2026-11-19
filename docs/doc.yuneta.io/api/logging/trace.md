@@ -232,7 +232,7 @@ json_decref(jn_levels);
 
 Retrieves the trace levels of a gclass **without** the global ones.
 [`gobj_get_gclass_trace_level()`](#gobj_get_gclass_trace_level) returns the
-union with the global levels; this one returns only what is set on the gclass.
+union with the global levels. This one returns only what is set on the gclass.
 `C_YUNO` saves it as the scope of the gclass in `trace_levels`.
 
 ```C

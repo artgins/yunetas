@@ -23,12 +23,12 @@ direction: `<client_id>-IN` for the messages the session receives,
 the `-OUT` one of a disconnected session for the time of an append.
 
 - **On disk**, every message is a record of the topic. While it is not done
-  with, its `user_flag` carries `TR2Q_MSG_PENDING`; finishing it
+  with, its `user_flag` carries `TR2Q_MSG_PENDING`. Finishing it
   ([`tr2q_unload_msg()`](#tr2q_unload_msg)) clears that bit on disk, so a
   restart loads only what is still pending ([`tr2q_load()`](#tr2q_load)).
 - **In memory**, each pending message is a `q2_msg_t` in one of two lists:
   - **inflight** -- the messages being delivered, with their content in
-    memory, at most `max_inflight_messages` of them (`0`: no limit);
+    memory, at most `max_inflight_messages` of them (`0`: no limit).
   - **queued** -- the ones beyond that limit, with only their metadata (the
     content stays on disk, read when the message moves to inflight with
     [`tr2q_move_from_queued_to_inflight()`](#tr2q_move_from_queued_to_inflight)).
@@ -93,7 +93,7 @@ And the lists are walked with `tr2q_first_inflight_msg()`,
 the macros `Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg)` /
 `Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg)` and their `_SAFE` forms, which allow
 unloading the current message. `tr2q_inflight_size()` and
-`tr2q_queued_size()` count them; `tr2q_msg_rowid()` and `tr2q2_msg_time()`
+`tr2q_queued_size()` count them. `tr2q_msg_rowid()` and `tr2q2_msg_time()`
 read a message's rowid and `__t__`.
 
 ---
@@ -123,10 +123,10 @@ tr2_queue_t *tr2q_open(
 |---|---|---|
 | `tranger` | `json_t *` | The tranger the queue lives in (not owned). |
 | `topic_name` | `const char *` | The topic, one per queue (see [`build_queue_name()`](#build_queue_name)). |
-| `tkey` | `const char *` | The field of the record that carries its time; the MQTT queues use `"tm"`. |
-| `system_flag` | `system_flag2_t` | Flags of the topic. Its key type is forced to `sf_rowid_key`, whatever is passed; the MQTT queues pass `0`. |
-| `max_inflight_messages` | `size_t` | How many messages may be inflight at once; beyond it they go to the queued list. `0` is no limit, `1` delivers one by one, in order. |
-| `backup_queue_size` | `size_t` | The size of the topic that triggers a backup in [`tr2q_check_backup()`](#tr2q_check_backup); `0` never backs up. It is written in the topic's `topic_var.json`, and only by a master tranger. |
+| `tkey` | `const char *` | The field of the record that carries its time. The MQTT queues use `"tm"`. |
+| `system_flag` | `system_flag2_t` | Flags of the topic. Its key type is forced to `sf_rowid_key`, whatever is passed. The MQTT queues pass `0`. |
+| `max_inflight_messages` | `size_t` | How many messages can be inflight at once. Beyond it, they go to the queued list. `0` is no limit, `1` delivers one by one, in order. |
+| `backup_queue_size` | `size_t` | The size of the topic that triggers a backup in [`tr2q_check_backup()`](#tr2q_check_backup). `0` never backs up. It is written in the topic's `topic_var.json`, and only by a master tranger. |
 
 **Returns**
 
@@ -189,7 +189,7 @@ tr2q_close(trq_out_msgs);
 (tr2q_set_verbose)=
 ## `tr2q_set_verbose()`
 
-`tr2q_set_verbose()` turns on or off a trace of every message
+`tr2q_set_verbose()` enables or disables a trace of every message
 [`tr2q_load()`](#tr2q_load) brings in (`💾💾 ==> LOAD MSG tr2q <topic>,
 session '<client_id>', topic '<topic>', qos <n>, retain <n>`, followed by the
 record).
@@ -240,7 +240,7 @@ int tr2q_load(tr2_queue_t *trq);
 
 **Returns**
 
-`0`. `-1` when `trq` is `NULL` (logged), or when the load could not read every
+`0`. `-1` when `trq` is `NULL` (logged), or when the load did not read every
 pending message: *"Queue loaded without some of its messages: its first_rowid
 is not moved nor saved"*. The messages it did read ARE in the queue, but
 `first_rowid` keeps its old value and `load_failed` is set, so that the next
@@ -259,7 +259,7 @@ meanwhile. Up to 7.25.4 `first_rowid` moved past them and they were lost.
 pending or NOT, the same way [`tr2q_load()`](#tr2q_load) does (inflight first,
 queued after the limit). It does not read nor save `first_rowid`. It is a tool
 for inspecting a queue (nothing in the MQTT module calls it): a message that
-is done with comes back into the lists, and unloading it again only clears a
+is done with returns to the lists, and unloading it again only clears a
 bit that is already clear.
 
 ```C
@@ -341,8 +341,8 @@ q2_msg_t *tr2q_append(
 | Key | Type | Description |
 |---|---|---|
 | `trq` | `tr2_queue_t *` | The queue. |
-| `t` | `json_int_t` | The `__t__` of the record; `0` lets timeranger2 put the time of now. |
-| `kw` | `json_t *` | The message (owned), as built by [`new_mqtt_message()`](#new_mqtt_message); its `mid` is required. |
+| `t` | `json_int_t` | The `__t__` of the record. `0` lets timeranger2 put the time of now. |
+| `kw` | `json_t *` | The message (owned), as built by [`new_mqtt_message()`](#new_mqtt_message). Its `mid` is required. |
 | `user_flag` | `uint16_t` | QoS, retain, direction, origin and state bits, added to `TR2Q_MSG_PENDING`. |
 
 **Returns**
@@ -429,7 +429,7 @@ int tr2q_unload_msg(q2_msg_t *msg, int32_t result);
 | Key | Type | Description |
 |---|---|---|
 | `msg` | `q2_msg_t *` | The message. It is freed: do not use it afterwards. |
-| `result` | `int32_t` | Not used; callers pass `0`. |
+| `result` | `int32_t` | Not used. Callers pass `0`. |
 
 **Returns**
 
@@ -572,7 +572,7 @@ int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value);
 | Key | Type | Description |
 |---|---|---|
 | `msg` | `q2_msg_t *` | The message. |
-| `value` | `uint16_t` | The new flags; `TR2Q_MSG_PENDING` is added. |
+| `value` | `uint16_t` | The new flags. `TR2Q_MSG_PENDING` is added. |
 
 **Returns**
 
@@ -595,8 +595,8 @@ tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
 `tr2q_check_backup()` backs up the queue's topic when it has grown to the
 `backup_queue_size` given to [`tr2q_open()`](#tr2q_open): the topic is moved
 to a backup and re-created empty, and `first_rowid` is reset. Call it only with
-nothing in flight; it does nothing while messages are QUEUED either, since they
-keep only the rowid of a record the backup would take away.
+nothing in flight. It does nothing while messages are QUEUED either, since they
+keep only the rowid of a record that the backup takes away.
 
 It behaves exactly as [`trq_check_backup()`](#trq_check_backup) of
 `tr_queue`, whose page tells each case with its log lines: refused after a
@@ -618,8 +618,8 @@ int tr2q_check_backup(tr2_queue_t *trq);
 `0` when there was nothing to do (no `backup_queue_size`, a topic still
 small, messages queued) or the backup was done. `-1` when the backup is
 REFUSED, said once: *"Queue backup refused: its last load did not read every
-pending message"*; when it FAILS: *"Queue backup failed: the queue goes on in
-its topic, not backed up"* (or *"..., and the queue has no topic"*); and
+pending message"*. It is also `-1` when the backup FAILS: *"Queue backup failed: the queue goes on in
+its topic, not backed up"* (or *"..., and the queue has no topic"*), and
 when the queue has no topic and it cannot be opened yet.
 
 **Example** — `C_PROT_MQTT2` calls it every `timeout_backup` seconds, for each
@@ -690,9 +690,9 @@ int build_queue_name(
 | Key | Type | Description |
 |---|---|---|
 | `bf` | `char *` | The buffer to write in. |
-| `bfsize` | `size_t` | Its size; `NAME_MAX` is what the module uses. |
+| `bfsize` | `size_t` | Its size. The module uses `NAME_MAX`. |
 | `client_id` | `const char *` | The client id of the session. |
-| `mqtt_msg_direction` | `mqtt_msg_direction_t` | `mqtt_md_in` or `mqtt_md_out`; `0` writes the bare client id. |
+| `mqtt_msg_direction` | `mqtt_msg_direction_t` | `mqtt_md_in` or `mqtt_md_out`. `0` writes the bare client id. |
 
 **Returns**
 

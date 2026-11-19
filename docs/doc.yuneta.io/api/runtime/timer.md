@@ -18,7 +18,7 @@ gobj is running is internal, so a caller never pairs a `set_timeout()` with a
 
 These helpers are the rare case of a GClass exporting PUBLIC C functions, an
 escape from the [GClass interface](../../../../yunos/c/yuno_agent/GOBJ.md). They are therefore **sugar
-over the `msec` attribute** and hold no behaviour of their own — the arming
+over the `msec` attribute** and hold no behavior of their own: the arming
 lives in `mt_writing`, so
 
 ```C

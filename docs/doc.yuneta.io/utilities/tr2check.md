@@ -34,8 +34,8 @@ tr2check $TOPIC --key=SIM-0001 --per-key --list-max=5
 | `--seq-field=FIELD` | `seq` | Field with the sequence number |
 | `--seq-scope=key\|topic` | `key` | One sequence per key, or one for the whole topic |
 | `--seq-from=N` | `1` | First valid sequence |
-| `--seq-to=N` | highest seen | Last valid sequence; the missing tail counts as a gap |
-| `--expected=N` | — | Distinct sequences sent; `missing` = N − unique |
+| `--seq-to=N` | highest seen | Last valid sequence. The missing tail counts as a gap. |
+| `--expected=N` | — | Distinct sequences sent. `missing` = N − unique |
 | `--checksum-field=FIELD` | not checked | Field with the sha256 of the record |
 | `--from-t` / `--to-t` | — | Storage time window |
 | `--list-max=N` | `20` | Examples listed per defect |
@@ -47,7 +47,7 @@ tr2check $TOPIC --key=SIM-0001 --per-key --list-max=5
 |---|---|---|
 | `records` | records read | `SELECT COUNT(*)` |
 | `unique`, `duplicated` | sequences sorted: a value seen twice is a duplicate | `GROUP BY id HAVING COUNT(*) > 1` |
-| `gaps`, `missing` | a jump in the sorted sequence; with `--expected`, also the lost tail | `N − COUNT(DISTINCT seq)` |
+| `gaps`, `missing` | a jump in the sorted sequence. With `--expected`, also the lost tail. | `N − COUNT(DISTINCT seq)` |
 | `out_of_range` | a sequence outside `[seq-from, seq-to]` | `seq < 1 OR seq > N` |
 | `corrupted` | sha256 recomputed from the record read | `checksum_stored <> checksum_expected` |
 | `rate` | records / (last `__t__` − first `__t__`) | — |
@@ -59,12 +59,12 @@ tr2check $TOPIC --key=SIM-0001 --per-key --list-max=5
   without `__md_tranger__`, dumped as compact JSON with sorted keys
   (`JSON_COMPACT|JSON_SORT_KEYS`). The generator computes it the same way.
 - **Latency** is exact to the ms when the topic sets `sf_t_ms` and `sf_tm_ms`,
-  and to the second otherwise; `latency_resolution_ms` says which.
+  and to the second otherwise. `latency_resolution_ms` says which.
   Percentiles are exact up to 10 minutes.
 - With `--seq-scope=topic`, all the sequences go in one array: 8 bytes per
   record.
 
-The result is **one JSON document on stdout**; logs go to stderr:
+The result is **one JSON document on stdout**. Logs go to stderr:
 
 ```json
 {
@@ -99,7 +99,7 @@ The result is **one JSON document on stdout**; logs go to stderr:
 ```
 
 (The topic of `tests/c/timeranger2/test_tr2check.c`, with its planted defects,
-run with `--checksum-field=checksum`; `topic`, `seq_field` and `seq_scope` are
+run with `--checksum-field=checksum`. `topic`, `seq_field` and `seq_scope` are
 left out.)
 
 ## See also

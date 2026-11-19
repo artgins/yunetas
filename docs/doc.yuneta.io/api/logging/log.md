@@ -19,7 +19,7 @@ if(mkrdir(path, xpermission) < 0) {
 }
 ```
 
-Up to 7.25.4 the handlers of a log (a `write()`, the json dump) could change `errno`. The caller's log then named another cause, or *"Success"*: `tranger2_create_topic()`'s *"Cannot create TimeRanger subdir. mkrdir() FAILED"* always said errno 0.
+Up to 7.25.4, the handlers of a log (a `write()`, the json dump) sometimes changed `errno`. The caller's log then named another cause, or *"Success"*: `tranger2_create_topic()`'s *"Cannot create TimeRanger subdir. mkrdir() FAILED"* always said errno 0.
 
 Source code:
 
@@ -368,15 +368,15 @@ The function increments the global error count and formats the log message befor
 
 | Format | Logs | Since |
 |---|---|---|
-| `%s`, `%.64s`, `%.*s` | a string; the precision caps it (a peer's value, a dump), and a cap never cuts a UTF-8 character: it ends before the one that would not fit ([`utf8_prefix_len()`](<#utf8_prefix_len>)) | precision: SDK 7.26.9; whole characters: 7.27.0 |
+| `%s`, `%.64s`, `%.*s` | a string. The precision caps it (a peer's value, a dump), and a cap never cuts a UTF-8 character: it ends before the character that does not fit ([`utf8_prefix_len()`](<#utf8_prefix_len>)) | precision: SDK 7.26.9. Whole characters: 7.27.0 |
 | `%d`, `%ld`, `%lld`, `%zd`, `%jd`, `%hd`, `%hhd` | a signed integer of that size | `z`, `j`, `t`, `h`, `hh`: SDK 7.26.9 |
-| `%u`, `%lu`, `%llu`, `%zu`, `%x`, `%o` | an unsigned integer of that size, as a json number (in decimal: `%x` and `%o` do not change the base); one above `LLONG_MAX` is logged as text | SDK 7.26.9 |
+| `%u`, `%lu`, `%llu`, `%zu`, `%x`, `%o` | an unsigned integer of that size, as a json number (in decimal: `%x` and `%o` do not change the base). One above `LLONG_MAX` is logged as text | SDK 7.26.9 |
 | `%f`, `%g`, `%Lf` | a real number | |
 | `%p` | a pointer | |
 | `%j` | a `json_t *`, as compact json | |
-| no conversion (`"100%"`, `"%%"`) | the text itself, `%%` as `%`; nothing is consumed. `"50% done"` is NOT one: `"% d"` is a conversion, for `printf` too | SDK 7.26.9 |
-| `%m` | `strerror(errno)`, as glibc's `%m`: no argument is consumed. `errno` is the one the caller had when it called the log function. A precision is ignored (`%.3m` logs the whole message, glibc would cut it) | SDK 7.27.0 |
-| a conversion the logger does not know (`%C`, `%b`, `%n`) | the format's text; one argument is consumed, so the keys after it stay aligned | |
+| no conversion (`"100%"`, `"%%"`) | the text itself, `%%` as `%`. Nothing is consumed. `"50% done"` is NOT one: `"% d"` is a conversion, for `printf` too | SDK 7.26.9 |
+| `%m` | `strerror(errno)`, as glibc's `%m`: no argument is consumed. `errno` is the one the caller had when it called the log function. A precision is ignored (`%.3m` logs the whole message, but glibc cuts it) | SDK 7.27.0 |
+| a conversion the logger does not know (`%C`, `%b`, `%n`) | the format's text. One argument is consumed, so the keys after it stay aligned | |
 | a positional argument or a non-standard size (`%1$s`, `%qd`, `%I64d`) | the format's text, and one argument consumed, like a conversion the logger does not know: write `%s`, `%lld`. SDK 7.26.8 logged their value (what crashed it were the forms with `*` and `%j…`) | SDK 7.26.9 |
 
 Before SDK 7.26.9 the precision was ignored (every capped value was logged whole), a `size_t` was read as an `int` (`5000000000` logged `705032704`) and an `unsigned long long` as a `long long` (`ULLONG_MAX` logged `-1`), `%jd` was read as the json conversion, and a `%` with no conversion consumed an argument that was not there, losing every key after it.
@@ -667,7 +667,7 @@ The `gobj_trace_dump()` function is useful for debugging by providing a hex dump
 The bytes are dumped with the credentials that can be told in them written as
 `*`, the length kept ([`mask_secrets_in_text()`](#mask_secrets_in_text)): an
 HTTP `Cookie:` or `Authorization:` header value, a secret `name=value`, a json
-`"token": ...`; `"masked": N` says how many bytes. Up to 7.25.20 they were dumped as they came.
+`"token": ...`. `"masked": N` says how many bytes. Up to 7.25.20, they were dumped as they came.
 
 ---
 
@@ -709,9 +709,9 @@ If the gobj has the `TRACE_GBUFFERS` trace level enabled, the function will also
 
 [`gobj_trace_json()`](#gobj_trace_json) of a json that can hold a
 credential: what [`json_mask_secrets()`](#json_mask_secrets) masks is shown
-`"********"` (keys with a secret's name at any depth, whatever the json type
-of the value; the `value` of a write-attr of a secret; a `name=value` secret
-inside a string). The kernel dumps with it every kw it prints on an error or
+`"********"`. It masks keys with a secret's name at any depth, whatever the json type
+of the value. It also masks the `value` of a write-attr of a secret, and a `name=value` secret
+inside a string. The kernel dumps with it every kw it prints on an error or
 a trace: the `kw_get_*()` errors (*"path MUST BE a json str"*, *"path NOT
 FOUND"*...), the `machine` trace with `ev_kw` (the kw of an event sent,
 executed and published), the authz trace, *"No subscription found"*,

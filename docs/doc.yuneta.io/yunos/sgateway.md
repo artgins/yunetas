@@ -49,7 +49,7 @@ it opens. The client is not read meanwhile, so a client that leaves then is
 not seen either: what it sent is delivered when its output opens, and then
 the output is closed. A second client is refused while it waits. A pause or a
 stop before the output opens drops what was kept, counted in `dropMsgs`.
-Bytes for a side that has closed (the other one is being closed) are dropped
+Bytes for a side that closed (the gateway then closes the other one) are dropped
 and counted in `dropMsgs`, with one WARNING each time a side closes (not one
 per message).
 
@@ -81,7 +81,7 @@ log grew by megabytes per second.
 ### TLS
 
 The url scheme selects TLS (`tcps://`). The output takes its TLS
-configuration from the `crypto` attribute; by default it verifies the
+configuration from the `crypto` attribute. By default, it verifies the
 backend's certificate against the system CA. For a private CA:
 
 ```json
@@ -118,7 +118,7 @@ has no default: a `tcps://` input needs its certificate and key.
 
 Without them the input does not listen and the yuno exits with code 0
 (*"TLS server without its TLS context: exiting"*): serving its input is the
-gateway's role. Up to 7.30.19 a TLS input could not be configured at all. A
+gateway's role. Up to 7.30.19, a TLS input was not configurable at all. A
 global key `C_TCP_S.crypto` does not reach the server: it is not a service,
 and the global config reaches only services.
 
@@ -134,7 +134,7 @@ running without playing.
 | `output_url` | *(required)* | URL the gateway **connects** to, one connection per client (for example `tcp://192.0.2.10:2012`) |
 | `crypto` | `{"ssl_use_system_ca": true, "ssl_verify_mode": "required"}` | TLS of the output side (`tcps://`), see *TLS* |
 | `input_crypto` | `{}` | TLS of the input side (`tcps://`): its certificate and key, see *TLS* |
-| `timeout_between_connections` | `100` | ms before the output connects again after a failed attempt; doubled at each failure, up to 30 s |
+| `timeout_between_connections` | `100` | ms before the output connects again after a failed attempt. The value doubles at each failure, up to 30 s. |
 | `timeout` | `1000` | Period of the rate stats (ms) |
 
 Standalone (no agent), the yuno plays itself with `yuno.autoplay`:
@@ -214,13 +214,13 @@ or in the yuno's configuration:
 ## Test
 
 `tests/c/sgateway/` runs the real binary between a listener (its output
-target) and a client (of its input port): bytes both ways; one output
+target) and a client (of its input port). It checks bytes both ways, and one output
 connection per client (it closes when its client leaves, and a second
-client gets nothing of the first); the client dropped when its output goes;
-8 MB each way against a slow peer, whole and in order; a peer that never
-reads (the gateway does not grow); a client that leaves while its output
-cannot connect (what it sent is delivered when the output opens); a stop with
-a client that does not read (no output connection opens while it stops);
-then 20 clients through a TLS input and a TLS output with the default traces,
+client gets nothing of the first). It checks that the client is dropped when its output goes, and
+8 MB each way against a slow peer, whole and in order. It checks a peer that never
+reads (the gateway does not grow), and a client that leaves while its output
+cannot connect (what it sent is delivered when the output opens). It checks a stop with
+a client that does not read (no output connection opens while it stops).
+Then it runs 20 clients through a TLS input and a TLS output with the default traces,
 and a log that does not grow with them. Every log is clean at the orderly
 stop. See the [test suite](../test_suite.md).
