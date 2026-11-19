@@ -11,7 +11,12 @@
   code only as CommonMark makes it: after a blank line, 4 columns past the
   content of the list around it. An inline code span that wraps to the next
   line stays code on that line too, and "May" next to a number (`May 1`,
-  `22-May-2025`) is the month, not the modal. Over every `.md` of the repo
+  `22-May-2025`) is the month, not the modal. A double quote is
+  classified by its neighbors (an opening mark inside an open quote does not
+  close it, a closing mark outside one is ignored), so a quote whose closing
+  mark sits inside a code span no longer hides the rest of the paragraph.
+  Double-backtick code spans are code, and a table row or a fence ends any open
+  quote or code span. Over every `.md` of the repo
   the count moves from 6318 to 7183: the new hits are almost all in
   `CHANGELOG.md`, and `docs/` goes from 2590 to 2542.
 - **Every README of the repo in plain English** (the ESP32 ones excepted):

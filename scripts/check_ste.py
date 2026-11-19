@@ -160,6 +160,11 @@ PROPER_NOUNS = [
 #
 #   Untouchable stripping
 #
+CODE_MARK = "\x01"
+QUOTE_BEFORE_OPEN = " \t([{*_'|"
+QUOTE_AFTER_CLOSE = ".,;:!?)]}*_'|"
+
+
 def strip_untouchables(line, in_quote, in_code=False):
     """Blank out everything STE exempts, keeping the line length stable.
 
@@ -183,7 +188,11 @@ def strip_untouchables(line, in_quote, in_code=False):
     for proper_noun in PROPER_NOUNS:
         line = re.sub(proper_noun, blank, line)
 
-    line = re.sub(r"`[^`]*`", blank, line)          # inline code
+    #   A code span is blanked with a placeholder, not spaces, until the
+    #   quotes are classified: in *"`kw` is freed"* the mark before the span
+    #   opens a quote, and a space after it would make it look like a close.
+    line = re.sub(r"(`+)(?!`).*?(?<!`)\1(?!`)",
+                  lambda m: CODE_MARK * len(m.group(0)), line)  # `` a`b `` too
     open_tick = line.find("`")
     if open_tick >= 0:
         line = line[:open_tick] + " " * (len(line) - open_tick)
@@ -196,14 +205,30 @@ def strip_untouchables(line, in_quote, in_code=False):
     #   Quoted text is one word under rule 8.6, and it is Untouchable: it
     #   reproduces a log line, an error, or a command description.
     #
+    #   A quote mark is classified by its neighbors, not toggled blindly: a
+    #   closing mark the scan cannot see (inside a code span, or a quote
+    #   left open by mistake) used to invert the state for the rest of the
+    #   paragraph, and the prose after it was never read. An opening mark
+    #   inside an open quote does not close it, a closing mark outside one
+    #   is ignored, and only an ambiguous mark (`a"b`, ` " `) toggles.
+    #
     out = []
-    for char in line:
+    for i, char in enumerate(line):
         if char == '"':
-            in_quote = not in_quote
+            prev = line[i - 1] if i > 0 else " "
+            nxt = line[i + 1] if i + 1 < len(line) else " "
+            opener = prev in QUOTE_BEFORE_OPEN and not nxt.isspace()
+            closer = not prev.isspace() and (nxt in QUOTE_AFTER_CLOSE or nxt.isspace())
+            if opener and not closer:
+                in_quote = True
+            elif closer and not opener:
+                in_quote = False
+            else:
+                in_quote = not in_quote
             out.append(" ")
         else:
             out.append(" " if in_quote else char)
-    return "".join(out), in_quote, in_code
+    return "".join(out).replace(CODE_MARK, " "), in_quote, in_code
 
 
 #
@@ -233,6 +258,7 @@ def scan(path, rules):
         if stripped.startswith("```") or stripped.startswith("~~~"):
             fence = stripped[:3]
             prev_blank = prev_code = False
+            in_quote = in_code = False
             continue
         if not stripped:
             in_quote = False                         # a quote never spans a paragraph
@@ -254,6 +280,8 @@ def scan(path, rules):
         prev_blank = prev_code = False
 
         text, in_quote, in_code = strip_untouchables(raw, in_quote, in_code)
+        if stripped.startswith("|"):
+            in_quote = in_code = False               # a table row is one line
         for rule_id, pattern, description in rules:
             for match in re.finditer(pattern, text, re.IGNORECASE):
                 hits.append((lineno, rule_id, description, match.group(0).strip(), stripped))

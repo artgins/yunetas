@@ -1467,7 +1467,7 @@ never a data column** — it does not touch the user schema and never bumps
   `` __md_treedb__`immutable `` in memory.
 - `treedb_save_node()` re-stamps the bit after every update (the re-append
   inherits only the topic-default `system_flag`, so the bit is re-applied).
-  The snap `tag` is NOT re-applied: a save is always untagged; only
+  The snap `tag` is NOT re-applied: a save is always untagged, and only
   `shoot-snap` tags a record (§2.8).
 - `treedb_delete_node()` and `treedb_delete_instance()` refuse an immutable
   record, and **`force` does NOT override** (stronger than the snapshot-tag

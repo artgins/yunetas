@@ -1016,11 +1016,11 @@ watch, or just a group of yunos to watch. It is a document saved whole:
 | `id` | The scenario's name: no blanks, no `^`, no `` ` ``. |
 | `node` | The node (agent hostname or UUID) of every yuno that does not say its own. |
 | `agent_url` | Instead of `node`: a DIRECT scenario, watched by the web console through its own link to that agent. `run-scenario` refuses it. |
-| `yunos` | `id` (the agent's yuno id) and optionally `key` (how the rest of the scenario names it, needed when two nodes carry the same id), `node`, `service`, `label`, `rate` (`rx` or `tx`), `queue_service` (the service that holds its output queue, when it is not `service`: `__output_side__` for a gate; 7.27.21+), `switch` (`{on: [steps], off: [steps]}`, turned by hand; 7.28.6+, below). |
+| `yunos` | `id` (the agent's yuno id) and optionally `key` (how the rest of the scenario names it, needed when two nodes carry the same id), `node`, `service`, `label`, `rate` (`rx` or `tx`), `queue_service` (the service that holds its output queue, when it is not `service`: `__output_side__` for a gate, 7.27.21+), `switch` (`{on: [steps], off: [steps]}`, turned by hand, 7.28.6+, below). |
 | `links` | `[from, to]` pairs of keys: how the messages flow. |
 | `actions` | `start`, `pause`, `resume`, `stop`, `report`: each a list of steps `{yuno, service?, command}`, one command line with its `key=value` parameters. |
-| `view` | How the console shows it (`mode`: `graph` or `cards`; `node_labels`, a short name per node on its cards, `{"node-b": "b"}`). |
-| `max_run` | Seconds a start may run before the control center stops it (0 = no limit, a week at most; 7.27.19+). |
+| `view` | How the console shows it (`mode`: `graph` or `cards`, and `node_labels`, a short name per node on its cards, `{"node-b": "b"}`). |
+| `max_run` | Seconds a start can run before the control center stops it (0 = no limit, a week at most, 7.27.19+). |
 
 `save-scenario` validates it -- the same rules the console's editor applies --
 and writes every column: a key the new document leaves out is emptied, not

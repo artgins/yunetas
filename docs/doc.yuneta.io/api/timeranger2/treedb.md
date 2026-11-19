@@ -2041,7 +2041,7 @@ BOOL treedb_col_name_is_identifier(
 
 **Notes**
 
-A column is a key of the records and a segment of the kw paths the treedb builds (`` topics`<topic>`cols`<col> ``), never a directory: so `/`, `.` and `..` are allowed in it. A treedb or topic name is a directory too, and follows the stricter [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>). [`treedb_open_db()`](<#treedb_open_db>) leaves out a topic with a column that breaks this rule; [`treedb_link_nodes()`](<#treedb_link_nodes>) and the other functions that take a hook or an fkey refuse it with ``Invalid column name: empty or '`' not allowed``.
+A column is a key of the records and a segment of the kw paths the treedb builds (`` topics`<topic>`cols`<col> ``), never a directory: so `/`, `.` and `..` are allowed in it. A treedb or topic name is a directory too, and follows the stricter [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>). [`treedb_open_db()`](<#treedb_open_db>) leaves out a topic with a column that breaks this rule, and [`treedb_link_nodes()`](<#treedb_link_nodes>) and the other functions that take a hook or an fkey refuse it with ``Invalid column name: empty or '`' not allowed``.
 
 ```C
 treedb_col_name_is_identifier("departments");   // TRUE
@@ -2653,7 +2653,7 @@ clients, together with `system_topic`.
 
 - a **topic** name is a directory and a key, and follows
   [`tranger2_name_is_identifier()`](<#tranger2_name_is_identifier>): not
-  empty, not `.` or `..`, no `/` and no `` ` `` (a leading `.` is fine);
+  empty, not `.` or `..`, no `/` and no `` ` `` (a leading `.` is fine).
 - a **column** name (a column id, a hook, an fkey) is only a key, and follows
   [`treedb_col_name_is_identifier()`](<#treedb_col_name_is_identifier>): not
   empty and no `` ` ``. A `/`, `.` or `..` in a column is fine.
@@ -2752,9 +2752,9 @@ Three things in it are on purpose:
 - the topic is named by `topic_name` first and `id` second, as the treedb
   names it ([`tr_treedb.c`](https://github.com/artgins/yunetas/blob/7.31.23/kernel/c/timeranger2/src/tr_treedb.c)):
   a recipe that read `.id // .topic_name` let `` {"id": "ok", "topic_name": "a`b"} ``
-  through;
+  through.
 - a topic with no name at all is a line (`TOPIC ""`), not a jq error that stops
-  the reading of the rest of its file;
+  the reading of the rest of its file.
 - the program has no `{}` in it: `find -exec ... {} +` replaces every one.
 
 `jq` is not installed by default on Debian. The same check in Python, which
