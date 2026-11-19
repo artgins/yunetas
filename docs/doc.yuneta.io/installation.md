@@ -884,8 +884,9 @@ steps.
 
 ### 2. Install OS packages
 
-The repo contains a helper script. It installs all the packages below and the
-`kconfiglib` backend for `menuconfig`. It reads `/etc/os-release` to find the
+The repo contains a helper script. It installs all the packages below, the
+`kconfiglib` backend for `menuconfig`, and `myst-plain-lint`, the
+plain-English check of the docs. It reads `/etc/os-release` to find the
 distro family: Debian and Ubuntu, or RHEL, Rocky, Alma and Fedora. It is in
 the repo, so clone it first (step 4), then return to this step:
 
@@ -1022,6 +1023,7 @@ only for the dynamic link of nginx and openresty.
 - `libpcre2-dev` / `pcre2-devel`      — required by nginx and openresty, which link PCRE2. PCRE1 (`libpcre3-dev` / `pcre-devel`) is not needed: Debian 13 and Rocky 10 no longer have it
 - `perl dos2unix mercurial wget`      — required by openresty (wget fetches its tarballs)
 - `pipx kconfiglib`                   — yunetas configuration tool
+- `pipx myst-plain-lint`              — plain-English (ASD-STE100) check of the docs, from [artgins/myst-plain-english](https://github.com/artgins/myst-plain-english)
 - `kconfig-frontends`                 — alternative configuration tool (Debian only)
 - `telnet`                            — required by tests
 - `gh`                                — GitHub CLI, to work with the repositories (releases, issues, pull requests)
