@@ -2876,6 +2876,29 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     close_session(ch);
 
     /*
+     *  A command to a node away says why it reached nobody, by its uuid and
+     *  by its hostname; a name that is no node says so
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string("uuid-keyed"));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        -1, "node 'keyed' (uuid-keyed, accepted) is not connected, last seen ",
+        "a command to an accepted node away, by its uuid");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string("keyed"));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        -1, "node 'keyed' (uuid-keyed, accepted) is not connected",
+        "a command to an accepted node away, by its hostname");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string("no-such-node"));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        -1, "'no-such-node' names no node connected",
+        "a command to a name that is no node");
+
+    /*
      *  Another key, only recording: let in, said
      */
     ch = open_keyed_session(gobj, "keyed-2", "uuid-keyed", "keyed", KEY_B);
@@ -2928,6 +2951,11 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     if(!good_wire || drops_of(good_wire) != 1) {
         ret += fail(gobj, "refuse-node does not drop the agent in session", "");
     }
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string("uuid-keyed"));
+    json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
+    ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
+        -1, "node 'keyed' (uuid-keyed) is refused", "a command to a refused node");
 
     /*
      *  No key to accept; and a user without manage-nodes
@@ -3010,7 +3038,7 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
         json_t *response = gobj_command(priv->cc, "list-nodes", client_kw(gobj_name(client)), client);
         json_t *schema = kw_get_list(gobj, response, "schema", 0, 0);
         json_t *col0 = json_array_get(schema, 0);
-        if(json_array_size(schema) != 7 ||
+        if(json_array_size(schema) != 8 ||
                 strcmp(kw_get_str(gobj, col0, "id", "", 0), "id")!=0 ||
                 kw_get_int(gobj, col0, "fillspace", 0, 0) < 38) {
             ret += fail(gobj, "list-nodes answers with the schema of its table view", "");
@@ -4132,7 +4160,7 @@ PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
         }
     }
     ret += check_response(gobj, to_agent(gobj, client, "command-agent", "uuid-p7"),
-        -1, "sent to 0 nodes", "command-agent to a session with a card not valid");
+        -1, "'uuid-p7' names no node connected", "command-agent to a session with a card not valid");
     json_t *agents = gobj_command(priv->cc, "list-agents", client_kw(gobj_name(client)), client);
     JSON_DECREF(agents)
     hgobj other = open_keyed_session(gobj, "p7-other", "uuid-p7o", "h7", NULL);
@@ -4171,6 +4199,123 @@ PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
         }
         JSON_DECREF(received)
         close_session(k);
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  list-agents and list-nodes filtered: `uuid`, `version` and `hostname`
+ *  are regular expressions (POSIX extended), all of them to match; one
+ *  that does not compile is refused, saying which.
+ ***************************************************************************/
+PRIVATE int count_listed(
+    hgobj gobj,
+    hgobj client,
+    const char *command,
+    json_t *filters,    // owned
+    const char *what
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_update(kw, filters);
+    JSON_DECREF(filters)
+    json_t *response = gobj_command(priv->cc, command, kw, client);
+    if(!response) {
+        fail(gobj, what, "no answer");
+        return -1;
+    }
+    int result = (int)kw_get_int(gobj, response, "result", -99, KW_WILD_NUMBER);
+    int n = (int)json_array_size(json_object_get(response, "data"));
+    JSON_DECREF(response)
+    if(result != 0) {
+        fail(gobj, what, "refused");
+        return -1;
+    }
+    return n;
+}
+
+PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    hgobj a = open_session_card(gobj, "la-alpha",
+        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+            "id", "uuid-la-1", "yuno_version", "7.31.19",
+            "__md_iev__", "ievent_gate_stack", "host", "la-alpha"
+        ), NULL, NULL);
+    hgobj b = open_session_card(gobj, "la-beta",
+        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+            "id", "uuid-la-2", "yuno_version", "7.30.2",
+            "__md_iev__", "ievent_gate_stack", "host", "la-beta"
+        ), NULL, NULL);
+
+    struct {
+        json_t *filters;
+        int expected;
+        const char *what;
+    } cases[] = {
+        {json_pack("{s:s}", "hostname", "^la-"), 2, "list-agents by a hostname regex"},
+        {json_pack("{s:s, s:s}", "hostname", "^la-", "version", "^7\\.31\\."), 1,
+            "list-agents by hostname and version"},
+        {json_pack("{s:s}", "uuid", "la-2$"), 1, "list-agents by a uuid regex"},
+        {json_pack("{s:s, s:s}", "uuid", "la-2$", "hostname", "alpha"), 0,
+            "list-agents with filters no agent matches all of"},
+        {json_pack("{s:s, s:i}", "hostname", "^la-(alpha|beta)$", "expand", 1), 2,
+            "list-agents expanded, by an alternation"},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(cases); i++) {
+        int n = count_listed(gobj, client, "list-agents", cases[i].filters, cases[i].what);
+        if(n != cases[i].expected) {
+            char detail[NAME_MAX];
+            snprintf(detail, sizeof(detail), "%d agents, expected %d", n, cases[i].expected);
+            ret += fail(gobj, cases[i].what, detail);
+        }
+    }
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "hostname", json_string("la-("));
+    ret += check_response(gobj, gobj_command(priv->cc, "list-agents", kw, client),
+        -1, "hostname='la-(' is no regular expression", "list-agents with a regex that does not compile");
+
+    /*
+     *  list-nodes: the same filters, over the records; the version is the
+     *  one of the node's agent in session, none while it is away
+     */
+    struct {
+        json_t *filters;
+        int expected;
+        const char *what;
+    } node_cases[] = {
+        {json_pack("{s:s}", "hostname", "^la-"), 2, "list-nodes by a hostname regex"},
+        {json_pack("{s:s, s:s}", "hostname", "^la-", "version", "^7\\.30\\."), 1,
+            "list-nodes by hostname and version"},
+        {json_pack("{s:s}", "uuid", "^uuid-la-[12]$"), 2, "list-nodes by a uuid regex"},
+        {json_pack("{s:s, s:s}", "uuid", "la-1$", "hostname", "beta"), 0,
+            "list-nodes with filters no node matches all of"},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(node_cases); i++) {
+        int n = count_listed(gobj, client, "list-nodes", node_cases[i].filters, node_cases[i].what);
+        if(n != node_cases[i].expected) {
+            char detail[NAME_MAX];
+            snprintf(detail, sizeof(detail), "%d nodes, expected %d", n, node_cases[i].expected);
+            ret += fail(gobj, node_cases[i].what, detail);
+        }
+    }
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "uuid", json_string("[la"));
+    ret += check_response(gobj, gobj_command(priv->cc, "list-nodes", kw, client),
+        -1, "uuid='[la' is no regular expression", "list-nodes with a regex that does not compile");
+
+    close_session(a);
+    close_session(b);
+
+    if(count_listed(gobj, client, "list-nodes",
+            json_pack("{s:s, s:s}", "hostname", "^la-", "version", "."),
+            "list-nodes by version, the nodes away") != 0) {
+        ret += fail(gobj, "a node away matches a version", "");
     }
     return ret;
 }
@@ -6777,6 +6922,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_scoped_viewer(gobj, client1);
     result += test_permissions_changed(gobj);
     result += test_scenario_ambiguous_name(gobj, client1);
+    result += test_list_agents_filtered(gobj, client1);
     result += test_switch(gobj, client1);
     result += test_parallel_stop(gobj, client1);    // before 16: it counts the runs ended
     result += test_max_run_start(gobj, client1);

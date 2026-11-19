@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## v7.31.19 (2026-11-19)
+
+Lite release: only the control center (`controlcenter`).
+
+### Changed
+
+- **A command that reaches no agent says why.** `command-agent` and
+  `stats-agent` answered *"Command sent to 0 nodes"* (*"Stats sent to 0
+  nodes"*) whatever the cause: an operator whose console still pointed at a
+  node that had gone away saw only that. The answer now names the node of the
+  store, with its hostname, uuid and state and when it was last seen
+  (*"node 'artgins' (8b64c225-..., accepted) is not connected, last seen
+  2026-11-18T23:36:02.0+0100"*), says that a refused node is refused, and
+  says that a name that is no node is none (*"'x' names no node connected:
+  neither the uuid of a node nor the hostname of an accepted one"*). The
+  result is -1, as before; only the comment changes.
+- **`list-agents` filters by `uuid`, `version` and `hostname`**, each a
+  regular expression (POSIX extended) matched against that field of the
+  agent's card; an agent is listed when it matches every filter given
+  (`list-agents hostname=^yunovatios- version=^7.31.`). A filter that does not
+  compile is refused (-1), naming the parameter and the cause. Without
+  filters the command answers as before.
+- **`list-nodes` takes the same three filters**, besides `state`
+  (`list-nodes state=accepted hostname=^orangepi-`). Each node now carries
+  `version`, the version of its agent in session (empty while the node is
+  away), and ycli shows it as a column; so `version=` lists only nodes that
+  are connected.
+
 ## v7.31.18 (2026-11-19)
 
 Lite release: only the agents (`yuneta_agent`, `yuneta_agent22`).

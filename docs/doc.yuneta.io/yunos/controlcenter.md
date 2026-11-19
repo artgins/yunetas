@@ -179,6 +179,7 @@ it (7.31.12+), and `yuneta-agent-cert key` on the node prints it again:
 
 # through the control center: the column Key is the start of the key presented
 list-nodes state=knocking
+list-nodes state=knocking hostname=^board-     # only those whose hostname starts with board-
 # the start you compared with the node's key, at least 16 hex
 accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b presented=6548740338383c0d
 # or, with the key given whole
@@ -556,6 +557,20 @@ for [`C_IEVENT_SRV`](#gclass-c-ievent-srv) children in state `ST_SESSION` and re
 `identity_card` — a node is addressed by its **UUID** (`identity_card.id`) or
 its **hostname** (see [A node is reached by its uuid](#controlcenter-node-names)).
 
+`list-agents` takes three filters, each a regular expression (POSIX extended,
+as `grep -E` reads it) matched against one field of the agent's card:
+`uuid` (`identity_card.id`), `version` (`yuno_version`) and `hostname`. An
+agent is listed when it matches every filter given. A filter that is not a
+regular expression is refused (-1), and the answer says which:
+
+```bash
+ycommand -c 'list-agents hostname=^yunovatios-'          # the yunovatios nodes
+ycommand -c 'list-agents version=^7.31. expand=1'         # the agents of 7.31, their cards whole
+ycommand -c 'list-agents uuid=^(6bdfcb15|b221635f)-'      # two nodes by the start of their uuid
+ycommand -c 'list-agents hostname=artgins('
+# -> -1 "controlcenter^cc1: hostname='artgins(' is no regular expression: Unmatched ( or \("
+```
+
 **3 — forward a command to one node** with `command-agent` (a `SDF_WILD_CMD`):
 
 ```bash
@@ -569,9 +584,19 @@ control center routes the command to the one connected agent of that node
 itself target a specific yuno via its own `command-yuno` (`command=… service=…`).
 
 `command-agent` answers AT ONCE, before the node does: the first answer is
-the control center's own, *"Command sent to 1 nodes"* (or *"... to 0 nodes"*
-when no connected agent matches). The node's answer comes later, as a second
-answer along the same route.
+the control center's own, *"Command sent to 1 nodes"*. The node's answer comes
+later, as a second answer along the same route.
+
+When no connected agent matches, the answer is -1 and says why (since
+7.31.19; it used to say only *"Command sent to 0 nodes"*). A node of the
+store that is away is named with its hostname, its uuid, its state and when it
+was last seen; a name that is no node says so. `stats-agent` answers the same:
+
+```text
+-1 "controlcenter^cc1: node 'artgins' (8b64c225-981d-8596-bc2c-10e437f6d28f, accepted) is not connected, last seen 2026-11-18T23:36:02.0+0100"
+-1 "controlcenter^cc1: node 'board-x' (uuid-x) is refused"
+-1 "controlcenter^cc1: 'artgns' names no node connected: neither the uuid of a node nor the hostname of an accepted one"
+```
 
 When the agent's link is closing (the agent sent its Close, and the link is
 still in session until the connection ends), the link refuses the request at
@@ -1451,11 +1476,11 @@ never armed: all six read 0.
 
 | Command | Description |
 |---------|-------------|
-| `list-agents` | List currently connected nodes (UUID, hostname, status) |
+| `list-agents` | List currently connected nodes (UUID, hostname, status); `uuid`, `version`, `hostname`: regular expressions the agent must match, all of them |
 | `command-agent` | Forward a command to one node (`agent_id`, `agent_service`, `cmd2agent`) |
 | `stats-agent` | Fetch stats from a node |
 | `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has; empty: every agent) |
-| `list-nodes` | The nodes and the keys of their agents, each with `connected`, and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). ycli shows a table: node uuid, hostname, state, connected, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
+| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` (of its agent in session; empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). `uuid`, `version`, `hostname`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
 | `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so; permission `manage-nodes`) |
 | `refuse-node` | Refuse a node; its sessions are dropped (`node_id`; permission `manage-nodes`) |
 | `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required. It is an event (`EV_WRITE_TTY`), not a command line; without the permission `write-tty` it is answered as a command is, `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service 'controlcenter'"* (in 7.30.17 the answer was an `EV_WRITE_TTY` that no client takes, and the refusal freed the request twice) |
