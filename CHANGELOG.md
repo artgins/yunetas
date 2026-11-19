@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Changed
+
+- **`scripts/check_ste.py` reads list continuations and wrapped code
+  spans.** A line indented 4 spaces or more was skipped as an indented code
+  block, so the prose that continues a list item was never read (one batch of
+  READMEs had about 76 such lines with semicolons and modals). Now a line is
+  code only as CommonMark makes it: after a blank line, 4 columns past the
+  content of the list around it. An inline code span that wraps to the next
+  line stays code on that line too, and "May" next to a number (`May 1`,
+  `22-May-2025`) is the month, not the modal. Over every `.md` of the repo
+  the count moves from 6318 to 7183: the new hits are almost all in
+  `CHANGELOG.md`, and `docs/` goes from 2590 to 2542.
+- **Every README of the repo in plain English** (the ESP32 ones excepted):
+  the entry READMEs with the commands first and the explanation below, the
+  ones of tests, performance and stress with a sentence-level pass. Ten
+  stale facts found on the way were corrected against the code (see the
+  commits).
+
 ## v7.31.23 (2026-11-19)
 
 Lite release: only the control center (`controlcenter`).

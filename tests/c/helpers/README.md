@@ -311,7 +311,7 @@ comments between them (`"1.day.ago"` is read. For `"1 day 5 ago"` and `"yesterda
 ago"`, 7.29.3 gave October 4). Right after `at` an hour with an `h` is a clock
 time of 24 hours (`"at 15h"` 15:00, `"at 10h30"` 10:30. 7.29.3: 15 hours back,
 10 hours back from the 30th), and any other count back is no date (`"at 5
-days"`, `"at 2 fridays ago"`); `"15h"` elsewhere is still 15 hours back. `"at
+days"`, `"at 2 fridays ago"`). `"15h"` elsewhere is still 15 hours back. `"at
 5 of October"` is October 5 (refused by a development version). A weekday
 beside a day counted from today must be that day's (`"now Mon"`, `"0 days ago
 Mon"`, `"yesterday Wed"`, `"now 2026 Mon"` on a Wednesday: 7.29.3 read today,
@@ -419,7 +419,7 @@ Monday is before it.
 §28: a run of 12 digits is no date, and after a clock time a minus sign and
 four digits is its offset. §29: the same after anything else an offset can
 follow: `"noon -0500 hours"`, `"yesterday -0500 hours"`, `"2026-10-01 -0500
-hours"` are no date (7.29.3: 500 hours back); `"noon -500 hours"`, `"noon -05
+hours"` are no date (7.29.3: 500 hours back). `"noon -500 hours"`, `"noon -05
 hours"`, `"2026-10-01 -12345 hours"` and `"-0500 hours"`, with nothing before
 it, are durations.
 §30: what is a zone, on a directory of its own under `TZDIR` holding a TZif

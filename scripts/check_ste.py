@@ -64,7 +64,8 @@ RULES = [
     ),
     (
         "modal",
-        r"\b(should|would|might|could|may)\b",
+        # "May" next to a number is the month ("May 1", "22-May-2025")
+        r"\b(should|would|might|could)\b|(?<![\d/-])\bmay\b(?![-/]?\d| \d)",
         "banned modal (3.2) — approved are can, will, must",
     ),
     (
@@ -159,21 +160,34 @@ PROPER_NOUNS = [
 #
 #   Untouchable stripping
 #
-def strip_untouchables(line, in_quote):
+def strip_untouchables(line, in_quote, in_code=False):
     """Blank out everything STE exempts, keeping the line length stable.
 
-    Returns (text, in_quote). `in_quote` carries an unterminated double quote
-    into the next line: a quoted sentence often wraps, and the closing quote
-    then sits on a later line. Without the carry-over, the first half of the
-    quote gets scanned as prose.
+    Returns (text, in_quote, in_code). `in_quote` carries an unterminated
+    double quote into the next line: a quoted sentence often wraps, and the
+    closing quote then sits on a later line. Without the carry-over, the first
+    half of the quote gets scanned as prose. `in_code` does the same for an
+    inline code span that wraps (`a long
+    command`): its second half is code too.
     """
     def blank(match):
         return " " * len(match.group(0))
+
+    if in_code:
+        close = line.find("`")
+        if close < 0:
+            return " " * len(line), in_quote, True
+        line = " " * (close + 1) + line[close + 1:]
+        in_code = False
 
     for proper_noun in PROPER_NOUNS:
         line = re.sub(proper_noun, blank, line)
 
     line = re.sub(r"`[^`]*`", blank, line)          # inline code
+    open_tick = line.find("`")
+    if open_tick >= 0:
+        line = line[:open_tick] + " " * (len(line) - open_tick)
+        in_code = True
     line = re.sub(r"\]\([^)]*\)", blank, line)      # link and image targets
     line = re.sub(r"<https?://[^>]*>", blank, line)  # autolinks
     line = re.sub(r"https?://\S+", blank, line)     # bare URLs
@@ -189,7 +203,15 @@ def strip_untouchables(line, in_quote):
             out.append(" ")
         else:
             out.append(" " if in_quote else char)
-    return "".join(out), in_quote
+    return "".join(out), in_quote, in_code
+
+
+#
+#   A list item, and the column where its content starts. An indented line is
+#   code only after a blank line and 4 columns past that content: a list
+#   continuation indented 4+ spaces is prose (it used to be skipped as code).
+#
+LIST_ITEM = re.compile(r"^ *(?:[-*+]|\d+[.)])(?: +|$)")
 
 
 def scan(path, rules):
@@ -197,6 +219,10 @@ def scan(path, rules):
     hits = []
     fence = None
     in_quote = False
+    in_code = False
+    list_col = None         # content column of the open list item, or None
+    prev_blank = True       # start of file counts as after a blank line
+    prev_code = False
     for lineno, raw in enumerate(open(path, encoding="utf-8").read().split("\n"), 1):
         stripped = raw.strip()
 
@@ -206,14 +232,28 @@ def scan(path, rules):
             continue
         if stripped.startswith("```") or stripped.startswith("~~~"):
             fence = stripped[:3]
+            prev_blank = prev_code = False
             continue
         if not stripped:
             in_quote = False                         # a quote never spans a paragraph
+            in_code = False                          # nor does a code span
+            prev_blank = True
             continue
-        if raw.startswith("    ") and not stripped.startswith(("-", "*", "|", ">", "1.")):
-            continue                                 # indented code block
 
-        text, in_quote = strip_untouchables(raw, in_quote)
+        indent = len(raw) - len(raw.lstrip(" "))
+        item = LIST_ITEM.match(raw)
+        if (prev_blank or prev_code) and not item:
+            base = list_col if list_col is not None else 0
+            if indent >= base + 4:
+                prev_blank, prev_code = False, True
+                continue                             # indented code block
+        if item:
+            list_col = item.end()
+        elif prev_blank and (list_col is None or indent < list_col):
+            list_col = None                          # a paragraph out of the list
+        prev_blank = prev_code = False
+
+        text, in_quote, in_code = strip_untouchables(raw, in_quote, in_code)
         for rule_id, pattern, description in rules:
             for match in re.finditer(pattern, text, re.IGNORECASE):
                 hits.append((lineno, rule_id, description, match.group(0).strip(), stripped))

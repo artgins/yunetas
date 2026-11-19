@@ -311,7 +311,7 @@ still reported and fails the test.
 26. A refused node whose agent presents its key: the WARNING's `refusal` says
     *"The node is refused"*. Up to 7.30.14 it said *"another key"*.
 27. An open with nothing changed (hostname, address, key) writes nothing in
-    `nodes` (its `g_rowid` stays), though its link comes from a new port: the
+    `nodes` (its `g_rowid` stays), though its link arrives from a new port: the
     port is no change. A new hostname is written, and so is a new address.
     Up to 7.30.14 every open wrote the record. In 7.30.15 every open from a
     new port did.
@@ -403,7 +403,7 @@ still reported and fails the test.
     session by a token, which goes after the start. Past the stop, the run
     did 1 of 2 steps, the warning says *"... did not do every step, the rest
     tried again when a node of it connects"*, and `scenarios` says
-    `stop_waits_node`. The node comes back: the stop goes to it only (the
+    `stop_waits_node`. The node connects again: the stop goes to it only (the
     agent gets nothing), and when it is answered nothing is scheduled. Then a
     start and a stop by the user, whose second step fails: nothing is
     scheduled (the rest of a user's stop is not the `max_run`'s). In 7.30.16
@@ -440,7 +440,7 @@ still reported and fails the test.
     refused (*"saving it needs 'run-scenarios' too"*, *"deleting it needs
     'run-scenarios' too"*), the stop still pending. The step of `host-mrw`
     is changed in the treedb itself (not by `save-scenario`, which schedules
-    again), and the node comes back: the rest is due and none of its steps
+    again), and the node connects again: the rest is due and none of its steps
     is in the scenario, so the stop does not run (*"... cannot run, tried
     again in a minute"*), and nothing reaches the agent nor the node. A user
     who can run it saves that stop: the rest is dropped, and no stop is
