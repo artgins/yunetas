@@ -2,7 +2,7 @@
 
 Benchmark programs for measuring throughput and latency of Yuneta's core communication and I/O subsystems.
 
-All benchmarks run as self-contained programs. The network ones start an internal server and client, echo messages back and forth, and report throughput metrics; the persistence ones (`perf_timeranger2`, `perf_tr_treedb`, `perf_tr_treedb_read`, `perf_c_treedb`) build a store, measure, print one line of JSON per result, and remove the store; `perf_rotatory` does the same with the log files. Each benchmark is also registered as a `ctest` target, so `yunetas test` runs them alongside the rest of the test suite (the persistence ones with smaller sizes: ctest checks that they build and run; their reference figures come from a run with the default sizes). Each one is `RUN_SERIAL`: under `ctest -j` it runs alone, so its figures are not skewed by the tests running at once, nor theirs by it. A new benchmark declares it too, and follows the rules of `tests/c/README.md` (its own ports and directory, archives linked by full path).
+All benchmarks run as self-contained programs. The network ones start an internal server and client, echo messages back and forth, and report throughput metrics. The persistence ones (`perf_timeranger2`, `perf_tr_treedb`, `perf_tr_treedb_read`, `perf_c_treedb`) build a store, measure, print one line of JSON per result, and remove the store. `perf_rotatory` does the same with the log files. Each benchmark is also registered as a `ctest` target, so `yunetas test` runs them alongside the rest of the test suite (the persistence ones with smaller sizes: ctest checks that they build and run, and their reference figures are from a run with the default sizes). Each one is `RUN_SERIAL`: under `ctest -j` it runs alone, so its figures are not skewed by the tests running at once, nor theirs by it. A new benchmark declares it too, and follows the rules of `tests/c/README.md` (its own ports and directory, archives linked by full path).
 
 ## Benchmarks
 
@@ -32,7 +32,7 @@ Source files:
 
 **Binaries:** `perf_tcps_test4`, `perf_tcps_test5`
 
-Identical to `perf_c_tcp` but with TLS encryption enabled. URLs use the `tcps://` scheme. The server is configured with a certificate and key; the client enables TLS without certificate verification.
+Identical to `perf_c_tcp` but with TLS encryption enabled. URLs use the `tcps://` scheme. The server is configured with a certificate and key. The client enables TLS without certificate verification.
 
 - **Server URL:** `tcps://0.0.0.0:7778`
 - **Client URL:** `tcps://127.0.0.1:7778`
@@ -46,7 +46,7 @@ Source files: same structure as `perf_c_tcp`, with TLS `crypto` config blocks ad
 
 **Binary:** `perf_yev_ping_pong`
 
-Measures the **bare `yev_loop` (io_uring)** throughput with no GObject framework overhead. Creates a TCP server and client using raw `yev_event_h` handles (accept, connect, read, write). The client sends a 1 KB buffer of `'A'` characters; the server echoes it back. Runs for 5 seconds (via `SIGALRM`), printing live Msg/sec and Bytes/sec each second.
+Measures the bare `yev_loop` (io_uring) throughput with no GObject framework overhead. Creates a TCP server and client using raw `yev_event_h` handles (accept, connect, read, write). The client sends a 1 KB buffer of `'A'` characters. The server echoes it back. Runs for 5 seconds (via `SIGALRM`), printing live Msg/sec and Bytes/sec each second.
 
 - **Server URL:** `tcp://localhost:2222`
 - **Buffer size:** 1,024 bytes
@@ -87,7 +87,7 @@ upstream.
 - **5 parallel C_MOCK_KEYCLOAK channels** under `__kc_side__`
   with `latency_ms=0`
 - **Reuses** `tests/c/c_auth_bff/c_mock_keycloak.{c,h}` and
-  `test_helpers.{c,h}` via CMake shared sources — one copy of
+  `test_helpers.{c,h}` via CMake shared sources: one copy of
   the mock in the repo, linked into ctest, stress, and perf
 - `MT_PRINT_TIME` brackets the actual load only (warm-up and
   register phases excluded) so the reported ops/sec reflects
@@ -99,7 +99,7 @@ Source: `main_perf_auth_bff.c`, `c_perf_auth_bff.c`
 
 **Binary:** `perf_ievent`
 
-A `C_IEVENT_CLI` sends an inter-event to the service `echo` of the same yuno through `ws://127.0.0.1:7798` (`C_WEBSOCKET` and `C_IEVENT_SRV` on the other side); `echo` publishes the answer to the client's remote subscription, and the client sends the next one: 100 000 round trips. See [`perf_ievent/README.md`](perf_ievent/README.md).
+A `C_IEVENT_CLI` sends an inter-event to the service `echo` of the same yuno through `ws://127.0.0.1:7798` (`C_WEBSOCKET` and `C_IEVENT_SRV` on the other side). `echo` publishes the answer to the client's remote subscription, and the client sends the next one: 100 000 round trips. See [`perf_ievent/README.md`](perf_ievent/README.md).
 
 Source: `src/main.c`, `src/c_perf_ievent.c`, `src/c_perf_iev_echo.c`
 
@@ -131,7 +131,7 @@ Source: `src/perf_tr_treedb.c` (single file, no GClasses)
 
 **Binary:** `perf_tr_treedb_read`
 
-`tr_treedb` over timeranger2, without the gclasses: what a `list-nodes` or a `get-node` answers through. 8 000 users linked to 200 departments; the reopen of the treedb, lists without and with a filter, the views of the nodes (`node_collapsed_view()`) as a list and one by one, and the json text of the views. See [`perf_tr_treedb_read/README.md`](perf_tr_treedb_read/README.md).
+`tr_treedb` over timeranger2, without the gclasses: what a `list-nodes` or a `get-node` answers through. 8 000 users linked to 200 departments. It measures the reopen of the treedb, lists without and with a filter, the views of the nodes (`node_collapsed_view()`) as a list and one by one, and the json text of the views. See [`perf_tr_treedb_read/README.md`](perf_tr_treedb_read/README.md).
 
 Source: `src/perf_tr_treedb_read.c` (single file, no GClasses)
 
@@ -203,9 +203,9 @@ two binaries run alternated, on ext4 on a laptop NVMe, with a `sync` and a
 pause before each run. The figures are mean +- standard deviation (median),
 and the last column is the change of the mean. Every figure of this section
 was measured with `CONFIG_DEBUG_TRACK_MEMORY` on (the `.config` of the build
-machine); the older sections above do not say how their binaries were built.
+machine). The older sections above do not say how their binaries were built.
 
-`perf_timeranger2` (ms; 10 rounds, the two append rows 20 rounds; the
+`perf_timeranger2` (ms, 10 rounds, the two append rows 20 rounds, and the
 `create_topic` and `topic_version_change` rows 20 rounds of each of the 4
 padded links described below, n = 80, measured again on 2026-09-24):
 
@@ -236,7 +236,7 @@ And the retry of a flag at each load and at each notification (commit
 9d43b317f), 6 alternated rounds, change of the mean: `open_master` +0.8%,
 `open_replica` +0.4%, `tm_query_migrated` -1.4%, `tm_query_unmigrated` -2.8%,
 `build_appends` +0.1%, `mark_tm_order` +1.4%. Every difference is inside the
-noise; with nothing flagged the retry costs two dict lookups per iterator open
+noise. With nothing flagged, the retry costs two dict lookups per iterator open
 and one per notification.
 
 The fixes after them (a failed `delete_key` that indexes its iterators again,
@@ -267,7 +267,7 @@ standard deviation):
 Noise: an open walks the key directories as before, with one test of the
 length of each path.
 
-`perf_tr_treedb` (CPU us per operation, N = 100 000; 14 rounds x 4 link
+`perf_tr_treedb` (CPU us per operation, N = 100 000, 14 rounds x 4 link
 layouts, paired alternated runs, `taskset -c 6`):
 
 | Case | 7.25.4 | 7.25.5 | Change |
@@ -282,8 +282,8 @@ layouts, paired alternated runs, `taskset -c 6`):
 
 The delete guard that counts every child a hook holds instead of building a
 reference string for each (commit 2ab843d1d), as an A/B of that change alone
-(only `tr_treedb.o` differs; 12 rounds x 4 layouts, alternated, `taskset -c
-6`, N = 100 000, CPU us per operation, mean +- standard deviation (median);
+(only `tr_treedb.o` differs, 12 rounds x 4 layouts, alternated, `taskset -c
+6`, N = 100 000, CPU us per operation, mean +- standard deviation (median),
 another day and a busier machine, so the absolute figures are higher than in
 the table above):
 
@@ -294,7 +294,7 @@ the table above):
 
 The paired change is the mean of the 48 ratios after/before, +- its standard
 error. For `delete_parent` it is pulled by one outlier round of the "before"
-binary in the fourth layout (the paired mean of that layout is -9.9%); the
+binary in the fourth layout (the paired mean of that layout is -9.9%). The
 median of the 48 ratios is -1.6%. The median of each layout moved -0.7%,
 -2.6%, +1.7% and -4.8%, and the median of all the runs -2.0% (3139 -> 3076):
 `delete_parent` is ~2% faster, because the per-child strings are no longer
@@ -302,8 +302,8 @@ built.
 
 The delete that looks at every instance of its key, and the save guard that
 refuses a node no index holds (commit 60f3a4e5e), as an A/B of that change
-alone (only `tr_treedb.o` differs; 12 rounds x 4 layouts, alternated,
-`taskset -c 6`, CPU us per operation; the change is the mean of the 48
+alone (only `tr_treedb.o` differs, 12 rounds x 4 layouts, alternated,
+`taskset -c 6`, CPU us per operation, and the change is the mean of the 48
 paired ratios, then their median):
 
 | Case | before | after | Paired change (median) |
@@ -324,7 +324,7 @@ The load that puts the primary in its own pkey2 slot instead of a copy
 (commit a2b136144): `perf_tr_treedb`, 8 rounds x 4 layouts, moves -1.5%
 (`delete_parent`) .. +0.5% (`reopen`), noise. A benchmark written for the
 change (not in the tree: 4000 keys x 3 instances, a timed reopen, then 4000
-updates through `treedb_get_instance()`; 12 alternated rounds, mean +-
+updates through `treedb_get_instance()`, 12 alternated rounds, mean +-
 standard deviation):
 
 | Case | before | after | Change |
@@ -336,7 +336,7 @@ The reopen no longer builds the copies.
 
 The save guard that refuses a node whose pkey2 value was changed in place,
 and the create that indexes the value its record holds (commit 2d98df267),
-as an A/B of that change alone (only `tr_treedb.o` differs; 20 alternated
+as an A/B of that change alone (only `tr_treedb.o` differs, 20 alternated
 rounds, CPU us per operation, median (mean +- standard deviation)):
 
 | Case | before | after | Change of the median |
@@ -350,7 +350,7 @@ rounds, CPU us per operation, median (mean +- standard deviation)):
 | `delete_parent` | 3003.7 (3079.3 +- 181.0) | 3041.8 (3064.6 +- 138.6) | +1.3% |
 
 The topics of `perf_tr_treedb` have no pkey2, so the guard itself does not
-run; the save fetches the pkey2 list once and reuses it. `update_memory`
+run. The save fetches the pkey2 list once and reuses it. `update_memory`
 never reaches the changed code: it moved about +-5% between builds, and a
 build with the new functions present and never called showed the same
 swing, so that is code layout, not the change.
@@ -358,8 +358,8 @@ swing, so that is code layout, not the change.
 The unlink and the delete that clear the parent's ref in every instance of
 the child key, the create that takes the primary's slot, and the gc that
 keeps an instance's asset (commit fdf138144), as an A/B of that change alone
-(only `tr_treedb.o` and `kwid.o` differ; 12 alternated rounds, `taskset`
-to one CPU, CPU us per operation, mean +- standard deviation (median); the
+(only `tr_treedb.o` and `kwid.o` differ, 12 alternated rounds, `taskset`
+to one CPU, CPU us per operation, mean +- standard deviation (median), and the
 change is the mean of the 12 paired ratios after/before +- its standard
 error):
 
@@ -381,7 +381,7 @@ run only for a child topic that has one.
 
 The newest record of each key kept on the instance that wrote it (a forced
 delete, a refused delete or a failed unlink taken back, a snap shot: commit
-41b6597c8), as an A/B of that change alone (only `tr_treedb.o` differs; 12
+41b6597c8), as an A/B of that change alone (only `tr_treedb.o` differs, 12
 alternated rounds, `taskset` to one CPU, CPU us per operation, mean +-
 standard deviation):
 
@@ -394,7 +394,7 @@ standard deviation):
 Every move is inside the spread of its case: noise. The benchmark's topics
 have no pkey2, so there the new code is one lookup per child.
 
-`timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends; 20
+`timeranger2/test_topic_pkey_integer` (appends/s, 180 000 appends, 20
 rounds, the order swapped at each round):
 
 | Case | 7.25.4 | 7.25.5 | Change |
@@ -460,7 +460,7 @@ alone, 6 rounds: `perf_yev_ping_pong` 142.2 +- 2.2 -> 141.6 +- 2.5 K msg/s
 (-0.4%), noise.
 
 rotatory (ns for one record of 300 bytes written with two `rotatory_write()`
-calls, as the agent audit writes it; 300 000 records a run, 8 rounds;
+calls, as the agent audit writes it, 300 000 records a run, 8 rounds,
 `perf_rotatory`, case `audit_record`): 7.25.4
 6 194 +- 135 (6 140), 7.25.5 554 +- 10 (555). The agent audit flushes each
 record since 7.25.5 (`audit_record_flush`, a busier run): 7.25.4 7 623 +- 1 105
@@ -469,7 +469,7 @@ record since 7.25.5 (`audit_record_flush`, a busier run): 7.25.4 7 623 +- 1 105
 The last fixes of rotatory (the newfile callback for a new file only, the
 keep_all retry of a failed rename, a fixed name never emptied: commit
 c72442d56), as an A/B of that change alone, 12 alternated rounds (ns a
-record, mean +- standard deviation; another day, so the absolute figures
+record, mean +- standard deviation, another day, so the absolute figures
 differ from the ones above):
 
 | Case | before | after | Change |
@@ -479,11 +479,11 @@ differ from the ones above):
 | `audit_record_flush` | 1 336.8 +- 35.0 | 1 342.4 +- 45.3 | +0.4% |
 | `log_record` | 401.9 +- 11.0 | 403.6 +- 13.5 | +0.4% |
 
-Every difference is within one standard deviation; the only change on the
+Every difference is within one standard deviation. The only change on the
 path of a record is one test of a bool. The flush of each record costs
 ~0.75 us: `audit_record_flush` against `audit_record` of the same run,
 1 342.4 - 597.8 = 745 ns (and 1 336.8 - 591.5 = 745 ns in the "before"
-column; the `exit_on_fail` run below gives 727 and 718 ns).
+column, and the `exit_on_fail` run below gives 727 and 718 ns).
 
 The rotatory fixes after them (the newfile callback kept when a new file
 fails to open, no size rotation at a new name, the keep_all retry on the
@@ -514,7 +514,7 @@ and scan of the escaped run.
 The scan that finds an escaped JSON text whatever quotes come before it, and
 reads a key by its shape when no quoted run holds it whole (commit
 7aabcab4b), the record built and serialized (us a record, 6 alternated
-runs, mean; another day, so the absolute figures differ from the ones
+runs, mean, another day, so the absolute figures differ from the ones
 above):
 
 | Record | before | after | Change |
@@ -564,7 +564,7 @@ rounds, mean (median)):
 | `update-node`, a kw with a JSON text | 8.22 (8.20) | 8.31 (8.20) | +1.1% |
 | `update-node`, a JSON text holding an escaped JSON text | 8.49 (8.50) | 8.60 (8.63) | +1.4% |
 
-The `list-yunos` mean is one outlier round (2.16 us); its median does not
+The `list-yunos` mean is one outlier round (2.16 us). Its median does not
 move. The rest is +1.1% .. +1.4%, inside the spread of a run.
 
 The names judged with their JSON escapes decoded, and a write-attr looked for
@@ -585,7 +585,7 @@ level.
 `perf_c_treedb` (seconds for 40 opens). The 7.25.4 columns are the
 `c_treedb.c` of 7.25.4 compiled with the headers of 7.25.5 and linked before
 the libraries of 7.25.5. With the JSON load of 7.25.4 (`json_loadfd()`, one
-`read()` per byte; medians of 4-8 rounds, an earlier run):
+`read()` per byte, medians of 4-8 rounds, an earlier run):
 
 | Case | 7.25.4, its JSON load |
 |------|--------|
@@ -647,7 +647,7 @@ The schema fixes after them (the order of the file in a save, the positions a
 save writes, a topic raised past what runs, the imposed tie said: commit
 dd48e5e57), both `c_treedb.c` and `c_node.c` swapped, 8 alternated rounds on
 a machine busy with other builds (ms for 40 opens, mean +- standard
-deviation; another day, so the absolute figures differ from the ones above):
+deviation, another day, so the absolute figures differ from the ones above):
 
 | Case | before | after | Change |
 |------|--------|-------|--------|
@@ -655,10 +655,10 @@ deviation; another day, so the absolute figures differ from the ones above):
 | `newer_literal` | 3012 +- 552 | 2836 +- 252 | -5.8% |
 | `same_literal` | 835 +- 135 | 857 +- 140 | +2.6% |
 
-Every difference is inside the noise of that run (a spread of 9-18%); it is
+Every difference is inside the noise of that run (a spread of 9-18%). It is
 to be measured again on a quiet machine. The only new work on the
 `same_literal` path is one `topic_var.json` read per topic (and its
-`topic_cols.json` for a topic that runs ahead of its file); the seed and
+`topic_cols.json` for a topic that runs ahead of its file). The seed and
 newer-literal paths do nothing new.
 
 yev_loop, the `src_url` of another family (commit bbd2c9ad7), 6 rounds:
@@ -680,15 +680,15 @@ yev_loop, the entry of the ring cleared when it is handed out (its fd and its
 owner), and the cancel of a running stop prepared before the fd closes
 (commit 3dc800efa), 6 alternated rounds, K msg/s of `perf_yev_ping_pong`:
 before 153.9 / 142.0 / 137.3 / 148.2 / 147.2 / 152.7, after 150.3 / 123.0 /
-147.5 / 147.8 / 147.9 / 152.9. Medians 147.7 -> 147.9 (+0.1%): no change;
-the 123.0 is one round alone.
+147.5 / 147.8 / 147.9 / 152.9. Medians 147.7 -> 147.9 (+0.1%): no change,
+and the 123.0 is one round alone.
 
 Publish (`gobj_publish_event()`), a subscription with `__local__` or
 `__global__` given its own kw (commits 42a6818b6, then b307eef3f). There is
-no publish benchmark in the tree; a scratch one (`bench_publish.c`, not in
+no publish benchmark in the tree. A scratch one (`bench_publish.c`, not in
 the tree) publishes one event to N subscribers of one gobj, a kw of ~250
-bytes and 18 values, or of ~20 KB; only `gobj.o` differs between the
-binaries (`-O2`), all alternated (us a publish, mean; 8 rounds of each at
+bytes and 18 values, or of ~20 KB. Only `gobj.o` differs between the
+binaries (`-O2`), all alternated (us a publish, mean, 8 rounds of each at
 250 B, 16 at 20 KB). "7.25.4" is the shared kw of 7.25.4, "deep" is a
 `kw_duplicate()` per such subscription (42a6818b6), "twin" is the
 `kw_twin()` that the release ships (its own top level, the values and
@@ -712,7 +712,7 @@ gbuffers shared):
 A subscriber without `__local__` / `__global__` still shares the publisher's
 kw: nothing moves beyond the noise. A twinned delivery costs ~0.23 us,
 whatever the size of the event ((44.94 - 21.76) / 100 at 250 B, (104.93 -
-82.44) / 100 at 20 KB); the deep copy cost ~1.8 us at 250 B and ~55 us at
+82.44) / 100 at 20 KB), and the deep copy cost ~1.8 us at 250 B and ~55 us at
 20 KB. Building the 20 KB kw takes ~60 us of each 20 KB publish, so the
 percentages of that half understate the change. Every C_IEVENT_SRV
 subscription carries `__global__` (the gate's back-metadata), so a remote
@@ -724,7 +724,7 @@ Subscribe (`gobj_subscribe_event()` / `gobj_unsubscribe_event()`), the kw
 matched as it is stored (a repeated `__own_event__` / `__rename_event_name__`
 subscription replaces the one there: commit b8aea552b). A scratch benchmark
 (`bench_subscribe.c`, not in the tree) makes N subscriptions of one gobj and
-withdraws them; only `gobj.o` differs, 4 alternated rounds, us an operation,
+withdraws them. Only `gobj.o` differs, 4 alternated rounds, us an operation,
 the median of the mean of a subscribe and an unsubscribe:
 
 | Subscriptions | `__config__` | before | after | Change |
@@ -744,7 +744,7 @@ ctest timing trend (`build/*.txt`, 52 runs of `yunetas test` from 2026-09-23
 10:20 to 2026-09-25 12:26): of the tests whose code did not change after
 7.25.4, only `test_treedb_schema_fidelity` moved more than 10%, from
 1.14-1.26 s (the 4 runs before the change, median 1.19 s) to 1.55-1.81 s (the
-48 after it, median 1.66 s; +36% .. +44% minimum against minimum and maximum
+48 after it, median 1.66 s, +36% .. +44% minimum against minimum and maximum
 against maximum, +39% median against median). It
 opens four treedbs in four new stores, and its fsyncs (88 in the current
 build) take ~0.56 s: the price of the durable topic files and of the
@@ -793,31 +793,31 @@ report: [`performance/reports/7.25.20.html`](../reports/7.25.20.html).
 Every gain has one cause, the `SWITCHS` fix of 7.25.7 (`3e8ff0508`): the macro
 compiled `regcomp(".*")` on entry and freed it only at `SWITCHS_END` (it leaked
 on every `return` from a case). `tr_treedb.c` switches on the type of every
-column, so each treedb write paid for it; `tr_treedb.c` and `c_treedb.c` did
+column, so each treedb write paid for it. `tr_treedb.c` and `c_treedb.c` did
 not change between the two releases. The rt-list gain is the benchmark's own
 callback, which switches on the key once per record.
 
 `tm_build_appends` +3.6% (t = 3.0) runs append code that is the same in both
 releases (`timeranger2.c` changed only in its rt-disk rescan): code
-placement, as far as this method can tell; `test_topic_pkey_integer`, 24 rounds,
+placement, as far as this method can tell, and `test_topic_pkey_integer`, 24 rounds,
 moved +0.3%.
 
 ### Oct-2026: 7.27.7 against 7.27.5 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Written on 2026-10-22, before the tag. 7.27.7 is the main tree at `63d12373d`
-(its C code is final; YUNETA_VERSION still says 7.27.6). It is measured
-against 7.27.5, the last release with a study; 7.27.6 changed `.c` files and
+(its C code is final, but YUNETA_VERSION still says 7.27.6). It is measured
+against 7.27.5, the last release with a study. 7.27.6 changed `.c` files and
 shipped none, so it runs in the same rotation and every move is placed in its
 release. The three built from git worktrees (same `.config` and compiler,
 `outputs_ext` shared: linux-ext-libs 1.24 at all three, OpenSSL 3.6.5), the
 `perf_timeranger2` of the main tree (with its `read` phase) compiled into
 all three. The three binaries of each benchmark run in rotation, the order
 turned every round, a `sync` and a 3 s pause before each run (1 s for the
-ctest binaries and the read phase): 8 rounds; 24 for `perf_tr_treedb`,
-`perf_tcp_test4`, `perf_tcps_test4` and `perf_yev_ping_pong2`; 48 for
-`perf_timeranger2 read`; `perf_rotatory` 16, its 8th round left out (the
+ctest binaries and the read phase): 8 rounds, but 24 for `perf_tr_treedb`,
+`perf_tcp_test4`, `perf_tcps_test4` and `perf_yev_ping_pong2`, 48 for
+`perf_timeranger2 read`, and `perf_rotatory` 16, its 8th round left out (the
 machine slowed the three builds alike for that minute: a log line 574 ns
-against 368 ns). Mean +- standard deviation; treedb figures are CPU time;
+against 368 ns). Mean +- standard deviation. The treedb figures are CPU time, and
 |t| < 3 is noise. The report:
 [`performance/reports/7.27.7.html`](../reports/7.27.7.html).
 
@@ -871,7 +871,7 @@ against 368 ns). Mean +- standard deviation; treedb figures are CPU time;
 | `read_page100_master` | 272.1 +- 16.54 | 268.7 +- 10.07 | -1.2% (t = -1.2) |
 
 One price, `treedb.delete_force` (+21.1%, 43.6 -> 52.8 us of CPU), and it
-appeared in **7.27.6, commit `503c23efb`** (the only C change of that
+appeared in 7.27.6, commit `503c23efb` (the only C change of that
 release): every key a delete removes is first moved out of `keys/` whole, by
 a `rename()`, then removed, so a delete that fails half way leaves the key as
 it was instead of part of its files (a key read again from part of its files
@@ -882,10 +882,10 @@ in `remove_key_directory()`, never shipped), CPU us per delete, 24 rounds
 
 | 7.27.5 | 7.27.6 | 7.27.7 | 7.27.7, start time read once |
 |--------|--------|--------|------------------------------|
-| 43.63 +- 0.93 | 52.69 +- 0.70 (+20.8%, t = 38) | 52.84 +- 0.60 (+21.1%, t = 41; +0.3% on 7.27.6, t = 0.8) | 47.75 +- 0.65 (+9.4%, t = 17) |
+| 43.63 +- 0.93 | 52.69 +- 0.70 (+20.8%, t = 38) | 52.84 +- 0.60 (+21.1%, t = 41, and +0.3% on 7.27.6, t = 0.8) | 47.75 +- 0.65 (+9.4%, t = 17) |
 
 About 5 us of the 9.2 us is `process_start_time()`, a read of
-`/proc/self/stat` made at every delete to name the moved directory; about
+`/proc/self/stat` made at every delete to name the moved directory, and about
 4 us is the `rename()`. The start time of a process does not change, so that
 half can be paid once per process. Everything else moved inside its noise:
 the fixes of three reviews (iterator bounds on a replica, the purge and link order,
@@ -899,18 +899,18 @@ multi-key part bounds run only on a renumbered replica. Stripped sizes: 0 to
 
 Written on 2026-10-22, after the release, against 7.27.0: the last release
 with a study. It replaces the study of the day before, made against 7.27.4,
-a release nobody had measured; this one covers 7.27.1 to 7.27.5. Each release
+a release nobody had measured. This one covers 7.27.1 to 7.27.5. Each release
 built from a git worktree of its tag (same `.config` and compiler), the
 `perf_timeranger2` of the main tree (with its `read` phase) compiled into
 both. `outputs_ext` shared: linux-ext-libs 1.24 (OpenSSL 3.6.5) on both
 sides, so the library change of 7.27.1 is not in these figures (it was
 measured on its own, section *7.27.1 against 7.27.0* below). The two binaries
 of each benchmark run alternately, a `sync` and a 3 s pause before each run
-(1 s for the ctest binaries and the read phase): 16 rounds; 24 for
-`perf_timeranger2` and `perf_tr_treedb`, with 7.27.4 in a rotation of three;
-48 for `perf_timeranger2 read`; `perf_rotatory` 15 (its 9th round left out:
+(1 s for the ctest binaries and the read phase): 16 rounds, but 24 for
+`perf_timeranger2` and `perf_tr_treedb`, with 7.27.4 in a rotation of three,
+48 for `perf_timeranger2 read`, and `perf_rotatory` 15 (its 9th round left out:
 the machine slowed both builds alike for that minute). Mean +- standard
-deviation; treedb figures are CPU time; |t| < 3 is noise. The report:
+deviation. The treedb figures are CPU time, and |t| < 3 is noise. The report:
 [`performance/reports/7.27.5.html`](../reports/7.27.5.html).
 
 | Case | 7.27.0 | 7.27.5 | Change |
@@ -975,8 +975,8 @@ operation):
 | `read_page100_replica` | 260.989 | 260.278 | 264.587 | 260.559 | 261.702 | 266.418 | 267.026 | 265.866 |
 | `read_page100_master` | 257.869 | 258.806 | 262.786 | 259.563 | 261.731 | 265.695 | 265.697 | 264.583 |
 
-The price of a replica is `check_purge_before_read()` and **appeared in
-7.27.5, commit `83a771089`** (*the followers hear a purge of old key
+The price of a replica is `check_purge_before_read()` and appeared in
+7.27.5, commit `83a771089` (*the followers hear a purge of old key
 files*): 7.27.1 to 7.27.4 and `bd3fdce51` read at 7.27.0's speed. A replica
 `stat()`s the first md2 file of the key before every iterator open and every
 page, purged or not, to notice a purge of the master whose signal it did not
@@ -986,21 +986,21 @@ replica without a follower) before the read meets files that are gone: about
 open, nothing on the master. It stays: skipping it while the replica seems to
 have missed nothing leaves a window (a signal not yet read from the event
 queue) in which a read opens a deleted file. A page of 100 rows (+1.5% on a
-replica, t = 3.5; +1.1% on the master, t = 1.7) **appeared in 7.27.5, commit
-`bd3fdce51`** (the first of retention), on the master as well: a page of an
+replica, t = 3.5, and +1.1% on the master, t = 1.7) appeared in 7.27.5, commit
+`bd3fdce51` (the first of retention), on the master as well: a page of an
 unfiltered iterator counts its rows as positions among the live rows
 (`g_rowid` = purged + position), so the base of the key is read for every
 row. `treedb.delete_force` (+3.9%, t = 2.5) is 7.27.5 too: 7.27.4 42.0 us,
-7.27.5 44.5 us (+6.1%, t = 4.5) -- a key delete looks for the key's base
+7.27.5 44.5 us (+6.1%, t = 4.5): a key delete looks for the key's base
 (`.purged`, one `access()`) before it removes the directory, so a key with a
 base is moved out of `keys/` whole (`remove_key_directory()`). Everything
 else moved inside its noise, the gobj and TCP changes of 7.27.2 to 7.27.4
 included. The first study (against 7.27.4) found the TCP and TLS echo and
-the event loop echo with an append 2.0-2.5% slower where no code changed;
-against 7.27.0 they are -2.8% to +0.1% (t = -2.1 to +0.1), inside their noise.
+the event loop echo with an append 2.0-2.5% slower where no code changed.
+Against 7.27.0 they are -2.8% to +0.1% (t = -2.1 to +0.1), inside their noise.
 
-**The attribution build of the first study** (against 7.27.4;
-`perf_timeranger2 read`: one key of 10 000 rows in 10 daily files; us per
+**The attribution build of the first study** (against 7.27.4,
+`perf_timeranger2 read`: one key of 10 000 rows in 10 daily files, us per
 operation). 24 rounds, four binaries in rotation, a
 `sync` and a 1 s pause before each run: 7.27.4, 7.27.5, the main tree at
 `24da06bc8` (after 7.27.6), and that tree with `check_purge_before_read()`
@@ -1025,14 +1025,14 @@ of the price of a page of 1 row.
 ### Oct-2026: 7.27.1 against 7.27.0 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 7.27.1 changes only the external libraries (`linux-ext-libs` 1.24: OpenSSL
-3.6.3 -> 3.6.5, PCRE2 10.47 -> 10.49; the standalone nginx is not linked into
+3.6.3 -> 3.6.5, PCRE2 10.47 -> 10.49, and the standalone nginx is not linked into
 any yuno). The 7.27.0 side was built from a git worktree of the tag with its
 own `outputs_ext` (configure-libs 1.23, without nginx and openresty), the same
-`.config` and compiler; only the kernel libraries, the modules, the benchmarks
+`.config` and compiler. Only the kernel libraries, the modules, the benchmarks
 below and three yunos were built there. The two binaries of each benchmark run
 alternately, the order flipped every round, with a `sync` and a 3 s pause
 before each run: 16 rounds (8 for `perf_auth_bff`). Mean +- standard
-deviation; |t| < 3 is noise. No html report: a library bump ships none.
+deviation, and |t| < 3 is noise. No html report: a library bump ships none.
 
 | Case | 7.27.0 | 7.27.1 | Change |
 |------|--------|--------|--------|
@@ -1054,14 +1054,14 @@ different moment of the same machine, not a change of either tree.
 ### Oct-2026: 7.27.0 against 7.26.9 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.26.9 tag, the
-same `.config` and compiler; only the kernel libraries, the modules,
+same `.config` and compiler, and only the kernel libraries, the modules,
 `performance/c/` and the three ctest binaries built there). `outputs_ext` was
 shared: linux-ext-libs did not change (1.23 at both tags). The two binaries of
 each benchmark run alternately, the order flipped every round, with a `sync`
 and a 3 s pause before each run: 16 rounds (8, then 8 more: other work on the
-machine during rounds 2 to 4 had widened the spreads); the three timeranger2
-ctest binaries 24 rounds, a 1 s pause. Mean +- standard deviation; the treedb
-figures are CPU time; |t| < 3 is noise. The report:
+machine during rounds 2 to 4 had widened the spreads), and the three timeranger2
+ctest binaries 24 rounds, a 1 s pause. Mean +- standard deviation. The treedb
+figures are CPU time, and |t| < 3 is noise. The report:
 [`performance/reports/7.27.0.html`](../reports/7.27.0.html).
 
 | Case | 7.26.9 | 7.27.0 | Change |
@@ -1099,7 +1099,7 @@ figures are CPU time; |t| < 3 is noise. The report:
 | net.auth_bff_login (logins/s) | 8,338 +- 650 | 8,455 +- 286 | +1.4% (t = +0.7) |
 
 One price, `treedb.update_memory`: the NUL checks of every treedb write
-(`refuse_node_name_with_nul()`, the id and each pkey2 value;
+(`refuse_node_name_with_nul()`, the id and each pkey2 value, and
 `refuse_fkey_ref_with_nul()`, a walk of the kw before any fkey reference is
 read). `perf` is not permitted on this machine, so it was attributed by
 relinking `perf_tr_treedb`, 16 alternated rounds each (CPU us per operation,
@@ -1115,7 +1115,7 @@ mean +- standard deviation):
 | `update_memory` | 2.327 +- 0.097 | 2.415 +- 0.052 (+3.8%, t = 3.2) | 2.328 +- 0.047 (+0.0%) |
 | `update_saved` | 7.529 +- 0.154 | 7.799 +- 0.189 (+3.6%, t = 4.4) | 7.502 +- 0.184 (-0.4%) |
 
-The gobj-c of 7.27.0 is not the cost (the hybrid is faster than 7.26.9); the
+The gobj-c of 7.27.0 is not the cost (the hybrid is faster than 7.26.9). The
 two checks are all of it, about 0.1 us of CPU per write. The price of 7.26.9,
 `net.yev_ping_pong_persist`, is not there against 7.26.9 (+0.7%).
 
@@ -1123,7 +1123,7 @@ two checks are all of it, about 0.1 us of CPU per write. The price of 7.26.9,
 
 Written on 2026-10-22, after the release, against 7.26.0: the last release
 with a study. It replaces the study made at the tag against 7.26.8, a release
-nobody had measured; this one covers 7.26.1 to 7.26.9 (7.26.1 to 7.26.4
+nobody had measured. This one covers 7.26.1 to 7.26.9 (7.26.1 to 7.26.4
 changed no code of the kernel libraries or the modules). Each release built
 from a git worktree of its tag (same `.config` and compiler), the
 `perf_timeranger2` of the main tree (with its `read` phase) compiled into
@@ -1131,10 +1131,10 @@ both. `outputs_ext` shared: linux-ext-libs 1.24 (OpenSSL 3.6.5) on both
 sides, where both tags shipped with 1.23. The two binaries of each benchmark
 run alternately, a `sync` and a 3 s pause before each run (1 s for the ctest
 binaries and the read phase): 15 rounds (the first left out: it ran right
-after a build on the machine); 31 for `perf_timeranger2` (47 for its appends,
-opens and tm query), `perf_tr_treedb` and `perf_c_treedb`; 24 for
+after a build on the machine), but 31 for `perf_timeranger2` (47 for its appends,
+opens and tm query), `perf_tr_treedb` and `perf_c_treedb`, and 24 for
 `perf_timeranger2 read` (a first run of 24 left out: a build of another tree
-ran during it). Mean +- standard deviation; treedb figures are CPU time;
+ran during it). Mean +- standard deviation. The treedb figures are CPU time, and
 |t| < 3 is noise. The report:
 [`performance/reports/7.26.9.html`](../reports/7.26.9.html).
 
@@ -1209,31 +1209,31 @@ unlink 8.51 against 8.68 us, reopen 310.7 against 309.7 us: 7.26.1 to 7.26.8
 did not move them.)
 
 The gains are the treedb names looked up by key (`KWID_GET_BY_KEYS()`):
-**appeared in 7.26.9**, a link or unlink and the delete of a parent mostly
+appeared in 7.26.9, a link or unlink and the delete of a parent mostly
 with `f4be7d750` (*names looked up by key*), a reopen mostly before it, by
 `9d8f7c584` (the commits that read a name from data as a key).
-`ctreedb.seed` (+6.7%) **appeared in 7.26.7, commit `50c6cd78f`** (its only C
+`ctreedb.seed` (+6.7%) appeared in 7.26.7, commit `50c6cd78f` (its only C
 change): every treedb gets a system topic `__icons__` at its first open, 40
-topics more for 40 treedbs, each with its fsyncs; the everyday open did not
+topics more for 40 treedbs, each with its fsyncs. The everyday open did not
 move. The appends of `perf_timeranger2` (+4.1% for 600 000 to one key, +2.3%
-for 400 000 into 20 000 files) **appeared in 7.26.9, in steps**: about +1%
+for 400 000 into 20 000 files) appeared in 7.26.9, in steps: about +1%
 with the kw readers that answer what the kw holds (`df6c5f06a`,
-`ac9165b82`), +1.7% more with `6193b002c` (a name that comes from data read
-as a key), +0.6% with `9d8f7c584`, the rest after it -- no commit carries it
-alone; about 0.11 us per append, the price of the hardened kw calls. The main
+`ac9165b82`), +1.7% more with `6193b002c` (a name from data read
+as a key), +0.6% with `9d8f7c584`, the rest after it (no commit carries it
+alone). That is about 0.11 us per append, the price of the hardened kw calls. The main
 append benchmark moved +0.7% (t = 0.6). The study made at the tag reported the
-event loop echo with an append 3.9% slower against 7.26.8 and could not trace
+event loop echo with an append 3.9% slower against 7.26.8 and failed to trace
 it: against 7.26.0 it is -0.2% (t = -0.2).
 
 ### Oct-2026: 7.26.0 against 7.25.22 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.25.22 tag, the
-same `.config` and compiler; only the kernel libraries, the modules,
+same `.config` and compiler, and only the kernel libraries, the modules,
 `performance/c/` and the three ctest binaries built there). `outputs_ext` was
 shared: linux-ext-libs did not change. The two binaries of each benchmark run
 alternately, the order flipped every round, with a `sync` and a 3 s pause
 before each run: 8 rounds, 24 for the three timeranger2 ctest binaries. Mean
-+- standard deviation; the treedb figures are CPU time. The report:
++- standard deviation. The treedb figures are CPU time. The report:
 [`performance/reports/7.26.0.html`](../reports/7.26.0.html).
 
 | Case | 7.25.22 | 7.26.0 | Change |
@@ -1245,7 +1245,7 @@ before each run: 8 rounds, 24 for the three timeranger2 ctest binaries. Mean
 | `perf_timeranger2` `open_replica` (ms) | 108.4 +- 3.6 | 94.8 +- 2.7 | -12.6% (GAIN: no tm marker looked for) |
 | `perf_timeranger2` tm query, a topic 7.25.22 did not mark (ms) | 401.6 +- 24.5 | 12.8 +- 0.9 | -96.8%, 31x (GAIN: block reads, condition parsed once) |
 | `perf_timeranger2` tm query, a topic 7.25.22 marked (ms) | 7.55 +- 0.31 | 12.8 +- 0.9 | +69.9% (PRICE: no tm markers, every row read) |
-| `perf_timeranger2` `create_topic` (ms, 10 topics) | 131.4 +- 18.0 | 134.0 +- 10.0 | +2.0% (noise; 258.5 +- 23.9 with `delete_seq.json` written durably, fixed before the tag) |
+| `perf_timeranger2` `create_topic` (ms, 10 topics) | 131.4 +- 18.0 | 134.0 +- 10.0 | +2.0% (noise, but 258.5 +- 23.9 with `delete_seq.json` written durably, fixed before the tag) |
 | `perf_timeranger2` `topic_version_change` (ms) | 237.1 | 253.7 | +7.0% (noise, t = 1.5) |
 | reads, iterator (records/s) | 184,338 +- 5,063 | 215,157 +- 7,268 | +16.7% (GAIN) |
 | reads, pages (records/s) | 166,017 +- 5,199 | 192,697 +- 4,480 | +16.1% (GAIN) |
@@ -1253,14 +1253,14 @@ before each run: 8 rounds, 24 for the three timeranger2 ctest binaries. Mean
 | `perf_tr_treedb` `reopen` (us) | 390.3 +- 11.5 | 311.2 +- 10.2 | -20.3% (GAIN: the same scans) |
 | `perf_tr_treedb` `create_link_half`, `delete_force`, `delete_parent` | 67.0, 42.4, 2547 | 65.6, 43.7, 2563 | noise |
 | `perf_c_treedb` `same_literal`, `newer_literal` (s) | 0.341, 13.23 | 0.335, 13.22 | noise |
-| `perf_c_treedb` `seed` (s, 400 topics) | 10.42 +- 0.50 | 10.33 +- 0.48 | -0.9% (noise; 16.19 +- 0.58 durably, fixed before the tag) |
+| `perf_c_treedb` `seed` (s, 400 topics) | 10.42 +- 0.50 | 10.33 +- 0.48 | -0.9% (noise, but 16.19 +- 0.58 durably, fixed before the tag) |
 | `perf_rotatory` audit / flushed / log (ns) | 555 / 1253 / 373 | 570 / 1257 / 374 | noise |
 | `perf_yev_ping_pong` / `2` (K msg/s) | 151.4 / 84.7 | 149.0 / 86.1 | noise (t = -2.0 / 1.9) |
 | `perf_tcp_test4` / `5` (round trips/s) | 39,014 / 30,441 | 39,511 / 30,378 | noise |
 | `perf_tcps_test4` / `5` (round trips/s) | 29,278 / 23,746 | 29,762 / 23,907 | noise |
 | `perf_auth_bff` (logins/s) | 8,572 | 8,622 | noise |
 
-The gains come from the scans of timeranger2: the md2 rows read 1024 at a time
+The gains are due to the scans of timeranger2: the md2 rows read 1024 at a time
 with one `pread()`, and the match condition parsed once per scan. The prices:
 the tm markers are gone (a tm query of a topic 7.25.22 had marked reads every
 row again). A master that opened a topic wrote its `delete_seq.json` durably
@@ -1274,7 +1274,7 @@ construction writes the record of its sequence first.
 ### Oct-2026: 7.25.22 against 7.25.21 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.25.21 tag, the
-same `.config` and compiler; only the kernel libraries, `modules/c/test`,
+same `.config` and compiler, and only the kernel libraries, `modules/c/test`,
 `performance/c/` and the three ctest binaries built there). `outputs_ext` was
 shared: linux-ext-libs did not change. The two binaries of each benchmark run
 alternately, the order flipped every round, with a `sync` and a 3 s pause
@@ -1308,9 +1308,9 @@ a delete no longer walks every key with an open file to close the descriptors
 of the one deleted (`tranger2_delete_key()` closes that key's own). Four
 figures moved outside their spread on code that did not change in this
 release, and none is claimed: the appends of `test_topic_pkey_integer` (-1.9%,
-t = -4.6; -1.6% with an rt list, t = -3.3) and `build_appends` (-8.5% of time,
+t = -4.6, and -1.6% with an rt list, t = -3.3) and `build_appends` (-8.5% of time,
 t = -9.9) run the same `tranger2_append_record()` and callees in both
-releases, one slower and one faster; `update_memory` (+5.0%, t = 8.2) runs
+releases, one slower and one faster. `update_memory` (+5.0%, t = 8.2) runs
 `tr_treedb.c`, `kwid.c` and jansson, unchanged, and moved -5.2% the other way
 in the A/B of 7.25.21. Whole-release builds move where the code lands:
 placement. The C_TCP liveness markers (one stack marker per publish) did not
@@ -1319,7 +1319,7 @@ move the TCP or TLS echoes beyond their noise.
 ### Oct-2026: 7.25.21 against 7.25.20 (RelWithDebInfo, `CONFIG_DEBUG_TRACK_MEMORY` on)
 
 Each release built from its own tree (a git worktree of the 7.25.20 tag, the
-same `.config` and compiler; only the kernel libraries, `modules/c/test`,
+same `.config` and compiler, and only the kernel libraries, `modules/c/test`,
 `performance/c/` and the three ctest binaries built there). `outputs_ext` was
 shared: linux-ext-libs moved 1.22 -> 1.23 in this release, only in how
 openresty is downloaded, no library changed version. The two binaries of each
@@ -1358,7 +1358,7 @@ by the echo, `c_auth_bff.c` changed by one line, and `tranger2_append_record()`
 is the same in both releases (`tm_build_appends` moved +3.6% the other way in
 the 7.25.20 report). The TLS echo, which runs the same `C_TCP` code, moved
 -0.7%. Whole-release builds move where the code lands: placement. The masking
-of secrets runs only when a trace prints; a secret gbuffer costs one flag test
+of secrets runs only when a trace prints. A secret gbuffer costs one flag test
 on its free and its growth.
 
 ### Key takeaways

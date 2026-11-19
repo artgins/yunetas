@@ -7,8 +7,8 @@ client's remote subscription. Both sides live in one yuno, on
 
 | Service | GClass | Role |
 |---|---|---|
-| `tester` | `C_PERF_IEVENT` | Subscribes `EV_PERF_PONG` of the remote `echo` through `cli`; when the session opens it sends `EV_PERF_PING`, and the next one when the `EV_PERF_PONG` of the previous one comes back: 100 000 round trips, timed. |
-| `echo` | `C_PERF_IEV_ECHO` | Subscribes the events of the gate; answers every `EV_PERF_PING` publishing an `EV_PERF_PONG` with its `n` and its `payload` (~140 bytes of JSON). |
+| `tester` | `C_PERF_IEVENT` | Subscribes `EV_PERF_PONG` of the remote `echo` through `cli`. When the session opens it sends `EV_PERF_PING`, and the next one when the `EV_PERF_PONG` of the previous one arrives: 100 000 round trips, timed. |
+| `echo` | `C_PERF_IEV_ECHO` | Subscribes the events of the gate, and answers every `EV_PERF_PING` publishing an `EV_PERF_PONG` with its `n` and its `payload` (~140 bytes of JSON). |
 | `cli` | `C_IEVENT_CLI` | The client: `C_IOGATE` -> `C_CHANNEL` -> `C_WEBSOCKET` -> `C_TCP`. |
 | `__input_side__` | `C_IOGATE` | The gate: `C_TCP_S` -> `C_CHANNEL` -> `C_IEVENT_SRV` -> `C_WEBSOCKET` (server) -> `C_TCP`. |
 

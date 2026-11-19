@@ -31,13 +31,13 @@ The same figures, release after release, are charted on
 | 7.25.20 | 7.25.5 | [7.25.20.html](7.25.20.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.20/performance/reports/7.25.20.html) | [7.25.20.json](7.25.20.json) |
 | 7.25.5 | 7.25.4 | [7.25.5.html](7.25.5.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.25.5/performance/reports/7.25.5.html) | [7.25.5.json](7.25.5.json) |
 
-7.27.5 shipped without its report; it was written the day after the release
+7.27.5 shipped without its report. It was written the day after the release
 (the 7.27.5 side of an A/B, not a tag-time run), so its links name `main`, not
 the tag. The report of 7.27.5 now in the table replaces the first one, made
 against 7.27.4: a study compares with the last release that has a study, and
 7.27.4 had none. Against 7.27.0 it covers 7.27.1 to 7.27.5, and places each
 price in its release and commit. The report of 7.26.9 was redone for the same
-reason, against 7.26.0 instead of 7.26.8 (it covers 7.26.1 to 7.26.9); it was
+reason, against 7.26.0 instead of 7.26.8 (it covers 7.26.1 to 7.26.9). It was
 written after the release, so its links name `main` too.
 
 ## Studies without a report page, newest first
@@ -89,7 +89,7 @@ its raw figures in `<version>.json`, a section and a column on
 
 ## The json schema (`yuneta-perf-report/1`)
 
-One object per release. Units are always given; a figure never changes its
+One object per release. Units are always given. A figure never changes its
 unit or its `id` between releases.
 
 ```json
@@ -163,7 +163,7 @@ unit or its `id` between releases.
 | `machine`, `build` | Where and how it was measured. Absolute figures compare only between reports of the same machine. |
 | `method.ab`, `method.tag_run` | How the two kinds of figures were measured, in words. |
 | `ab[]` | One A/B figure: the same benchmark on `previous` and on `version`. |
-| `ab[].id`, `figures[].id` | Stable name, `<area>.<case>` (`tr2.open_master`). The trend charts join releases by it; an `ab` and a `figures` entry of the same measure share it. |
+| `ab[].id`, `figures[].id` | Stable name, `<area>.<case>` (`tr2.open_master`). The trend charts join releases by it. An `ab` and a `figures` entry of the same measure share it. |
 | `ab[].label`, `ab[].short`, `ab[].meaning` | The name of the figure, an optional short name for narrow charts, and what it means for a user. |
 | `ab[].unit` | `ms`, `us`, `ns`, `s`, `appends/s`, `K msg/s`, `round trips/s`, ... |
 | `ab[].better` | `lower` (a time, a cost) or `higher` (a rate). |
@@ -176,6 +176,6 @@ unit or its `id` between releases.
 | `ab[].change_pct` | `(current - previous) / previous x 100` of the means, in the figure's own unit. |
 | `ab[].change_text` | Optional: the words the page shows in place of the percentage, for a figure where a percentage says nothing (a fixed cost on a very short operation: `+578 ns`). |
 | `figures[]` | One absolute figure of `version`, measured at tag time: `mean`, `sd`, `median`, `min`, `max`, `n`. `derived` says how a rate was computed from a benchmark's output. `headline` marks the figures shown first. |
-| `story` | Optional: the words of the page, which differ from release to release. `title`, `lead`, `hero` (`value`, `text`), `tiles` (`[id, label]` pairs of A/B figures), `append_note`, `ab_sub`, `ab_order` (the ids of the A/B chart, also used for the docs chart), `prices_sub`, `prices` (`[id, title]` pairs; `[]` for none), `no_prices` (the text shown when `prices` is empty) and `abs_sub` (the line above the absolute figures, which otherwise says they were measured at tag time). Without it the page takes the words of the 7.25.5 report. |
-| `split` | Optional: a third build measured in the same rotation, between the two releases (7.28.0: the code of 7.28.0 with the jansson of 7.27.11), to say where a gain comes from. `title`, `sub`, `middle_label` (the legend), `middle_short` (the bar), and `entries[]`: `id`, `label`, `unit`, `better`, `previous`, `middle`, `current` (`mean`, `sd`, `median`), `n`, `jansson_share_pct` (the share of the change of the time of one operation that the middle build does not have) and `text`. The page draws one card of three bars per entry. |
+| `story` | Optional: the words of the page, which differ from release to release. `title`, `lead`, `hero` (`value`, `text`), `tiles` (`[id, label]` pairs of A/B figures), `append_note`, `ab_sub`, `ab_order` (the ids of the A/B chart, also used for the docs chart), `prices_sub`, `prices` (`[id, title]` pairs, `[]` for none), `no_prices` (the text shown when `prices` is empty) and `abs_sub` (the line above the absolute figures, which otherwise says they were measured at tag time). Without it the page takes the words of the 7.25.5 report. |
+| `split` | Optional: a third build measured in the same rotation, between the two releases (7.28.0: the code of 7.28.0 with the jansson of 7.27.11), to say what causes a gain. `title`, `sub`, `middle_label` (the legend), `middle_short` (the bar), and `entries[]`: `id`, `label`, `unit`, `better`, `previous`, `middle`, `current` (`mean`, `sd`, `median`), `n`, `jansson_share_pct` (the share of the change of the time of one operation that the middle build does not have) and `text`. The page draws one card of three bars per entry. |
 | `binaries[]` | Size of each static executable: `bytes` on disk (with debug information), `stripped_bytes`, and the `text` / `data` / `bss` of `size`. |

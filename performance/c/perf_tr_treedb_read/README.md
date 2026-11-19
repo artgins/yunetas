@@ -33,7 +33,7 @@ $YUNETAS_OUTPUTS/bin/perf_tr_treedb_read 20000       # another N
 $YUNETAS_OUTPUTS/bin/perf_tr_treedb_read --small     # N = 2000, 2 repetitions: what ctest runs
 ```
 
-Every result is one line of JSON on stdout, e.g.:
+Every result is one line of JSON on stdout, for example:
 
 ```json
 {"bench": "perf_tr_treedb_read", "case": "view_users", "seconds": 0.799216, "cpu_seconds": 0.794256, "ops": 80000, "us_per_op": 9.990, "cpu_us_per_op": 9.928, "check": 99900}

@@ -32,7 +32,7 @@ Another size goes in a config file, like `small.json`:
 }
 ```
 
-Every result is one line of JSON on stdout, e.g.:
+Every result is one line of JSON on stdout, for example:
 
 ```json
 {"bench": "perf_c_treedb", "case": "same_literal", "seconds": 0.740000, "ops": 40, "us_per_op": 18500.000, "treedbs": 40, "topics": 10, "cols": 20}

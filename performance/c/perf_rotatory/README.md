@@ -21,7 +21,7 @@ $YUNETAS_OUTPUTS/bin/perf_rotatory 8          # 8 rounds
 $YUNETAS_OUTPUTS/bin/perf_rotatory --small    # 30 000 records: what ctest runs
 ```
 
-Every result is one line of JSON on stdout, e.g.:
+Every result is one line of JSON on stdout, for example:
 
 ```json
 {"bench": "perf_rotatory", "case": "audit_record", "round": 1, "seconds": 0.180195, "records": 300000, "ns_per_record": 600.6}
