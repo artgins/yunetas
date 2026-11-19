@@ -143,8 +143,8 @@ PRIVATE char variable_config[]= "\
                 'crv': 'P-256',                                     \n\
                 'alg': 'ES256',                                     \n\
                 'use': 'sig',                                       \n\
-                'x': 'pfcUj6lfWF5NlMBi47QQt0NPtGs570TPZews4VJLtlE', \n\
-                'y': 'e5jGmxU2VE8If70nC1AbP2rVL18R6Y3tFSDSEb7-E0Q'  \n\
+                'x': 'SspwtJ3T9WdgfLbM9tN3gfgVkViDJsy_024aFjU6sZY', \n\
+                'y': 'ljmIEBKbbX9ZSbbfmUYqc2DfQhSyyYNhkykkDUY3MFM'  \n\
             }                                                       \n\
         ],                                                          \n\
         'Authz.max_sessions_per_user': 4,                           \n\

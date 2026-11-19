@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## v7.31.18 (2026-11-19)
+
+Lite release: only the agents (`yuneta_agent`, `yuneta_agent22`).
+
+### Security
+
+- **The agents trust the control center's NEW operator-assertion key.** The
+  private key the control center signs its operator assertions with
+  (`operator_assertion_key`) was lost when the control center moved to
+  another server. With no key it signs nothing, and every agent runs a
+  request of the control center as its `service_principal` (`controlcenter`),
+  which has no permission: the console and every command through the control
+  center were refused (*"No permission to 'open-console' in service
+  'agent'"*). A new key was made; the public half compiled in both agents
+  (`Authz.assertion_jwks`) is now the new one, so a node installed from the
+  package verifies the control center again. A node whose agent config sets
+  its own `Authz.assertion_jwks` is not affected by the default.
+
 ## v7.31.17 (2026-11-18)
 
 Lite release: only the web server. nginx is a separate binary linked against
