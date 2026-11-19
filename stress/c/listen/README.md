@@ -57,7 +57,7 @@ Performance 22-May-2025 in my machine with 30.000
 
 ## Measures Received messages (no jobs, only decoded the received message and publish, no disk)
 
-Servidor OVH, 1 core:
+OVH server, 1 core:
     50000 msg/sec, 76% CPU
 
 My laptop, 1 core:
@@ -156,9 +156,9 @@ Config:
 
 # Test 27/May/2025: in ovh, 3 machines, C_TPC_S with new method
 
-11000 maximum concurrent conections, atacking 2 clients with 5000 connections 
-HERE we don't have protections against overload, i.e. more than 11000 connections, 
-so the clients must wait timeout (2 minutes in my test) for receive a close of the socket by the kernel.
+11000 maximum concurrent connections, attacking 2 clients with 5000 connections 
+HERE we do not have protections against overload, that is, more than 11000 connections, 
+so the clients must wait timeout (2 minutes in my test) to receive a close of the socket by the kernel.
 
 JS1:
 /yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 203.0.113.10 -c 5000 -d 20

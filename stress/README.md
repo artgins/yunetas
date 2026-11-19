@@ -29,7 +29,7 @@ C_LISTEN (root service -- monitoring, commands, stats)
 
 1. On startup, pre-allocates 11,000 `C_CHANNEL` -> `C_PROT_TCP4H` -> `C_TCP` connection slots.
 2. On `mt_play`, subscribes to all events from `__input_side__` and starts the TCP server tree.
-3. Each accepted connection fires `EV_ON_OPEN`; the handler increments a global counter and prints throughput every 10,000 connections.
+3. Each accepted connection fires `EV_ON_OPEN`. The handler increments a global counter and prints throughput every 10,000 connections.
 4. Incoming messages (`EV_ON_MESSAGE`) are decoded by `C_PROT_TCP4H` and delivered to `C_LISTEN` (currently a sink -- messages are read but not echoed).
 5. Exposes `mt_stats()` returning connection stats from `C_IOGATE` and live CPU usage.
 
