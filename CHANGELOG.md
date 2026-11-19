@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v7.31.23 (2026-11-19)
+
+Lite release: only the control center (`controlcenter`).
+
+### Added
+
+- **`info-machine agent_id=<uuid or hostname>` in the control center**
+  (permission `list-agents`): the machine of a node, as its agent's yuno
+  answers `info-machine` (os, cpu, memory, disks, network interfaces,
+  uptime; agents 7.31.21+). It is the `command-agent agent_service=__yuno__
+  cmd2agent=info-machine` that had to be written by hand, under the read-only
+  permission of the listings instead of `command-agent`'s. Like
+  `command-agent`, the first answer is the dispatch and the node's comes
+  after. Test in `test_c_controlcenter_scenarios`.
+
 ## v7.31.22 (2026-11-19)
 
 Lite release: only the control center (`controlcenter`), and gui_agent 1.4.7

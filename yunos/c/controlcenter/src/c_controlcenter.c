@@ -369,6 +369,7 @@ PRIVATE json_t *cmd_watch_scenario(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *cmd_my_permissions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *forward_to_agent(hgobj gobj, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE int ac_authz_store_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 PRIVATE int start_run(
     hgobj gobj,
@@ -523,6 +524,11 @@ SDATAPM (DTP_STRING,    "hostname",      0,              0,          "Only the a
 SDATAPM (DTP_STRING,    "os",            0,              0,          "Only the agents whose os (its pretty name) matches this regular expression (POSIX extended)"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_info_machine[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_command_agent[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
@@ -632,6 +638,7 @@ SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, 
 SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              pm_command_agent,cmd_command_agent,"Command to agent (agent id = UUID or HOSTNAME)"),
 
 SDATACM2 (DTP_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,              pm_stats_agent, cmd_stats_agent, "Get statistics of agent"),
+SDATACM2 (DTP_SCHEMA,   "info-machine",     0,                  0,              pm_info_machine,cmd_info_machine,"The machine of a node (os, cpu, memory, disks, network interfaces, uptime): info-machine of its agent's yuno"),
 
 SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              pm_drop_agent,cmd_drop_agent,"Drop connection to agent (agent id = UUID or HOSTNAME)"),
 
@@ -1612,6 +1619,49 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
     /*----------------------------------------*
      *  Job
      *----------------------------------------*/
+    priv->rxMsgs++;
+    return forward_to_agent(gobj, kw, src);
+}
+
+/***************************************************************************
+ *  The machine of a node, as its agent's yuno answers it (info-machine of
+ *  C_YUNO, agents 7.31.21+): a command-agent with agent_service=__yuno__
+ *  and cmd2agent=info-machine, under the read-only permission of
+ *  list-agents. Answers at once with the dispatch; the node's answer comes
+ *  after, as with command-agent.
+ ***************************************************************************/
+PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw_, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *kw = kw_duplicate(gobj, kw_);  // a kw copy: its gbuffer goes with a reference
+    KW_DECREF(kw_);
+
+    const char *permission = "list-agents";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(empty_string(kw_get_str(gobj, kw, "agent_id", "", 0))) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: what agent_id? (a node uuid or hostname: list-agents)",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_object_set_new(kw, "agent_service", json_string("__yuno__"));
+    json_object_set_new(kw, "cmd2agent", json_string("info-machine"));
     priv->rxMsgs++;
     return forward_to_agent(gobj, kw, src);
 }

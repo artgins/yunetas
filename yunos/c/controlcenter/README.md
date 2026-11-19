@@ -140,6 +140,7 @@ Registered in the `command_table` of `src/c_controlcenter.c`:
 | `list-agents`    | List currently connected nodes (UUID, hostname, status). `uuid=`, `version=`, `hostname=`, `os=`: regular expressions (POSIX extended) the agent must match, all of them (`list-agents hostname=^yunovatios- version=^7.31.`, `list-agents os=^Rocky`). The hardware of a node: `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
 | `command-agent`  | Forward an arbitrary command to a specific node (`SDF_WILD_CMD`). `agent_id` is a UUID, or a hostname that one node has. |
 | `stats-agent`    | Get stats from a specific node.                                               |
+| `info-machine`   | The machine of a node: os, cpu, memory, disks, network interfaces, uptime (`info-machine agent_id=<uuid or hostname>`, permission `list-agents`; give `ycommand` a `-w`). |
 | `drop-agent`     | Drop every session of a node (`agent_id` as for `command-agent`; empty: every agent). |
 | `write-tty`      | Write bytes to the PTY console of one node (the `yuno_agent22` backdoor). `agent_id` is required. |
 | `scenarios`      | List the scenarios, or one (`scenario_id=`).                                  |

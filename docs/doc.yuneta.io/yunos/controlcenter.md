@@ -596,11 +596,16 @@ ycommand -c 'list-agents hostname=artgins('
 ```
 
 What a node IS (its os, cpu, memory, disks, network interfaces, uptime) is
-answered by the `info-machine` of its agent's yuno (7.31.21+), through
-`command-agent`:
+answered by the `info-machine` of its agent's yuno (agents 7.31.21+). The
+control center's own `info-machine` (7.31.23+, permission `list-agents`) asks
+it: `agent_id` is a node uuid or a hostname, as in `command-agent`, and like
+it the first answer is the dispatch, the node's comes after (give `ycommand`
+a `-w`):
 
 ```bash
-ycommand -w 10 -c 'command-agent agent_id=<host-or-uuid> agent_service=__yuno__ cmd2agent=info-machine'
+ycommand -w 10 -c 'info-machine agent_id=orangepi-bfm2'
+# the same, by hand:
+ycommand -w 10 -c 'command-agent agent_id=orangepi-bfm2 agent_service=__yuno__ cmd2agent=info-machine'
 ```
 
 **3 — forward a command to one node** with `command-agent` (a `SDF_WILD_CMD`):
@@ -1511,6 +1516,7 @@ never armed: all six read 0.
 | `list-agents` | List currently connected nodes (UUID, role and version, hostname, os); `uuid`, `version`, `hostname`, `os`: regular expressions the agent must match, all of them |
 | `command-agent` | Forward a command to one node (`agent_id`, `agent_service`, `cmd2agent`) |
 | `stats-agent` | Fetch stats from a node |
+| `info-machine` | The machine of a node (`agent_id`: uuid or hostname): os, cpu, memory, disks, network interfaces, uptime, as its agent's yuno answers `info-machine` (permission `list-agents`; 7.31.23+) |
 | `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has; empty: every agent) |
 | `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session; empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
 | `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so; permission `manage-nodes`) |

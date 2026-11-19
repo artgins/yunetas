@@ -4253,6 +4253,45 @@ PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
+ *  info-machine of the control center: the agent of the node gets
+ *  info-machine on its __yuno__ service, its answer goes back to the
+ *  client, and without agent_id it is refused.
+ ***************************************************************************/
+PRIVATE int test_info_machine(hgobj gobj, hgobj client)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    json_t *kw = client_kw(gobj_name(client));
+    ret += check_response(gobj, gobj_command(priv->cc, "info-machine", kw, client),
+        -1, "what agent_id?", "info-machine without agent_id");
+
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "agent_id", json_string(AGENT_HOST));
+    json_object_set_new(kw, "cmd2agent", json_string("delete-yuno id=1234"));   // not taken
+    ret += check_response(gobj, gobj_command(priv->cc, "info-machine", kw, client),
+        0, "Command sent to 1 nodes", "info-machine of a node");
+    json_t *request = agent_request(gobj, "info-machine reaches the agent");
+    if(!request) {
+        return ret - 1;
+    }
+    if(strcmp(kw_get_str(gobj, request, "__command__", "", 0), "info-machine")!=0) {
+        ret += fail(gobj, "info-machine sends info-machine to the agent",
+            kw_get_str(gobj, request, "__command__", "", 0));
+    }
+    if(strcmp(kw_get_str(gobj, request, "service", "", 0), "__yuno__")!=0) {
+        ret += fail(gobj, "info-machine goes to the agent's __yuno__",
+            kw_get_str(gobj, request, "service", "", 0));
+    }
+    agent_sends(gobj, EV_MT_COMMAND_ANSWER, request, 0, "the machine");
+    JSON_DECREF(request)
+    if(count_received(client, EV_MT_COMMAND_ANSWER, "the machine") != 1) {
+        ret += fail(gobj, "the answer of info-machine reaches the client", "");
+    }
+    return ret;
+}
+
+/***************************************************************************
  *  list-agents and list-nodes filtered: `uuid`, `version` and `hostname`
  *  are regular expressions (POSIX extended), all of them to match; one
  *  that does not compile is refused, saying which.
@@ -6999,6 +7038,7 @@ PRIVATE int run_tests(hgobj gobj)
     result += test_permissions_changed(gobj);
     result += test_scenario_ambiguous_name(gobj, client1);
     result += test_list_agents_filtered(gobj, client1);
+    result += test_info_machine(gobj, client1);
     result += test_switch(gobj, client1);
     result += test_parallel_stop(gobj, client1);    // before 16: it counts the runs ended
     result += test_max_run_start(gobj, client1);
