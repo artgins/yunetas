@@ -584,7 +584,7 @@ never goes into code or committed configuration.
 |-----------|------|-------------|
 | `kc_base_url` | `string` | Keycloak base URL (persistent). |
 | `kc_realm` | `string` | Realm where the accounts live (persistent). |
-| `kc_admin_client_id` | `string` | Confidential admin client, `client_credentials`, role `manage-users` (persistent). |
+| `kc_admin_client_id` | `string` | Confidential admin client, `client_credentials`, role `manage-users` of `realm-management`, and the client scope `kc-admin-api` (Keycloak 26.8.2+, see below) (persistent). |
 | `kc_admin_client_secret` | `string` | Its secret (persistent; `view-kc-config` masks it). |
 | `kc_redirect_uri` | `string` | `redirect_uri` of the set-password email (persistent). |
 | `kc_email_client_id` | `string` | Client the email links to: the SPA's (persistent). |
@@ -642,6 +642,20 @@ ycommand -c "command-yuno id=7301 service=idp command=set-kc-config \
     kc_redirect_uri=https://app.example.com/ kc_email_client_id=app"
 ycommand -c "command-yuno id=7301 service=idp command=register-idp-user email=ana@example.com firstName=Ana"
 ycommand -c "command-yuno id=7301 service=idp command=list-idp-users search=ana"
+```
+
+The admin client in Keycloak, from 26.8.2 on, needs the client scope
+**`kc-admin-api`** assigned (Client → Client scopes → Add client scope →
+`kc-admin-api` → Default). Keycloak 26.8.2 accepts on its Admin REST API only
+tokens that carry that scope and its audience (the realm's
+`<base url>/admin/realms/<realm>`); the upgrade assigns it to Keycloak's own
+clients (`admin-cli`, `security-admin-console`) and to none of yours. Without
+it the token is issued as before, the Admin API answers `401`, and every
+command answers *"Keycloak rejected the admin token"*. Check the token: its
+`scope` must contain `kc-admin-api`.
+
+```bash
+kcadm.sh update clients/<id of the admin client>/default-client-scopes/<id of kc-admin-api> -r example
 ```
 
 Details of the provisioning flow: [`YUNO_AUTH.md`](../../../../yunos/c/yuno_agent/YUNO_AUTH.md).
