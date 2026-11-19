@@ -64,8 +64,8 @@ RULES = [
     ),
     (
         "modal",
-        # "May" next to a number is the month ("May 1", "22-May-2025")
-        r"\b(should|would|might|could)\b|(?<![\d/-])\bmay\b(?![-/]?\d| \d)",
+        # "May" next to a number is the month ("May 1", "22-May-2025", "5th of May")
+        r"\b(should|would|might|could)\b|(?<![\d/-])(?<!of )\bmay\b(?![-/]?\d| \d)",
         "banned modal (3.2) — approved are can, will, must",
     ),
     (
