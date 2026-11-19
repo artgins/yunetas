@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v7.31.22 (2026-11-19)
+
+Lite release: only the control center (`controlcenter`), and gui_agent 1.4.7
+(yunos-js).
+
+### Added
+
+- **`delete-node node_id=<uuid>`** (permission `manage-nodes`): deletes the
+  record of a node that is refused or pending and has no agent connected (a
+  machine that is gone), and drops it from the knocking table. A node gone
+  for good could only be refused, or deleted with the treedb's own
+  `delete-node` on the `nodes` topic. An accepted node is refused first
+  (`refuse-node`): no single command takes a node out of service and forgets
+  it. If its agent comes back, it is a node never seen.
+- **gui_agent 1.4.7: a filter per column in the console's table answers**
+  (`list-nodes`, `list-yunos`...): a text the cell must contain as it is
+  shown, case ignored (a date as written), or a three-state tick for a
+  boolean.
+
 ## v7.31.21 (2026-11-19)
 
 Lite release: the agents (`yuneta_agent`, `yuneta_agent22`) and the control

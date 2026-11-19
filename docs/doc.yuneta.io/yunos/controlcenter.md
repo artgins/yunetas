@@ -185,7 +185,26 @@ accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b presented=6548740338383
 # or, with the key given whole
 accept-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b spki_sha256=<the key the node gives>
 refuse-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b
+delete-node node_id=0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b    # a machine that is gone
 ```
+
+`delete-node` (7.31.22+, permission `manage-nodes`) deletes the record of a
+node that is **refused or pending and has no agent connected**: a machine that
+was wiped or switched off. What was decided about it goes with the record, so
+if its agent ever comes back it is a node never seen (pending, or knocking with
+`enforce_node_keys`); to keep a machine out, leave it refused. An accepted node
+is refused first, so no single command takes a node out of service and forgets
+it; a uuid that only knocked (no record) is dropped from the table in memory:
+
+```text
+delete-node node_id=8b64c225-981d-8596-bc2c-10e437f6d28f
+# -> 0 "controlcenter^artgins.com: node '8b64c225-...' ('artgins', refused) deleted"
+delete-node node_id=6bdfcb15-be19-8c04-b940-bd8d83e651fb
+# -> -1 "controlcenter^artgins.com: node '6bdfcb15-...' is accepted: refuse it first (refuse-node)"
+```
+
+Each control center (1996, 1997) keeps its own `nodes`: delete the node in
+both.
 
 `accept-node` pins the key you give in `spki_sha256`, or, with
 `presented=<start>`, the key the node presented (the first key a knocking
@@ -1496,6 +1515,7 @@ never armed: all six read 0.
 | `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session; empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
 | `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so; permission `manage-nodes`) |
 | `refuse-node` | Refuse a node; its sessions are dropped (`node_id`; permission `manage-nodes`) |
+| `delete-node` | Delete the record of a node refused or pending, with no agent connected (`node_id`; permission `manage-nodes`). An accepted node is refused first (7.31.22+) |
 | `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required. It is an event (`EV_WRITE_TTY`), not a command line; without the permission `write-tty` it is answered as a command is, `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service 'controlcenter'"* (in 7.30.17 the answer was an `EV_WRITE_TTY` that no client takes, and the refusal freed the request twice) |
 | `logout-user` | Log out a user (`username`; permission `logout-user`). `disabled=1` also disables the user and `disabled=0` enables it; without `disabled` the user stays as it is |
 | `scenarios` | List the scenarios, or one (`scenario_id`) |

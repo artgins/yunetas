@@ -300,6 +300,7 @@ PRIVATE json_t *presented_key_compared(
     size_t presented_size
 );
 PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *enrollment_status(hgobj gobj);
@@ -568,6 +569,11 @@ PRIVATE sdata_desc_t pm_refuse_node[] = {
 SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node uuid"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_delete_node[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node uuid"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_write_tty[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id"),
@@ -632,6 +638,7 @@ SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              
 SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused; filtered by state, and by uuid, version, hostname or os (regular expressions)"),
 SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key given (spki_sha256, read on the node), or to the one it presented that starts as compared (presented=<start>)"),
 SDATACM2 (DTP_SCHEMA,   "refuse-node",      0,                  0,              pm_refuse_node, cmd_refuse_node,"Refuse a node: its agent is dropped, and refused while enforce_node_keys"),
+SDATACM2 (DTP_SCHEMA,   "delete-node",      0,                  0,              pm_delete_node, cmd_delete_node,"Delete the record of a node refused or pending, not connected: its agent, if it comes back, is a node never seen"),
 SDATACM2 (DTP_SCHEMA,   "open-enrollment",  0,                  0,              pm_open_enrollment,cmd_open_enrollment,"For some minutes, accept by itself the key that the agent of a node with no key accepted presents (a migration, a batch of new boxes); in memory only"),
 SDATACM2 (DTP_SCHEMA,   "close-enrollment", 0,                  0,              0,              cmd_close_enrollment,"Close the open enrollment now"),
 
@@ -2424,6 +2431,146 @@ PRIVATE json_t *cmd_refuse_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         comment,
         0,
         written? json_pack("[o]", written) : 0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  Delete the record of a node that is refused or pending, and whose agent
+ *  is not in session: a machine that is gone (wiped, switched off). What
+ *  was decided about it goes with the record, so if its agent comes back
+ *  it is a node never seen (pending, or knocking with enforce_node_keys).
+ *  An accepted node is refused first (refuse-node): one command never
+ *  takes a node out of service AND forgets it. A uuid only knocking (no
+ *  record) is forgotten from the table in memory.
+ ***************************************************************************/
+PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *permission = "manage-nodes";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!priv->gobj_treedb_controlcenter) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the treedb is not open", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
+    if(empty_string(node_id)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: what node_id?", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *node = gobj_get_node(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        json_pack("{s:s}", "id", node_id),
+        0,
+        gobj
+    );
+    if(!node) {
+        if(json_object_get(priv->knocking, node_id)) {
+            json_object_del(priv->knocking, node_id);
+            return msg_iev_build_response(
+                gobj,
+                0,
+                json_sprintf("%s: node '%s' had no record, only knocked: forgotten",
+                    gobj_yuno_role_plus_name(), node_id),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: node not found: '%s'", gobj_yuno_role_plus_name(), node_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *state = kw_get_str(gobj, node, "state", "", 0);
+    json_t *jn_refusal = NULL;
+    if(strcmp(state, "accepted")==0) {
+        jn_refusal = json_sprintf("%s: node '%s' is accepted: refuse it first (refuse-node)",
+            gobj_yuno_role_plus_name(), node_id);
+    } else if(agent_channel_of_uuid(gobj, node_id)) {
+        jn_refusal = json_sprintf("%s: node '%s' has its agent connected: delete it when it is away",
+            gobj_yuno_role_plus_name(), node_id);
+    }
+    if(jn_refusal) {
+        JSON_DECREF(node)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            jn_refusal,
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    int ret = gobj_delete_node(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        json_pack("{s:s}", "id", node_id),
+        0,
+        gobj
+    );
+    if(ret < 0) {
+        JSON_DECREF(node)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: node '%s' cannot be deleted", gobj_yuno_role_plus_name(), node_id),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_object_del(priv->knocking, node_id);
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "Node deleted",
+        "node",         "%s", node_id,
+        "hostname",     "%s", kw_get_str(gobj, node, "hostname", "", 0),
+        "state",        "%s", state,
+        "deleted_by",   "%s", username_of(gobj, kw, src),
+        NULL
+    );
+    json_t *jn_comment = json_sprintf("%s: node '%s' ('%s', %s) deleted",
+        gobj_yuno_role_plus_name(), node_id, kw_get_str(gobj, node, "hostname", "", 0), state);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_comment,
+        0,
+        json_pack("[o]", node),
         kw  // owned
     );
 }

@@ -2899,6 +2899,19 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
         "a command to a name that is no node");
 
     /*
+     *  delete-node: an accepted node is refused first; a node never seen
+     *  is not found
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-keyed"));
+    ret += check_response(gobj, gobj_command(priv->cc, "delete-node", kw, client),
+        -1, "node 'uuid-keyed' is accepted: refuse it first", "delete-node of an accepted node");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-never"));
+    ret += check_response(gobj, gobj_command(priv->cc, "delete-node", kw, client),
+        -1, "node not found: 'uuid-never'", "delete-node of a node never seen");
+
+    /*
      *  Another key, only recording: let in, said
      */
     ch = open_keyed_session(gobj, "keyed-2", "uuid-keyed", "keyed", KEY_B);
@@ -2956,6 +2969,15 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     json_object_set_new(kw, "cmd2agent", json_string("list-yunos"));
     ret += check_response(gobj, gobj_command(priv->cc, "command-agent", kw, client),
         -1, "node 'keyed' (uuid-keyed) is refused", "a command to a refused node");
+
+    /*
+     *  delete-node: not while its agent is connected (uuid-old, pending,
+     *  in session)
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-old"));
+    ret += check_response(gobj, gobj_command(priv->cc, "delete-node", kw, client),
+        -1, "node 'uuid-old' has its agent connected", "delete-node of a node in session");
 
     /*
      *  No key to accept; and a user without manage-nodes
@@ -3162,6 +3184,33 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     gobj_write_bool_attr(priv->cc, "enforce_node_keys", FALSE);
     close_session(good);
     close_session(old);
+
+    /*
+     *  delete-node: a pending node away is deleted and listed no more; a
+     *  uuid that only knocked is forgotten from the table
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-old"));
+    ret += check_response(gobj, gobj_command(priv->cc, "delete-node", kw, client),
+        0, "node 'uuid-old' ('old', pending) deleted", "delete-node of a pending node away");
+    {
+        json_t *gone = node_record(gobj, client, "uuid-old");
+        if(gone) {
+            ret += fail(gobj, "delete-node leaves the node listed", "");
+        }
+        JSON_DECREF(gone)
+    }
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-k3"));
+    ret += check_response(gobj, gobj_command(priv->cc, "delete-node", kw, client),
+        0, "node 'uuid-k3' had no record, only knocked: forgotten", "delete-node of a uuid only knocking");
+    {
+        json_t *gone = node_record(gobj, client, "uuid-k3");
+        if(gone) {
+            ret += fail(gobj, "delete-node leaves a knocking uuid listed", "");
+        }
+        JSON_DECREF(gone)
+    }
     return ret;
 }
 

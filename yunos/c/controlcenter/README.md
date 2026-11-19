@@ -64,6 +64,7 @@ list-nodes state=pending
 list-nodes state=knocking
 list-nodes hostname=^orangepi- version=^7.31.   # uuid, version, hostname, os: regular expressions
 accept-node node_id=<uuid> spki_sha256=<the key read on the node>
+delete-node node_id=<uuid>    # a node refused or pending, not connected: a machine that is gone
 ```
 
 One key is for one node: `accept-node` refuses a key that is accepted for

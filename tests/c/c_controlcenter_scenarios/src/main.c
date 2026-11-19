@@ -306,6 +306,7 @@ PRIVATE const char *expected_msgs[] = {
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k1
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k2
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k3
+    "Node deleted",                                                                 // 22: delete-node of uuid-old, pending
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en1, closed
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en4, its first key (the second is not said)
     "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
