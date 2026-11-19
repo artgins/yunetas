@@ -137,6 +137,63 @@ iterator of `C_TRANGER` (`rkey`) and the mark that only the process that
 deleted a key sees. See [the key](#philosophy-the-key) on the Inspiration
 page.
 
+## Under the information layer: timeranger2
+
+A treedb holds its graph in memory, and it persists every change in
+[timeranger2](#tranger2_startup). timeranger2 knows nothing about graphs. It is
+an append-only log of JSON records, and the information layer stands on it.
+Four properties of the log explain what you see higher up.
+
+**Append-only.** A record is never edited. An update of a treedb node appends
+a new record of that node, and the record before it stays in the file. This is
+why `g_rowid` only grows, and why a snap can return a topic to an earlier
+state.
+
+**By topic, then by key.** A topic is a directory. Each key (the primary key of
+a record) has its own directory under it. This is the "every key has its own
+directory" of the section above: the key is the unit a store grows by.
+
+**Cut into files by time.** The records of a key go into files named by
+`filename_mask`, a `strftime()` format applied to the time `t` at which the
+record was saved. The default is `%Y-%m-%d`, one file per day. A small store
+takes a coarser mask. Retention deletes the old files of a key, whole.
+
+**Two times.** `t` says when the record was saved. `tm` says when the event it
+carries happened, and the producer writes it. The files are cut by `t` only.
+
+The layout on disk, with the default mask:
+
+```
+<database>/
+  <topic>/
+    topic_desc.json
+    keys/
+      <key>/
+        2026-11-18.json     ← the records, appended
+        2026-11-18.md2      ← 32 bytes per record: t, tm, offset, size
+        2026-11-19.json
+        2026-11-19.md2
+```
+
+The agent opens its treedb with a coarser mask, because its store changes
+rarely (`yunos/c/yuno_agent/src/agent_treedb.c`):
+
+```c
+json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
+    "filename_mask", "%Y",          // one file per year
+    "exit_on_error", 0,
+    "treedb_name", treedb_name,
+    "treedb_schema", jn_treedb_schema_yuneta_agent,
+    "impose_c_schema", 1
+);
+```
+
+treedb is not the only store on the log. msg2db (one value per key) and its
+queue (used by the MQTT broker) are built on it too, and a yuno that wants raw
+time series uses it directly through [`C_TRANGER`](#gclass-c-tranger). The full
+API and its traps are in the
+[timeranger2 + treedb crash course](../../../yunos/c/yuno_agent/YUNO_TREEDB.md).
+
 ## The dynamic layer: services and roles
 
 Everything above this section is compiled. A gclass registers at start-up. The
@@ -191,6 +248,53 @@ Do not work around the static configuration.
 
 A layer you can change only at start-up is a build step with a different file
 format. It gives the end user nothing.
+
+## Infrastructure: the three layers, run by the operator
+
+Versioning binaries and configurations, deploying them, and managing a network
+of nodes is not a fourth layer. It is an application built with the three
+layers, and its user is the operator.
+
+- **The agent is a yuno.** Its main service is `C_AGENT`, a gclass on gobj-c
+  like any other. Every node runs two agents, `yuneta_agent` and
+  `yuneta_agent22`, so that each one can upgrade the other.
+- **Its state is a treedb**, `treedb_yuneta_agent`. Its topics are `realms`,
+  `yunos`, `binaries`, `configurations` and `public_services`. A yuno node
+  links to the binary and the configuration it runs.
+- **A version is a node.** In `binaries` and `configurations` the version is a
+  secondary key (`pkey2`), and in `yunos` the release is. A new version is a
+  new node beside the old one. The old node stays, and so does its binary
+  file. Versioning needs no store of its own: it is rows of the graph.
+- **A rollback point is a snap.** `shoot-snap` tags the current state of the
+  graph. `activate-snap` returns every topic to that tag, and restarts the
+  yunos whose launch changed. This works because the log under the graph is
+  append-only (see the timeranger2 section above).
+- **The fleet is messages.** The agent of each node opens a connection to the
+  control center (`controlcenter`, a yuno too), and an administrator commands
+  any node through it. The `yunetas` CLI sends the same commands from a
+  workstation (`sync-binaries`, `sync-configs`, `upgrade-yunos`).
+
+A version upgrade on one node, and its rollback:
+
+```bash
+ycommand -c 'install-binary id=<role> content64=$$(<role>)'  # a new binaries node; the old one stays
+ycommand -c 'shoot-snap name=pre-upgrade'                    # a tag in the graph: the rollback point
+ycommand -c 'find-new-yunos create=1'                        # a new yunos node at the new release
+ycommand -c 'deactivate-snap'                                # reload: the highest release runs
+
+ycommand -c 'activate-snap name=pre-upgrade'                 # if it misbehaves: the graph as it was
+```
+
+The same agent, on a node of the fleet, through the control center (`<cc>` is
+the id of the controlcenter yuno):
+
+```bash
+ycommand -w 10 -c 'command-yuno id=<cc> service=controlcenter command=command-agent agent_id=<host> cmd2agent="list-yunos"'
+```
+
+To leave a snap after a rollback, follow [the rollback
+recipe](#yuno-lifecycle-rollback): a plain `deactivate-snap` runs the highest
+release again. The step-by-step guide is [Deploying yunos](../deploying-yunos.md).
 
 ## The three layers
 

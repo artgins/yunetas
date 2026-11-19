@@ -1223,6 +1223,7 @@ running", grep the agent log for `does NOT move forward` before anything else.
   *"primary binary not found"* once `deactivate-snap` promotes it.
   Always do step 2 first.
 
+(yuno-lifecycle-rollback)=
 ### 6.6 Rollback after an upgrade
 
 The OLD `pkey2` row stays in `yunos`, and the OLD binary stays in

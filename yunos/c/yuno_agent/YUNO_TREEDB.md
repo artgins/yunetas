@@ -64,7 +64,9 @@ Two distinct things:
 If you want raw time-series, you go straight to timeranger2. If you want
 a graph of typed nodes, you use treedb. The agent uses treedb for
 everything: realms, yunos, binaries, configurations, users and roles. The
-`logcenter` yuno uses raw timeranger2 to write records.
+`webstats` yuno uses raw timeranger2, through `C_TRANGER`, to keep one record
+of its report for each day. The `logcenter` yuno does not use timeranger2: it
+writes rotatory log files.
 
 ---
 
