@@ -186,6 +186,18 @@ else
 fi
 
 #----------------------------------------#
+#   Common: plain-English check of the docs
+#----------------------------------------#
+echo "📦 Installing myst-plain-lint (docs linter) via pipx..."
+if command -v pipx >/dev/null 2>&1; then
+    pipx install git+https://github.com/artgins/myst-plain-english \
+        || pipx upgrade myst-plain-english || true
+else
+    echo "⚠️  pipx not on PATH; install myst-plain-lint manually:" >&2
+    echo "    pipx install git+https://github.com/artgins/myst-plain-english" >&2
+fi
+
+#----------------------------------------#
 #   RHEL: warn if io_uring is disabled
 #----------------------------------------#
 #   Yuneta's event loop (yev_loop) is io_uring-based. RHEL/Rocky/Alma 9

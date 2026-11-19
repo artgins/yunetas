@@ -5,16 +5,16 @@ This: Directory of documentations.
 
 The documentation is built with [sphinx],  [sphinx-book-theme] and [MyST Markdown]
 
-It has been tested in Kubuntu 23.04.
+It was tested in Kubuntu 23.04.
 
-- You should be relatively familiar with:
+- You must know these tools:
     ``` json
     [
         "linux", "python", 
     ]
     ```
 
-For any python package use, it's highly recommended to use a dedicated virtual environment,
+For any python package, use a dedicated virtual environment,
 for example [venv] or [conda]. 
 Next some short instructions to install one or more of mentioned tools.
 
@@ -122,7 +122,7 @@ Python 3.13, conda env `conda_myst`):
 Notes:
 - `myst-parser` 5.x declares `sphinx>=8,<10`, so it supports Sphinx 9 but will
   need an upgrade before moving to Sphinx 10.
-- `sphinx-book-theme` 1.2.0 is in maintenance mode (bug-fixes only); it has no
+- `sphinx-book-theme` 1.2.0 is in maintenance mode (bug-fixes only). It has no
   upper Sphinx bound and works fine with Sphinx 9.
 - `make html` currently produces 8 pre-existing content warnings (broken
   toctree refs / orphan documents) unrelated to the Sphinx version.
@@ -150,7 +150,7 @@ Compile the documentation
     cd doc.yuneta.io
     make html
     ```
-- The output, i.e., the static web application, 
+- The output, that is, the static web application, 
     will be installed in `_build` directory. 
     From here deploy where you want.
 

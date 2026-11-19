@@ -40,7 +40,27 @@ real build, and it does more than mystmd does:
 
 The site is a PWA: installable, and it reads offline what the reader
 already opened. See [`pwa/README.md`](pwa/README.md), which also covers
-its nginx side and how to test the offline behaviour.
+its nginx side and how to test the offline behavior.
+
+## Plain English check
+
+The pages follow the structural rules of ASD-STE100 Simplified Technical
+English. `myst-plain-lint`
+([artgins/myst-plain-english](https://github.com/artgins/myst-plain-english))
+reports the violations that a program can find: contractions, semicolons,
+banned modals, British spelling, perfect tenses, phrasal verbs and filler.
+It reads table cells and the text of admonitions, and it skips code,
+quoted text, labels and roles. Run it on each page that you change:
+
+```bash
+pipx install git+https://github.com/artgins/myst-plain-english   # once
+myst-plain-lint docs/doc.yuneta.io/installation.md
+myst-plain-lint --summary $(git ls-files 'docs/doc.yuneta.io/*.md')
+```
+
+The exit code is 1 when it reports anything. A clean run is not
+compliance: read the prose. Do not rename a heading to fix a hit, because
+other pages link to its anchor.
 
 ## API coverage verifier
 

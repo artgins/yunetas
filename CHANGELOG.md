@@ -4,30 +4,27 @@
 
 ### Changed
 
-- **`scripts/check_ste.py` reads list continuations and wrapped code
-  spans.** A line indented 4 spaces or more was skipped as an indented code
-  block, so the prose that continues a list item was never read (one batch of
-  READMEs had about 76 such lines with semicolons and modals). Now a line is
-  code only as CommonMark makes it: after a blank line, 4 columns past the
-  content of the list around it. An inline code span that wraps to the next
-  line stays code on that line too, and "May" next to a number (`May 1`,
-  `22-May-2025`) is the month, not the modal. A double quote is
-  classified by its neighbors (an opening mark inside an open quote does not
-  close it, a closing mark outside one is ignored), so a quote whose closing
-  mark sits inside a code span no longer hides the rest of the paragraph.
-  Double-backtick code spans are code, and a table row or a fence ends any open
-  quote or code span. Over every `.md` of the repo
-  the count moves from 6318 to 7183: the new hits are almost all in
-  `CHANGELOG.md`, and `docs/` goes from 2590 to 2542.
+- **The plain-English check of the docs is `myst-plain-lint`**
+  ([artgins/myst-plain-english](https://github.com/artgins/myst-plain-english)),
+  and `scripts/check_ste.py` is removed. `myst-plain-lint` grew out of it,
+  and adds what MyST needs: it reads the text of admonitions and of the other
+  prose directives, and skips code blocks, other directives, labels, roles,
+  `%` comments, math and the front matter. It finds an indented code block
+  as CommonMark does (a list continuation indented 4 spaces is prose), keeps
+  a wrapped or double-backtick code span as code, classifies each double
+  quote from its neighbors (a closing mark inside a code span no longer hides
+  the rest of the paragraph), and does not take the month "May" for the
+  modal. `install-dependencies.sh` installs it with pipx. Run
+  `myst-plain-lint <page>.md` on each page that you change.
 - **Every README of the repo in plain English** (the ESP32 ones excepted):
   the entry READMEs with the commands first and the explanation below, the
   ones of tests, performance and stress with a sentence-level pass. Ten
   stale facts found on the way were corrected against the code (see the
   commits).
 - **The docs (doc.yuneta.io and the agent chapters) in plain English**, a
-  sentence-level pass: `check_ste.py` goes from about 2900 hits to 16 on
-  them, the 16 in headings, in link texts that quote a heading, or in
-  quoted text. Headings, labels and links are unchanged. Six paragraphs of
+  sentence-level pass: the linter goes from about 2900 hits to 14 on
+  them, the 14 in headings, in link texts that quote a heading, or in
+  a normative "MAY" of RFC 6749. Headings, labels and links are unchanged. Six paragraphs of
   the persistent-attrs section of the SDATA guide were indented as a code
   block and showed as code on the site; they are prose again.
 

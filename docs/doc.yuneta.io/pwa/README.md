@@ -15,9 +15,9 @@ Pages are cached as they are read.
 - It installs this directory into the site as `/pwa/`. mystmd copies no raw
   files, and the deploy rsync deletes what it does not carry.
 - It stamps the deploy version into `sw.js`, which names its caches after it
-  and deletes every cache that does not carry it. A byte-identical `sw.js`
-  would be taken by the browser as unchanged, and no reader with the old build
-  would ever see the new one.
+  and deletes every cache that does not carry it. Otherwise the browser takes a
+  byte-identical `sw.js` as unchanged, and no reader with the old build ever
+  sees the new one.
 - It injects `<link rel="manifest">`, `<link rel="apple-touch-icon">` and
   `<script src="/pwa/register-sw.js">` into the `<head>` of each built page.
   The book-theme has no hook to add tags to the head.
@@ -53,8 +53,8 @@ Three reasons for those locations:
    answers for the whole site has to answer at `/sw.js`. Both are served
    `no-cache`: a cached service worker is the one mistake with no remote cure.
 3. `yuneta.io`, `yuneta.com`, `yuneta.es` and `yunetas.com` share this docroot,
-   but `/` on those domains is the landing page, not the documentation. A
-   manifest at the root of the docroot would make all five domains offer to
+   but `/` on those domains is the landing page, not the documentation. If the
+   manifest was at the root of the docroot, all five domains offered to
    install a different application under the same name. On those four both URLs
    answer 404, and `register-sw.js` registers nothing anyway.
 
@@ -65,7 +65,7 @@ Three reasons for those locations:
 | Cache | Holds | Rule |
 |---|---|---|
 | `assets` | `/build/**` | Cache first. Every name carries a content hash, so a cached copy is never the wrong one. |
-| `pages` | the documents and their data urls | Network first. A redeployed page must not read stale; the cache answers when the network fails. |
+| `pages` | the documents and their data urls | Network first. A redeployed page must not read stale. The cache answers when the network fails. |
 
 A page arrives under two URLs: `/<slug>` on a cold load, and
 `/<slug>?_data=<route>` when the reader clicks a link and the theme routes on
@@ -74,7 +74,7 @@ the client. This host is static nginx, which ignores the query and answers the
 entry then serves both: a page read by a cold load opens on a click, and a page
 reached by a click survives a reload.
 
-A page that was never read falls back to `offline.html`.
+A page that was never read gets `offline.html`.
 
 ### Testing it
 
