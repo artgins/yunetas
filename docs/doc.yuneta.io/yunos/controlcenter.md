@@ -561,7 +561,9 @@ its **hostname** (see [A node is reached by its uuid](#controlcenter-node-names)
 as `grep -E` reads it) matched against one field of the agent's card:
 `uuid` (`identity_card.id`), `version` (`yuno_version`) and `hostname`. An
 agent is listed when it matches every filter given. A filter that is not a
-regular expression is refused (-1), and the answer says which:
+regular expression is refused (-1), and the answer says which. So is a filter
+with a back-reference (`\1`: a match can take exponential time, and the
+control center runs in one thread) or longer than 256 bytes (7.31.20+):
 
 ```bash
 ycommand -c 'list-agents hostname=^yunovatios-'          # the yunovatios nodes

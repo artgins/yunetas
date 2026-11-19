@@ -4281,6 +4281,28 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
         -1, "hostname='la-(' is no regular expression", "list-agents with a regex that does not compile");
 
     /*
+     *  What could stall the loop is refused: a back-reference (exponential
+     *  in glibc), a pattern too long. An escaped backslash before a digit is
+     *  no back-reference
+     */
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "hostname", json_string("(la)\\1"));
+    ret += check_response(gobj, gobj_command(priv->cc, "list-agents", kw, client),
+        -1, "hostname: a back-reference", "list-agents with a back-reference");
+    char longer[300];
+    memset(longer, 'a', sizeof(longer) - 1);
+    longer[sizeof(longer) - 1] = 0;
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "uuid", json_string(longer));
+    ret += check_response(gobj, gobj_command(priv->cc, "list-nodes", kw, client),
+        -1, "uuid: a regular expression longer than 256 bytes", "list-nodes with a pattern too long");
+    if(count_listed(gobj, client, "list-agents",
+            json_pack("{s:s}", "hostname", "^la-\\\\1"),
+            "list-agents with an escaped backslash before a digit") != 0) {
+        ret += fail(gobj, "an escaped backslash before a digit matches a hostname", "");
+    }
+
+    /*
      *  list-nodes: the same filters, over the records; the version is the
      *  one of the node's agent in session, none while it is away
      */

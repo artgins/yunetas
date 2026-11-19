@@ -208,6 +208,9 @@
 /*  A run id is `<scenario id>.<ms>` and must fit in NAME_MAX.  */
 #define SCENARIO_ID_MAX 200
 
+/*  The longest regular expression of a filter of list-agents/list-nodes  */
+#define NODE_FILTER_PATTERN_MAX 256
+
 /*  The longest max_run of a scenario: a week, in seconds  */
 #define MAX_RUN_LIMIT   (7*24*3600)
 
@@ -340,6 +343,7 @@ PRIVATE json_t *card_host_json(json_t *card);
 PRIVATE const char *card_host(json_t *card);
 PRIVATE void node_state(hgobj gobj, const char *node_id, char *state, size_t statesz);
 PRIVATE json_t *say_why_no_agent(hgobj gobj, const char *agent_id);
+PRIVATE const char *why_pattern_refused(const char *pattern);
 PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filters[NODE_FILTERS]);
 PRIVATE BOOL node_filters_match(
     node_filter_t filters[NODE_FILTERS],
@@ -4755,6 +4759,33 @@ PRIVATE json_t *say_why_no_agent(hgobj gobj, const char *agent_id)
 }
 
 /***************************************************************************
+ *  A pattern a filter may run: NULL, or why not. glibc's ERE takes
+ *  back-references (`\1`), which make a match exponential, and the control
+ *  center is one thread: a pattern with one, or a pattern longer than
+ *  NODE_FILTER_PATTERN_MAX, is refused. Without back-references glibc
+ *  matches in polynomial time. A `\` followed by a digit is refused even
+ *  inside brackets, where it is no back-reference: one rule to read.
+ ***************************************************************************/
+PRIVATE const char *why_pattern_refused(const char *pattern)
+{
+    if(strnlen(pattern, NODE_FILTER_PATTERN_MAX + 1) > NODE_FILTER_PATTERN_MAX) {
+        return "a regular expression longer than 256 bytes is refused";
+    }
+    for(const char *p = pattern; *p; p++) {
+        if(*p != '\\') {
+            continue;
+        }
+        if(isdigit((unsigned char)p[1])) {
+            return "a back-reference (\\ and a digit) is refused";
+        }
+        if(p[1]) {
+            p++;    // an escaped character, whatever it is
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *  Compile the filters of list-agents / list-nodes given in `kw` (`uuid`,
  *  `version`, `hostname`). Return NULL, or the answer that refuses one that
  *  does not compile (nothing left to free then).
@@ -4773,6 +4804,13 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
         const char *pattern = kw_get_str(gobj, kw, params[i], "", 0);
         if(empty_string(pattern)) {
             continue;
+        }
+        const char *refusal = why_pattern_refused(pattern);
+        if(refusal) {
+            free_node_filters(filters);
+            return json_sprintf("%s: %s: %s",
+                gobj_yuno_role_plus_name(), params[i], refusal
+            );
         }
         int rc = regcomp(&filters[i].re, pattern, REG_EXTENDED|REG_NOSUB);
         if(rc != 0) {

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v7.31.20 (2026-11-19)
+
+Lite release: only the control center (`controlcenter`).
+
+### Security
+
+- **The filters of `list-agents` and `list-nodes` refuse what could stall the
+  control center** (found by the automated security review of 7.31.19).
+  glibc's POSIX extended regular expressions take back-references (`\1`),
+  which make a match exponential, and the control center runs in one thread:
+  one operator with `list-agents` could hold every node's link with one
+  pattern. A filter with a back-reference (a `\` followed by a digit), or
+  longer than 256 bytes, is now refused (-1), saying which. An escaped
+  backslash before a digit (`\\1`) is still accepted.
+
 ## v7.31.19 (2026-11-19)
 
 Lite release: only the control center (`controlcenter`).
