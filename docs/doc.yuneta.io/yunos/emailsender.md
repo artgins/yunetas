@@ -72,7 +72,7 @@ does the pacing and the per-command watchdog.
 
 ```{note}
 `only_test`, `add_test` and `test_email` attributes exist but are **not wired**
-to any logic in the current code; setting them has no effect.
+to any logic in the current code. Setting them has no effect.
 ```
 
 ## Commands

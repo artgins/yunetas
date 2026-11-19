@@ -1000,7 +1000,7 @@ pipx install kconfiglib
 | `zlib1g-dev`                     | `zlib-devel`                            |
 | `libssl-dev`                     | `openssl-devel`                         |
 | `postgresql-server-dev-all` / `libpq-dev` | `libpq-devel`                  |
-| `kconfig-frontends`              | *(none; use `pipx install kconfiglib`)* |
+| `kconfig-frontends`              | *(none, use `pipx install kconfiglib`)* |
 | `build-essential`                | `gcc gcc-c++ make` *(or "Development Tools" group)* |
 | `pkg-config`                     | `pkgconf-pkg-config`                    |
 | `linux-libc-dev`                 | `glibc-devel kernel-headers`            |
