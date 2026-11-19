@@ -62,7 +62,7 @@ the keys are only recorded, so the running nodes can be accepted first.
 ```text
 list-nodes state=pending
 list-nodes state=knocking
-list-nodes hostname=^orangepi- version=^7.31.   # uuid, version, hostname: regular expressions
+list-nodes hostname=^orangepi- version=^7.31.   # uuid, version, hostname, os: regular expressions
 accept-node node_id=<uuid> spki_sha256=<the key read on the node>
 ```
 
@@ -136,7 +136,7 @@ Registered in the `command_table` of `src/c_controlcenter.c`:
 | `help`           | List commands.                                                                |
 | `authzs`         | Authz help for this service.                                                  |
 | `logout-user`    | Force a user to log out (`username=`, permission `logout-user`). `disabled=1` also disables the user, `disabled=0` enables it; without `disabled` the user stays as it is. |
-| `list-agents`    | List currently connected nodes (UUID, hostname, status). `uuid=`, `version=`, `hostname=`: regular expressions (POSIX extended) the agent must match, all of them (`list-agents hostname=^yunovatios- version=^7.31.`). |
+| `list-agents`    | List currently connected nodes (UUID, hostname, status). `uuid=`, `version=`, `hostname=`, `os=`: regular expressions (POSIX extended) the agent must match, all of them (`list-agents hostname=^yunovatios- version=^7.31.`, `list-agents os=^Rocky`). The hardware of a node: `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
 | `command-agent`  | Forward an arbitrary command to a specific node (`SDF_WILD_CMD`). `agent_id` is a UUID, or a hostname that one node has. |
 | `stats-agent`    | Get stats from a specific node.                                               |
 | `drop-agent`     | Drop every session of a node (`agent_id` as for `command-agent`; empty: every agent). |

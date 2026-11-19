@@ -265,6 +265,7 @@ typedef enum {
     NODE_FILTER_UUID = 0,
     NODE_FILTER_VERSION,
     NODE_FILTER_HOSTNAME,
+    NODE_FILTER_OS,
     NODE_FILTERS
 } node_filter_field_t;
 
@@ -341,6 +342,7 @@ PRIVATE BOOL agent_is_refused(hgobj agent_srv);
 PRIVATE const char *card_str(json_t *card, const char *key);
 PRIVATE json_t *card_host_json(json_t *card);
 PRIVATE const char *card_host(json_t *card);
+PRIVATE const char *card_os(json_t *card);
 PRIVATE void node_state(hgobj gobj, const char *node_id, char *state, size_t statesz);
 PRIVATE json_t *say_why_no_agent(hgobj gobj, const char *agent_id);
 PRIVATE const char *why_pattern_refused(const char *pattern);
@@ -349,7 +351,8 @@ PRIVATE BOOL node_filters_match(
     node_filter_t filters[NODE_FILTERS],
     const char *uuid,
     const char *version,
-    const char *hostname
+    const char *hostname,
+    const char *os
 );
 PRIVATE void free_node_filters(node_filter_t filters[NODE_FILTERS]);
 PRIVATE BOOL same_address(const char *a, const char *b);
@@ -516,6 +519,7 @@ SDATAPM (DTP_INTEGER,   "expand",        0,              0,          "Expand det
 SDATAPM (DTP_STRING,    "uuid",          0,              0,          "Only the agents whose node uuid matches this regular expression (POSIX extended)"),
 SDATAPM (DTP_STRING,    "version",       0,              0,          "Only the agents whose version matches this regular expression (POSIX extended)"),
 SDATAPM (DTP_STRING,    "hostname",      0,              0,          "Only the agents whose hostname matches this regular expression (POSIX extended)"),
+SDATAPM (DTP_STRING,    "os",            0,              0,          "Only the agents whose os (its pretty name) matches this regular expression (POSIX extended)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_command_agent[] = {
@@ -543,6 +547,7 @@ SDATAPM (DTP_STRING,    "state",        0,              0,          "Only the no
 SDATAPM (DTP_STRING,    "uuid",         0,              0,          "Only the nodes whose uuid matches this regular expression (POSIX extended)"),
 SDATAPM (DTP_STRING,    "version",      0,              0,          "Only the nodes whose agent in session has a version that matches this regular expression (POSIX extended); a node away has none"),
 SDATAPM (DTP_STRING,    "hostname",     0,              0,          "Only the nodes whose hostname matches this regular expression (POSIX extended)"),
+SDATAPM (DTP_STRING,    "os",           0,              0,          "Only the nodes whose agent in session has an os (its pretty name) that matches this regular expression (POSIX extended); a node away has none"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_accept_node[] = {
@@ -616,7 +621,7 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
 SDATACM (DTP_SCHEMA,    "logout-user",      0,                  pm_logout_user, cmd_logout_user,"Logout user"),
-SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version or hostname match the regular expressions given"),
+SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given"),
 
 SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              pm_command_agent,cmd_command_agent,"Command to agent (agent id = UUID or HOSTNAME)"),
 
@@ -624,7 +629,7 @@ SDATACM2 (DTP_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,              
 
 SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              pm_drop_agent,cmd_drop_agent,"Drop connection to agent (agent id = UUID or HOSTNAME)"),
 
-SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused; filtered by state, and by uuid, version or hostname (regular expressions)"),
+SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused; filtered by state, and by uuid, version, hostname or os (regular expressions)"),
 SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key given (spki_sha256, read on the node), or to the one it presented that starts as compared (presented=<start>)"),
 SDATACM2 (DTP_SCHEMA,   "refuse-node",      0,                  0,              pm_refuse_node, cmd_refuse_node,"Refuse a node: its agent is dropped, and refused while enforce_node_keys"),
 SDATACM2 (DTP_SCHEMA,   "open-enrollment",  0,                  0,              pm_open_enrollment,cmd_open_enrollment,"For some minutes, accept by itself the key that the agent of a node with no key accepted presents (a migration, a batch of new boxes); in memory only"),
@@ -1541,7 +1546,7 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         json_t *card = gobj_read_json_attr(child, "identity_card");
         if(!node_filters_match(filters,
-                card_str(card, "id"), card_str(card, "yuno_version"), card_host(card))) {
+                card_str(card, "id"), card_str(card, "yuno_version"), card_host(card), card_os(card))) {
             continue;
         }
         json_t *jn_attrs = json_deep_copy(card);
@@ -1550,11 +1555,12 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_array_append_new(jn_data, jn_attrs);
         } else {
             json_array_append_new(jn_data,
-                json_sprintf("UUID:%s (%s,%s),  HOSTNAME:'%s'",
+                json_sprintf("UUID:%s (%s,%s),  HOSTNAME:'%s',  OS:'%s'",
                     card_str(jn_attrs, "id"),
                     card_str(jn_attrs, "yuno_role"),
                     card_str(jn_attrs, "yuno_version"),
-                    card_host(jn_attrs)
+                    card_host(jn_attrs),
+                    card_os(jn_attrs)
                 )
             );
             json_decref(jn_attrs);
@@ -1995,14 +2001,16 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_array_foreach(jn_nodes, idx, jn_node) {
         const char *uuid = kw_get_str(gobj, jn_node, "id", "", 0);
         hgobj agent = agent_channel_of_uuid(gobj, uuid);
-        const char *version = agent?
-            card_str(gobj_read_json_attr(agent, "identity_card"), "yuno_version") : "";
+        json_t *card = agent? gobj_read_json_attr(agent, "identity_card") : NULL;
+        const char *version = card? card_str(card, "yuno_version") : "";
+        const char *os = card? card_os(card) : "";
         if(!node_filters_match(filters,
-                uuid, version, kw_get_str(gobj, jn_node, "hostname", "", 0))) {
+                uuid, version, kw_get_str(gobj, jn_node, "hostname", "", 0), os)) {
             continue;
         }
         json_object_set_new(jn_node, "connected", json_boolean(agent? TRUE : FALSE));
         json_object_set_new(jn_node, "version", json_string(version));
+        json_object_set_new(jn_node, "os", json_string(os));
         BOOL accepted = strcmp(kw_get_str(gobj, jn_node, "state", "", 0), "accepted")==0;
         json_object_set_new(jn_node, "key", json_string(kw_get_str(gobj, jn_node,
             accepted? "spki_sha256" : "presented_spki", "", 0)));
@@ -2014,7 +2022,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         const char *node_id; json_t *jn_knock;
         json_object_foreach(priv->knocking, node_id, jn_knock) {
             if(!node_filters_match(filters,
-                    node_id, "", kw_get_str(gobj, jn_knock, "hostname", "", 0))) {
+                    node_id, "", kw_get_str(gobj, jn_knock, "hostname", "", 0), "")) {
                 continue;
             }
             json_t *jn = json_deep_copy(jn_knock);
@@ -2025,6 +2033,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_object_set_new(jn, "key", json_string(kw_get_str(gobj, jn_knock, "spki_sha256", "", 0)));
             json_object_set_new(jn, "connected", json_false());
             json_object_set_new(jn, "version", json_string(""));
+            json_object_set_new(jn, "os", json_string(""));
             json_array_append_new(jn_data, jn);
         }
     }
@@ -2050,12 +2059,14 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     json_t *jn_schema = json_pack("[{s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
         " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
-        " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}]",
+        " {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
+        " {s:s, s:s, s:s, s:i}]",
         "id", "id",         "header", "Node",       "type", "string",   "fillspace", 38,
         "id", "hostname",   "header", "Hostname",   "type", "string",   "fillspace", 24,
         "id", "state",      "header", "State",      "type", "string",   "fillspace", 10,
         "id", "connected",  "header", "Connected",  "type", "boolean",  "fillspace", 9,
         "id", "version",    "header", "Version",    "type", "string",   "fillspace", 9,
+        "id", "os",         "header", "OS",         "type", "string",   "fillspace", 30,
         "id", "peername",   "header", "Address",    "type", "string",   "fillspace", 23,
         "id", "last_seen",  "header", "Last Seen",  "type", "time",     "fillspace", 24,
         "id", "key",        "header", "Key",        "type", "string",   "fillspace", 18
@@ -4670,6 +4681,16 @@ PRIVATE const char *card_host(json_t *card)
 }
 
 /***************************************************************************
+ *  The os an agent's card says (7.31.21+: `os` of get_os_info()), as a
+ *  person reads it: its pretty_name; "" for an agent before.
+ ***************************************************************************/
+PRIVATE const char *card_os(json_t *card)
+{
+    json_t *jn = json_object_get(json_object_get(card, "os"), "pretty_name");
+    return json_is_string(jn)? json_string_value(jn) : "";
+}
+
+/***************************************************************************
  *  The state of the `nodes` record of `node_id`: pending, accepted or
  *  refused; "" when it has none.
  ***************************************************************************/
@@ -4787,7 +4808,7 @@ PRIVATE const char *why_pattern_refused(const char *pattern)
 
 /***************************************************************************
  *  Compile the filters of list-agents / list-nodes given in `kw` (`uuid`,
- *  `version`, `hostname`). Return NULL, or the answer that refuses one that
+ *  `version`, `hostname`, `os`). Return NULL, or the answer that refuses one that
  *  does not compile (nothing left to free then).
  ***************************************************************************/
 PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filters[NODE_FILTERS])
@@ -4796,6 +4817,7 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
         [NODE_FILTER_UUID]      = "uuid",
         [NODE_FILTER_VERSION]   = "version",
         [NODE_FILTER_HOSTNAME]  = "hostname",
+        [NODE_FILTER_OS]        = "os",
     };
 
     memset(filters, 0, sizeof(node_filter_t) * NODE_FILTERS);
@@ -4833,13 +4855,15 @@ PRIVATE BOOL node_filters_match(
     node_filter_t filters[NODE_FILTERS],
     const char *uuid,
     const char *version,
-    const char *hostname
+    const char *hostname,
+    const char *os
 )
 {
     const char *fields[NODE_FILTERS] = {
         [NODE_FILTER_UUID]      = uuid,
         [NODE_FILTER_VERSION]   = version,
         [NODE_FILTER_HOSTNAME]  = hostname,
+        [NODE_FILTER_OS]        = os,
     };
     for(int i=0; i<NODE_FILTERS; i++) {
         if(filters[i].compiled && regexec(&filters[i].re, fields[i], 0, NULL, 0) != 0) {

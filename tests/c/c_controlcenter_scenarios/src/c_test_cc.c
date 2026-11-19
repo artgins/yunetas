@@ -3038,7 +3038,7 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
         json_t *response = gobj_command(priv->cc, "list-nodes", client_kw(gobj_name(client)), client);
         json_t *schema = kw_get_list(gobj, response, "schema", 0, 0);
         json_t *col0 = json_array_get(schema, 0);
-        if(json_array_size(schema) != 8 ||
+        if(json_array_size(schema) != 9 ||
                 strcmp(kw_get_str(gobj, col0, "id", "", 0), "id")!=0 ||
                 kw_get_int(gobj, col0, "fillspace", 0, 0) < 38) {
             ret += fail(gobj, "list-nodes answers with the schema of its table view", "");
@@ -4242,8 +4242,9 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
     int ret = 0;
 
     hgobj a = open_session_card(gobj, "la-alpha",
-        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+        json_pack("{s:s, s:s, s:{s:s}, s:{s:[{s:s}]}}",
             "id", "uuid-la-1", "yuno_version", "7.31.19",
+            "os", "pretty_name", "Debian GNU/Linux 13 (trixie)",
             "__md_iev__", "ievent_gate_stack", "host", "la-alpha"
         ), NULL, NULL);
     hgobj b = open_session_card(gobj, "la-beta",
@@ -4265,6 +4266,8 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
             "list-agents with filters no agent matches all of"},
         {json_pack("{s:s, s:i}", "hostname", "^la-(alpha|beta)$", "expand", 1), 2,
             "list-agents expanded, by an alternation"},
+        {json_pack("{s:s, s:s}", "hostname", "^la-", "os", "^Debian .* 13 "), 1,
+            "list-agents by the os of the card"},
     };
     for(size_t i=0; i<ARRAY_SIZE(cases); i++) {
         int n = count_listed(gobj, client, "list-agents", cases[i].filters, cases[i].what);
@@ -4317,6 +4320,8 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
         {json_pack("{s:s}", "uuid", "^uuid-la-[12]$"), 2, "list-nodes by a uuid regex"},
         {json_pack("{s:s, s:s}", "uuid", "la-1$", "hostname", "beta"), 0,
             "list-nodes with filters no node matches all of"},
+        {json_pack("{s:s, s:s}", "hostname", "^la-", "os", "trixie"), 1,
+            "list-nodes by the os of the agent in session"},
     };
     for(size_t i=0; i<ARRAY_SIZE(node_cases); i++) {
         int n = count_listed(gobj, client, "list-nodes", node_cases[i].filters, node_cases[i].what);

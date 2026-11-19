@@ -34,6 +34,7 @@
 #elif __linux__
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <sys/random.h> // For getrandom()
 #include <sys/un.h>
@@ -10475,6 +10476,96 @@ PUBLIC const char *get_hostname(void)
 #endif
     }
     return hostname;
+}
+
+#ifdef __linux__
+/***************************************************************************
+ *  One value of os-release(5): a shell-like assignment, the value maybe
+ *  between quotes, with \\ before ", \\, $ and ` inside them.
+ ***************************************************************************/
+PRIVATE void os_release_value(char *value)
+{
+    size_t len = strlen(value);
+    while(len > 0 && (value[len-1] == '\n' || value[len-1] == '\r')) {
+        value[--len] = 0;
+    }
+    char quote = 0;
+    if(len >= 2 && (value[0] == '"' || value[0] == '\'') && value[len-1] == value[0]) {
+        quote = value[0];
+        value[len-1] = 0;
+        memmove(value, value + 1, len - 1);
+    }
+    char *w = value;
+    for(char *r = value; *r; r++) {
+        if(quote == '"' && *r == '\\' && r[1]) {
+            r++;
+        }
+        *w++ = *r;
+    }
+    *w = 0;
+}
+#endif
+
+/***************************************************************************
+ *  The operating system of this machine
+ ***************************************************************************/
+PUBLIC json_t *get_os_info(void)
+{
+    json_t *jn_os = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+        "id", "",
+        "name", "",
+        "version_id", "",
+        "pretty_name", "",
+        "kernel", "",
+        "machine", ""
+    );
+
+#ifdef __linux__
+    FILE *file = fopen("/etc/os-release", "r");
+    if(!file) {
+        file = fopen("/usr/lib/os-release", "r");
+    }
+    if(file) {
+        char line[PATH_MAX];
+        while(fgets(line, sizeof(line), file)) {
+            char *eq = strchr(line, '=');
+            if(!eq || line[0] == '#') {
+                continue;
+            }
+            *eq = 0;
+            const char *key = NULL;
+            if(strcmp(line, "ID")==0) {
+                key = "id";
+            } else if(strcmp(line, "NAME")==0) {
+                key = "name";
+            } else if(strcmp(line, "VERSION_ID")==0) {
+                key = "version_id";
+            } else if(strcmp(line, "PRETTY_NAME")==0) {
+                key = "pretty_name";
+            }
+            if(!key) {
+                continue;
+            }
+            os_release_value(eq + 1);
+            json_object_set_new(jn_os, key, json_string(eq + 1));
+        }
+        fclose(file);
+    }
+
+    struct utsname buf;
+    if(uname(&buf) == 0) {
+        json_object_set_new(jn_os, "kernel", json_string(buf.release));
+        json_object_set_new(jn_os, "machine", json_string(buf.machine));
+    }
+#elif defined(ESP_PLATFORM)
+    json_object_set_new(jn_os, "id", json_string("esp-idf"));
+    json_object_set_new(jn_os, "name", json_string("ESP-IDF"));
+    json_object_set_new(jn_os, "version_id", json_string(esp_get_idf_version()));
+    json_object_set_new(jn_os, "pretty_name", json_sprintf("ESP-IDF %s", esp_get_idf_version()));
+    json_object_set_new(jn_os, "machine", json_string("esp32"));
+#endif
+
+    return jn_os;
 }
 
 /***************************************************************************

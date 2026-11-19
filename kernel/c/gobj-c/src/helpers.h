@@ -1354,6 +1354,13 @@ PUBLIC int count_char(const char *s, char c);
 
 PUBLIC const char *get_hostname(void);
 
+/*
+ *  The operating system of this machine, a new json object (yours):
+ *  {"id", "name", "version_id", "pretty_name"} of os-release(5), and
+ *  {"kernel", "machine"} of uname(2); "" for what the machine does not say
+ */
+PUBLIC json_t *get_os_info(void);
+
 // Create a new random uuid, bfsize must be >=37 bytes (used by treedb)
 PUBLIC int create_random_uuid(char *bf, int bfsize);
 

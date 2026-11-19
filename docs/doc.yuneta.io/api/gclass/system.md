@@ -109,7 +109,8 @@ Test: `tests/c/c_yuno_publish_stats`.
 | `view-config` | Show yuno configuration. |
 | `info-mem` | Memory usage info. |
 | `publish-stats` | Send the stats of a service to the requester every period, see [above](#c_yuno_publish_stats). |
-| `info-cpus` / `info-ifs` / `info-os` | System information. |
+| `info-cpus` / `info-ifs` / `info-os` | System information. `info-ifs` gives each interface its `mac`, and `up` / `running` / `loopback` (7.31.21+); `info-os` adds `os`, the distribution ([`get_os_info()`](<#get_os_info>)). |
+| `info-machine` | The machine at once (7.31.21+): `os`, `cpu` (`model`, `logical_cpus`), `memory` (`total`, `available`, `swap_total`, `swap_free`), `disks` (each block device at the first place it is mounted: `device`, `mountpoint`, `fstype`, `size`, `used`, `available`, `use_percent`; squashfs left out), `ifs` (as `info-ifs`) and `uptime` (`seconds`, `boot_date`). Sizes in bytes. A part that cannot be read is null, and logged. Of a node, through its control center: `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
 | `info-uptime` | Uptime and boot date of the machine, and uptime and start date of this yuno. |
 | `info-inotify` | inotify limits (`/proc/sys/fs/inotify/*`) plus this yuno's own usage (instances + watches). |
 | `list-allowed-ips` / `add-allowed-ip` | IP access control. |

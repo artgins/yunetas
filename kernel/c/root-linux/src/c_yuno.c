@@ -30,6 +30,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+#include <netpacket/packet.h>
+#include <mntent.h>
 #include <fcntl.h>
 
 #include <sched.h>
@@ -76,6 +78,9 @@ PRIVATE void boost_process_performance(hgobj gobj, int priority, int cpu_core);
 PRIVATE json_t *get_process_memory_info(void);
 PRIVATE json_int_t yuno_uptime(hgobj gobj);
 PRIVATE json_t *get_machine_memory_info(void);
+PRIVATE json_t *get_network_interfaces(hgobj gobj);
+PRIVATE json_t *get_mounted_disks(hgobj gobj);
+PRIVATE json_int_t meminfo_bytes(json_t *jn_meminfo, const char *key);
 
 /*
  *  The write half of the allowed/denied ip lists. PRIVATE on purpose: the
@@ -177,6 +182,7 @@ PRIVATE json_t* cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, h
 PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_uptime(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_inotify(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_list_allowed_ips(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
@@ -408,7 +414,8 @@ SDATACM (DTP_SCHEMA,    "print-role",               0,      0,          cmd_prin
 SDATACM2(DTP_SCHEMA,    "shutdown",                 SDF_AUTHZ_X, 0,      0,          cmd_shutdown,               "Shutdown this yuno, orderly. It exits with code 0, so the ydaemon watcher does NOT relaunch it"),
 SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,          cmd_info_cpus,              "Info of cpus"),
 SDATACM2(DTP_SCHEMA,    "info-ifs",                 SDF_AUTHZ_X, 0,      0,          cmd_info_ifs,               "Info of ifs"),
-SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os"),
+SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os: uname, and the distribution (os-release)"),
+SDATACM2(DTP_SCHEMA,    "info-machine",             SDF_AUTHZ_X, 0,      0,          cmd_info_machine,           "The machine at once: os, cpu, memory, disks, network interfaces, uptime"),
 SDATACM2(DTP_SCHEMA,    "info-uptime",              SDF_AUTHZ_X, 0,      0,          cmd_info_uptime,            "Uptime and boot date of the machine, and of this yuno"),
 SDATACM2(DTP_SCHEMA,    "info-inotify",             SDF_AUTHZ_X, 0,      0,          cmd_info_inotify,           "Info of inotify limits and this yuno's usage"),
 SDATACM2(DTP_SCHEMA,    "info-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_info_mem,               "Info yuno memory and system"),
@@ -4142,95 +4149,12 @@ PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    struct ifaddrs *ifaddr, *ifa;
-    json_t *jn_list = json_array();
-
-    if(getifaddrs(&ifaddr) == -1) {
-        return jn_list;
-    }
-
-    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-        if(!ifa->ifa_name) {
-            continue;
-        }
-
-        // Search for existing interface object
-        json_t *jn_iface = NULL;
-        size_t index;
-        json_t *value;
-        json_array_foreach(jn_list, index, value) {
-            const char *name = json_string_value(json_object_get(value, "name"));
-            if(name && strcmp(name, ifa->ifa_name) == 0) {
-                jn_iface = value;
-                break;
-            }
-        }
-
-        // Create new interface object if not found
-        if(!jn_iface) {
-            jn_iface = json_object();
-            json_object_set_new(jn_iface, "name", json_string(ifa->ifa_name));
-            json_object_set_new(jn_iface, "flags", json_integer(ifa->ifa_flags));
-            json_object_set_new(jn_iface, "addresses", json_array());
-            json_array_append_new(jn_list, jn_iface);
-        }
-
-        // Skip if no address
-        if(!ifa->ifa_addr) {
-            continue;
-        }
-
-        char addr_buf[INET6_ADDRSTRLEN] = {0};
-        char netmask_buf[INET6_ADDRSTRLEN] = {0};
-        char broadcast_buf[INET6_ADDRSTRLEN] = {0};
-        const char *family = NULL;
-
-        if(ifa->ifa_addr->sa_family == AF_INET) {
-            struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
-            inet_ntop(AF_INET, &(sa->sin_addr), addr_buf, sizeof(addr_buf));
-            family = "AF_INET";
-
-            if(ifa->ifa_netmask) {
-                struct sockaddr_in *nm = (struct sockaddr_in *)ifa->ifa_netmask;
-                inet_ntop(AF_INET, &(nm->sin_addr), netmask_buf, sizeof(netmask_buf));
-            }
-            if(ifa->ifa_broadaddr && (ifa->ifa_flags & IFF_BROADCAST)) {
-                struct sockaddr_in *ba = (struct sockaddr_in *)ifa->ifa_broadaddr;
-                inet_ntop(AF_INET, &(ba->sin_addr), broadcast_buf, sizeof(broadcast_buf));
-            }
-        } else if(ifa->ifa_addr->sa_family == AF_INET6) {
-            struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)ifa->ifa_addr;
-            inet_ntop(AF_INET6, &(sa6->sin6_addr), addr_buf, sizeof(addr_buf));
-            family = "AF_INET6";
-
-            if(ifa->ifa_netmask) {
-                struct sockaddr_in6 *nm6 = (struct sockaddr_in6 *)ifa->ifa_netmask;
-                inet_ntop(AF_INET6, &(nm6->sin6_addr), netmask_buf, sizeof(netmask_buf));
-            }
-        } else {
-            continue; // skip other families
-        }
-
-        // Add address info
-        json_t *jn_addr = json_object();
-        json_object_set_new(jn_addr, "family", json_string(family));
-        json_object_set_new(jn_addr, "address", json_string(addr_buf));
-        if(netmask_buf[0]) {
-            json_object_set_new(jn_addr, "netmask", json_string(netmask_buf));
-        }
-        if(broadcast_buf[0]) {
-            json_object_set_new(jn_addr, "broadcast", json_string(broadcast_buf));
-        }
-
-        json_array_append_new(json_object_get(jn_iface, "addresses"), jn_addr);
-    }
-
-    freeifaddrs(ifaddr);
-
+    json_t *jn_list = get_network_interfaces(gobj);
     json_t *kw_response = build_command_response(
         gobj,
-        0,
-        0,
+        jn_list? 0 : -1,
+        jn_list? 0 : json_sprintf("%s: cannot read the network interfaces",
+            gobj_yuno_role_plus_name()),
         0,
         jn_list
     );
@@ -4253,6 +4177,8 @@ PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         json_object_set_new(jn_data, "version", json_string(buf.version));
         json_object_set_new(jn_data, "machine", json_string(buf.machine));
     }
+
+    json_object_set_new(jn_data, "os", get_os_info());
 
     json_t *kw_response = build_command_response(
         gobj,
@@ -4313,6 +4239,91 @@ PRIVATE json_t *cmd_info_uptime(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj,
         0,
         0,
+        0,
+        jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  The machine at once, what an operator asks of a node it does not know:
+ *  its os, cpu, memory, disks, network interfaces and uptime. Sizes in
+ *  bytes. A part that cannot be read is null (logged).
+ ***************************************************************************/
+PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_os = get_os_info();
+
+    json_t *jn_cpus = get_cpus();
+    const char *model = "";
+    json_t *jn_cpu0 = json_array_get(jn_cpus, 0);
+    const char *model_keys[] = {"model name", "uarch", "cpu model", "Processor", "isa", 0};
+    for(int i=0; model_keys[i] && empty_string(model); i++) {
+        const char *v = json_string_value(json_object_get(jn_cpu0, model_keys[i]));
+        if(v) {
+            model = v;
+        }
+    }
+    json_t *jn_cpu = json_pack("{s:s, s:i}",
+        "model", model,
+        "logical_cpus", (int)json_array_size(jn_cpus)
+    );
+    JSON_DECREF(jn_cpus)
+
+    json_t *jn_meminfo = get_machine_memory_info();
+    json_t *jn_memory = json_pack("{s:I, s:I, s:I, s:I}",
+        "total",        meminfo_bytes(jn_meminfo, "MemTotal"),
+        "available",    meminfo_bytes(jn_meminfo, "MemAvailable"),
+        "swap_total",   meminfo_bytes(jn_meminfo, "SwapTotal"),
+        "swap_free",    meminfo_bytes(jn_meminfo, "SwapFree")
+    );
+    JSON_DECREF(jn_meminfo)
+
+    json_t *jn_uptime = json_null();
+    struct timespec ts;
+    if(clock_gettime(CLOCK_BOOTTIME, &ts) < 0) {
+        int err = errno;    // the log may change errno
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "clock_gettime(CLOCK_BOOTTIME) FAILED",
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+    } else {
+        time_t boot_time = time(NULL) - ts.tv_sec;
+        char boot_date[90];
+        t2timestamp(boot_date, sizeof(boot_date), boot_time, TRUE);
+        jn_uptime = json_pack("{s:I, s:s}",
+            "seconds",      (json_int_t)ts.tv_sec,
+            "boot_date",    boot_date
+        );
+    }
+
+    json_t *jn_disks = get_mounted_disks(gobj);
+    json_t *jn_ifs = get_network_interfaces(gobj);
+
+    json_t *jn_data = json_pack("{s:s, s:s, s:o, s:o, s:o, s:o, s:o, s:o}",
+        "hostname",     get_hostname(),
+        "node_uuid",    node_uuid(),
+        "os",           jn_os,
+        "cpu",          jn_cpu,
+        "memory",       jn_memory,
+        "disks",        jn_disks? jn_disks : json_null(),
+        "ifs",          jn_ifs? jn_ifs : json_null(),
+        "uptime",       jn_uptime
+    );
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        json_sprintf("%s: %s, %s",
+            gobj_yuno_role_plus_name(),
+            get_hostname(),
+            kw_get_str(gobj, jn_os, "pretty_name", "", 0)
+        ),
         0,
         jn_data
     );
@@ -5131,6 +5142,195 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
 /***************************************************************************
  *
  ***************************************************************************/
+/***************************************************************************
+ *  The network interfaces of the machine: name, flags (and `up`,
+ *  `running`, `loopback`), `mac` (from AF_PACKET, when it has one) and
+ *  the IPv4/IPv6 `addresses`. NULL, logged, when getifaddrs() fails.
+ ***************************************************************************/
+PRIVATE json_t *get_network_interfaces(hgobj gobj)
+{
+    struct ifaddrs *ifaddr, *ifa;
+
+    if(getifaddrs(&ifaddr) == -1) {
+        int err = errno;    // the log may change errno
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "getifaddrs() FAILED",
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        return NULL;
+    }
+
+    json_t *jn_list = json_array();
+    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if(!ifa->ifa_name) {
+            continue;
+        }
+
+        json_t *jn_iface = NULL;
+        size_t index;
+        json_t *value;
+        json_array_foreach(jn_list, index, value) {
+            const char *name = json_string_value(json_object_get(value, "name"));
+            if(name && strcmp(name, ifa->ifa_name) == 0) {
+                jn_iface = value;
+                break;
+            }
+        }
+        if(!jn_iface) {
+            jn_iface = json_object();
+            json_object_set_new(jn_iface, "name", json_string(ifa->ifa_name));
+            json_object_set_new(jn_iface, "flags", json_integer(ifa->ifa_flags));
+            json_object_set_new(jn_iface, "up", json_boolean(ifa->ifa_flags & IFF_UP));
+            json_object_set_new(jn_iface, "running", json_boolean(ifa->ifa_flags & IFF_RUNNING));
+            json_object_set_new(jn_iface, "loopback", json_boolean(ifa->ifa_flags & IFF_LOOPBACK));
+            json_object_set_new(jn_iface, "mac", json_string(""));
+            json_object_set_new(jn_iface, "addresses", json_array());
+            json_array_append_new(jn_list, jn_iface);
+        }
+
+        if(!ifa->ifa_addr) {
+            continue;
+        }
+
+        if(ifa->ifa_addr->sa_family == AF_PACKET) {
+            struct sockaddr_ll *ll = (struct sockaddr_ll *)ifa->ifa_addr;
+            if(ll->sll_halen == 6) {
+                char mac[sizeof("00:00:00:00:00:00")];
+                snprintf(mac, sizeof(mac), "%02x:%02x:%02x:%02x:%02x:%02x",
+                    ll->sll_addr[0], ll->sll_addr[1], ll->sll_addr[2],
+                    ll->sll_addr[3], ll->sll_addr[4], ll->sll_addr[5]
+                );
+                json_object_set_new(jn_iface, "mac", json_string(mac));
+            }
+            continue;
+        }
+
+        char addr_buf[INET6_ADDRSTRLEN] = {0};
+        char netmask_buf[INET6_ADDRSTRLEN] = {0};
+        char broadcast_buf[INET6_ADDRSTRLEN] = {0};
+        const char *family = NULL;
+
+        if(ifa->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
+            inet_ntop(AF_INET, &(sa->sin_addr), addr_buf, sizeof(addr_buf));
+            family = "AF_INET";
+
+            if(ifa->ifa_netmask) {
+                struct sockaddr_in *nm = (struct sockaddr_in *)ifa->ifa_netmask;
+                inet_ntop(AF_INET, &(nm->sin_addr), netmask_buf, sizeof(netmask_buf));
+            }
+            if(ifa->ifa_broadaddr && (ifa->ifa_flags & IFF_BROADCAST)) {
+                struct sockaddr_in *ba = (struct sockaddr_in *)ifa->ifa_broadaddr;
+                inet_ntop(AF_INET, &(ba->sin_addr), broadcast_buf, sizeof(broadcast_buf));
+            }
+        } else if(ifa->ifa_addr->sa_family == AF_INET6) {
+            struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)ifa->ifa_addr;
+            inet_ntop(AF_INET6, &(sa6->sin6_addr), addr_buf, sizeof(addr_buf));
+            family = "AF_INET6";
+
+            if(ifa->ifa_netmask) {
+                struct sockaddr_in6 *nm6 = (struct sockaddr_in6 *)ifa->ifa_netmask;
+                inet_ntop(AF_INET6, &(nm6->sin6_addr), netmask_buf, sizeof(netmask_buf));
+            }
+        } else {
+            continue; // other families
+        }
+
+        json_t *jn_addr = json_object();
+        json_object_set_new(jn_addr, "family", json_string(family));
+        json_object_set_new(jn_addr, "address", json_string(addr_buf));
+        if(netmask_buf[0]) {
+            json_object_set_new(jn_addr, "netmask", json_string(netmask_buf));
+        }
+        if(broadcast_buf[0]) {
+            json_object_set_new(jn_addr, "broadcast", json_string(broadcast_buf));
+        }
+        json_array_append_new(json_object_get(jn_iface, "addresses"), jn_addr);
+    }
+
+    freeifaddrs(ifaddr);
+    return jn_list;
+}
+
+/***************************************************************************
+ *  The disks mounted: one entry per block device (/dev/...), at the
+ *  first place it is mounted (a bind mount or a btrfs subvolume is the
+ *  same disk), squashfs left out (snaps). Sizes in bytes; `used` and
+ *  `use_percent` as df counts them. A mount that cannot be read says why
+ *  in its `error`. NULL, logged, when the mount table cannot be read.
+ ***************************************************************************/
+PRIVATE json_t *get_mounted_disks(hgobj gobj)
+{
+    FILE *fp = setmntent("/proc/self/mounts", "r");
+    if(!fp) {
+        int err = errno;    // the log may change errno
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "setmntent(/proc/self/mounts) FAILED",
+            "errno",        "%d", err,
+            "serrno",       "%s", strerror(err),
+            NULL
+        );
+        return NULL;
+    }
+
+    json_t *jn_list = json_array();
+    json_t *jn_seen = json_object();
+    struct mntent mnt;
+    char buf[2*PATH_MAX];
+    while(getmntent_r(fp, &mnt, buf, sizeof(buf))) {
+        if(strncmp(mnt.mnt_fsname, "/dev/", 5) != 0 || strcmp(mnt.mnt_type, "squashfs") == 0) {
+            continue;
+        }
+        if(json_object_get(jn_seen, mnt.mnt_fsname)) {
+            continue;   // the same disk mounted again
+        }
+        json_object_set_new(jn_seen, mnt.mnt_fsname, json_true());
+
+        json_t *jn_disk = json_pack("{s:s, s:s, s:s}",
+            "device", mnt.mnt_fsname,
+            "mountpoint", mnt.mnt_dir,
+            "fstype", mnt.mnt_type
+        );
+        struct statvfs st;
+        if(statvfs(mnt.mnt_dir, &st) != 0) {
+            json_object_set_new(jn_disk, "error", json_string(strerror(errno)));
+        } else {
+            json_int_t size = (json_int_t)st.f_blocks * (json_int_t)st.f_frsize;
+            json_int_t available = (json_int_t)st.f_bavail * (json_int_t)st.f_frsize;
+            json_int_t used = (json_int_t)(st.f_blocks - st.f_bfree) * (json_int_t)st.f_frsize;
+            json_int_t usable = used + available;
+            json_object_set_new(jn_disk, "size", json_integer(size));
+            json_object_set_new(jn_disk, "used", json_integer(used));
+            json_object_set_new(jn_disk, "available", json_integer(available));
+            json_object_set_new(jn_disk, "use_percent",
+                json_integer(usable > 0? (used * 100 + usable - 1) / usable : 0));
+        }
+        json_array_append_new(jn_list, jn_disk);
+    }
+    endmntent(fp);
+    JSON_DECREF(jn_seen)
+    return jn_list;
+}
+
+/***************************************************************************
+ *  A field of get_machine_memory_info() ("32765092 kB") in bytes; 0 when
+ *  it is not there.
+ ***************************************************************************/
+PRIVATE json_int_t meminfo_bytes(json_t *jn_meminfo, const char *key)
+{
+    const char *value = json_string_value(json_object_get(jn_meminfo, key));
+    if(!value) {
+        return 0;
+    }
+    return (json_int_t)strtoll(value, NULL, 10) * 1024;
+}
+
 PRIVATE json_t *get_cpus(void)
 {
     json_t *jn_list = json_array();

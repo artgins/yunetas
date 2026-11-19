@@ -557,9 +557,11 @@ for [`C_IEVENT_SRV`](#gclass-c-ievent-srv) children in state `ST_SESSION` and re
 `identity_card` — a node is addressed by its **UUID** (`identity_card.id`) or
 its **hostname** (see [A node is reached by its uuid](#controlcenter-node-names)).
 
-`list-agents` takes three filters, each a regular expression (POSIX extended,
+`list-agents` takes four filters, each a regular expression (POSIX extended,
 as `grep -E` reads it) matched against one field of the agent's card:
-`uuid` (`identity_card.id`), `version` (`yuno_version`) and `hostname`. An
+`uuid` (`identity_card.id`), `version` (`yuno_version`), `hostname` and `os`
+(the `pretty_name` of the os the agent says, 7.31.21+; an agent before says
+none). An
 agent is listed when it matches every filter given. A filter that is not a
 regular expression is refused (-1), and the answer says which. So is a filter
 with a back-reference (`\1`: a match can take exponential time, and the
@@ -569,8 +571,17 @@ control center runs in one thread) or longer than 256 bytes (7.31.20+):
 ycommand -c 'list-agents hostname=^yunovatios-'          # the yunovatios nodes
 ycommand -c 'list-agents version=^7.31. expand=1'         # the agents of 7.31, their cards whole
 ycommand -c 'list-agents uuid=^(6bdfcb15|b221635f)-'      # two nodes by the start of their uuid
+ycommand -c 'list-agents os=^Rocky'                       # the nodes on Rocky Linux
 ycommand -c 'list-agents hostname=artgins('
 # -> -1 "controlcenter^cc1: hostname='artgins(' is no regular expression: Unmatched ( or \("
+```
+
+What a node IS (its os, cpu, memory, disks, network interfaces, uptime) is
+answered by the `info-machine` of its agent's yuno (7.31.21+), through
+`command-agent`:
+
+```bash
+ycommand -w 10 -c 'command-agent agent_id=<host-or-uuid> agent_service=__yuno__ cmd2agent=info-machine'
 ```
 
 **3 — forward a command to one node** with `command-agent` (a `SDF_WILD_CMD`):
@@ -1478,11 +1489,11 @@ never armed: all six read 0.
 
 | Command | Description |
 |---------|-------------|
-| `list-agents` | List currently connected nodes (UUID, hostname, status); `uuid`, `version`, `hostname`: regular expressions the agent must match, all of them |
+| `list-agents` | List currently connected nodes (UUID, role and version, hostname, os); `uuid`, `version`, `hostname`, `os`: regular expressions the agent must match, all of them |
 | `command-agent` | Forward a command to one node (`agent_id`, `agent_service`, `cmd2agent`) |
 | `stats-agent` | Fetch stats from a node |
 | `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has; empty: every agent) |
-| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` (of its agent in session; empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). `uuid`, `version`, `hostname`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
+| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session; empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`; empty: all). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
 | `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so; permission `manage-nodes`) |
 | `refuse-node` | Refuse a node; its sessions are dropped (`node_id`; permission `manage-nodes`) |
 | `write-tty` | Write to the PTY console of one node (via `agent22`); `agent_id` is required. It is an event (`EV_WRITE_TTY`), not a command line; without the permission `write-tty` it is answered as a command is, `EV_MT_COMMAND_ANSWER` with -1 *"No permission to 'write-tty' in service 'controlcenter'"* (in 7.30.17 the answer was an `EV_WRITE_TTY` that no client takes, and the refusal freed the request twice) |

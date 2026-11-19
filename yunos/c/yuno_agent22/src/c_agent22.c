@@ -343,6 +343,17 @@ PRIVATE int mt_start(hgobj gobj)
     const char *node_owner = gobj_yuno_node_owner();
     if(strcasecmp(node_owner, "none")!=0) {
         hgobj gobj_controlcenter = gobj_find_service("controlcenter", TRUE);
+        /*
+         *  The card the control center sees says the os of this node
+         *  (list-agents, list-nodes)
+         */
+        json_t *jn_extra_info = json_deep_copy(gobj_read_json_attr(gobj_controlcenter, "extra_info"));
+        if(!json_is_object(jn_extra_info)) {
+            JSON_DECREF(jn_extra_info)
+            jn_extra_info = json_object();
+        }
+        json_object_set_new(jn_extra_info, "os", get_os_info());
+        gobj_write_new_json_attr(gobj_controlcenter, "extra_info", jn_extra_info);
         gobj_start_tree(gobj_controlcenter);
     }
 

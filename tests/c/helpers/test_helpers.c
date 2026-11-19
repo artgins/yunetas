@@ -836,6 +836,44 @@ PRIVATE void test_base64_slice(void)
     GBUFFER_DECREF(gbuf)
 }
 
+/***************************************************************************
+ *  get_os_info(): every key there, a string; uname always answers on
+ *  Linux, so kernel and machine are never empty; this machine has an
+ *  os-release, so its pretty_name is not empty either.
+ ***************************************************************************/
+PRIVATE void test_get_os_info(void)
+{
+    int failed = 0;
+    json_t *jn_os = get_os_info();
+    const char *keys[] = {"id", "name", "version_id", "pretty_name", "kernel", "machine", 0};
+    for(int i=0; keys[i]; i++) {
+        if(!json_is_string(json_object_get(jn_os, keys[i]))) {
+            printf("FAIL %-40s %s\n", "get_os_info has every key", keys[i]);
+            failed++;
+        }
+    }
+    const char *nonempty[] = {"kernel", "machine", "pretty_name", 0};
+    for(int i=0; nonempty[i]; i++) {
+        const char *v = json_string_value(json_object_get(jn_os, nonempty[i]));
+        if(!v || !*v) {
+            printf("FAIL %-40s %s\n", "get_os_info says", nonempty[i]);
+            failed++;
+        }
+    }
+    const char *pretty = json_string_value(json_object_get(jn_os, "pretty_name"));
+    if(pretty && (strchr(pretty, '"') || strchr(pretty, '\''))) {
+        printf("FAIL %-40s %s\n", "get_os_info strips the quotes", pretty);
+        failed++;
+    }
+    JSON_DECREF(jn_os)
+
+    if(!failed) {
+        printf("ok   %-40s\n", "get_os_info");
+    } else {
+        global_result += -1;
+    }
+}
+
 PRIVATE int do_test(void)
 {
     test_save_json_to_file();
@@ -850,6 +888,7 @@ PRIVATE int do_test(void)
     test_split_null_size_arg();
     test_split_reentrancy();
     test_version_cmp();
+    test_get_os_info();
 
     return global_result;
 }

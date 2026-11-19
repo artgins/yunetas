@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+## v7.31.21 (2026-11-19)
+
+Lite release: the agents (`yuneta_agent`, `yuneta_agent22`) and the control
+center (`controlcenter`). The kernel changes below (`get_os_info()`,
+`info-machine`, `info-ifs`) are in every yuno built from this release; only
+the agents and the control center are deployed with it.
+
+### Added
+
+- **`get_os_info()`** (gobj-c `helpers.h`): the operating system of the
+  machine, a json of `id`, `name`, `version_id` and `pretty_name` from
+  os-release(5), and `kernel` and `machine` from uname(2).
+- **The agents say their os to the control center.** Both agents put
+  `get_os_info()` in the card they present (`os`), so `list-agents` shows it
+  at the end of each line (`OS:'Debian GNU/Linux 13 (trixie)'`), `list-nodes`
+  has an `os` column (of the agent in session; empty while the node is away),
+  and both take an `os` filter, a regular expression on its `pretty_name`
+  (`list-agents os=^Rocky`). An agent before this release says none.
+- **`info-machine`** (C_YUNO, so every yuno answers it): the machine at once,
+  `os`, `cpu` (`model`, `logical_cpus`), `memory` (`total`, `available`,
+  `swap_total`, `swap_free`), `disks` (each block device at the first place
+  it is mounted, with `size`, `used`, `available`, `use_percent`; squashfs
+  left out), `ifs` and `uptime`. Sizes in bytes. Of a node, through its
+  control center: `command-agent agent_id=<node> agent_service=__yuno__
+  cmd2agent=info-machine`. `info-os` adds the distribution (`os`).
+
+### Fixed
+
+- **`info-ifs` answers -1 when the interfaces cannot be read.** It returned
+  the bare list with no command response and leaked its kw when
+  `getifaddrs()` failed, and said nothing in the log. It now logs the error
+  and answers -1; each interface also carries its `mac` and `up`, `running`,
+  `loopback`.
+
 ## v7.31.20 (2026-11-19)
 
 Lite release: only the control center (`controlcenter`).
