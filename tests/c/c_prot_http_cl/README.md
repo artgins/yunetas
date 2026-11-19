@@ -54,19 +54,19 @@ steps, a client each:
 | 1 | POSTs `data` `{"bad": null}` | not sent, the action answers `-1`, ONE error |
 | 2 | gets a response whose head is 70 KB | `EV_ON_MESSAGE` with `headers_too_large` 65536, no body and its repeated headers joined, ONE warning, the connection dropped |
 | 3 | gets a response with a CR alone in a header | `EV_ON_MESSAGE` with `protocol_error`, its repeated headers joined, ONE warning, the connection dropped, the request sent once |
-| 4 | sends to a socket that listens and never accepts, `max_tx_queue` 3, `timeout_tx_stall` 500: a POST of 8 MB that never leaves, two short ones, and one more each second | the 6th refused (`-1`): the 4th found 2 waiting, the 5th found 3 and started the wait, the 6th found it over. ONE warning, the connection dropped; two requests after the drop are refused (`-1`), with ONE warning of their own |
+| 4 | sends to a socket that listens and never accepts, `max_tx_queue` 3, `timeout_tx_stall` 500: a POST of 8 MB that never leaves, two short ones, and one more each second | the 6th refused (`-1`): the 4th found 2 waiting, the 5th found 3 and started the wait, the 6th found it over. ONE warning, the connection dropped. Two requests after the drop are refused (`-1`), with ONE warning of their own |
 | 5 | sends 100 requests in one turn to a server that reads | all answered, nothing logged |
 | 6 | gets a whole response and then garbage | ONE `EV_ON_MESSAGE`, the good one, ONE warning, the connection dropped |
 | 7 | gets garbage alone | no `EV_ON_MESSAGE`, ONE warning, the connection dropped |
-| 8 | gets a chunked `text/plain` response whose trailers repeat `X-A` and say `Content-Type: application/json` | `X-A` is a string with its three values, `CONTENT-TYPE` stays `text/plain`, the body comes in a `gbuffer`, not read as json; ONE warning |
+| 8 | gets a chunked `text/plain` response whose trailers repeat `X-A` and say `Content-Type: application/json` | `X-A` is a string with its three values, `CONTENT-TYPE` stays `text/plain`, the body comes in a `gbuffer`, not read as json. ONE warning |
 | 9 | `raw_body_data`, gets two responses on one connection | `CONTENT-LENGTH` is `2` and then `4`, never `2, 4` |
 | 10 | `raw_body_data`, gets a head of 70 KB | no `EV_ON_MESSAGE`, ONE warning, the connection dropped |
 | 11 | sends a POST of 8 MB, gets three responses in one read, and drops at the first with the write in flight | the other two are not published |
 | 12 | sends four POSTs of 4 MB to a server that reads 6 MB/s, `max_tx_queue` 1, `timeout_tx_stall` 500, and one more each second | none refused, all read, nothing logged |
-| 13 | sends a POST of 8 MB and gets a response whose head is 70 KB while the body is still in flight; sends one more request before the connection closes | `EV_ON_MESSAGE` with `headers_too_large`, ONE warning; the request is refused (`-1`), ONE warning of its own |
+| 13 | sends a POST of 8 MB and gets a response whose head is 70 KB while the body is still in flight, and sends one more request before the connection closes | `EV_ON_MESSAGE` with `headers_too_large`, ONE warning. The request is refused (`-1`), ONE warning of its own |
 
-Up to 7.29.3 an empty value was left out with an ERROR (an empty password
-could not be sent), a NUL cut its value, a value of 6 MB was refused (the form
+Up to 7.29.3 an empty value was left out with an ERROR (the client was unable
+to send an empty password), a NUL cut its value, a value of 6 MB was refused (the form
 was sized for three times its bytes), a form with no fields logged *"len is
 ZERO"* with a stack, a head had no limit, a broken response answered nothing,
 and the requests waiting for a server that does not read had no limit.

@@ -5,8 +5,8 @@ Tests a timeranger2 topic opened on a filesystem that gives `readdir()` no
 
 `find_keys_in_disk()` then asks the inode with `lstat()` (`stat()` up to 7.25.4). Up to 7.20 it joined the entry
 to the TOPIC's directory instead of its `keys/`: `<topic>/<key>` did not
-exist, no key counted as a directory, and the topic opened with an **empty
-cache** over files that were all there. Reads answered 0 rows, and the first
+exist, no key counted as a directory, and the topic opened with an empty
+cache over files that were all there. Reads answered 0 rows, and the first
 append started a cell `{rows:1}` over a file that held N, so the wrong record
 was served from then on.
 
@@ -32,7 +32,7 @@ The test checks:
 2. Reopened with `d_type` hidden, it finds both keys and all five records,
    and the wrapper really served entries without a type.
 3. Reopened with `d_type` hidden and the `lstat()` of key `B` failing with
-   `EIO` (the test's `__wrap_lstat()`), the topic does **not** open:
+   `EIO` (the test's `__wrap_lstat()`), the topic does not open:
    *"Cannot list the keys of the topic, lstat() FAILED"* and *"Cannot open
    topic: its keys cannot be listed"*. Up to 7.25.4 the key was taken as
    "not a directory" and left out of the cache with no log, so the topic

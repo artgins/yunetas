@@ -16,8 +16,8 @@ DISABLED"* and waited `timeout_polling` there, so no cycle ended within its
 - Cycles 1 and 2: slave 2 answers exception 11, and block B exception 2 in
   cycle 1 and the echo of a write (06) in cycle 2. Only `{slave_id 1, a}` is
   published, at once (within 800 ms of the request of block A), and nothing
-  of slave 2. Each failure is logged once, as a warning, not on every cycle;
-  the 06 to block B fails it (*"Modbus answer of another function"*). Up to
+  of slave 2. Each failure is logged once, as a warning, not on every cycle.
+  The 06 to block B fails it (*"Modbus answer of another function"*). Up to
   7.29.3 it counted as the answer of the block.
 - On the message of cycle 1 a write (function 06) is queued: the slave must
   see it once, and the polling must go on after it.
@@ -52,7 +52,7 @@ DISABLED"* and waited `timeout_polling` there, so no cycle ended within its
   fix the half was dropped and the next answer lost). A head with another
   transaction id and an MBAP length of 65535, before an answer: the master
   drops the connection, the read fails with *"the connection dropped before
-  its answer"*, and the master comes back (before the fix the head swallowed
+  its answer"*, and the master connects again (before the fix the head swallowed
   the answer, and everything until `timeout_response`).
 - Cycle 3: every block answers, everything is published, and each block that
   was failing is logged as *"Modbus block answered again"*.
@@ -71,7 +71,7 @@ frames by hand, with a CRC computed bit by bit. On the message of cycle 1 it
 queues writes of one and three registers (06, 16), one and nine coils (05,
 15), reads them back (03, 01), a write the slave refuses with exception 1,
 and two answers with a bad CRC: an exception and a read. Each must be
-answered in order; the two bad CRCs fail their request with a warning
+answered in order. The two bad CRCs fail their request with a warning
 (*"Modbus answer with a bad CRC"*). Up to 7.29.2 the
 exception was taken before its CRC was checked, and the read logged an
 internal error (*"answered WITHOUT reading its answer"*).
@@ -103,8 +103,8 @@ freed memory: *"cur_slave_ NULL"* every cycle, with `slaves_` read as a string).
 The answer of block B, the last of the cycle, carries a noise byte in cycles 2
 and 3 too: the noisy answers are logged once, and cycle 4, clean, logs
 *"Modbus: a cycle came without noise"*. Before, each noisy answer was a
-warning; and in a development version, never released, the noise after the last
-block was counted after its cycle had ended, so the info came a cycle late, after
+warning. And in a development version, never released, the noise after the last
+block was counted after its cycle ended, so the info came a cycle late, after
 the end of the test. Two reads whose slave sends a noise
 byte, `0x00` and `0xFF`, in a read of its own (a `C_TIMER0` holds the answer
 50 ms) before the answer: neither can start an RTU answer, so both are
@@ -133,8 +133,8 @@ that the slave does not answer, as the standard says, is answered as done
 A write to slave 0 that the slave echoes, as a device that breaks the
 standard does: the echo is dropped as noise, the write is answered as done,
 and the read after it is answered. Before the fix the read went out (the
-slave saw a request it did not expect) and failed at `timeout_response`; both
-writes failed there too; and the `0x00` of the echo was dropped, and its
+slave saw a request it did not expect) and failed at `timeout_response`. Both
+writes failed there too. And the `0x00` of the echo was dropped, and its
 `06 00 50` taken as the head of a frame of 82 bytes (*"Modbus frame dropped:
 not the answer awaited"*, `slave_id` 6).
 
@@ -156,7 +156,7 @@ path. On the message of the first cycle, published inside the read of the
 `C_UART`, it stops the master there: the `C_UART` must close its tty at once
 and end in `ST_STOPPED`. Started again, the master connects with one fd, not
 two, and polls. Then it is stopped from a timeout, with the read in flight:
-the `C_UART` ends in `ST_STOPPED` at once, with the tty closed; started
+the `C_UART` ends in `ST_STOPPED` at once, with the tty closed. Started
 again, it polls. Then it is stopped and started in the same turn, with the
 read in flight, as a host does to change the `url` of the line: it must poll
 a fourth time. In the fixes after 7.29.3 the `C_UART` refused that start in
@@ -174,7 +174,7 @@ the events the `C_UART` publishes to it.
 
 - An empty write first: ignored, with a warning (*"uart tx data empty,
   ignored"*), and with nothing in flight its `EV_TX_READY` comes a turn
-  later, never inside the send. Against 7.29.3 it was an error; in the fixes
+  later, never inside the send. Against 7.29.3 it was an error. In the fixes
   after it, it dropped the line, and then no `EV_TX_READY` came (*"A phase
   did not end"*, phase 1). A second empty write right before the 64 KB one:
   one `EV_TX_READY` for both.
@@ -185,7 +185,7 @@ the events the `C_UART` publishes to it.
 - `EV_DROP`: `EV_DISCONNECTED` inside the send, the tty closed, and opened
   again after `timeout_between_connections` (500 ms here). 7.29.3 had no
   `EV_DROP` in `C_UART`. A write sent while disconnected is dropped, with an
-  error (*"uart tx data while disconnected, dropped"*); against 7.29.3,
+  error (*"uart tx data while disconnected, dropped"*). Against 7.29.3, it was
   *"Event NOT DEFINED in state"*.
 - The same gbuffer sent twice, the one in flight and one queued: each second
   send is refused (-1, *"uart tx data already queued or in flight,
@@ -193,10 +193,10 @@ the events the `C_UART` publishes to it.
 - The line not read, 64 KB and 8 bytes sent (no `EV_TX_READY`: the write is
   held), and a stop: 300 ms later the `C_UART` is in `ST_STOPPED` with its
   tty closed, and `EV_DISCONNECTED` and `EV_STOPPED` came. Then started
-  again; the same held write, with one write more than `max_tx_queue` (1:
+  again. The same held write, with one write more than `max_tx_queue` (1:
   the oldest queued is dropped, *"uart tx queue full, the oldest write
-  dropped"*), a stop and a destroy right after it; and the line is read
-  again, so the canceled write would complete if it were still there.
+  dropped"*), a stop and a destroy right after it. And the line is read
+  again, so the canceled write completes if it is still there.
 - A stop with the read in flight and a destroy right after it: the stop ends
   at once (`ST_STOPPED`, the tty closed, `EV_STOPPED`). Against 7.29.3 it
   waited in `ST_WAIT_STOPPED`, and the destroy there left the fd open (*"The
@@ -206,8 +206,8 @@ the events the `C_UART` publishes to it.
   `EV_RX_DATA`, and a write goes out whole with its `EV_TX_READY`.
 - A host that stops the `C_UART` in its `EV_RX_DATA` and destroys it in the
   `EV_DISCONNECTED` of that stop (wrong, and the kernel says so: *"Destroying
-  a gobj while its tree is publishing"*): no `EV_STOPPED` comes from the freed
-  gobj. Without the guard the `C_UART` published `EV_STOPPED` from it (a
+  a gobj while its tree is publishing"*): the freed gobj publishes no
+  `EV_STOPPED`. Without the guard the `C_UART` published `EV_STOPPED` from it (a
   SEGV under ASan).
 
 The tests are built only when `CONFIG_MODULE_MODBUS` is set.

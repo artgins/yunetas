@@ -1,14 +1,14 @@
 # c_mqtt test
 
-MQTT GClass test. Spins up an embedded MQTT broker and a client inside the same process and exercises a **QoS 0 publish/subscribe round-trip** to verify the client-side protocol and broker integration.
+MQTT GClass test. Spins up an embedded MQTT broker and a client inside the same process and exercises a QoS 0 publish/subscribe round-trip to verify the client-side protocol and broker integration.
 
-`test_mqtt_acl` (`main_acl.c` + `c_acl.c`) drives the broker's publish/subscribe ACL through `EV_MQTT_ACL_CHECK`. It also checks `list-queues queue=<name>` of a queue that exists and cannot be opened (its `keys/` of mode 0, SKIPPED as root): `-1`, *"cannot open the queue"*. Up to 7.25.4 it answered `0` with an empty list. And `list-queues` / `clean-queues` of a store whose directory cannot be listed (mode 0, SKIPPED as root): `-1`, *"cannot list the topics of the store[, nothing cleaned], see the log"* -- a cause of their own, not the last ERROR of the process read back (which said *"...: Success"*, the `errno` of the log call, not of the listing).
+`test_mqtt_acl` (`main_acl.c` + `c_acl.c`) drives the broker's publish/subscribe ACL through `EV_MQTT_ACL_CHECK`. It also checks `list-queues queue=<name>` of a queue that exists and cannot be opened (its `keys/` of mode 0, SKIPPED as root): `-1`, *"cannot open the queue"*. Up to 7.25.4 it answered `0` with an empty list. And `list-queues` / `clean-queues` of a store whose directory cannot be listed (mode 0, SKIPPED as root): `-1`, *"cannot list the topics of the store[, nothing cleaned], see the log"*. It is a cause of their own, not the last ERROR of the process read back (which said *"...: Success"*, the `errno` of the log call, not of the listing).
 
 `test_mqtt_malformed` sends malformed MQTT packets to the broker.
 
 `test_mqtt_will_acl` (`main_will_acl.c` + `c_will_acl.c`) uses RAW MQTT 3.1.1
 clients against the broker with `enable_acl` on. The group of `will_bad` and
-`will_ok` may publish only to `allowed/#`; `will_sub` (a group with no
+`will_ok` can publish only to `allowed/#`. `will_sub` (a group with no
 patterns) subscribes `forbidden/will` and `allowed/will`. `will_bad` connects
 with a will to `forbidden/will` and goes away with no DISCONNECT: the broker
 must refuse the will (the WARNING *"Will message refused by the ACL: not
@@ -18,18 +18,18 @@ bypassed the ACL (red: `will_sub` got the will to `forbidden/will`). Then
 `will_ret` publishes a RETAINED message with a payload (QoS 1), and `will_late`
 subscribes it afterwards: it must get it flagged retained, with its payload.
 Each step waits for the packet it depends on (CONNACK, SUBACK, PUBACK, the
-PUBLISH the subscriber gets); the timer is only a guard that names the step
+PUBLISH the subscriber gets). The timer is only a guard that names the step
 that did not come. The memory check at the end caught a second defect: each
 CONNECT with a will, and each retained PUBLISH with a payload, leaked its
 payload (`C_NODE` handed the treedb the event's shared kw, whose `gbuffer` the
-treedb takes; red: 3 x 357 bytes not freed). Last, `will_deny`, an MQTT 3.1
+treedb takes. Red: 3 x 357 bytes not freed). Last, `will_deny`, an MQTT 3.1
 client (`MQIsdp`, level 3), subscribes `denied/topic`, in the broker's
 `deny_subscribes`: the SUBACK must say `0x80`. Up to 7.30.26 a 3.1 client got
 the QoS it asked for, as if granted (red: code 0).
 
 The leak checks of these tests (*"system memory not free"* at the end) work
-only in a build with `CONFIG_DEBUG_TRACK_MEMORY`; where it is off (the nodes'
-builds, a staging node's release run) they pass whatever leaks.
+only in a build with `CONFIG_DEBUG_TRACK_MEMORY`. Where it is off (the nodes'
+builds, a staging node's release run), they pass whatever leaks.
 
 `test_mqtt_queued_in` (`main_queued_in.c` + `c_queued_in.c`) uses a RAW client
 (a `C_TCP` that writes MQTT 3.1.1 packets by hand). Session 1 (clean session 0)
@@ -49,7 +49,7 @@ against a RAW broker (a `C_PROT_RAW` channel of the driver that writes the MQTT
 PUBREC 'lost'), `PUBREL 5`, then `PUBLISH 5 'b'` and `PUBREL 5`: the user must
 get `a` once and then `b`, with no error. Up to 7.25.4 the duplicate was
 searched by the rowid of its queue record: the old copy stayed, and the second
-PUBREL delivered `a` again (red: *"a,a,"*); and every QoS 2 PUBREL logged
+PUBREL delivered `a` again (red: *"a,a,"*). And every QoS 2 PUBREL logged
 *"QoS mismatch"* (the flag bits compared with the qos level). B. 22 QoS 1
 messages of the user with 20 in flight, `m21` with `expiry_interval` 1: after
 2.5 s, `PUBACK 1` frees a slot, `m21` goes in flight expired and is discarded,
@@ -81,7 +81,7 @@ username past its end (the packet is not NUL-terminated): *"username
 has no QoS 2 message 20, so it must answer PUBCOMP 20 and say *"Message not
 found"* as a WARNING. D. PUBREC of the QoS 1 message the broker delivered: a
 *"QoS mismatch"* WARNING and DISCONNECT 0x82. Up to 7.25.20 both C and D were
-ERRORs (C with a stack); the test fails on any ERROR in the log. E. A second
+ERRORs (C with a stack). The test fails on any ERROR in the log. E. A second
 raw client sends the same CONNECT with one byte too many: the broker refuses
 it and dumps the frame, and the dump must not carry the password (the scanner
 also looks for a 16-byte row of it, as a dump splits it). Up to 7.25.20 the
@@ -96,13 +96,13 @@ codes of a (UN)SUBSCRIBE, takes the messages (returns 1), and sends one to the
 client. On a `C_FAKE_TRANSPORT`, with the packets written by hand:
 
 1. MQTT 3.1.1 with a username and a password nobody checks: CONNACK 0.
-2. PUBLISH QoS 0, 1 and 2, each delivered once (PUBACK, PUBREC); the QoS 2
+2. PUBLISH QoS 0, 1 and 2, each delivered once (PUBACK, PUBREC). The QoS 2
    sent again with DUP before its PUBREL gets PUBREC and is not delivered
-   again; its PUBREL gets PUBCOMP.
+   again. Its PUBREL gets PUBCOMP.
 3. A PUBREL, PUBACK, PUBREC and PUBCOMP of ids the server never used: PUBCOMP
    and PUBREL, one WARNING for the connection. No crash.
 4. SUBSCRIBE of 5 filters: the one of 22 bytes and the one past 3 get `0x80`,
-   the others QoS 0; a filter held is granted again and not counted; an
+   the others QoS 0. A filter held is granted again and not counted. An
    UNSUBSCRIBE makes room.
 5. A QoS 1 message to the client goes in QoS 0.
 6. Two QoS 2 without PUBREL, then a third: the client is dropped at once
@@ -134,7 +134,7 @@ peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
    (one per PUBLISH), and no leak (its properties were not freed: the memory
    check at the end). The second connection (10a) says it again.
 3. A SUBSCRIBE of 13000 copies of `a`: the upper level is asked once, 13000
-   codes in the SUBACK (all went up; a 12 KB buffer: 8426 pairs of ERRORs and
+   codes in the SUBACK (all went up. A 12 KB buffer: 8426 pairs of ERRORs and
    a SUBACK of mixed codes).
 4. A filter the upper level refuses (`0x87`) is not held: two filters more fit
    under 3, the third gets `0x97`.
@@ -174,12 +174,12 @@ peer can do to the same gate input, on a `C_FAKE_TRANSPORT`, with
 
 `test_mqtt_client_noqueue` (`main_client_noqueue.c` + `c_client_noqueue.c`)
 drives `C_PROT_MQTT2` as a CLIENT on a `C_FAKE_TRANSPORT`, with
-`max_packet_size` 1000; the driver plays the broker (MQTT 5). Without
-queues: its CONNECT announces Maximum Packet Size 1000 (not sent); its user
+`max_packet_size` 1000. The driver plays the broker (MQTT 5). Without
+queues: its CONNECT announces Maximum Packet Size 1000 (not sent). Its user
 publishes in QoS 1 inside `EV_ON_OPEN`: `-1` and an ERROR *"qos not
-supported"* (it went to the NULL queue: SIGSEGV). A QoS 0 message goes out; a
-QoS 1 PUBLISH of the broker is delivered and acked; a SUBSCRIBE asked in QoS 2
-goes out in QoS 0 (QoS 2); a QoS 2 PUBLISH disconnects the client (DISCONNECT
+supported"* (it went to the NULL queue: SIGSEGV). A QoS 0 message goes out. A
+QoS 1 PUBLISH of the broker is delivered and acked. A SUBSCRIBE asked in QoS 2
+goes out in QoS 0 (QoS 2). A QoS 2 PUBLISH disconnects the client (DISCONNECT
 `0x93`, a WARNING) and is not delivered (its payload was released twice).
 Then with queues (a `C_TRANGER` of the driver): the user's QoS 1 publish
 inside `EV_ON_OPEN` goes out (the queues opened after it: SIGSEGV), and a
@@ -187,17 +187,17 @@ PUBLISH announced at 300000 bytes is refused at its header, DISCONNECT `0x82`
 (a client kept what it was announced). Then a hostile broker, one connection
 per step, each a WARNING: a second CONNACK in session, DISCONNECT `0x82`, with
 queues and without (the queues were opened again and their first handles
-leaked; the user heard `EV_ON_OPEN` again); a DISCONNECT with properties and
+leaked, and the user heard `EV_ON_OPEN` again). A DISCONNECT with properties and
 a PUBLISH behind it in the same read: the PUBLISH is not delivered and the
-properties are freed (delivered, leaked); a PUBLISH of QoS 3 and one to
-`a/#` and to `a/+/b`: DISCONNECT `0x81` (dropped in silence; delivered); a
-PUBLISH of QoS 0 with DUP: DISCONNECT `0x81` (delivered); a CONNACK of
+properties are freed (delivered, leaked). A PUBLISH of QoS 3 and one to
+`a/#` and to `a/+/b`: DISCONNECT `0x81` (dropped in silence, delivered). A
+PUBLISH of QoS 0 with DUP: DISCONNECT `0x81` (delivered). A CONNACK of
 MQTT 5 that refuses (`0x87`): the user hears `EV_ON_CLOSE` with the reason
 and nothing is sent (DISCONNECT `0x82`, no `EV_ON_CLOSE`). A PUBLISH whose
 topic has 250 levels is delivered: MQTT puts no limit on levels (the client
 refused more than 200 separators, the limit of the server, with DISCONNECT
 `0x81`), and its user can publish to it, by `EV_MQTT_PUBLISH` and by
-`EV_SEND_MESSAGE` (both refused it, `-1`); a wildcard there is still `-1` and
+`EV_SEND_MESSAGE` (both refused it, `-1`). A wildcard there is still `-1` and
 an ERROR. Last, with MQTT 3.1.1, a CONNACK with the reserved code `6`: the user
 hears `EV_ON_CLOSE` with `reason_code` 6 and nothing is sent (a protocol
 error: a WARNING and no `EV_ON_CLOSE`). Then, with MQTT 5 again, a CONNACK
@@ -211,8 +211,8 @@ hears `EV_ON_CLOSE` with `0x84` and `0x86`, one WARNING *"Mqtt connection
 refused"*, nothing sent (up to 7.30.26: *"Error in properties"*, DISCONNECT
 `0x81` and no `EV_ON_CLOSE`). Then a CONNACK of MQTT 5 (with its
 properties) with the code `2`, a code of 3.1.1: a protocol error as `0x06`
-(up to 7.30.26 a refusal with the text *"Granted QoS 2"* and no DISCONNECT);
-and a CONNACK in the form of 3.1.1 with the code `0` and with `6`: the user
+(up to 7.30.26 a refusal with the text *"Granted QoS 2"* and no DISCONNECT).
+And a CONNACK in the form of 3.1.1 with the code `0` and with `6`: the user
 hears `EV_ON_CLOSE` with `0x81`, one WARNING *"Mqtt protocol error: CONNACK
 of MQTT 3.1.1 to an MQTT 5 client"*, nothing sent (up to 7.30.26:
 *"Error in properties"*, a dump, DISCONNECT `0x81`, no `EV_ON_CLOSE`). The
@@ -222,7 +222,7 @@ alarm is 45 s (the run is about 20 s).
 gate's MQTT 3.1.1 connection over a REAL socket (port 18115): the driver is
 the upper level of a server `C_PROT_MQTT2` behind a `C_TCP_S`, and cuts a
 connection as a gate's decoder does, posting `EV_DROP` to the protocol, on a
-PUBLISH whose payload is `cut` and on a SUBSCRIBE of `cut/#`; after the cut
+PUBLISH whose payload is `cut` and on a SUBSCRIBE of `cut/#`. After the cut
 it takes nothing. A RAW client (a `C_TCP` of the driver) writes each case in
 ONE write after its CONNACK. Three QoS 1 PUBLISH and the marker: the client
 gets `PUBACK 1` to `PUBACK 4`, then the close, and the gate took the three
@@ -233,7 +233,7 @@ once, and the `C_TCP` discarded what waited behind its write in flight: the
 client got `[PUBACK 1, close]` and `[SUBACK 0x00, close]`. Three more cases
 start the close otherwise, and get every answer before it too: three QoS 1
 PUBLISH and a DISCONNECT with flags `1` (a protocol error), in 3.1.1 and in
-MQTT 5 (where `DISCONNECT 0x82` comes after the three PUBACKs); three QoS 1
+MQTT 5 (where `DISCONNECT 0x82` comes after the three PUBACKs). Three QoS 1
 PUBLISH, the marker and a malformed packet (type 0, the WARNING *"Mqtt
 malformed packet, payload required"*), whose close the `EV_DROP` of the
 marker reaches while it waits. Up to 7.30.26 the three got `[PUBACK 1,
@@ -255,28 +255,28 @@ PINGRESP / PUBACK and is not dropped. 20000 QoS 0 PUBLISH and a PINGREQ in one
 write: all taken, the PINGRESP back, not dropped (QoS 0 asks for no answer).
 No WARNING. Red on 7.30.26: no bound, the memory grown by 39 MB for the
 PINGREQ and 13.6 MB for the PUBLISH (`MEM_MAX_SYSTEM_MEMORY` is 1 GB, so the
-red is a failure and not an abort); red on the bounds that came after it
+red is a failure and not an abort). Red on the bounds that came after it
 (never released): the client of the floods dropped.
 
 `test_mqtt_gate_answers` (`main_gate_answers.c` + `c_gate_answers.c`) is the
 bound on the answers against many connections and big answers, over REAL
 sockets (port 18122): raw plain sockets that never read, each with a receive
 buffer of 4 KB set before it connects, and the gate's side with a send buffer
-of 4 KB, so the kernel takes little; `timeout_close` 500, `timeout_stop_tx`
+of 4 KB, so the kernel takes little. `timeout_close` 500, `timeout_stop_tx`
 3 s. 1. 50 connections, each sending exactly 10000 PINGREQ in one write: the
 reading of each is paused, and each is dropped when nothing more is written
-for `timeout_close`, with one WARNING; the memory grows less than 12 MB
+for `timeout_close`, with one WARNING. The memory grows less than 12 MB
 (measured: 6.5-6.8 MB, the bound and one read each, and the clients' own
-buffers); then the transport of each says its abort at `timeout_stop_tx`.
+buffers). Then the transport of each says its abort at `timeout_stop_tx`.
 The kernel aborts at its first probe past that timeout, some seconds later
 (7 s measured on x86, 16 s on the riscv64 kernel of an Orange Pi), so each
-case has a guard of 40 s (`PHASE_GUARD_MS`; it was 20 s, and the Orange Pi
+case has a guard of 40 s (`PHASE_GUARD_MS`. It was 20 s, and the Orange Pi
 failed it on every run).
 2. One connection subscribes 100 filters (granted), then sends SUBSCRIBEs of
 16000 times the filter `a`, refused past `max_subscriptions_per_client`, each
 answered by a SUBACK of 16 KB: paused, dropped, the memory growing less than
 1 MB (measured: 0.2 MB). Red on the bound in packets: case 1 not dropped,
-176 MB; case 2 not dropped after 150 SUBSCRIBEs, 2.3 MB; and the drop said a
+176 MB. Case 2 not dropped after 150 SUBSCRIBEs, 2.3 MB. And the drop said a
 second time, *"Timeout waiting mqtt disconnected"*.
 
 `test_mqtt_gate_reader` (`main_gate_reader.c` + `c_gate_reader.c`) is the
@@ -288,12 +288,12 @@ not end in 300 s on a loaded riscv64 board) and reading everything every 20 ms, 
 is paused by the bound again and again and resumed when its answers are
 written: none is dropped, each gets its CONNACK and one PINGRESP per PINGREQ,
 in order (checked byte by byte), and the memory grows less than 5 MB
-(measured: 2.6 MB, the bound and one read each; about 11 million PINGRESP in
+(measured: 2.6 MB, the bound and one read each, and about 11 million PINGRESP in
 the run with the old 512 KB window). Then the clients stop, get the PINGRESP still owed to them, and
 close. No WARNING.
 
-What fails, in the run and in the drain alike: **a reader that is owed
-answers and gets no byte for 1 s, in 10 looks or more**. The gate and the
+What fails, in the run and in the drain alike: a reader that is owed
+answers and gets no byte for 1 s, in 10 looks or more. The gate and the
 readers share one loop, so a reader that is owed gets bytes at every look
 (every 20 ms), however slow the machine: no look found one without bytes, at
 a full CPU, at an eighth of one, and under ASan at a quarter of one. The 10
@@ -303,13 +303,13 @@ is not resumed (an `EV_RX_RESUME` lost) waits for the look of
 `timeout_close` (3 s), or for ever: red in about 1.4 s, even when only one
 reader of the 20 is stuck and the others go on. Red so with 1
 `EV_RX_RESUME` of every 10 lost, 1 of 4, 1 of 2, all of them (rescued every
-3 s, or every 9 s), and with a reading never resumed; 1 of 10, all of them,
-every 9 s and never resumed at a quarter of a CPU as well.
+3 s, or every 9 s), and with a reading never resumed. At a quarter of a CPU as well: 1 of 10, all of them,
+every 9 s and never resumed.
 
-The drain fails too when it is not over in 300 s; a drain that is slow but
+The drain fails too when it is not over in 300 s. A drain that is slow but
 goes on is not a failure. That limit is the one that depends on the machine.
 The whole test (the 20 s run included) takes about 40 s here (the drain about
-17 s), 140-170 s at a quarter of a CPU and 286 s at an eighth; under ASan
+17 s), 140-170 s at a quarter of a CPU and 286 s at an eighth. Under ASan it takes
 64-67 s, and 287-304 s at a quarter of a CPU, where the drain comes within
 about 20 s of its 300. Slower than that (ASan at an eighth of a CPU) the drain
 passes 300 s and the test fails with no defect.
@@ -333,23 +333,23 @@ QoS 1 in ONE write (no in-flight window, as mqtt.js by default): it gets the
 3000 PUBACKs, its reading paused and resumed, not dropped. QoS 2 cannot be
 sent that way: past `max_inflight_messages` the broker disconnects. 4. K
 sends 30000 PINGREQ in ONE write, reading: the 30000 PINGRESPs, not dropped.
-Red on the bound in packets: S dropped after 23 messages; on the bound in
+Red on the bound in packets: S dropped after 23 messages. Red on the bound in
 bytes that dropped instead of pausing: P dropped after 2 PUBACKs.
 
 `test_mqtt_broker_stop_drain` (`main_broker_stop_drain.c` +
 `c_broker_stop_drain.c`) runs the broker on port 18124 and four raw clients on
 plain sockets, receive buffer 4 KB, the broker's side of each with a send
-buffer of 4 KB; none reads. A (3.1.1) and B (MQTT 5) send 8000 PINGREQ and
+buffer of 4 KB. None reads. A (3.1.1) and B (MQTT 5) send 8000 PINGREQ and
 the byte `0xF0`: their reading is paused by the bound on the answers before
 the `0xF0`, which is held. C (3.1.1) and D (MQTT 5) send 5 SUBSCRIBEs of 8000
 times `a` (40 KB of SUBACKs) and `0xF0` (*"Command unknown or not
 implemented"*): their closes wait for the SUBACKs. 1.5 s later the yuno
-stops; the driver, stopped right after the broker, closes its sockets and the
+stops. The driver, stopped right after the broker, closes its sockets and the
 kernel resets the connections: the four `EV_ON_CLOSE` reach the broker with
 its database closed (four INFOs *"Mqtt connection closed after the broker
 stopped, its session left as it is"*), and the reads held are released. No
 ERROR, no crash, no leak. Red on 7.30.26: SIGSEGV at the stop (the broker
-read its destroyed treedb); with only that fixed, the queues of the closing
+read its destroyed treedb). With only that fixed, the queues of the closing
 connections leaked (*"system memory not free"*).
 
 `test_mqtt_broker_stop_dropped` (`main_broker_stop_dropped.c` +
@@ -358,7 +358,7 @@ on plain sockets that keep their sockets open through the stop: A (3.1.1) and
 B (MQTT 5) send 20 SUBSCRIBEs of 16000 times `a` and never read (receive
 buffer 4 KB, the broker's side send buffer 4 KB, `timeout_close` 500): each is
 dropped with one WARNING *"Mqtt: the peer does not read its answers,
-connection dropped"*, its `C_TCP` waiting `timeout_stop_tx`; C subscribes to
+connection dropped"*, its `C_TCP` waiting `timeout_stop_tx`. C subscribes to
 `s/#` QoS 1 and never reads, while D (reading) publishes 20000 messages to
 `s/x`, QoS 0 and 1 in turn. 3 s later the yuno stops: no transport has ended,
 no `EV_ON_CLOSE` comes, and the protocol frees the queues at its destroy. No
@@ -369,25 +369,25 @@ blocks (the queues of the sessions, and the QoS 1 messages of C's), exit 255.
 `c_broker_sessions.c`) runs the broker on port 18126 and raw clients on plain
 sockets. 1 (MQTT 3.1.1) and 2 (MQTT 5): A keeps its session, subscribes to
 `q<n>/#` QoS 1, publishes 5 QoS 1 messages to it and does not ack the
-forwards; B takes the client id over with a CLEAN session: CONNACK with
+forwards. B takes the client id over with a CLEAN session: CONNACK with
 session present 0 and nothing more. 3 and 4: the same, B keeping the session:
 session present 1 and the 5 messages. 5 (MQTT 5): A as in 2 sends `0xF0`, the
-broker answers DISCONNECT and drops it; B with a clean session gets nothing.
+broker answers DISCONNECT and drops it. B with a clean session gets nothing.
 6 (3.1.1): 21 QoS 2 PUBLISH without PUBREL against `max_inflight_messages`
 20: at most 20 PUBREC, then the close with one WARNING *"Mqtt: QoS 2 PUBLISH
 past max_inflight_messages (Receive Maximum), disconnecting"*. 7 and 8 (3.1.1):
 A as in 1, then STALLED (receive buffer 4 KB, the broker's side send buffer
 4 KB): it reads nothing more and sends 5 SUBSCRIBEs of 8000 times `a` and
-`0xF0`, so the broker's close waits for 40 KB of SUBACKs; B takes the session
+`0xF0`, so the broker's close waits for 40 KB of SUBACKs. B takes the session
 over while A is still closing, with a clean session (7: nothing) or keeping
 it (8: the 5 messages). 9 to 18: what the CLOSE of a connection does to the
-queues of its session; B acknowledges what it gets and stays 2.5 s (the queue
+queues of its session. B acknowledges what it gets and stays 2.5 s (the queue
 backup looks every second). A comes with MQTT 5, Clean Start 1 and Session
 Expiry 300 (a session kept): taken over, still connected, by B keeping the
 session in MQTT 5 (9) and 3.1.1 (10): session present 1, the 5 messages, no
-ERROR; 25 messages (20 in flight), DISCONNECT and close, 5 more published by C,
-B back keeping it (11): the 30; 30 messages, STALLED in MQTT 5 as in 7, B
-keeping it while A closes (12): the 30; DISCONNECT with Session Expiry 0,
+ERROR. 25 messages (20 in flight), DISCONNECT and close, 5 more published by C,
+B back keeping it (11): the 30. 30 messages, STALLED in MQTT 5 as in 7, B
+keeping it while A closes (12): the 30. DISCONNECT with Session Expiry 0,
 still connected (13), or closing by its keepalive of 1 s (14: one WARNING
 *"Client keepalive timeout, closing connection"*), B keeping it (the broker's
 record still says 300): session present 1, the 5, no ERROR. What is not kept
@@ -395,16 +395,16 @@ is still deleted at the close, B keeping: 3.1.1 clean session (15), MQTT 5
 without Session Expiry (16), with a DISCONNECT of Session Expiry 0 (17),
 Session Expiry 1 and B 3 s later (18, the broker's expiry): session present 0
 and nothing. About 42 s. Red on 7.30.26: B of 1, 2 and 7 got the 5 messages of
-A's session; 6 closed with no log; the close of A deleted the topics B had
+A's session. 6 closed with no log. The close of A deleted the topics B had
 open: 9, 10, 13 and 14 the ERRORs *"Cannot open topic"* and *"kw must be list
-or dict"* every second, 12 a SIGSEGV; and 11 B got 5 of 30.
+or dict"* every second, 12 a SIGSEGV. And 11 B got 5 of 30.
 
 `test_mqtt_broker_takeover` (`main_broker_takeover.c` +
 `c_broker_takeover.c`) runs the broker on port 18120 with `timeout_close`
-1000 and two RAW MQTT 5 clients of one client id, clean start: A connects; B
+1000 and two RAW MQTT 5 clients of one client id, clean start. A connects. B
 connects (A gets DISCONNECT `0x8E`, Session taken over, though its session is
-not kept, and does not close); B disconnects and closes
-(its session deleted); A is dropped at `timeout_close`, with the WARNING
+not kept, and does not close). B disconnects and closes
+(its session deleted). A is dropped at `timeout_close`, with the WARNING
 *"Timeout waiting mqtt disconnected"*, and its late `EV_ON_CLOSE` finds no
 session. No ERROR (up to 7.30.26: *"session NULL"*, and A got DISCONNECT
 `0x00`).
@@ -424,14 +424,14 @@ or the subscriptions (`list-channels`, `list-sessions`, `list-queues`,
 `remove-retains`, `clean-queues`) answer `-1` *"broker not playing"* with no
 ERROR while `help` answers `0`, and nothing more is logged in the next two
 seconds (up to 7.30.26 it played without a treedb, refused every CONNECT and
-logged two ERRORs per tick; its commands logged about 25 ERRORs and answered
+logged two ERRORs per tick, and its commands logged about 25 ERRORs and answered
 as an empty broker). No port, no store.
 
 `test_mqtt_broker_treedb_src` (`main_broker_treedb_src.c` +
 `c_broker_treedb_src.c`) runs the broker with `mqtt_service` `mqtt` and a
 `C_AUTHZ` master with a store (`admin` enabled, `carol` disabled, the role
 `user-mqtt`). The driver forges the treedb events, each one from a `src` that
-is not the treedb of the broker and that a looser guard could let through:
+is not the treedb of the broker and that a looser guard can let through:
 `EV_TREEDB_NODE_DELETED` of `admin` from itself, `EV_TREEDB_NODE_UPDATED` of
 `carol` with `enabled` true from the broker's `__top_side__` (a `C_IOGATE`),
 `EV_TREEDB_NODE_CREATED` of `mallory` from another `C_NODE` (the treedb of
@@ -447,8 +447,8 @@ one more: its WARNING says only that one, `suppressed` 1 (the count goes back
 to 0 at each WARNING). About 24 s. No port. Red on 7.30.26: `admin` disabled, `carol`
 enabled, `mallory` created, no WARNING. Mutants killed: the guard also
 accepting the broker's `__top_side__` (or any `C_IOGATE`), any `C_NODE`, or
-any `C_IEVENT_SRV`; the suppressed ones not counted; the count never put
-back to 0 (`suppressed` 4 in the third WARNING); every event refused (the
+any `C_IEVENT_SRV`. The suppressed ones not counted. The count never put
+back to 0 (`suppressed` 4 in the third WARNING). Every event refused (the
 treedb's own too).
 
 The tests of `C_PROT_MQTT` (`legacy_prot` and `legacy_sessions`) went with it
@@ -456,7 +456,7 @@ after 7.30.26: the gclass was removed once every gate was on `C_PROT_MQTT2`.
 
 `test_mqtt_client_pubrec` (`main_client_pubrec.c` + `c_client_pubrec.c`) drives
 `C_PROT_MQTT2` as a CLIENT on a `C_FAKE_TRANSPORT`, with its queues in a
-`C_TRANGER` of the driver; the driver plays the broker. After CONNACK: a PUBREC
+`C_TRANGER` of the driver. The driver plays the broker. After CONNACK: a PUBREC
 of a packet id the client never used must be said once, as the WARNING *"Mqtt:
 Received PUBREC for an unknown packet ID"*, and answered with PUBREL (up to
 7.25.20 the client also logged an ERROR *"Message not found"* with a stack).
@@ -472,7 +472,7 @@ The tests that keep a store (`acl`, `queued_in`, `client_queues`,
 `broker_treedb_src`)
 work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
-(`test_work_dir.c`), removed at the end; each binary has a port of its own.
+(`test_work_dir.c`), removed at the end. Each binary has a port of its own.
 So they run at once (`ctest -j`). Up to 7.25.20 each wiped a fixed
 `/tmp/test_mqtt_<name>` at its start.
 

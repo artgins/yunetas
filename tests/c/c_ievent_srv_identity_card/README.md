@@ -6,70 +6,70 @@ Tests the identity cards a peer sends to `C_IEVENT_SRV`
 One yuno holds both sides: a `C_IEVENT_SRV` gate on `ws://127.0.0.1:7813`
 and a raw websocket client (`C_IOGATE` -> `C_CHANNEL` -> `C_WEBSOCKET` ->
 `C_TCP`, no `C_IEVENT_CLI`) whose frames the test writes by hand, as a peer
-that is not a yuno, or a misconfigured one, would. Each card but the last is
-refused and its channel closed; the client connects again and sends the next:
+that is not a yuno, or a misconfigured one, does. Each card but the last is
+refused and its channel closed. The client connects again and sends the next:
 
-0. a card without `__md_iev__`;
-1. `dst_role` of another yuno, with a 4 KB key of its own;
-2. `dst_yuno` of another yuno;
-3. no `src_role`, and a serialized gbuffer with no `data`
+0. A card without `__md_iev__`.
+1. `dst_role` of another yuno, with a 4 KB key of its own.
+2. `dst_yuno` of another yuno.
+3. No `src_role`, and a serialized gbuffer with no `data`
    (`"__gbuffer___": {"label": ""}`): ONE warning before the refusal,
    *"Serialized gbuffer of a peer without a 'data' string, refused"*, and no
-   error (up to 7.30.15 an ERROR with a stack, from `gbuffer_deserialize()`);
-4. no `src_service`;
-5. a `dst_service` that is not in this yuno;
-6. a `jwt` that is not a string;
-7. a command (`EV_MT_COMMAND`) before any card, carrying credentials: a
+   error (up to 7.30.15 an ERROR with a stack, from `gbuffer_deserialize()`).
+4. No `src_service`.
+5. A `dst_service` that is not in this yuno.
+6. A `jwt` that is not a string.
+7. A command (`EV_MT_COMMAND`) before any card, carrying credentials: a
    `password` key, a `passw` and a `client_secret` down its kw, and
-   `token=...` in its command line;
-8. a card bigger than `max_pre_session_frame` (1 MB in this test; the
+   `token=...` in its command line.
+8. A card bigger than `max_pre_session_frame` (1 MB in this test, and the
    default is 64 KB): not parsed, *"Frame before the identity card too big,
-   channel closed"*, and its bytes not dumped (a card carries a jwt);
-9. an event no gclass has as public, before any card, carrying a
+   channel closed"*, and its bytes not dumped (a card carries a jwt).
+9. An event no gclass has as public, before any card, carrying a
    `password`, a nested `client_secret`, a JWT under a plain key and 64 KB of
    kw, its NAME with a secret too (`EV_NO_SUCH_EVENT_REV23
    password=...`): *"Frame of an event that is not public, refused"*, said
    once by `iev_create_from_gbuffer()` with the name and the kw masked, and
    `frame_size` the bytes received (the test reads it: 64 KB or more). Up to
    7.26.9 the lookup was silent and `C_IEVENT_SRV` traced the whole kw raw,
-   and then the name went in clear, with a `kw_size` of the masked copy;
-10. a frame of json that is not an inter-event, a JWT under a plain key that
+   and then the name went in clear, with a `kw_size` of the masked copy.
+10. A frame of json that is not an inter-event, a JWT under a plain key that
     a window of 256 bytes cuts after its header: *"Frame is not an
     inter-event ..."*, the frame masked. Up to 7.26.9 it was *"Bad json"*,
-    and a dump of its bytes raw showed the JWT's payload;
-11. a frame that is not json, with the same cut JWT: *"frame is not json"*,
-    and a DEBUG dump of its first 256 bytes, the cut JWT masked;
-12. a card the authentication refuses (its jwt `tester-refused`), carrying
+    and a dump of its bytes raw showed the JWT's payload.
+11. A frame that is not json, with the same cut JWT: *"frame is not json"*,
+    and a DEBUG dump of its first 256 bytes, the cut JWT masked.
+12. A card the authentication refuses (its jwt `tester-refused`), carrying
     a serialized gbuffer (`"__gbuffer___": {"data": "cGVlciBieXRlcw=="}`,
     which `kw_deserialize()` turns into a real gbuffer of the kw, as it does
     for any frame of a peer): a negative `EV_IDENTITY_CARD_ACK`, no session,
     and the channel closed at `timeout_idgot` (2 s here). Up to 7.30.14 the
     gate released that gbuffer twice (2 x *"BAD gbuf_decref()"*: a double
     free in a yuno without `CONFIG_DEBUG_TRACK_MEMORY`), before any
-    authentication -- red against the `c_ievent_srv.c` of 7.30.14;
-13. a card the authentication refuses, carrying a serialized gbuffer whose
+    authentication (red against the `c_ievent_srv.c` of 7.30.14).
+13. A card the authentication refuses, carrying a serialized gbuffer whose
     `data` is not base64 (`"not*base64"`): ONE warning, *"Serialized gbuffer
     of a peer whose 'data' is not base64, refused"*, and no error. Up to
     7.30.15 it was two ERRORs with a stack (`gbuffer_base64_to_binary()`,
-    then `gbuffer_deserialize()`) that any peer could write per frame before
-    any login;
-14. a good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session. It
+    then `gbuffer_deserialize()`) that any peer was able to write per frame before
+    any login.
+14. A good card: `EV_IDENTITY_CARD_ACK` with result 0, and a session. It
     carries a serialized gbuffer too: the card the gate keeps (its
     `identity_card` attr) and the one it publishes in `EV_ON_OPEN` have no
     `gbuffer`. Up to 7.30.15 both kept it, a pointer to memory freed with the
-    frame, which the controlcenter's list of agents showed to an operator;
-15. in that session, a second card, good, of ANOTHER user: refused, a
+    frame, which the controlcenter's list of agents showed to an operator.
+15. In that session, a second card, good, of ANOTHER user: refused, a
     negative `EV_IDENTITY_CARD_ACK` and ONE warning (*"Identity card in a
-    session, refused: the session keeps its identity"*); the session keeps its
+    session, refused: the session keeps its identity"*). The session keeps its
     user and its channel, and no second `EV_ON_OPEN` is published. Up to
     7.30.14 the card was authenticated again and replaced the user of the
     session (and its services, its superuser flag, its identity card), and
-    `EV_ON_OPEN` was published again -- which `C_CHANNEL` does not pass up, so
+    `EV_ON_OPEN` was published again. `C_CHANNEL` does not pass it up, so
     the services above never checked the new identity.
 
 Each refusal is caused by the peer, so it is ONE warning (the authentication
 of card 12 says nothing here: a `C_AUTHZ` writes its own warning) (`MSGSET_PROTOCOL`,
-`peername`, the kw capped, no stack; the dump of a frame that is not json is a
+`peername`, the kw capped, no stack, and the dump of a frame that is not json is a
 DEBUG trace besides, masked), and the jwt of the card is never
 written to the log (`main.c` counts the lines of each, their priority and
 their size, and looks for the jwt, and for the credentials of the command,
@@ -77,8 +77,8 @@ in every line). Only the good card opens a session.
 
 Up to 7.25.20 each refusal was an error with the whole kw dumped (the jwt
 with it), followed by a second error, *"event UNKNOWN in not-session
-state"*, with the whole kw again; a card without `__md_iev__` added a third
-error, with a stack; a command before the card was an error too; and a
+state"*, with the whole kw again. A card without `__md_iev__` added a third
+error, with a stack. A command before the card was an error too. And a
 `jwt` that was not a string was logged as an error by the reader and went on
 to the authentication, which accepted the card.
 

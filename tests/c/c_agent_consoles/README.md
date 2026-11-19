@@ -1,9 +1,9 @@
 # c_agent_consoles test
 
-Runs the **real agent** (`yunos/c/yuno_agent/build/yuneta_agent`) in the
+Runs the real agent (`yunos/c/yuno_agent/build/yuneta_agent`) in the
 sandbox of `c_agent_sandbox` (namespaces of its own: a tmpfs on `/yuneta`, a
 `/etc/passwd` where uid 0 is `yuneta`, a loopback nobody else sees), with its
-memory bounded (`ulimit -v 4000000`; none for an agent built with ASan) and no
+memory bounded (`ulimit -v 4000000`, none for an agent built with ASan) and no
 core, and opens consoles from sessions on its `1991`, websocket clients written
 by hand (`client.py`). It takes `outputs/yunos/logcenter` as the binary of a
 yuno that is registered and never run, whose card a session presents.
@@ -12,7 +12,7 @@ yuno that is registered and never run, whose card a session presents.
 
 `agent.json` sets `console_pause_timeout` to 5000 ms (the default is 30 s)
 and `console_max_tx_queue` to 2048 (8192), so the cases are quick and a route
-with no flow control would be taken off soon.
+with no flow control is taken off soon.
 
 1. **A session that floods its console and does not read.** The session
    opens `open-console name=flood process=yes` and reads nothing. The
@@ -22,13 +22,13 @@ with no flow control would be taken off soon.
    the session opened it and is alone on it, so it freezes nobody else and
    the console waits for it (its process waits), past two
    `console_pause_timeout`. When the session reads, it gets more than 20 MB
-   and no close; when it leaves, the console goes with it. Up to 7.30.26 the
+   and no close. When it leaves, the console goes with it. Up to 7.30.26 the
    agent grew some 50 MB/s until it aborted (*"REACHED
-   MAX_SYSTEM_MEMORY"*); before the fix the console was closed at the
+   MAX_SYSTEM_MEMORY"*). Before the fix the console was closed at the
    deadline. The run stops at 300 MB of growth, so a broken agent cannot
    eat the machine.
 2. **A joined session that does not read, beside one that reads.** A session
-   opens `paced` (`bash`) and reads; another joins it and reads nothing. The
+   opens `paced` (`bash`) and reads. Another joins it and reads nothing. The
    console prints 3,000,000 numbered lines (30 MB) at a pace. The reading
    session must get ALL of them, in order: the console pauses for the other
    one, which is taken off within its deadline, so it does not freeze the
@@ -56,7 +56,7 @@ with no flow control would be taken off soon.
    it. With no flow control it was taken off once it fell
    `console_max_tx_queue` messages behind.
 6. **An opener that does not read, beside a session that does.** A session
-   opens `oflood` (`yes`) and reads nothing; another joins it and reads.
+   opens `oflood` (`yes`) and reads nothing. Another joins it and reads.
    The opener stops the other one, so at its deadline it is taken off (ONE
    WARNING, `"opener": "yes, the console is closed"`) and the console is
    closed: the joined session gets the `EV_TTY_CLOSE` of `oflood`.
@@ -70,7 +70,7 @@ with no flow control would be taken off soon.
    up to 1 s late. The opener is then taken off (ONE WARNING, the console
    closed) from that deadline to 3 s after it. Before the fix the console
    was closed, and its process killed, at the deadline the opener had
-   before the join; a period restarted at that deadline instead of at the
+   before the join. A period restarted at that deadline instead of at the
    join puts it 7.5 s after the join or later. The deadline is read from
    the agent, not timed from the close: under ctest -j8 the agent's timer
    fired 1.5 s late, and the close came 8.7 s after the join.

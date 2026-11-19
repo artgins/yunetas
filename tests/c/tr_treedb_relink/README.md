@@ -1,6 +1,6 @@
 # tr_treedb_relink test
 
-Tests a link into a **single-valued** fkey (a `string` column with the `fkey`
+Tests a link into a single-valued fkey (a `string` column with the `fkey`
 flag), where a new link replaces the old one.
 
 Before the fix, `_link_nodes()` wrote the new reference into the child and
@@ -44,7 +44,7 @@ reload, and leaked at every `treedb_close_db()` (15 676 bytes for two nodes).
 A cycle in ONE hook also sent `children recursive=1` and `jtree` into endless
 recursion, with no visited set and no depth limit. The test checks:
 
-6. A link that would hang a node from its own descendant through the SAME
+6. A link that hangs a node from its own descendant through the SAME
    hook is refused (*"Cannot link, the link would close a cycle in the hook"*).
    A tree is a tree.
 7. A cycle through TWO hooks is data, and is accepted: a department manages a

@@ -16,11 +16,11 @@ plain UDP socket, the peer:
    completes. The peer must get `deaf`.
 2. A `C_UDP_S` with `udps://127.0.0.1:24294` is started: the start must fail
    with *"A secure url (udps://) is not supported by C_UDP_S: there is no
-   DTLS"*, and nothing may listen on the port.
+   DTLS"*, and nothing must listen on the port.
 3. A `C_UDP_S` whose port (`127.0.0.1:24299`) is held by a socket with no
    `SO_REUSEADDR` is started: ONE ERROR, *"yev_create_accept_event()
    FAILED"* (`errno` 98), `listening` false. Its first try (1 s later)
-   fails too and says nothing more (only the `bind()` WARNING); the port is
+   fails too and says nothing more (only the `bind()` WARNING). The port is
    released, and the second try listens, with one INFO, *"Listening again
    after a failed listen"*.
 4. A `C_UDP_S` with an empty url is started: *"URL NULL"*, the start fails,
@@ -43,10 +43,10 @@ said cases 3 and 5 as *"Listen failed: not listening, trying again"* and
 Up to 7.25.4:
 
 - the failure of the re-arm was ignored: the server stayed in `ST_IDLE`,
-  "running", and deaf, with nothing logged;
+  "running", and deaf, with nothing logged.
 - a self-stop with a send in flight stayed in `ST_WAIT_STOPPED` for ever: the
   completion of the send took the path of a running server, and `EV_STOPPED`
-  was never published;
+  was never published.
 - `udps://` was accepted: the server listened with no TLS session, and the
   first datagram crashed the yuno (`ytls_decrypt_data()` with a NULL
   session).

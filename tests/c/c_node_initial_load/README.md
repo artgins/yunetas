@@ -5,27 +5,27 @@ declares it cannot come up without.
 
 What it checks:
 
-- The seed comes up complete on the **first** start, whatever the order of
+- The seed comes up complete on the first start, whatever the order of
   its topics (the child is declared before its parent here). Records first,
   links second, the way `treedb_open_db()` loads a store from disk.
 - Every seed record is immutable.
 - The links a seed is declared with cannot be cut: not by `unlink-nodes`, not
   by an autolink `update-node` that omits them, not by deleting the parent
-  with `force`, and not by a `link-nodes` into a **single-valued** fkey,
+  with `force`, and not by a `link-nodes` into a single-valued fkey,
   which replaces instead of adding.
 - The links a person adds to a seed afterwards CAN be cut, and a record no
   seed hangs from can be deleted.
 - A second start creates nothing and writes no link.
-- A `print-tranger` path that is not there -- a segment longer than 255
-  bytes, a segment under a string (`` directory`x ``) -- answers `-1` and logs
+- A `print-tranger` path that is not there (a segment longer than 255
+  bytes, or a segment under a string, `` directory`x ``) answers `-1` and logs
   nothing: `kw_find_path()` walks any path in a loop (C_NODE walked it itself
-  and refused those with a WARNING, where `kw_find_path()` logged ERRORs); a
+  and refused those with a WARNING, where `kw_find_path()` logged ERRORs). A
   string at the end of the path (`directory`) is answered as it is (it was an
   ERROR of `kw_collapse()`). The test installs an authz checker that grants
   every permission: `print-tranger` asks `read`.
 
 What a seed gets wrong is a WARNING when the seeds are a peer's (an
-`open-treedb` from outside); that case is tested in
+`open-treedb` from outside). That case is tested in
 [`c_treedb_system_schema`](../c_treedb_system_schema/README.md) (Test 13d3).
 
 The schema carries the two fkey shapes on purpose: `users.departments` is a

@@ -13,8 +13,8 @@ Tests the `cpu_core` of a yuno (`boost_process_performance()` in `c_yuno.c`).
   and the process must keep every cpu it had. Up to 7.27.9 it was silent.
 
 `test1` needs a machine with at least two cpus. Both are run as a plain user:
-under root (or with the capabilities) `test1` would get `SCHED_RR`, and its
-INFO would say so.
+under root (or with the capabilities) `test1` gets `SCHED_RR`, and its
+INFO says so.
 
 ## Run
 

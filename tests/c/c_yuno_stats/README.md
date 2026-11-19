@@ -7,7 +7,7 @@ Tests the memory and disk stats of a yuno (`load_memory_stats()` and
   (a tmpfs), so the yuno writes to two filesystems: `/yuneta` and that one.
   After three readings of the stats (one a second) it checks:
   - `mem_rss_kb` and `mem_node_total_mb` above 0,
-    `mem_node_available_percent` in 0..100;
+    `mem_node_available_percent` in 0..100.
   - `disk_min_free_percent` in 0..100, its path (`disk_min_free_path`) on
     `/yuneta` or in the store, on the FULLER of the two as `statvfs()`
     measures them in the test, and the percent the same within a point.

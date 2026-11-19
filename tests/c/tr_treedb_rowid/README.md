@@ -4,8 +4,8 @@ Tests the id a topic hands out when its `id` column carries the `rowid` flag
 and the create sends no `id`.
 
 That id used to be `tranger2_topic_size() + 1`, and `tranger2_topic_size()`
-sums the **records** of every key. So deleting a node lowered the total and
-the next id landed on one that already existed; every update raised it and the
+sums the records of every key. So deleting a node lowered the total and
+the next id landed on one that already existed. Every update raised it and the
 ids skipped. Two real consequences:
 
 - `__snaps__` is a `rowid` topic. Shoot two snaps, delete the row of the
@@ -19,7 +19,7 @@ ids skipped. Two real consequences:
 
 The id is now one past every id the topic ever handed out, kept in the topic's
 `topic_var.json` as `last_rowid_id`, and never reused: a snap's id rides the
-records it tagged as `user_flag`, so a new snap with a deleted snap's id would
+records it tagged as `user_flag`, so a new snap with a deleted snap's id can
 inherit them.
 
 The test checks, on a topic declared like this:
@@ -41,7 +41,7 @@ The test checks, on a topic declared like this:
    highest id was deleted before the close.
 5. The counter survives a `topic_version` change across a RESTART of the
    tranger. The change re-creates `topic_var.json` from the schema, and the
-   counter lived there; in the same process the topic stays open in the
+   counter lived there. In the same process the topic stays open in the
    tranger and keeps it in memory, so the loss shows only with a new tranger,
    which is what a yuno restart is. Re-seeded from the ids alive, the next
    create handed out the deleted highest id again (`4`, the id `d` had).
@@ -49,5 +49,5 @@ The test checks, on a topic declared like this:
    again.
 7. A store with no counter yet (`last_rowid_id` 0) and a snap ACTIVE: a node
    created after the shot is on disk and not in the snap-filtered index. The
-   seed read that index and handed out the node's own id; it reads the keys
+   seed read that index and handed out the node's own id. It reads the keys
    of the topic (tranger2's cache) now, so the create gets the next one.

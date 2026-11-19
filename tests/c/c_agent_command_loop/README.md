@@ -1,9 +1,9 @@
 # c_agent_command_loop test
 
-Runs the **real agent** (`yunos/c/yuno_agent/build/yuneta_agent`) in the
+Runs the real agent (`yunos/c/yuno_agent/build/yuneta_agent`) in the
 sandbox of `c_agent_sandbox` (namespaces of its own: a tmpfs on `/yuneta`, a
 `/etc/passwd` where uid 0 is `yuneta`, a loopback nobody else sees), with its
-memory bounded (`ulimit -v 4000000`; none for an agent built with ASan, whose
+memory bounded (`ulimit -v 4000000`, or none for an agent built with ASan, whose
 shadow memory fits no bound) and no core, and sends it on its `1991`
 `command-agent` lines whose forwarded command is `command-agent` again.
 
@@ -53,7 +53,7 @@ closes a quoted word), so the last line names no command either.
 Then `command-agent service=controlcenter command=list-yunos`: that service
 is the agent's link to the control center (`C_IEVENT_CLI`), down in the
 sandbox. It must answer -1 *"…: service 'controlcenter' not in session"* at
-once, and so must `stats-agent service=controlcenter`; the agent log must
+once, and so must `stats-agent service=controlcenter`. The agent log must
 hold two WARNINGs *"Not in session"* (the command and the stats) and no
 ERROR. Up to 7.30.26 the link returned NULL (*"the answer will come"*) after
 an ERROR with a stack, and the peer waited for ever.
@@ -76,7 +76,7 @@ config.
 Then three `create-config` (versions `g1`, `g2`, `g3`) with a `gbuffer` key:
 written whole, split by a line (`"gbu` / `ffer"`), and split by a comment
 (`"gbu#^^ a comment` / `ffer"`), which the comment cut joins. None of the
-configs stored (`list-configs-instances id=gbuf`) may hold a `gbuffer` key,
+configs stored (`list-configs-instances id=gbuf`) can hold a `gbuffer` key,
 and the log holds three WARNINGs *"Json of a peer with 'gbuffer' keys, a
 binary field name: dropped"*. Up to 7.30.26 only the first was dropped.
 

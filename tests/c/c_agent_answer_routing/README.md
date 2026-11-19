@@ -1,9 +1,9 @@
 # c_agent_answer_routing test
 
-Runs the **real agent** (`yunos/c/yuno_agent/build/yuneta_agent`) in the
+Runs the real agent (`yunos/c/yuno_agent/build/yuneta_agent`) in the
 sandbox of `c_agent_sandbox` (namespaces of its own: a tmpfs on `/yuneta`, a
 `/etc/passwd` where uid 0 is `yuneta`, a loopback nobody else sees), with its
-memory bounded (`ulimit -v 4000000`; none for an agent built with ASan, whose
+memory bounded (`ulimit -v 4000000`, but none for an agent built with ASan, whose
 shadow memory fits no bound) and no core, and sends it answers on its `1991`.
 It takes `outputs/yunos/logcenter` as the binary of two yunos that are
 registered and never run: a websocket client written by hand (`client.py`)
@@ -11,11 +11,11 @@ sends the card of each and answers what the agent asks them.
 
 ## What it pins
 
-An `EV_MT_COMMAND_ANSWER` or `EV_MT_STATS_ANSWER` can come from any session
+An `EV_MT_COMMAND_ANSWER` or `EV_MT_STATS_ANSWER` can arrive from any session
 of the agent. The agent takes one only from where it sent the order.
 
 1. A session watches the yuno (`watch-yuno-stats ids=<id> period=1000`, with
-   `"__relays__": ["EV_YUNO_STATS"]`): its first readings come from the yuno
+   `"__relays__": ["EV_YUNO_STATS"]`): its first readings are from the yuno
    (`"data": {"reading": "of the yuno"}`), and the agent asks the yuno to
    `publish-stats`, which it takes. Then another session sends the agent a
    reading of that yuno (`__md_iev__.agent_watch`, `"data": {"forged":
@@ -49,7 +49,7 @@ of the agent. The agent takes one only from where it sent the order.
    agent answered each request to the gate of its channels, an ERROR
    *"Event NOT DEFINED in state"* with a stack per frame.
 2. A session sends `command-yuno id=<id> command=help` and closes before the
-   yuno answers; another session takes its channel (the same `input-N`, as
+   yuno answers. Another session takes its channel (the same `input-N`, as
    the yuno sees in the `src_service` of the two orders) and sends it too.
    The yuno answers both: the second session must get its own answer only,
    and the log holds *"requester gone before its answer, answer dropped"*.
@@ -76,8 +76,8 @@ of the agent. The agent takes one only from where it sent the order.
    session's `C_IEVENT_SRV` and looked for it in the channel: it was never
    closed, and it wrote to the next session of that channel.
 
-Last, a session watches the yuno again and the agent asks it to publish;
-with the watch still armed the client sends the agent a SIGINT. The yuno
+Last, a session watches the yuno again and the agent asks it to publish.
+With the watch still armed, the client sends the agent a SIGINT. The yuno
 must get its `publish-stats` with `stop`, and the log must hold no ERROR
 *"hgobj NULL or DESTROYED"*. Up to 7.30.26 the stop ended the watch after
 the pause had closed the treedb: that ERROR with a stack, and the yuno was

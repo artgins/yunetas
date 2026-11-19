@@ -3,8 +3,8 @@
 Unit tests for the string/utility helpers in `kernel/c/gobj-c/src/helpers.c`.
 
 Currently covers `split2()` / `split_free2()` (split a string by a delimiter
-set, dropping empty tokens), including a **reentrancy regression**: `split2()`
-must not clobber a caller's in-progress `strtok()` parse — it parses with
+set, dropping empty tokens), including a reentrancy regression: `split2()`
+must not clobber a caller's in-progress `strtok()` parse. It parses with
 `strtok_r` internally.
 
 Also `save_json_to_file()` with a missing directory: it answers `-1` and logs
@@ -16,13 +16,13 @@ and the files outside the tree stay. An entry (a file, a directory) that
 another process removes during the walk is not an error (the test binary is
 linked with `--wrap=lstat` and removes the entry at its `lstat()`). And
 `mkrdir()` over a file (error) and through a link to a directory (works).
-And a deep tree: 300 levels are removed; paths longer than `PATH_MAX` and a
+And a deep tree: 300 levels are removed. Paths longer than `PATH_MAX` and a
 tree of 1100 levels are refused with a log, not walked into (the code before
-crashed); `mkrdir()` of a path longer than `PATH_MAX` is refused with a log.
+crashed). `mkrdir()` of a path longer than `PATH_MAX` is refused with a log.
 
 `test_rotatory` covers `rotatory_remove_old_files()`, the retention of the
-agent's audit directory: only the old files of the mask (and their `.OLD`) go;
-a recent file, other names, a symbolic link, a directory and the current file
+agent's audit directory: only the old files of the mask (and their `.OLD`) go.
+A recent file, other names, a symbolic link, a directory and the current file
 stay. It also checks that a size rotation calls the newfile callback, where the
 agent applies the retention. And the write path: across a size rotation the
 `.OLD` and the new file hold whole records (up to 7.25.4 the `"\n"` of the
@@ -32,7 +32,7 @@ and it writes again when the space is back (the free space is faked for one
 directory: the test binary is linked with `--wrap=statvfs,--wrap=fstatvfs`).
 And after `rotatory_end()`, a write, flush, truncate or close through an old
 handle does nothing. And a clock set back across midnight, and forward again,
-empties no file (the audit mask and the `W` mask; the file of last week of a
+empties no file (the audit mask and the `W` mask, but the file of last week of a
 `W` mask is still emptied): the clock is faked with `--wrap=time`.
 And a piece of 0 bytes stops nothing, a write that fails (a file size limit)
 is followed by a record that opens the file again, the open of an old `W`
@@ -43,8 +43,8 @@ space.
 `test_audit_record` compiles the audit record builder of `yuneta_agent`
 (`yunos/c/yuno_agent/src/audit_record.c`) and checks it: a `content64` (in
 the command text or as a kw key) is never written, only its size and the
-sha256 of the decoded content; `__md_iev__` becomes a short `source`; a
-read-only command is recorded with command, date and user only; the kw of the
+sha256 of the decoded content. `__md_iev__` becomes a short `source`. A
+read-only command is recorded with command, date and user only. The kw of the
 caller is not modified. A secret (`password`, `pwd`, `secret`, `token`, `jwt`,
 `private_key`, … in the text, in the kw at any depth, in the command carried by
 `command-yuno`, in a json given as text, the `value` of a `write-attr` of a
@@ -56,33 +56,33 @@ line in `__command__`), every word with no key after the command name is
 sixteen other shapes (quotes, base64 that ends in `=`,
 `set-kc-config kc_realm=r <secret>`, a wrapper in a wrapper) keep
 `username=bob` and lose `hunter2` (7.30.26 wrote it), and two more (`'\''`,
-`\"` in the value) lose it with the rest of the value; `kill-yuno 3` nested
+`\"` in the value) lose it with the rest of the value. `kill-yuno 3` nested
 is `kill-yuno <...>`, and a command that is not nested keeps its words. The
 command name of a nested line in its own quotes is one word with the secret
 inside it (`command="'set-user-pwd username=bob hunter2'"`, `"'unlock'hunter2"`,
 `'set-user-pwd\ username=bob\ hunter2'`): a first word with a blank, a quote or
 a backslash (its enclosing quotes apart) is `<...>`, in the text, in
 `kw.command`, in the read-only record (`'list-x … hunter2'` no longer makes it
-read-only) and in the record forwarded (7.30.26 wrote it); `"'list-yunos'"`
+read-only) and in the record forwarded (7.30.26 wrote it). `"'list-yunos'"`
 stays. The words of a nested line are the shell's, while its parser takes no
 `\` as an escape and a quote only where a value begins: from the first word
-the two cut otherwise, the rest of that line is `<...>` -- `command="set-user-pwd
+the two cut otherwise, the rest of that line is `<...>`. For example, `command="set-user-pwd
 bob x=''\'' hunter2"` is `command="set-user-pwd <...> <...>"`, and
 `x=''\\'' y=6' <s>`, `\"COMMAND-AGENT\" command='kill-yuno <s>'`, `x=a' <s>'`,
-`x='a <s>`, `x='a'<s>` and `x=a\ <s>` lose the secret (7.30.26 wrote it); a
+`x='a <s>`, `x='a'<s>` and `x=a\ <s>` lose the secret (7.30.26 wrote it). A
 `\"` in a `"..."` command value, where the parser ends it, makes the whole
-value `<...>`; what follows the value (`n=1`) stays. What is compared is where
+value `<...>`, and what follows the value (`n=1`) stays. What is compared is where
 the two END a word: a value that does not begin with a quote is cut by the
 parser at the first blank, so with no blank in it (no quoted piece with a
 blank, no `\` before a blank) it is read alike, quotes and all. A json written
 without quotes of its own (`record={"id":"item1"} options={"force":1}`, the
 documented form) is written whole, its `password` redacted inside, with the
-`id=` after it (7.30.26 wrote it whole too; before this fix the unreleased rule
-made the rest of the line `<...>`); `record={"note":"a <s>"}` still makes the
+`id=` after it (7.30.26 wrote it whole too, and before this fix the unreleased rule
+made the rest of the line `<...>`). `record={"note":"a <s>"}` still makes the
 rest `<...>`. A word with the shell's `'\''` in it fails closed, nested or
 not: `update-node record='{'\''password'\'':'\''<s>'\''}'` is
 `update-node record=<...>`, the rest of the line with it (7.30.26 wrote
-`...:'<redacted>'<s>'\''}`), and twelve such shapes lose the secret; a
+`...:'<redacted>'<s>'\''}`), and twelve such shapes lose the secret. A
 secret's own value (`password='it'\''s <s>'`) is still redacted whole. The
 shell's other ways to quote a quote, which have no `\`, fail closed the same
 way: a piece closed and another opened right after it (`'"'"'`, `"'"'"`,
@@ -90,13 +90,13 @@ way: a piece closed and another opened right after it (`'"'"'`, `"'"'"`,
 (`{'"'password'"':'"'<s>'"'}`): `update-node
 record='{'"'"'password'"'"':'"'"'<s>'"'"'}'` is `update-node record=<...>`
 (7.30.26 wrote `...:'<redacted>'"'<s>'"'"'}'`), and nineteen such shapes lose
-the secret; `note="it's"`, `{"id":"a'b"}`, `note="'"`, empty pieces and
+the secret. `note="it's"`, `{"id":"a'b"}`, `note="'"`, empty pieces and
 escaped quotes in a `"..."` piece are written, and `{"id":"'"}` without its
 own quotes is `<...>` (the cost). A key with quotes in it is judged without
 them, as the shell reads it: `create-realm p'a'ssword=<s>` is `create-realm
 <...>` and `record='{"p'a'ssword":"<s>"}'` has its value redacted (7.30.26
 wrote both with `<s>`), twelve such shapes lose the secret, also nested and
-with the json key glued to its bytes (`"pa"ss"word"`); `a'b'=c` and a json
+with the json key glued to its bytes (`"pa"ss"word"`). `a'b'=c` and a json
 key `"a'b'"` are written. A `stats=__reset__` makes a stats command a
 write. The carried command of `command-yuno` is the one of the text, as the
 parser takes it. Blanks around the `=` of `content64`, many short values and a
@@ -104,7 +104,7 @@ quote that never ends leak nothing. Bad data from a peer logs no error. A
 console write (`write-tty`) keeps only the fact, one record per burst, with no
 hash. Texts made to be hard to scan (`list-yunos x` + 1 500 000 `=`, and
 eleven other shapes) and 3000 random texts: every record is built, in linear
-time, and a `password=` never survives; a text beyond the cap of a record
+time, and a `password=` never survives. A text beyond the cap of a record
 (128 MB) is written as its first word, size and sha256. The command word is
 the one the parser takes (`WRITE-TTY`, `'write-tty'`, `EV_WRITE_TTY`,
 `CLOSE-CONSOLE`, `1`, `ATTRIBUTE=… VALUE=…`), checked against
@@ -118,7 +118,7 @@ the one the parser takes (`WRITE-TTY`, `'write-tty'`, `EV_WRITE_TTY`,
 also covers `rotatory_keep_all_old_files()` (numbered `.OLD.<n>` pieces, none
 removed, and the retention matches them), a newfile callback that runs for a
 new file only (never for the same file opened again after a failed write or a
-removal), a keep_all rename that fails (tried once, not at every record; the
+removal), a keep_all rename that fails (tried once, not at every record, and the
 test is linked with `--wrap=rename`), and the open of a fixed name, of a `MM`
 name within its month, and of a `W` file with keep_all set right after the
 open (none of them emptied).
@@ -135,12 +135,12 @@ entries): `find_files_with_suffix_array()`, `walk_dir_array()` and
 `get_ordered_filename_array()` answer `-1` with the listing empty, and log it.
 Up to 7.25.4 the entry was dropped and the listing answered `0`, so
 timeranger2 read a key without the md2 file the listing lost.
-And a walk whose ROOT cannot be opened (mode 0) answers `-1` too; up to 7.25.4
+And a walk whose ROOT cannot be opened (mode 0) answers `-1` too. Up to 7.25.4
 `walk_dir_array()` answered `0` with an empty listing.
 
 `test_dir_listing` compiles the answer of the agent's `dir-*` commands
 (`yunos/c/yuno_agent/src/dir_listing.c`) and checks it: a tree that can be
-listed answers `0` with its entries sorted; a directory of mode 0 (SKIPPED as
+listed answers `0` with its entries sorted. A directory of mode 0 (SKIPPED as
 root), one that does not exist, and a `match` that is not a regular expression
 answer `-1` with a comment that names the directory, and no list. Up to 7.25.4
 each command answered an empty list with `0`. The comment sends to the log for
@@ -151,33 +151,33 @@ the cause (*"see the log"*): it does not read the process-global
 (swapped with `gbmem_set_allocators()`): a peer field or a kw string whose
 redaction cannot be allocated is written as `<not written: no memory to
 redact it>`, never as it came (up to 7.25.20 it was written raw, and one over
-the cap had never been scanned). A peer field that is not UTF-8 is a warning,
+the cap was never scanned). A peer field that is not UTF-8 is a warning,
 not an error, written as `""`.
 
 `test_watch_request` compiles what the agent takes from a `watch-yuno-stats`
 request (`yunos/c/yuno_agent/src/watch_request.c`): the watch is named from
 the hop the agent can trust (its own input channel's when direct, the one the
 control center stamped, with `cc_connection`, when relayed), so a forged
-extra hop names no other client's watch; a requester without `__relays__`
-naming `EV_YUNO_STATS` is refused, a direct one too; more ids than the cap
+extra hop names no other client's watch. A requester without `__relays__`
+naming `EV_YUNO_STATS` is refused, a direct one too. More ids than the cap
 are refused, and a cap under 1 (a bad `max_watch_ids`) refuses every watch
 naming the cap, logged once per bad value (not once per request).
 
 `test_yuno_config_file` compiles the writer of the configuration files the
-agent materialises for a yuno (`yunos/c/yuno_agent/src/yuno_config_file.c`):
+agent materializes for a yuno (`yunos/c/yuno_agent/src/yuno_config_file.c`):
 a new file is `0640`, and one that existed as `0664` is narrowed to `0640`
 (up to 7.25.20 they were `0664`, with the yuno's secrets in them). The file
 is written to a temporary file and renamed over the old one: a symbolic link
-is replaced, not followed; a link to `/dev/null` (writable, root's, so `fchmod()`
+is replaced, not followed. A link to `/dev/null` (writable, root's, so `fchmod()`
 fails with EPERM, as for another owner's file written through the group,
-which a non-root test cannot create) is replaced and the yuno runs; a write that fails (`RLIMIT_FSIZE`) leaves the old
+which a non-root test cannot create) is replaced and the yuno runs. A write that fails (`RLIMIT_FSIZE`) leaves the old
 file whole and no temporary file behind. The files
 of an earlier launch that wrote more of them (`4-role^name.json` when three
 are written now) are narrowed to `0640`: never widened, never removed, and a
-symbolic link, its target and the files of another yuno are not touched; a
+symbolic link, its target and the files of another yuno are not touched. A
 yuno name too long to build their names from is refused with a log. The
 temporary files a write left when the agent died before its rename
-(`.<n>-role^name.json.XXXXXX`) are removed; a link with that name, another
+(`.<n>-role^name.json.XXXXXX`) are removed. A link with that name, another
 yuno's temporary file, or a name that only looks like one, is kept.
 
 `test_dir_read_error` fails the `readdir()` of one directory with `EIO`
@@ -185,24 +185,24 @@ yuno's temporary file, or a name that only looks like one, is kept.
 `walk_dir_array()` (its root, or a subdirectory) and `walk_dir_tree()` answer
 `-1`, empty, logged. Up to 7.25.4 the failure was taken as the end of the
 directory, and a SHORT listing answered `0`. It also checks `re` / `pattern`
-`NULL` (every entry; up to 7.25.4 a crash in `regcomp()`), and that
+`NULL` (every entry, and up to 7.25.4 a crash in `regcomp()`), and that
 `walk_dir_tree()` of a root of mode 0 logs its `-1` (SKIPPED as root).
 It also checks the rules of the walks (`--wrap=opendir` fails the `opendir()`
 of one directory, and the `readdir()` wrap can hide `d_type`): a SUBdirectory
 that cannot be opened for a transient cause (`EMFILE`) fails the walk, `-1`,
-empty (up to 7.25.4 it was skipped and the listing answered `0`, short); one
-with `EACCES` is skipped with a warning; a callback that returns `FALSE` in a
-subdirectory stops the WHOLE walk (up to 7.25.4 only that directory); paths
+empty (up to 7.25.4 it was skipped and the listing answered `0`, short). One
+with `EACCES` is skipped with a warning. A callback that returns `FALSE` in a
+subdirectory stops the WHOLE walk (up to 7.25.4 only that directory). Paths
 longer than `PATH_MAX` fail `walk_dir_tree()` / `walk_dir_array()` with
 *"Path too long"* (up to 7.25.4 the walk went into the same directory again,
-forever: a crash; run last), and `find_files_with_suffix_array()` without
+forever: a crash, and it runs last), and `find_files_with_suffix_array()` without
 `d_type` (up to 7.25.4 the directory was stat'ed instead of the file, and the
-file dropped); a tree of 1100 levels fails the walk (*"Tree too deep"*).
+file dropped). A tree of 1100 levels fails the walk (*"Tree too deep"*).
 And with `--wrap=lstat`: an entry whose `lstat()` fails with `EIO` fails the
-walk and `find_files_with_suffix_array()` without `d_type`, `-1`, logged;
-one whose `lstat()` fails with `EACCES` is LISTED by
+walk and `find_files_with_suffix_array()` without `d_type`, `-1`, logged.
+One whose `lstat()` fails with `EACCES` is LISTED by
 `find_files_with_suffix_array()` without `d_type`, as with it (up to
-7.25.4 it was skipped with no log); a
+7.25.4 it was skipped with no log). A
 subdirectory whose `opendir()` fails with `ENOTDIR` or `ELOOP` is skipped with
 a warning, as with `EACCES`. And `rmrcontentdir()` / `rmrdir()` of a directory
 whose `readdir()` fails answer `-1` and log *"readdir() FAILED"*, with what
@@ -232,7 +232,7 @@ sentence end (`[a.b.c.d].`), a colon on either side (`[a.b.c.d]:443`,
 `[a.b.c.d]:x`, `client:[a.b.c.d]`), a dash that is not part of a word
 (`-[a.b.c.d]`, a range `[a.b.c.d]-[e.f.g.h]`), and an IPv6 address that ends
 in an IPv4, bracketed whole (`[::ffff:a.b.c.d]`, `[64:ff9b::a.b.c.d]`,
-`[0:0:0:0:0:ffff:a.b.c.d]`); while versions and times stay as they are
+`[0:0:0:0:0:ffff:a.b.c.d]`), while versions and times stay as they are
 (`nginx-1.25.3.1`, `1.2.3.4-beta`, `7.25.20.1-1`, `12:30:45.123`). A NULL
 source answers NULL, logged, as its header promises.
 
@@ -244,7 +244,7 @@ one of `now - 86400`: the day BEFORE yesterday from 00:00 to 01:00 after the
 23-hour day of spring, and the same day from 23:00 on the 25-hour day of
 autumn. It also checks `day_before_of()` (N calendar days back: `keep_days`,
 `new_visitor_days`) and `moment_days_before()` (the same time of day N days
-back: the age of a `whois_cache_days` answer) across both changes; up to
+back: the age of a `whois_cache_days` answer) across both changes. Up to
 7.25.20 they were `t - N*86400`, an hour off per change of hour and a day off
 near midnight.
 
@@ -263,7 +263,7 @@ and `approxidate_careful()` (what every TIME option of the tools reads),
 `parse_date_basic()` and `show_date_relative()` at the edge of each unit. The
 wall clock is faked (`--wrap=time`) and the zone is Madrid's, so each time
 read is checked as the local time it names (`"2026-10-20 11:00:00 +0200"`).
-Up to 7.28.4 these functions were a port of git's `date.c` (GPL-2.0); the
+Up to 7.28.4 these functions were a port of git's `date.c` (GPL-2.0). The
 forms the tools document were checked against it before it was replaced, and
 give the same times. The rest checks what the rewrite reads differently: a
 text that is no date is refused (`"in 3 days"` was three days back,
@@ -276,116 +276,116 @@ December 1), an offset after `GMT`/`UTC` (`Date.toString()` of javascript),
 ordinals, the comma before a fraction of a second, a weekday in the plural,
 a month name between dashes or slashes (`"01/Oct/2026:10:00:00 +0200"`,
 `"2026-Oct-01"`), a zone name in a comment (`"10:00:00 (UTC)"`), and D.M.Y
-far ahead in both orders read as written (`"5.4.2027"` is April 5); epoch
+far ahead in both orders read as written (`"5.4.2027"` is April 5). Epoch
 seconds no calendar holds, or past the year 9999 (`"1761000000000"`,
-milliseconds), are refused; a zone after noon (`"noon +0200"`) is read; and a
+milliseconds), are refused. A zone after noon (`"noon +0200"`) is read. And a
 clock time of too many digits in the basic form of ISO 8601 is refused without
 overflowing an integer. And a weekday after a date names it: the number before
 it is that date's day or year (`"Oct 1 2026 Thu"` is October 1, `"Oct 5
 friday"` October 5), where the port and 7.29.3 read a count of weekdays back
-(1987-12-03 for the first); with no date before it, or in the plural, it stays
+(1987-12-03 for the first). With no date before it, or in the plural, it stays
 a count (`"2 wednesday"`, `"Oct 1 2 fridays"`). A year (four digits, 1970-9999)
 before a weekday is a year, never a count (`"Oct 1 2026 thursdays"` is no
-date; 7.29.3 read it, and `"2026 Thu"`, as 2026 Thursdays back), and a
+date, but 7.29.3 read it, and `"2026 Thu"`, as 2026 Thursdays back), and a
 count and its unit, weekday or am/pm are parted by any blank (`"Oct 1
-10\vpm"` is 22:00, `"2\ndays ago"` two days back; 7.29.3 saw only a space or a
+10\vpm"` is 22:00, `"2\ndays ago"` two days back. 7.29.3 saw only a space or a
 tab there, and read the first as 2010-10-01 and the second as no date) or
-comment (`"Oct 1 5 (CEST) pm"` is 17:00, `"2 (x) days ago"` two days back;
+comment (`"Oct 1 5 (CEST) pm"` is 17:00, `"2 (x) days ago"` two days back.
 7.29.3 read 2005-10-01 and no date). A weekday names a day the text must say,
 as a date or counted from today (`"yesterday Tue"`): `"monday 10:00"` and
 `"2026 Thu"` are no date (7.29.3: today at 10:00, today in 2026). A number
 alone after `at` is an hour with no half of the day, no date (`"Oct 1 at
-10"`, `"at 10"`; 7.29.3: 2010-10-01, the 10th); `"Oct 1 at 10 pm"` is read.
+10"`, `"at 10"`. 7.29.3: 2010-10-01, the 10th). `"Oct 1 at 10 pm"` is read.
 §16: after `at` (or `at the`) no number alone is a date, whatever its value
-(`"Oct 1 at 24"`, `"Oct at 26"`, `"Oct 1 at the 10"`; 7.29.3: 2024-10-01,
-October 26, 2010-10-01), nor `"at 10.30"` (7.29.3: October 30); a number
+(`"Oct 1 at 24"`, `"Oct at 26"`, `"Oct 1 at the 10"`. 7.29.3: 2024-10-01,
+October 26, 2010-10-01), nor `"at 10.30"` (7.29.3: October 30). A number
 before a month name is a day (`"at 5 Oct 2026"`, refused by a development
 version). A count of zero and `"now"` are today, so a weekday after them is
 read (`"0 days ago Wed"`, `"now Wed"`, refused by a development version), and
-`ago` with no count before it is no date (`"5 (days) ago"`, `"5 ago"`;
+`ago` with no count before it is no date (`"5 (days) ago"`, `"5 ago"`.
 7.29.3: the 5th).
 §17: a long hostile text is read in linear time (`"at"`, 20000 comments,
 `"on"`, 20000 `"the"`: about 2 s before, now refused well under 500 ms).
 §18: `ago` follows its count with only blanks, dots, commas, underscores or
-comments between them (`"1.day.ago"` is read; `"1 day 5 ago"`, `"yesterday 5
-ago"`; 7.29.3: October 4). Right after `at` an hour with an `h` is a clock
-time of 24 hours (`"at 15h"` 15:00, `"at 10h30"` 10:30; 7.29.3: 15 hours back,
+comments between them (`"1.day.ago"` is read. For `"1 day 5 ago"` and `"yesterday 5
+ago"`, 7.29.3 gave October 4). Right after `at` an hour with an `h` is a clock
+time of 24 hours (`"at 15h"` 15:00, `"at 10h30"` 10:30. 7.29.3: 15 hours back,
 10 hours back from the 30th), and any other count back is no date (`"at 5
 days"`, `"at 2 fridays ago"`); `"15h"` elsewhere is still 15 hours back. `"at
 5 of October"` is October 5 (refused by a development version). A weekday
 beside a day counted from today must be that day's (`"now Mon"`, `"0 days ago
 Mon"`, `"yesterday Wed"`, `"now 2026 Mon"` on a Wednesday: 7.29.3 read today,
 yesterday, 1988), and a text says one weekday (`"Mon Thu now"`, `"Mon Thu, 01
-Oct 2026"`); beside a date it is not checked. After `at` a date of numbers
-with dots needs a year of 4 digits (`"at 10.30.00"`, 7.29.3: 2000-10-30; `"at
-1.10.26"`; `"at 1.10.2026"` is read).
+Oct 2026"`). Beside a date it is not checked. After `at` a date of numbers
+with dots needs a year of 4 digits (`"at 10.30.00"`, 7.29.3: 2000-10-30, and `"at
+1.10.26"`. `"at 1.10.2026"` is read).
 §19: a weekday beside a day counted from today is checked against the day
 the text counted (in the UTC offset of now, days of 24 hours), not the local
 day of the time reached: on Sunday 2026-10-25 at 23:30 CET, the night of the
 change of hour, `"yesterday Sat"`, `"last friday Fri"`, `"2 days ago Fri"` and
 `"24 hours ago Sat"` are read and `"yesterday Sun"` is refused (7.29.3 read
-any weekday there; the development version that checked it took the local
+any weekday there, and the development version that checked it took the local
 day, Sunday 00:30 CEST). The same the night after the change of spring
 (Monday 2026-03-30 00:30 CEST), and both in Los Angeles (`TZ` is set for
 them, then Madrid again).
 §20: noon, midnight and tea are of the day the text names (`"today noon"` is
 today's at 11:00, `"yesterday noon"` and `"noon -1d"` yesterday's, `"last
-friday noon"` that Friday's; 7.29.3, before noon: yesterday's, the day before
+friday noon"` that Friday's. 7.29.3, before noon: yesterday's, the day before
 yesterday's, and the Thursday before), and with no day named the last that
 passed (`"noon"`). `"never"` is a whole text (`"now never Mon"`, `"never
-10:00"`; 7.29.3: the epoch). No count back right after `at`, with a minus sign
-or `last` either (`"at -1d"`, `"Oct 1 at -2 days"`, `"at last friday"`;
-7.29.3: read), and `last` goes with a unit or a weekday (`"last pm"`; 7.29.3:
+10:00"`. 7.29.3: the epoch). No count back right after `at`, with a minus sign
+or `last` either (`"at -1d"`, `"Oct 1 at -2 days"`, `"at last friday"`.
+7.29.3: read), and `last` goes with a unit or a weekday (`"last pm"`. 7.29.3:
 13:00). am/pm is only of an hour of 12: `"at 15h am"` and `"at 10h30 pm"` are
 refused (15:00 and 22:30 in a development version), and so are `"15:00 am"`,
 `"13 pm"`, `"0:30 pm"` and `"noon am"` (7.29.3: 15:00, 13:00, 12:30, 00:00). A
 year and its month is a date after `at` as anywhere (`"at 2026.10"`,
-`"2026.10"`, `"2026-10"`, the day of today); `"10.2026"` is no date anywhere.
+`"2026.10"`, `"2026-10"`, the day of today). `"10.2026"` is no date anywhere.
 §21: a local time that a change of hour repeats is the first one, with the
 offset in force before the change, and one that a change of hour skips is
 read with that offset too, whatever text was read before it: in Madrid
 `"2026-10-25T02:30:00"` is 02:30 +0200 and `"2026-03-29 02:30"` 03:30 +0200
 (7.29.3: 02:30 +0200 after a text of 01:30 that day, 02:30 +0100 after one of
 the 26th, as `mktime()` cached it). The texts come in an order that flipped
-it, in Madrid, Los Angeles and Lord Howe (a change of 30 minutes; `TZ` is set
+it, in Madrid, Los Angeles and Lord Howe (a change of 30 minutes, and `TZ` is set
 for them, then Madrid again). A zone says which: `"02:30 CET"`.
-§22: am/pm needs an hour (`"pm"`, `"today pm"`, `"pm 3"`; 7.29.3, at 11:00:
+§22: am/pm needs an hour (`"pm"`, `"today pm"`, `"pm 3"`. 7.29.3, at 11:00:
 today at 23:00 and the 3rd at 23:00). After `at` a time of day or a date
-(`"at yesterday"`, `"at now"`, `"at never"`; 7.29.3: read). `"never"` with a
-zone, in a comment too, is no date (`"never (+0200)"`; 7.29.3: the epoch). A
+(`"at yesterday"`, `"at now"`, `"at never"`. 7.29.3: read). `"never"` with a
+zone, in a comment too, is no date (`"never (+0200)"`. 7.29.3: the epoch). A
 12 before noon or midnight is their hour right after `at` or with no date
-before it (`"12 noon"`, `"yesterday 12 noon"`; 7.29.3: the 12th and the 11th
+before it (`"12 noon"`, `"yesterday 12 noon"`. 7.29.3: the 12th and the 11th
 at noon), and the date's after a date (`"Oct 12 noon"`). An offset after a
 date or a day is read as a zone name is (`"yesterday +0000"`, `"2026-10-01
--05"`; 7.29.3: refused), checked at 01:00 CEST, when the date of now in UTC is
+-05"`. 7.29.3: refused), checked at 01:00 CEST, when the date of now in UTC is
 the day before. A count of days moves the day and one of hours the time
 (`"noon 1 day ago"` is yesterday's noon, `"noon 24 hours ago"` the day before
 yesterday's). What is looked at after a 12 and a minus sign is passed in time
 (20000 comments).
 §23: a sign glued to the digits of a date with only a day before it is no
-zone (`"2026-10-01-10:00"`, `"1.10.2026-23"`, `"2026.10-2026.10"`; a
+zone (`"2026-10-01-10:00"`, `"1.10.2026-23"`, `"2026.10-2026.10"`, and a
 development version read the first as October 1 in a zone of -10:00, October
-2 in Madrid); one right after the digits of a clock time is
+2 in Madrid). One right after the digits of a clock time is
 (`"2026-10-01T10:00-05:00"`, `"20261001T100000-0500"`), and so is one after a
 clock time, noon or epoch seconds said before it (`"10:00 2026-10-01-0500"`,
 `"noon 2026-10-01-0500"`, `"@1790000000-0500"`, `"1790000000+0200"`, as
-7.29.3 read them); a count with its unit is still a duration there
+7.29.3 read them). A count with its unit is still a duration there
 (`"2026-10-01-1d"`). With no clock time an offset outside -12:00..+14:00 is no
 date (`"now-2026"`, `"yesterday -2300"`, `"2026-10-01 (UTC+15:00)"`, `"now
-(+1500)"`); with one it is read (`"noon -2300"`), and after epoch seconds too
+(+1500)"`). With one it is read (`"noon -2300"`), and after epoch seconds too
 (`"@1761000000 +1500"`). A
 count right after a month name is no date when the text says no day (`"Jan 1
-pm"`, `"Oct 1 pm"`, `"Oct 5 days ago"`, `"Oct 2 fridays"`; 7.29.3: January 21
-at 13:00, the day of today, October 16, October 9); with a day it is read
+pm"`, `"Oct 1 pm"`, `"Oct 5 days ago"`, `"Oct 2 fridays"`. 7.29.3: January 21
+at 13:00, the day of today, October 16, October 9). With a day it is read
 (`"Oct 1 3 pm"`, `"1 Oct 3 pm"`). A clock time with a zone and no date is of
 the day of now in that zone (at 00:30 CEST on 2026-10-25, `"02:30 CET"` is the
 24th). What is looked at after a month name is passed in time. §24: in Apia,
 which skipped 2011-12-30 whole, a day counted back that falls on it is no date (`"yesterday noon"`, `"yesterday 12:30"`, `"last friday
-noon"`; 7.29.3 read the second as the 31st at 12:30, ahead of now), and the
-last noon that passed is the one of the 29th (`"noon"`, `"tea"`); a count of
+noon"`. 7.29.3 read the second as the 31st at 12:30, ahead of now), and the
+last noon that passed is the one of the 29th (`"noon"`, `"tea"`). A count of
 hours, minutes or seconds counts no day and is taken back from it (`"noon -2
-hours"` is the 29th at 10:00, `"tea -30 minutes"` 16:30; `"noon -1 day"` is no
-date), in Apia and in Fakaofo; a date said there is read as any time a change
+hours"` is the 29th at 10:00, `"tea -30 minutes"` 16:30, and `"noon -1 day"` is no
+date), in Apia and in Fakaofo. A date said there is read as any time a change
 skips (`"2011-12-30 12:00"` is the 31st at 12:00). A `TZ` changed with
 `setenv()` alone is seen. And the limit of the reading of a local time, in two
 POSIX zones: exact when two changes are 48 hours apart, an hour late inside a
@@ -393,7 +393,7 @@ summer time of one day. §25: the reader calls `tzset()` before the first look
 of each text at the local zone, `TZ` set or unset (counted with `--wrap=tzset`:
 1000 calls for 1000 texts, with `TZ` unset each one a `stat()` of
 `/etc/localtime`), and none for a text that says its zone or counts back from
-now; a `TZ` set or unset with no `tzset()` is seen, after a line of log or a
+now. A `TZ` set or unset with no `tzset()` is seen, after a line of log or a
 `mktime()` in another zone too, also a zone with the names and offsets of the
 local one and other rules. The offset of now is asked of libc once per text
 (`--wrap=localtime_r`). What the test cannot do is change `/etc/localtime`
@@ -414,7 +414,7 @@ are no day (Lord_Howe from 1981-02-28 13:05:59 UTC, 25 hours, ends at
 the year wrapped, some two billion years back), and a range back past the year
 1 is proleptic, with a year 0. The last 1900 years of the calendar, where
 `tm_year + 1900` passes an int: a range is right or the range 0 with one ERROR,
-in UTC and in Madrid; so is the week of the first second of the calendar, whose
+in UTC and in Madrid. So is the week of the first second of the calendar, whose
 Monday is before it.
 §28: a run of 12 digits is no date, and after a clock time a minus sign and
 four digits is its offset. §29: the same after anything else an offset can
@@ -425,14 +425,14 @@ it, are durations.
 §30: what is a zone, on a directory of its own under `TZDIR` holding a TZif
 file built by the test. A file is a zone when it starts with `TZif`
 (`zone.tab`, `tzdata.zi`, `leapseconds`, an empty or short file, a directory,
-`/etc/passwd` are UTC with an ERROR; 7.29.3: UTC in silence); a FIFO in place of
-a zone file does not block the process; the file is the one libc opens, `dir/name`
+`/etc/passwd` are UTC with an ERROR. 7.29.3: UTC in silence). A FIFO in place of
+a zone file does not block the process. The file is the one libc opens, `dir/name`
 as it is written, so `Test/Zone/.` and `lnk/../Other` are UTC with an ERROR and
-`../test_date_text_zones/Test/Zone` and `lnk/../Good` are zones; a file with the
+`../test_date_text_zones/Test/Zone` and `lnk/../Good` are zones. A file with the
 magic and no header of RFC 9636 is no zone (counts at zero, no types or characters,
-shorter than it says, version `1` or `x`, in either header; versions 2 to 5 pass); a POSIX `TZ` is one when all of it can
+shorter than it says, version `1` or `x`, in either header, and versions 2 to 5 pass). A POSIX `TZ` is one when all of it can
 be read, 24 forms that are and 50 that are not (`"ABC0DEF,M13.1.0"`, `"ABC25"`,
-`"ABC5:60"`); with no tzdata the names of UTC are no error and `Europe/Madrid`
+`"ABC5:60"`). With no tzdata the names of UTC are no error and `Europe/Madrid`
 is one.
 §31: a time no calendar holds: `gmtime2timezone()` leaves `*ltm` zeroed,
 `t2timestamp()` and `formatdate()` give an empty text and one ERROR (7.29.3:
@@ -444,12 +444,12 @@ GPL-3.0, and an answer of StackOverflow, CC BY-SA). `run_process2()`: the
 `waitpid()` status of a program that exits 0 or 1, an argv that reaches the
 program with no shell, -1 for a program that does not exist. `copyfile()`:
 the bytes and the mode of a 300 KB copy, an existing destination kept without
-`overwrite` and replaced with it, -1 for a missing source; every failure
+`overwrite` and replaced with it, -1 for a missing source. Every failure is
 logged (three ERRORs in the output are expected).
 A program run by `run_process2()`, `run_command()` or `launch_daemon()`
 starts with no signal blocked and none ignored, and with no fd of the
 caller above stderr (fd 77, opened without `O_CLOEXEC`, is looked for in
-the program's `/proc/<pid>/fd`); the command of `run_command()` reads
+the program's `/proc/<pid>/fd`). The command of `run_command()` reads
 `/dev/null`, not the caller's stdin (a pipe in the test). `launch_daemon()`
 with `SIGCHLD` at `SIG_IGN` answers the daemon's pid and says no
 `waitpid()` error (its stdout, where `print_error()` writes, is read).
@@ -460,10 +460,10 @@ with a 10 s limit: three calls answer 0 and leave no fd and no zombie
 (7.29.3: one fd per call), and a command that reads its stdin to the end
 ends when the caller's stdin ends, after a line ended or not (`cat
 >/dev/null; echo DONE` with stdin `/dev/null`, and `abc` with no newline
-through a pipe; 7.29.3: never). With `SIGCHLD` at `SIG_IGN` it answers 0
-and logs no error (7.29.3 read a status that `waitpid()` never wrote); with
+through a pipe. 7.29.3: never). With `SIGCHLD` at `SIG_IGN` it answers 0
+and logs no error (7.29.3 read a status that `waitpid()` never wrote). With
 `(trap '' HUP; exec sleep 3) & sleep 0.2` it ends in under 2 s (7.29.3: 3
-s, held by the process left in the background); and with a terminal as
+s, held by the process left in the background). And with a terminal as
 stdin carrying `abc`, a newline and two ctrl+d, both readers of `cat
 >/dev/null; echo A; cat >/dev/null; echo B` get their end (7.29.3: not
 even the first).
@@ -477,8 +477,8 @@ empty `old` (four ERRORs in the output are expected).
 `test_sha256` covers the sha256 of gobj-c: `sha256_digest()` / `sha256_hex()`
 and the incremental `sha256_init()` / `sha256_update()` / `sha256_final()` /
 `sha256_final_hex()`. The vectors of FIPS 180-4, whole and a byte at a time,
-and a million `a` in parts of 1000; every length from 0 to 300 bytes cut in two
+and a million `a` in parts of 1000. Every length from 0 to 300 bytes cut in two
 at every place and in parts of 1 to 70 bytes gives the digest of the whole (the
-padding at 55, 56, 63, 64 and 65 bytes); a context init'ed again starts from
-nothing; a buffer of 64 bytes is refused (two ERRORs in the output are
+padding at 55, 56, 63, 64 and 65 bytes). A context initialized again starts from
+nothing. A buffer of 64 bytes is refused (two ERRORs in the output are
 expected), and a refused `sha256_final_hex()` does not spend the context.

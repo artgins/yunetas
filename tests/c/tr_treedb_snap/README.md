@@ -3,11 +3,11 @@
 Covers the treedb snap primitives (`treedb_shoot_snap`,
 `treedb_activate_snap`, `treedb_activate_snap("__clear__")`) and the
 primary-index promotion that happens on the next `treedb_open_db`
-reload — the same mechanic the agent uses on every release rotation.
+reload. The agent uses the same mechanic on every release rotation.
 
 ## What it asserts
 
-For a two-topic schema modelled after the agent's `binaries` +
+For a two-topic schema modeled after the agent's `binaries` +
 `yunos` (both keyed by `id` with `pkey2s` for the per-version
 secondary), it walks the full upgrade lifecycle and asserts the
 primary version visible via `treedb_get_node` after each step:
@@ -28,9 +28,9 @@ the id of its `__graphs__` list longer than `NAME_MAX`: it is refused with
 one ERROR, before anything is made (it opened without its system lists).
 
 The reload step (`treedb_close_db` + `treedb_open_db`) mirrors what
-`c_agent::restart_nodes` does after toggling the snap flag — see
+`c_agent::restart_nodes` does after it toggles the snap flag. See
 `yunos/c/yuno_agent/YUNO_LIFECYCLE.md` §6.5. Without it the
-in-memory primary index does not move; the snap toggle alone is just
+in-memory primary index does not move. The snap toggle alone is only
 a flag on the `__snaps__` topic.
 
 ## What it does NOT cover
@@ -40,7 +40,7 @@ a flag on the `__snaps__` topic.
 - The SIGKILL-all step `restart_nodes` performs on existing live
   yunos. The test exercises only the data-layer snap mechanics that
   this kill step is wrapped around.
-- Configuration topic. The schema has only `binaries` + `yunos`; the
+- Configuration topic. The schema has only `binaries` + `yunos`. The
   agent also has `configurations` keyed the same way, so the
   guarantees here propagate to it by construction.
 

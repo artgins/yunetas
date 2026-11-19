@@ -17,8 +17,8 @@ with two stores. Each store is archived into its own archive under
   The keeper asks a certificate in mode `"optional"`, so that a sender without
   one reaches the keeper's own check:
   - two batches are in the archive before the sender plays: its scan finds
-    them;
-  - a third is archived while it runs: its ready mark tells it;
+    them.
+  - a third is archived while it runs: its ready mark tells it.
   - a fourth is a batch the keeper already has (copied back into the archive
     with a mark): it is shipped again, and the keeper answers `stored` at its
     `end`, the content being the same (`batches_already` 1). Its copy aside
@@ -37,14 +37,14 @@ with two stores. Each store is archived into its own archive under
   `other_node`, then one without a certificate, both naming `test_node`. The
   keeper refuses the batch of each (WARNING *"A sender names a node that is not
   the name of its client certificate"*, then *"no verified client
-  certificate"*), and each keeps it; nothing of it is in the backup. Without
+  certificate"*), and each keeps it. Nothing of it is in the backup. Without
   the check, this case fails.
 
 At the end:
 
 - every batch is whole in the backup, with a manifest that names its key and
-  its first day, and the content of the day;
-- no batch and no ready mark is left in the two archives;
+  its first day, and the content of the day.
+- no batch and no ready mark is left in the two archives.
 - the dropped batch is not at the destination.
 
 The driver (`C_TEST1`) watches the stats of the three services with a timer,
@@ -54,47 +54,47 @@ and every step must end within 10 seconds.
 
 `main_test2.c` + `c_test2.c`: the driver (`C_TEST2`) IS the sender. It writes
 the frames of the native transport by hand to an `archive_keeper` over
-`tcp://127.0.0.1:7758` (`require_client_certificate` FALSE: plain tcp; test1
+`tcp://127.0.0.1:7758` (`require_client_certificate` FALSE: plain tcp, while test1
 runs the mutual TLS), and checks every answer of the keeper, in order. The
 cases are the frames a real sender never writes and a peer can:
 
 1. an `end` whose sha256 is not of the bytes that arrived -- refused, *"a file
-   is not the content that its sha256 says"*;
+   is not the content that its sha256 says"*.
 2. an `end` with fewer sha256 than files -- *"the end does not carry a sha256
-   for each file"*;
-3. a sha256 that is not 64 lowercase hex characters -- refused as 1;
+   for each file"*.
+3. a sha256 that is not 64 lowercase hex characters -- refused as 1.
 4. data of a file before the files before it are whole -- *"data of a file
-   before the files before it are whole"*; then a data frame of that batch
-   that a sender would have had on its way -- answered `refused`, and neither
-   logged nor counted again; then a `begin` with an empty batch -- *"the batch
-   is not <database>/<topic>/<key>/<batch> of plain names"*;
+   before the files before it are whole"*. Then a data frame of that batch
+   that a sender still had on its way -- answered `refused`, and neither
+   logged nor counted again. Then a `begin` with an empty batch -- *"the batch
+   is not <database>/<topic>/<key>/<batch> of plain names"*.
 5. a good batch -- `stored`, whole in the backup (the frames of the driver are
-   right);
+   right).
 6. the same batch again -- `stored`, `batches_already` 1, its copy aside
-   removed;
+   removed.
 7. a batch of that name with the same files and sizes and other bytes, with
    THEIR right sha256 -- refused, *"a different batch of this name is here"*,
    the batch kept untouched.
 
-Then a second link (`__output_side2__`), two senders of one node; the keeper
+Then a second link (`__output_side2__`), two senders of one node. The keeper
 runs with `stale_session_timeout` 1000:
 
-8. link 1 begins a batch and sends its first file;
+8. link 1 begins a batch and sends its first file.
 9. link 2 begins the same batch -- refused, *"the batch is in flight on another
-   channel"*;
+   channel"*.
 10. link 1 ends it -- `stored`, and the backup has link 1's bytes. Up to
     7.29.1 the `begin` of link 2 removed link 1's copy aside, and link 1 was
-    answered `stored` with its data file EMPTY in the backup;
-11. link 1 begins another batch, sends a file, and goes silent for 2.5 s;
+    answered `stored` with its data file EMPTY in the backup.
+11. link 1 begins another batch, sends a file, and goes silent for 2.5 s.
 12. link 2 begins that batch -- taken over (WARNING *"A batch in flight on a
     channel without frames for stale_session_timeout is taken over"*, link 1
-    dropped), and `stored` with link 2's bytes;
+    dropped), and `stored` with link 2's bytes.
 13. link 2 begins a batch that declares 3/4 of the free space of the backup,
-    sends nothing, and goes silent for 2.5 s;
+    sends nothing, and goes silent for 2.5 s.
 14. link 1, connected again, begins another batch that declares half of the
     free space -- acked: link 2 is dropped (WARNING *"A channel without frames
     for stale_session_timeout is dropped"*) and the space it reserved is free
-    again; its copy aside is not left in the backup. Up to 7.29.2 a silent
+    again. Its copy aside is not left in the backup. Up to 7.29.2 a silent
     session kept its declared bytes reserved for ever, and this `begin` was
     refused, *"does not fit"*. The batch of 14 is left in flight: the pause of
     the keeper discards it.

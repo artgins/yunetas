@@ -22,7 +22,7 @@ a `create-config` on its line). It must do so only for a request it made:
 2. `ycommand -c 'read-binary-file filename=/x/good.bin'`: the peer answers
    it (`good.bin`, written) and sends an `EV_READ_FILE` more (`evil2.txt`):
    one answer per request, not written. `good.bin` is written `0600` (data,
-   not a program; `0700` up to 7.30.26).
+   not a program, and `0700` up to 7.30.26).
 3. `ycommand -c "command-agent agent_id=n cmd2agent='read-binary-file ...'"`,
    as through a control center: the answer is written.
 4. A request refused at once (`EV_MT_COMMAND_ANSWER` -1, *"Command sent to 0
@@ -32,7 +32,7 @@ a `create-config` on its line). It must do so only for a request it made:
    command is an alias of an event: no `EV_MT_COMMAND_ANSWER`), and the peer
    does so (through a control center, *"Command sent to 1 nodes"* comes
    first). `ycommand -c "read-binary-file filename=/x/good.bin; help"`
-   writes `good.bin`, runs `help` and ends by itself; so does the request
+   writes `good.bin`, runs `help` and ends by itself. So does the request
    alone. Up to the fix ycommand waited for an answer that never comes: it
    neither ran `help` nor ended (killed at 20 s here).
 6. `ycommand -c "help cmd=read-file; help"`: a line that only NAMES a
@@ -45,15 +45,15 @@ a `create-config` on its line). It must do so only for a request it made:
    (`good.bin` -> a file outside, holding `ORIG`): `read-binary-file` does
    not write through it, and logs *"Cannot write the binary file"*. Up to
    7.30.26 the file outside was overwritten.
-8. Interactive (`-i`, in a pty; the Enter key is written alone, as a key is
+8. Interactive (`-i`, in a pty. The Enter key is written alone, as a key is
    matched at the start of what is read): the peer holds the answer of the
    warm-up (`list-gobj-commands`) and refuses `command-agent ...
    cmd2agent='read-binary-file filename=/x/nodata'` with an answer that has
-   no `data`; then it releases the warm-up, and sends an
+   no `data`. Then it releases the warm-up, and sends an
    `EV_READ_BINARY_FILE` (`evil6.bin`) with the next `help`: not written.
    Up to 7.30.26 the refusal was taken for the warm-up's answer and the
    request stayed pending.
-9. The link of 7 again: ycommand's exit code is not 0; and with
+9. The link of 7 again: ycommand's exit code is not 0. And with
    `read-binary-file ...; help` the `help` does not run (the command ends
    with what became of the file). Up to 7.30.26 the request ended with the
    event's result (0) before the file was written.
@@ -65,13 +65,13 @@ a `create-config` on its line). It must do so only for a request it made:
 11. A `content64` that is not base64 (`@@@@`), or not a string (`1234`):
     nothing written, a WARNING (*"base64 of a peer not decodable,
     refused"*, *"content64 of a binary file that is not a string, not
-    written"*; not the ERROR *"b64_decode() FAILED"* with a stack), exit
+    written"*, not the ERROR *"b64_decode() FAILED"* with a stack), exit
     code not 0. Up to 7.30.26: an ERROR with a stack, or nothing, and exit
     code 0.
-12. `read-file` and `edit-config`: a text is written `0600`; a link in
+12. `read-file` and `edit-config`: a text is written `0600`. A link in
     `~/.yuneta/configs/` (`link.txt`, `evil7.json`) is not written through,
     *"Cannot write the file"* is logged, the editor is not opened on the
-    file (its content is not printed), and the exit code is not 0; a text
+    file (its content is not printed), and the exit code is not 0. A text
     that is not a string is a WARNING, nothing written. Up to 7.30.26 both
     followed the link, took the umask, and printed what they wrote through
     it.

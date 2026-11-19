@@ -1,12 +1,12 @@
 # c_iogate_channel test
 
 Tests what `C_IOGATE` (`kernel/c/root-linux/src/c_iogate.c`) writes in a
-message it publishes -- the channel it came in by, in `__temp__` -- and what
+message it publishes (the channel it came in by, in `__temp__`) and what
 it says when it has no channel to send a message to.
 
 One yuno holds `C_TEST_IOGATE`, with a `C_IOGATE` pure child (it publishes to
 the test) that has no channel below it. The test is the channel itself: it
-sends the gate its messages as a channel would.
+sends the gate its messages as a channel does.
 
 1. A message whose `__temp__` is not a dict (`[1094795585]`), as
    `EV_ON_MESSAGE`, `EV_ON_OPEN`, `EV_ON_CLOSE` and `EV_ON_IEV_MESSAGE` (with
@@ -35,23 +35,25 @@ sends the gate its messages as a channel would.
    next send with no channel is said at once (`repeated` 0), and a send with
    a channel ends that run too (1, 0).
 4. The same brake for 1500 sends to all channels (`__send_type__` 1) with
-   none open (said at the 1st and the 1001st); then a send to all that finds
+   none open (said at the 1st and the 1001st). Then a send to all that finds
    an open channel (a `C_CHANNEL` of the gate whose bottom is the test)
    ends the run: 1500, 499. Then 1200 drops of a channel the gate does not
    have, in the run of the first drop (*"channel NOT FOUND"* said at its
-   1001st, `repeated` 999); that run is ended by the gate's stop, an INFO of
+   1001st, `repeated` 999). The gate's stop ends that run, with an INFO of
    its own, *"Drops of a channel not found ended"*: 1201, 200. Up to 7.30.26
    both said every one, the send to all with a stack, and nothing said the
    end of a run.
-5. `stats` of the gate: `txMsgsNoChannel` 4001 (2500 + 1 + 1500; a drop is
-   not a message), `txMsgs` 3; after `stats __reset__`, `txMsgsNoChannel` 0.
+5. `stats` of the gate: `txMsgsNoChannel` 4001 (2500 + 1 + 1500, because a drop is
+   not a message), `txMsgs` 3. After `stats __reset__`, `txMsgsNoChannel` 0.
 
-The log is checked in order: those fourteen ERRORs and nothing else; and the
+The log is checked in order: those fourteen ERRORs and nothing else, and the
 four INFOs of the ends of the runs, in order, with their figures.
 
-Mutants killed: a drop counted in the run of the sends; `txMsgsNoChannel`
-not reset by `__reset__`; a send to all that finds a channel and does not
-end the run.
+Mutants killed:
+
+- A drop counted in the run of the sends.
+- `txMsgsNoChannel` not reset by `__reset__`.
+- A send to all that finds a channel and does not end the run.
 
 ```
 ERROR: {"msg": "__temp__ of a message is not a dict, replaced", "event": "EV_ON_MESSAGE", ...}

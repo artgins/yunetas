@@ -1,6 +1,6 @@
 # tr_queue test
 
-Tests the **msg2db queue** on top of `timeranger2`: enqueue, dequeue, ack, persistence across restarts. This is the queue used by the MQTT broker for retained sessions, subscriptions and in-flight messages.
+Tests the msg2db queue on top of `timeranger2`: enqueue, dequeue, ack, persistence across restarts. The MQTT broker uses this queue for retained sessions, subscriptions and in-flight messages.
 
 `test_tr_queue_load_failed` covers a queue whose load cannot read every
 pending message (the md2 of its key cut behind the running tranger's back):
@@ -29,8 +29,8 @@ integer as its gbuffer.
 taken by a file: the `rename()` fails): `trq_check_backup()` /
 `tr2q_check_backup()` answer -1, the queue keeps its topic (the backup opens
 it again), and appends, reads and acks work after it. Up to 7.25.4 the queue
-was left with no topic and the call answered 0; `tranger2_backup_topic()`
-also leaked the `topic_var` it had loaded (the memory check at the end).
+was left with no topic and the call answered 0. `tranger2_backup_topic()`
+also leaked the `topic_var` it loaded (the memory check at the end).
 And a backup that fails AFTER the move: the new topic cannot be created (the
 `mkdir` of its directory fails with `ENOSPC`, by `--wrap=mkdir`). The backup
 is moved back, the queue keeps its topic whole, and the next call backs it up.
@@ -41,19 +41,19 @@ memory, the next create makes it whole, and a queue backup that meets it keeps
 the queue's topic. In 7.25.4 the create answered a topic with no `keys/`,
 and the backup took it as the queue's new topic.
 And a backup that fails and cannot open the topic again
-either (its `topic_desc.json` of mode 0 for a moment; SKIPPED as root): the
+either (its `topic_desc.json` of mode 0 for a moment, SKIPPED as root): the
 queue has no topic, a read and an ack fail and say it once (*"Queue without
-topic, it cannot be opened"*; the next calls log nothing), and once the file
+topic, it cannot be opened"*, and the next calls log nothing), and when the file
 can be read the queue takes
 its topic again by name (*"Queue topic taken again"*) and the next check backs
-it up; for `tr_queue` and for `tr2q`. In 7.25.4 the topic stayed `NULL`
+it up. This holds for `tr_queue` and for `tr2q`. In 7.25.4 the topic stayed `NULL`
 for good. And a `topic_desc.json` that CAN be read but does not load (broken
-json; cases `trq_broken`, `tr2q_broken`): said once, the next calls log
+json, cases `trq_broken`, `tr2q_broken`): said once, the next calls log
 nothing, a changed content is tried once (the open logs its causes, the queue
 nothing), and the good content takes the topic again.
 And a topic that cannot be opened for a cause OUTSIDE `topic_desc.json`: its
-`keys/` of mode 0 (cases `trq_keys`, `tr2q_keys`; SKIPPED as root). Said once;
-once `keys/` can be listed the queue takes its topic again, also the topic the
+`keys/` of mode 0 (cases `trq_keys`, `tr2q_keys`, SKIPPED as root). Said once.
+When `keys/` can be listed, the queue takes its topic again, also the topic the
 tranger already has open. And a tranger opened with `on_critical_error` `LOG_OPT_EXIT_ZERO`
 (the MQTT broker's queues): a backup whose new topic cannot be created does
 not exit (an `atexit()` handler turns such an exit into a failure), moves the

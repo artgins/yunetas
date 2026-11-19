@@ -18,14 +18,14 @@ session opened is closed with `EV_ON_CLOSE`.
 
 `test_authz_token_age` (`max_token_age` 3600, old-agent exempt):
 
-1. alice, issued a minute ago: a session;
+1. alice, issued a minute ago: a session.
 2. alice, issued two hours ago: refused, *"The token is too old"*, ONE
-   warning *"Authentication failed: token too old"*;
-3. alice, no `iat`: refused, *"The token has no iat"*, ONE warning;
-4. old-agent, issued ten years ago: a session (exempt);
-5. bob, issued 59 minutes ago: a session;
+   warning *"Authentication failed: token too old"*.
+3. alice, no `iat`: refused, *"The token has no iat"*, ONE warning.
+4. old-agent, issued ten years ago: a session (exempt).
+5. bob, issued 59 minutes ago: a session.
 6. the local method `verify_jwt` with no audience, alice issued two hours
-   ago: refused, no log;
+   ago: refused, no log.
 7. `verify_jwt`, alice issued a minute ago: good.
 
 `test_authz_token_age_unlimited` (`max_token_age` 0, the default): the same

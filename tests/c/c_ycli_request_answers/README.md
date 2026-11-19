@@ -31,14 +31,14 @@ that connection. One ycli session:
    nodes"*), then `help`, with which the peer sends an `EV_READ_BINARY_FILE`:
    not written, nothing was left pending.
 5. `read-file filename=/x/hold`: the peer closes the connection instead of
-   answering; ycli connects again by itself, and an `EV_READ_BINARY_FILE` that
+   answering. ycli connects again by itself, and an `EV_READ_BINARY_FILE` that
    comes with `help` is not written: the end of the connection cleared what
    was pending on it.
 6. On that second connection the peer holds the answer of ycli's warm-up
    (`list-gobj-commands`) and refuses a request meanwhile with an answer that
    has no `data`: the refusal must still spend its pending slot (an
    `EV_READ_BINARY_FILE` with the next `help` is not written). The warm-up's
-   intercept took such an answer for its own; it now asks the answer's command
+   intercept took such an answer for its own. It now asks the answer's command
    stack (red before: `evil5.bin` written).
 7. `help cmd=read-file`, then `help`, with which the peer sends an
    `EV_READ_BINARY_FILE` (`evil6.bin`): not written. A line that only NAMES
@@ -52,22 +52,22 @@ that connection. One ycli session:
    7.30.26 the file outside was overwritten.
 9. A `content64` that is not base64 (`@@@@`), or not a string (`1234`):
    nothing written, a WARNING (*"base64 of a peer not decodable, refused"*,
-   *"content64 of a binary file that is not a string, not written"*; not
+   *"content64 of a binary file that is not a string, not written"*, not
    the ERROR *"b64_decode() FAILED"* with a stack). Up to 7.30.26: an ERROR
    with a stack, or nothing, and *"Binary file save in"*.
 10. `read-file` and `edit-config`, with an editor that notes what it is
-    given (`editor.sh`): a text is written `0600` and the editor opened on
-    it; a link in `~/.yuneta/configs/` (`link.txt`, `evil7.json`) is not
+    given (`editor.sh`). A text is written `0600` and the editor opened on
+    it. A link in `~/.yuneta/configs/` (`link.txt`, `evil7.json`) is not
     written through, *"Cannot write the file"* is logged, and the editor is
-    not opened; a text that is not a string is a WARNING, nothing written.
+    not opened. A text that is not a string is a WARNING, nothing written.
     Up to 7.30.26 both followed the link, took the umask, and opened the
     editor on what they wrote through it.
 
 Mutants killed: no guard in one answer's action (1), no decrement at a
 refusal (4), the pending count kept at a disconnection (5), the file written
-`0700` (2), an answer taken without spending its request (2, 4); the
+`0700` (2), an answer taken without spending its request (2, 4), the
 `command-agent` branch of the request rule (3), no `O_NOFOLLOW` (8), a
-failed open taken for a success (8); the peer's base64 read with the
+failed open taken for a success (8), the peer's base64 read with the
 ERROR decoder (9), no `O_NOFOLLOW` for a text and a json (10), the editor
 opened after a failed write (10).
 

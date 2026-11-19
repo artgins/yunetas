@@ -11,32 +11,32 @@ behind them. Twenty-two steps, each on a connection of its own:
 
 | Step | The peer | Expected |
 |---|---|---|
-| 1 | sends 600 requests in one write; the application drops the connection at the 3rd | the application gets 3 requests, and nothing is logged |
-| 2 | sends a request whose head is 70 KB (over `max_header_size`, 64 KB), and keeps sending once it reads the answer | it reads `431 Request Header Fields Too Large` once; the connection is dropped `timeout_linger` after the answer, not before and not later; ONE warning |
-| 3 | sends a request whose body is 5000 bytes | it reads `413 Content Too Large`, the same way; ONE warning |
-| 4 | sends 600 requests and never reads; the application answers each with 100 KB | the requests of its first read reach the application, the rest is held; the connection is dropped after `timeout_tx_stall`; ONE warning |
+| 1 | sends 600 requests in one write, and the application drops the connection at the 3rd | the application gets 3 requests, and nothing is logged |
+| 2 | sends a request whose head is 70 KB (over `max_header_size`, 64 KB), and keeps sending once it reads the answer | it reads `431 Request Header Fields Too Large` once. The connection is dropped `timeout_linger` after the answer, not before and not later. ONE warning |
+| 3 | sends a request whose body is 5000 bytes | it reads `413 Content Too Large`, the same way. ONE warning |
+| 4 | sends 600 requests and never reads, and the application answers each with 100 KB | the requests of its first read reach the application, and the rest is held. The connection is dropped after `timeout_tx_stall`. ONE warning |
 | 5 | reads: sends 500 requests in one write, one more with each of their answers (they find those before them held, and the queue at any length), and 1000 more when it has all those answers | 2000 answers, in the order of the requests, nothing logged |
 | 6 | sends 100 requests whose answers have 100 KB, and reads | 100 answers, in their order, nothing logged |
 | 7 | as step 1, but the application answers the first two, so the disconnection comes after the write in flight | the application gets 3 requests, and nothing is logged |
-| 8 | sends three requests and a head over the limit in one write; the application answers them later, all in one turn | it reads the three `200` and then the `431`, and the connection is dropped after `timeout_linger`; ONE warning |
-| 9 | sends one request at a time, each when the one before reached the application, and never reads; answers of 1 MB | the transport never holds more than `max_tx_queue` answers; the connection is dropped; ONE warning |
-| 10 | does not read and sends 128 KB of requests | past `max_rx_held` bytes held the connection is dropped; ONE warning |
+| 8 | sends three requests and a head over the limit in one write, and the application answers them later, all in one turn | it reads the three `200` and then the `431`, and the connection is dropped after `timeout_linger`. ONE warning |
+| 9 | sends one request at a time, each when the one before reached the application, and never reads, with answers of 1 MB | the transport never holds more than `max_tx_queue` answers. The connection is dropped. ONE warning |
+| 10 | does not read and sends 128 KB of requests | past `max_rx_held` bytes held the connection is dropped. ONE warning |
 | 11 | sends 30 requests whose answers have 1 MB, and reads 6 MB/s | it reads them all in more than `timeout_tx_stall`, nothing logged |
-| 12 | fills the queue with 10 requests, reads the answers and goes silent; `timeout_inactivity` 3 | it is dropped: the timer that watched the queue is back on the inactivity |
-| 13 | never reads; the application goes on answering after the drop, which waits for the write in flight | ONE warning for the peer, ONE for those answers |
-| 14 | reads: 10000 requests, 1000 in each write, the next write when it has all the answers of the one before; the application answers later, and halfway it goes silent for 1.5 s, with the queue empty | what is due and what waits in the transport never passes `max_tx_queue` by more than one read; the peer gets every answer, in order, and is not dropped; nothing logged |
-| 15 | on the second server (`timeout_tx_stall` 4000, port 7765): sends 10000 requests in one pipeline and never reads; the application answers later | the same bound; the connection is dropped from 4 to 6 seconds after the last write that moved (the test allows 1.5 s more for its own lateness); ONE warning |
-| 16 | on the third server (`max_tx_queue` 12000, `max_rx_held` 8 MB, port 7769): sends 30000 requests in one write and reads; the application answers each one as it comes | one turn parses and answers 12000 of those held, 30000 answers in order, nothing logged |
-| 17 | sends 5 requests in one write and never reads; the socket buffers of the connection are 4 KB at both ends (the test sets `SO_SNDBUF` on the server's socket, found among its fds), so the first answer (1 MB) never leaves whatever the kernel's `tcp_wmem`; the others have 16 bytes | the last answer brings the transport to `max_tx_queue` waiting behind the first, and nothing else comes: the connection is dropped at `timeout_tx_stall`; ONE warning |
-| 18 | sends 5 requests, which the application answers later, at once; then a body of 12000 bytes, held behind them | it reads five `200` and ONE `413`, and nothing after it; ONE warning |
-| 19 | as 18, with two requests before the body: the application answers those two 3 s after they come, after the timer that watched the full queue would have fired | it reads seven `200` and ONE `413`; ONE warning |
+| 12 | fills the queue with 10 requests, reads the answers and goes silent, with `timeout_inactivity` 3 | it is dropped: the timer that watched the queue is back on the inactivity |
+| 13 | never reads, and the application goes on answering after the drop, which waits for the write in flight | ONE warning for the peer, ONE for those answers |
+| 14 | reads: 10000 requests, 1000 in each write, the next write when it has all the answers of the one before. The application answers later, and halfway it goes silent for 1.5 s, with the queue empty | what is due and what waits in the transport never passes `max_tx_queue` by more than one read. The peer gets every answer, in order, and is not dropped. Nothing logged |
+| 15 | on the second server (`timeout_tx_stall` 4000, port 7765): sends 10000 requests in one pipeline and never reads, and the application answers later | the same bound. The connection is dropped from 4 to 6 seconds after the last write that moved (the test allows 1.5 s more for its own lateness). ONE warning |
+| 16 | on the third server (`max_tx_queue` 12000, `max_rx_held` 8 MB, port 7769): sends 30000 requests in one write and reads, and the application answers each one as it comes | one turn parses and answers 12000 of those held, 30000 answers in order, nothing logged |
+| 17 | sends 5 requests in one write and never reads. The socket buffers of the connection are 4 KB at both ends (the test sets `SO_SNDBUF` on the server's socket, found among its fds), so the first answer (1 MB) never leaves whatever the kernel's `tcp_wmem`. The others have 16 bytes | the last answer brings the transport to `max_tx_queue` waiting behind the first, and nothing else comes: the connection is dropped at `timeout_tx_stall`. ONE warning |
+| 18 | sends 5 requests, which the application answers later, at once, then a body of 12000 bytes, held behind them | it reads five `200` and ONE `413`, and nothing after it. ONE warning |
+| 19 | as 18, with two requests before the body: the application answers those two 3 s after they come, after the deadline of the timer that watched the full queue | it reads seven `200` and ONE `413`. ONE warning |
 | 20 | sends a request every second, six, with `timeout_inactivity` 3 s (set when the channel opens) | it gets the six answers, nothing logged |
-| 21 | sends two requests; the application answers the first with a body that is not UTF-8, and the second as usual | it reads a `500` and then the `200` of the second request; ONE error |
-| 22 | as 21, but the first answer has headers that fill the max block (a gbuffer cannot hold it) | the same; the errors of the memory (`SIZE GREATER THAN MAX_BLOCK`, `no memory`) and ONE of the answer |
+| 21 | sends two requests, and the application answers the first with a body that is not UTF-8, and the second as usual | it reads a `500` and then the `200` of the second request. ONE error |
+| 22 | as 21, but the first answer has headers that fill the max block (a gbuffer cannot hold it) | the same. The errors of the memory (`SIZE GREATER THAN MAX_BLOCK`, `no memory`) and ONE of the answer |
 
 Up to 7.29.3 the requests of step 1 after the drop went to the gobj already
 disconnected (red: an ERROR with a stack, *"Event NOT DEFINED in state"*, for
-each one); a head had no limit and `max_body_size` did not exist, so the
+each one). A head had no limit and `max_body_size` did not exist, so the
 requests of steps 2 and 3 reached the application (red: *"A refused request
 reached the application"*), and a body over half the max block was dropped
 with no answer. With a limit of the queue that counted the answers of the read
@@ -44,8 +44,8 @@ being parsed, steps 5 and 6 are red (*"HTTP peer does not read its answers,
 connection dropped"* for a peer that reads, *"A peer that reads did not get
 all its answers"*), and with the refusal sent at once step 8 is red (*"The
 refused request was not told why"*). With only the transport counted, step 14
-is red (*"The answers of an application that answers later were not bounded"*);
-with the wait of a full queue measured from the look that saw the write, step
+is red (*"The answers of an application that answers later were not bounded"*).
+With the wait of a full queue measured from the look that saw the write, step
 15 is red (*"A peer that does not read was not dropped at timeout_tx_stall"*,
 at about twice the wait). With an event posted at each answer that leaves room,
 step 16 is red (*"Too many posted events, this is NOT a work queue"*, an ERROR
@@ -54,12 +54,12 @@ with a stack for each one over the limit): what resumes what is held is the
 
 Steps 17 to 20 hold what earlier code got right, and each one fails when one
 line of `c_prot_http_sr.c` is taken out: without the look at the queue after an
-answer, step 17 is red (*"A step did not end"*); without emptying what is held
-when a request is refused, step 18 reads two `413`; without the inactivity
+answer, step 17 is red (*"A step did not end"*). Without emptying what is held
+when a request is refused, step 18 reads two `413`. Without the inactivity
 armed when a refusal waits for its answers, step 19 is dropped by the timer of
-the full queue and never reads its `413`; without a read re-arming the
+the full queue and never reads its `413`. Without a read re-arming the
 inactivity, step 20 is dropped (*"An active peer was dropped at
-timeout_inactivity"*). Up to 7.30.14 an answer whose body could not be dumped
+timeout_inactivity"*). Up to 7.30.14 an answer whose body failed to dump
 sent nothing, and step 21 is red (*"An answer that cannot be built did not
 leave a 500 in its place"*: the peer took the second answer as the first),
 and step 22 crashed the yuno (`gbuffer_printf()` on the NULL of a failed

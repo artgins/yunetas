@@ -4,21 +4,21 @@ Self-contained unit tests for `kernel/c/root-linux/src/c_task_authenticate.c`,
 the OIDC ROPC task GClass.
 
 The suite mirrors the structure of `tests/c/c_auth_bff` but is much
-slimmer because every assertion ultimately reduces to *"did the task
+slimmer because every assertion reduces to *"did the task
 publish `EV_ON_TOKEN` with the expected `result`?"*.  Shared scaffolding
 (yuno boilerplate, log-capture handler, mock IdP) lives in
-`test_main.c`, `c_mock_idp.c` and `c_test_driver.c`; each
-`main_test*.c` is just a few lines that pick the IdP attrs to set, the
+`test_main.c`, `c_mock_idp.c` and `c_test_driver.c`. Each
+`main_test*.c` is a few lines that pick the IdP attrs to set, the
 expected `EV_ON_TOKEN.result`, and the expected log messages.
 
 ## Tests
 
 | Binary | What it covers |
 |---|---|
-| `test1_discovery` | Happy path with `issuer` only — exercises `action_discover` + `result_save_discovery` + `action_get_token` + `action_logout`. |
-| `test2_explicit_endpoints` | `token_endpoint` + `end_session_endpoint` set explicitly — discovery is skipped, the chain runs `action_get_token` + `action_logout` directly. |
-| `test4_discovery_failure` | Discovery body omits `token_endpoint` — `result_save_discovery` rejects it with a WARNING, no ERROR, and publishes `EV_ON_TOKEN` with `result=-1`. |
-| `test5_form_encoding` | The user `user+1@x.com` with the password `p+a%41&client_id=evil&grant_type=x`. `C_PROT_HTTP_CL` form-urlencodes each key and value, so the mock (`expected_form`) finds ONE `grant_type`, ONE `client_id`, and the credentials as they are; a mismatch is an ERROR of the mock and a 400. Expects `result=0`. |
+| `test1_discovery` | Happy path with `issuer` only. It exercises `action_discover` + `result_save_discovery` + `action_get_token` + `action_logout`. |
+| `test2_explicit_endpoints` | `token_endpoint` + `end_session_endpoint` set explicitly. Discovery is skipped, and the chain runs `action_get_token` + `action_logout` directly. |
+| `test4_discovery_failure` | Discovery body omits `token_endpoint`. `result_save_discovery` rejects it with a WARNING, no ERROR, and publishes `EV_ON_TOKEN` with `result=-1`. |
+| `test5_form_encoding` | The user `user+1@x.com` with the password `p+a%41&client_id=evil&grant_type=x`. `C_PROT_HTTP_CL` form-urlencodes each key and value, so the mock (`expected_form`) finds ONE `grant_type`, ONE `client_id`, and the credentials as they are. A mismatch is an ERROR of the mock and a 400. Expects `result=0`. |
 | `test6_idp_drops` | The mock (`drop_token_requests`) drops the connection of the first `/token` with no answer: `C_TASK` runs the job again on the new connection, and the task does not send the password grant again: `result=-1`, ONE WARNING. |
 | `test7_headers_too_large` | The mock (`raw_token_answer` `@bighead`) answers a header of 70 KB: refused by the HTTP client, `result=-1`, ONE WARNING of the task naming it. |
 | `test8_protocol_error` | The mock (`raw_token_answer`) answers `HTTP/1.1 200 OK` and a header name with a space: refused (`protocol_error`), `result=-1`, ONE WARNING. |
@@ -41,7 +41,7 @@ expected `EV_ON_TOKEN.result`, and the expected log messages.
 | `test25_logout_200` | The mock (`return_status_logout` 200) answers the end-session `200`, not `204`: any 2xx ends the session, `result=0`, no log. Up to 7.30.14 every status but 204 was an ERROR with the answer dumped. |
 | `test26_logout_400` | The mock answers the end-session `400 invalid_grant`: `result=0` (the token was published), ONE WARNING *"task_authenticate: the IdP did not end the session"*, no dump. |
 | `test27_logout_mute` | The mock (`mute_logout_requests`) takes the end-session and never answers it: `result=0`, and when the `C_TASK` times out (10 s) ONE WARNING *"task_authenticate: the IdP did not answer the end-session"*. Up to 7.30.14 nothing was logged. |
-| `test28_stop_while_waiting` | Nobody listens at the IdP's port, and the owner stops the task 1 s after its start (`set_task_stop_after()`): no `EV_ON_TOKEN` and no WARNING when the wait (10 s) would have ended. |
+| `test28_stop_while_waiting` | Nobody listens at the IdP's port, and the owner stops the task 1 s after its start (`set_task_stop_after()`): no `EV_ON_TOKEN` and no WARNING at the end of the wait (10 s). |
 | `test29_token_not_url` | The discovery answers a `token_endpoint` that is not a URL and an `end_session_endpoint` that is: `result=-1`, ONE WARNING. |
 | `test30_end_session_not_url` | The same, the other way round: each endpoint is checked. |
 | `test31_end_session_too_long` | The discovery answers an `end_session_endpoint` of 4096 bytes (`discovery_long_key`): `result=-1`, ONE WARNING. |
@@ -58,26 +58,26 @@ owner stops the task while it waits, and the count expected is 0: an
 A trimmed-down sibling of `c_auth_bff/c_mock_keycloak.c`.  Routes by URL
 substring:
 
-* `/.well-known/openid-configuration` → synthesises a discovery JSON
+* `/.well-known/openid-configuration` → synthesizes a discovery JSON
   (issuer/token_endpoint/end_session_endpoint) derived from the request
   Host header.  Tests can override the body verbatim via
   `override_discovery_body`.
 * `/token` → when `expected_form` (a dict) is set, each of its keys must be
-  in the form once, with that value once decoded, else an ERROR and a 400;
-  then returns a synthesised token envelope with all the
+  in the form once, with that value once decoded, else an ERROR and a 400.
+  Then it returns a synthesized token envelope with all the
   `KW_REQUIRED` fields that `result_get_token` reads
   (access_token, refresh_token, expires_in, refresh_expires_in,
   token_type, session_state, scope).  Tokens are plain placeholder
-  strings — `c_task_authenticate` does not validate JWT structure or
+  strings. `c_task_authenticate` does not validate JWT structure or
   signature today, so libjwt is intentionally not a dependency here.
 * `/logout` → returns 204.
 * `drop_token_requests` drops the connection of that many `/token`
-  requests with no answer; `mute_token_requests` leaves `/token` with no
-  answer and the connection open; `mute_logout_requests` does the same with
+  requests with no answer. `mute_token_requests` leaves `/token` with no
+  answer and the connection open. `mute_logout_requests` does the same with
   `/logout`, and `return_status_logout` (204 by default) is the status of its
-  answer (`{"error": "invalid_grant"}` when it is not a 2xx);
+  answer (`{"error": "invalid_grant"}` when it is not a 2xx).
   `discovery_endpoint_len` makes the `token_endpoint` of the discovery (or
-  the endpoint `discovery_long_key` names) that long; `raw_token_answer` answers `/token` with its
+  the endpoint `discovery_long_key` names) that long. `raw_token_answer` answers `/token` with its
   bytes as they are (`@bighead`: a 200 with a header of 70 KB).
 
 ## Running

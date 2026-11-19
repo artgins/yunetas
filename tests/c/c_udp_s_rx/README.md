@@ -8,7 +8,7 @@ A driver gclass (`C_TEST_UDP_RX`) creates two children:
    logcenter receives the logs of every yuno). Two peers send the pieces of
    two frames, interleaved: A `a1`, B `b1`, A `a2\0`, B `b2\0`. It must
    publish `a1a2` and `b1b2`, from two channels. `C_GSS_UDP_S` keys its
-   channels by the label of the `EV_RX_DATA` gbuffer, the peer; up to 7.25.4
+   channels by the label of the `EV_RX_DATA` gbuffer, the peer. Up to 7.25.4
    `C_UDP_S` wrote that label only when tracing, every peer was the channel
    `""`, and the frames came out as `a1b1a2` and `b2`.
 2. A `C_UDP_S` with `only_allowed_ips`: the yuno's ip lists, as `C_TCP_S`
@@ -33,13 +33,13 @@ A driver gclass (`C_TEST_UDP_RX`) creates two children:
    the peers (its frame is dropped, *"Too many bytes in unfinished frames,
    ..."*). The frames that come out are `x`+31 `a`, `B`, `x` and 9 `a`, and
    the memory grows by far less than 1 MB per source port (a frame buffer
-   starts at 4 KB; up to 7.25.4 every peer shared one channel with a fixed
+   starts at 4 KB, and up to 7.25.4 every peer shared one channel with a fixed
    1 MB buffer).
 
 5. A host answers the peers of the frames of the first `C_GSS_UDP_S` with
    `EV_SEND_MESSAGE`: `to-a` with the LABEL of A's frame and no address,
    `to-b` with the ADDRESS of B's frame and no label, and `to-nobody` with
-   neither. A and B must get their answer; the third is refused
+   neither. A and B must get their answer. The third is refused
    (*"EV_SEND_MESSAGE without a peer: no address, and its label names no known
    peer; dropped"*). Up to 7.25.4 a frame carried neither its peer's label nor
    its address, a send by address logged *"UDP channel NOT FOUND"*, and a send

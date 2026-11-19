@@ -9,15 +9,15 @@ children, each a persistent queue (under `/tmp/test_c_qiogate_stats`) towards
 `C_MQIOGATE`: each queue holds 5. Then:
 
 - `gobj_stats()` of the `C_MQIOGATE` answers, for each child, `msgs_in_queue`
-  5 and `pending_acks` 0;
-- each child's attribute `msgs_in_queue` is 5;
+  5 and `pending_acks` 0.
+- Each child's attribute `msgs_in_queue` is 5.
 - `gobj_stats()` of a `C_QIOGATE` (`output-q1`) and of a `C_IOGATE`
   (`output-iogate-q1`, the gate below it) answers the envelope: `result` 0,
   and the counters (`msgs_in_queue`, `txMsgs`) under `data`.
 
 Up to 7.25.21 the two counts were only in the `C_QIOGATE`'s own `mt_stats`,
 which a `C_MQIOGATE` never asks (it reads its children's stats attributes with
-`build_stats()`): the size of a persistent link's queue could not be read
+`build_stats()`): the size of a persistent link's queue was not readable
 through it (red: the three checks fail for both children). And up to the
 same release both gates' `mt_stats` returned the bare counters, so
 `stats-yuno` on either answered `-1` (red: no `result`, no `data`).
@@ -26,16 +26,16 @@ Then the test shows that a gate whose queue cannot save a message refuses it
 and goes on. It sets `min_free_disk_percentage` of `output-q1` to `101` (a
 disk that is always too full) and sends 3 more messages:
 
-- each `EV_SEND_MESSAGE` returns `-1` (the broadcast returns the error of
-  `output-q1`);
+- Each `EV_SEND_MESSAGE` returns `-1` (the broadcast returns the error of
+  `output-q1`).
 - `output-q1` counts them in `dropped_msgs` (3), and in the stats of the
-  `C_MQIOGATE`; its queue keeps its 5 messages, and it logs one ERROR,
-  *"Queue refuses new messages"*;
+  `C_MQIOGATE`. Its queue keeps its 5 messages, and it logs one ERROR,
+  *"Queue refuses new messages"*.
 - `output-q2` takes them (8 messages, `dropped_msgs` 0).
 
 With `min_free_disk_percentage` `0`, the poll of `output-q1` accepts messages
 again (one INFO), and the next message goes into its queue. Up to 7.28.3 the
-gate had no such threshold, and a message its queue could not save aborted
+gate had no such threshold, and a message that its queue failed to save aborted
 the yuno (red: the messages go in, and the checks fail).
 
 Then a third gate, `output-q3`, is created with its `tranger_path` under a
@@ -43,19 +43,19 @@ regular file (`/tmp/test_c_qiogate_stats/blocked`), so its queue cannot be
 opened at the start, and `"exitOnError": 0` (the default, `-1`, exits the
 yuno at the open: `test_exit_on_error`, in `tests/c/c_tcp_s_addr_in_use`):
 
-- the causes of timeranger2, and ONE ERROR of the gate, *"Queue cannot be
-  opened: the gate refuses messages, trying again"*; `queue_ready` false;
-- 2 messages are refused (`-1`) and counted in `dropped_msgs`, with no log;
-- the file is removed, and the next try of the gate (1 s later) opens the
+- The causes of timeranger2, and ONE ERROR of the gate, *"Queue cannot be
+  opened: the gate refuses messages, trying again"*, and `queue_ready` false.
+- 2 messages are refused (`-1`) and counted in `dropped_msgs`, with no log.
+- The file is removed, and the next try of the gate (1 s later) opens the
   queue (one INFO, *"Queue opened: the gate accepts messages"*, after the
-  stop of the store that never started, two ERROR pairs of timeranger2);
-  `queue_ready` true, and the next message goes in.
+  stop of the store that never started, two ERROR pairs of timeranger2).
+  `queue_ready` is true, and the next message goes in.
 
 Up to 7.30.17 the first message aborted the yuno (CRITICAL *"trq_msgs
-NULL"*; red: *"Subprocess aborted"*).
+NULL"*, and red: *"Subprocess aborted"*).
 
 `queue_mark_pending` on `output-q3` while its queue is not open answers
-`-1` (*"the queue is not open"*) and the gate goes on; once open,
+`-1` (*"the queue is not open"*) and the gate goes on. Once open,
 `queue_mark_pending` and `queue_mark_notpending` mark its 2 messages and the
 gate keeps its queue open and takes the next message. Up to 7.30.17 they
 opened the queue again over the open one and closed it after them, and on a
@@ -69,10 +69,10 @@ the end).
 
 `output-q3` keeps the metadata of its messages (`with_metadata`). A message
 with `"__md_test__": "kept"` and a `__temp__` (`{"channel": "input-1",
-"channel_gobj": 1094795585}`) is queued; once the gate is stopped the test
-reads its queue: the message keeps `__md_test__` and has no `__temp__` -- it
-is local, the channel a message came in by and a pointer of this process, and
-the queue sends what it keeps to the peer. Up to 7.30.26 it was queued (red:
+"channel_gobj": 1094795585}`) is queued. Once the gate is stopped, the test
+reads its queue: the message keeps `__md_test__` and has no `__temp__`. That
+key is local (the channel a message came in by and a pointer of this process),
+and the queue sends what it keeps to the peer. Up to 7.30.26 it was queued (red:
 *"the queue with_metadata keeps no __temp__"*).
 
 ## Run

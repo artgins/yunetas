@@ -5,31 +5,31 @@ Raw client sockets bound to `127.0.1.x` connect to a `C_TCP_S` on
 `127.0.0.1:7793`, so a list can name them while `127.0.0.1` stays the
 exempt loopback peer:
 
-- a peer in `denied_ips` is refused with or without `only_allowed_ips`, and
-  it wins over `allowed_ips`;
-- with `only_allowed_ips`, a peer not in `allowed_ips` is refused;
-- a refusal is logged on the transition, one line a minute at most for each
+- A peer in `denied_ips` is refused with or without `only_allowed_ips`, and
+  it wins over `allowed_ips`.
+- With `only_allowed_ips`, a peer not in `allowed_ips` is refused.
+- A refusal is logged on the transition, one line a minute at most for each
   cause, and counted in the stat `refusedConnxs`: a denied peer that
   connects 5 times more writes no line (up to 7.25.4 there was no stat,
-  each refusal wrote a line, and a denied peer was not refused here);
-- a FULL server (its 3 channels taken) does not accept the next 3
+  each refusal wrote a line, and a denied peer was not refused here).
+- A FULL server (its 3 channels taken) does not accept the next 3
   connections: one warning (*"no free child tree found"*) for the three,
   counted in `noChannelConnxs`, not in `refusedConnxs` (up to 7.25.21 each
-  one was an ERROR, counted nowhere);
-- loopback is accepted even when listed;
-- the list key of a peername is its ip without the port, for ipv4, ipv6 and
-  an ipv4 seen by a dual-stack socket;
-- the entries are kept in that form: `add-denied-ip` / `add-allowed-ip`
+  one was an ERROR, counted nowhere).
+- Loopback is accepted even when listed.
+- The list key of a peername is its ip without the port, for ipv4, ipv6 and
+  an ipv4 seen by a dual-stack socket.
+- The entries are kept in that form: `add-denied-ip` / `add-allowed-ip`
   store `2001:DB8::1` as `2001:db8::1` and `::ffff:203.0.113.7` as
   `203.0.113.7`, and refuse what is not a numeric ip (`[2001:db8::3]`,
-  `203.0.113.8:443`, `localhost`); a link-local address is named with its
+  `203.0.113.8:443`, `localhost`). A link-local address is named with its
   interface (`fe80::2%lo` is stored `fe80::2%1`), which `allowed_ips`
   requires and `denied_ips` does not (without it the address is denied on
-  every interface); the `remove-` commands take any form of the same ip,
-  and answer an error for one not in the list;
-- entries that 7.25.4 stored as typed (they come in the config here) are
+  every interface). The `remove-` commands take any form of the same ip,
+  and answer an error for one not in the list.
+- Entries that 7.25.4 stored as typed (they come in the config here) are
   renamed at load to that form, or dropped with a warning when they are no
-  ip; two entries of one ip are merged (a deny wins).
+  ip. Two entries of one ip are merged (a deny wins).
 
 ## Run
 

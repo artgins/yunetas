@@ -3,9 +3,9 @@
 Tests the M-Bus telegram decoder of `modules/c/mbus` (`mbus_telegram.h`)
 without a yuno: frames in, frames or json out.
 
-- **Frames**: `E5`, short, control and long frames found; bad checksum, bad
+- **Frames**: `E5`, short, control and long frames found. Bad checksum, bad
   stop byte, lengths that differ, a length under 3 and a bad fourth byte
-  refused; an incomplete frame asks for more bytes.
+  refused. An incomplete frame asks for more bytes.
 - **Requests built**: `REQ_UD2` with and without FCB, `SND_NKE` to `FD`, a
   selection by secondary address (manufacturer and wildcards), and the
   refusals of a bad id, manufacturer, version or medium.
@@ -24,7 +24,7 @@ without a yuno: frames in, frames or json out.
   data, refused), and records cut short in each part.
 - **Real meters**: six telegrams of the libmbus collection (Kamstrup,
   Itron water and gas, Engelmann, Landis+Gyr, Sontex), whose decoding was
-  checked record by record against libmbus's (`real_telegrams.inc`; licence
+  checked record by record against libmbus's (`real_telegrams.inc`, with the license
   in `LICENSE-libmbus-frames.txt`). One record differs on purpose since the
   date ranges are checked: storage 510 of the Landis+Gyr is a type F date with
   year 127 (all its bits set, a slot never written), `null` here and

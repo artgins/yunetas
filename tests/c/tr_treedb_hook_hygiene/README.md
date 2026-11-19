@@ -1,38 +1,38 @@
 # test_tr_treedb_hook_hygiene
 
 Regression coverage for the treedb hook fixes in `tr_treedb.c` on a versioned
-(pkey2) parent with a hook — reverse-hook unlink + idempotent link dedup, and
+(pkey2) parent with a hook: reverse-hook unlink + idempotent link dedup, and
 force-delete of a multi-child array hook.
 
 The schema (`schema_sample.c`) models the agent's `configs`→`yunos` graph: a
-**versioned** parent topic `configs` (pkey2 `version`) with a `yunos` hook, and
+versioned parent topic `configs` (pkey2 `version`) with a `yunos` hook, and
 a child topic `yunos` whose `config` fkey points back. The child's fkey ref
-stores only the config id, not the version — the asymmetry the fixes handle.
+stores only the config id, not the version. The fixes handle this asymmetry.
 
 ## Cases
 
 1. **Idempotent link dedup** (`test_idempotent_link_dedup`). Linking the same
    child twice is a no-op: the parent hook and the child fkey each keep a single
    entry, and the skipped duplicate is surfaced via two `gobj_log_warning`s
-   (parent hook, then child fkey) — asserted in strict FIFO order.
+   (parent hook, then child fkey). The test asserts them in strict FIFO order.
 
 2. **Non-primary version unlink** (`test_clean_unlinks_nonprimary_version`).
-   A child hooked on the **non-primary** config version is cleaned: the entry is
-   removed from the version that actually held it (not the primary), the child
+   A child hooked on the non-primary config version is cleaned: the entry is
+   removed from the version that held it (not the primary), the child
    fkey is cleared, and no *"Child data not found"* error is logged.
 
 3. **Force-delete unlinks every array-hook child**
    (`test_force_delete_unlinks_all_array_children`). Force-deleting a `configs`
-   node that hooks three `yunos` children unlinks **all** of them and removes
+   node that hooks three `yunos` children unlinks all of them and removes
    the node. Before the fix the teardown iterated the hook array while
    `_unlink_nodes()` removed from it in place, so the index-based loop skipped
-   the middle child; the re-check then found a leftover link and aborted the
-   delete, leaving a half-unlinked graph.
+   the middle child. The re-check then found a leftover link and aborted the
+   delete. That left a half-unlinked graph.
 
 4. **Failed open leaks no descriptor** (`test_failed_open_no_desc_leak`).
    Opening a schema with no `topics` list is rejected, and the shared
    `topic_cols_desc` the open path incref/creates before validation is released
-   on the error path — the end-of-test memory check would otherwise report it as
+   on the error path. If not, the end-of-test memory check reports it as
    leaked. Before the fix the early error return skipped that decref.
 
 5. **Ids and references** (`test_ids_and_refs`), on a treedb of its own:
@@ -43,7 +43,7 @@ stores only the config id, not the version — the asymmetry the fixes handle.
      the user `x` (*"Cannot link, the dict hook holds a node of another topic
      with this id"*). It used to take the user's place.
    - An id of a topic with hooks that holds `^`, or is `NAME_MAX` long, is
-     refused at create: every reference to the node would be undecodable, or
+     refused at create: otherwise every reference to the node is undecodable, or
      cut in silence. A topic with no hooks keeps such an id.
    - A reference whose id part does not fit the decode is refused (*"Wrong
      reference: a part of it is too long"*), not cut.
@@ -51,9 +51,9 @@ stores only the config id, not the version — the asymmetry the fixes handle.
      parent (`test_children_without_ref`): the user `u^1` in a list hook, the
      user `a^b^c` (two `^`) in a dict hook, and a user whose id is 255 bytes
      long. A delete of the parent without `force` is refused (*"Cannot delete
-     node: has down links"*) and nothing moves; the `refs` option lists the
-     child (`users^u^1`); a forced delete unlinks it. The delete guard built a
-     reference for each child and skipped the one it could not build (and a
+     node: has down links"*) and nothing moves. The `refs` option lists the
+     child (`users^u^1`). A forced delete unlinks it. The delete guard built a
+     reference for each child and skipped the one it failed to build (and a
      dict hook skipped a key with two `^`): the parent was deleted, forced or
      not, and the child's fkey named a node that is gone.
 

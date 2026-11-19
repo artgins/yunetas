@@ -1,6 +1,6 @@
 # c_timer test
 
-Tests for the `C_TIMER` GClass — periodic scheduling, one-shot timeouts and event delivery through the `yev_loop`.
+Tests for the `C_TIMER` GClass: periodic scheduling, one-shot timeouts and event delivery through the `yev_loop`.
 
 ## Run
 

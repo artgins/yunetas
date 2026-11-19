@@ -9,10 +9,10 @@ plain UDP socket of the test, bound to a port of the kernel's choice, and:
 
 1. sends an EMPTY gbuffer, with nothing in flight: it is ignored with a
    WARNING (*"udp tx data empty, ignored"*), and its `EV_TX_READY` must come
-   one turn later, never inside the send;
+   one turn later, never inside the send.
 2. sends `one`, `two` and `three` in one turn: after 300 ms the socket must
    hold `one two three`, in order, `EV_TX_READY` must have come once, and
-   the stats must say 3 datagrams (`txMsgs`) and 11 bytes (`txBytes`);
+   the stats must say 3 datagrams (`txMsgs`) and 11 bytes (`txBytes`).
 3. sends `four`, then in the same turn stops the `C_UDP` (it waits in
    `ST_WAIT_STOPPED` for the send and the cancel of the read), sends `late`
    (dropped: ONE WARNING when the stop ends, *"udp data sent while the client
@@ -23,10 +23,10 @@ plain UDP socket of the test, bound to a port of the kernel's choice, and:
    from the libuv port). After
    300 ms the first must be running in `ST_IDLE`, with no `EV_STOPPED` (the
    start came before the stop ended), and the socket must hold `four`: the
-   socket closes when the stop ends;
-4. sends `five`: the socket must hold it;
+   socket closes when the stop ends.
+4. sends `five`: the socket must hold it.
 5. stops the `C_UDP`: it must end in `ST_STOPPED` and publish `EV_STOPPED`
-   once. The yuno dies; the memory check at the end catches a leaked event or
+   once. The yuno dies. The memory check at the end catches a leaked event or
    gbuffer.
 
 In the fixes after 7.29.3 (red): `late` was *"Event NOT DEFINED in state"*,
@@ -39,10 +39,10 @@ A second binary, `test_c_udp_tx_refused` (`C_TEST_UDP_REFUSED`), points a
 a socket of the test, closed before the start) and sends it 50 datagrams in one
 turn. The kernel answers the first with "port unreachable", and the read fails
 with `ECONNREFUSED` while the next datagram is in flight: the `C_UDP` stops by
-itself (*"UDP: read FAILED, the client stops"*, the only ERROR it may log; the
+itself (*"UDP: read FAILED, the client stops"*, the only ERROR that it is allowed to log. The
 WARNINGs of datagrams the kernel refuses are the kernel's to count). 500 ms
 later it must be in `ST_STOPPED`, NOT running, with ONE `EV_STOPPED`, and a
-`gobj_start()` must work; a stop then publishes a second `EV_STOPPED`. Then it
+`gobj_start()` must work. A stop then publishes a second `EV_STOPPED`. Then it
 is started again and, 25 times, sent a datagram, stopped (it must wait in
 `ST_WAIT_STOPPED`) and started in ONE turn: 100 ms later it must run in
 `ST_IDLE`, with no new `EV_STOPPED`. Then, 25 times, it is sent a datagram
@@ -53,7 +53,7 @@ come. 100 ms later it must run in `ST_IDLE`, with one `EV_STOPPED` per stop.
 The send in flight is what makes this phase red on its own with the read
 kept across starts: with only the read in flight that code passes it. A last stop publishes
 the last one. In the fixes after 7.29.3 (red) it stayed in `ST_WAIT_STOPPED`
-for ever, and the start said *"GObj ALREADY RUNNING"*; and the start, in the
+for ever, and the start said *"GObj ALREADY RUNNING"*. And the start, in the
 stop or at its `EV_STOPPED`, armed the read again while the completion of its
 cancel was still to come: that completion failed the new read, and the
 `C_UDP` stopped by itself (*"UDP: read FAILED, the client stops"*) at every

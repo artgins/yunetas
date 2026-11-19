@@ -1,13 +1,13 @@
 # c_ievent_srv_peer_subs test
 
-Tests what a remote peer may put in a subscription, and what it may hold,
+Tests what a remote peer can put in a subscription, and what it can hold,
 through `C_IEVENT_SRV` (SDK 7.25.5).
 
 One yuno holds both sides: a `C_IEVENT_SRV` gate on `ws://127.0.0.1:7795`
 whose channels allow `max_subscriptions` 4 and `max_subscription_size` 512,
 a `publisher` service, two local subscribers (`strip` and `local`, of the
 gclass `C_TEST_PEER_SINK`) and two `C_IEVENT_CLI`: `alice`, whose frames the
-test writes by hand, as a hostile peer would, and `bob`, a plain client.
+test writes by hand, as a hostile peer does, and `bob`, a plain client.
 
 1. The subscribers of `EV_TEST_FEED`, in this order: `strip` (local, with a
    `__local__` that removes `secret` and a `__global__` that adds `sink`),
@@ -18,23 +18,23 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    with a `__global__` holding `gbuffer: 1`. The publisher publishes
    `{topic_name: devices, node: dev1, secret}`:
    - `bob` and `local` get the event whole, `bob` with his `tag`, `local`
-     with no `__md_iev__`;
-   - `strip` gets it without `secret`;
-   - `alice` gets her own `topic_name`, and the `secret` (a peer may not
-     remove keys);
-   - the publisher's kw comes back as it went;
-   - the keys `alice` may not set are logged ONCE.
+     with no `__md_iev__`.
+   - `strip` gets it without `secret`.
+   - `alice` gets her own `topic_name`, and the `secret` (a peer cannot
+     remove keys).
+   - The publisher's kw is not changed.
+   - The keys that `alice` cannot set are logged ONCE.
 
    Up to 7.25.4 the publish shared one kw: `bob` got nothing (alice's
    `topic_name` failed his filter), `local` got the forgery without the
    secret and alice's `__md_iev__`, and the publisher's kw was changed.
 2. `alice` holds 3 subscriptions (the third, `EV_TEST_BIN`, below) and asks
-   4 more: 1 is accepted, 3 refused (`max_subscriptions`, logged once); 2 with a `__filter__` over 512 bytes
-   are refused (logged once); 5 withdrawals of nothing, each with a 2 KB
+   4 more: 1 is accepted, 3 refused (`max_subscriptions`, logged once). 2 with a `__filter__` over 512 bytes
+   are refused (logged once). 5 withdrawals of nothing, each with a 2 KB
    key, are ONE warning, capped (`main.c` counts the lines and measures
-   them); 3 subscriptions of `EV_TEST_SECRET`, which only `bob` may read,
+   them). 3 subscriptions of `EV_TEST_SECRET`, which only `bob` can read,
    are ONE warning (*"No permission to subscribe event"*: the peer asks for
-   it; `main.c` checks its priority. Up to 7.30.15 it was an error).
+   it, and `main.c` checks its priority. Up to 7.30.15 it was an error).
 3. `bob` withdraws his subscription with its `__global__`, as
    `C_IEVENT_CLI` does it: it goes. Up to 7.25.4 the server compared it with
    the `__global__` it had stored, which carries its own back-metadata, and
@@ -50,9 +50,9 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    in the routing stack, a forged `__username__`, `input_channel` and
    `input_service`. The service gets the gate's values, never hers. Up to
    7.25.4 `kw_set_dict_value()` kept a key that was already there, so the
-   peer's `__username__` reached the command, the stats and the event -- and
+   peer's `__username__` reached the command, the stats and the event, and
    the authz of `command_parser` reads that key (fixed in `kwid.c` by
-   fdf138144; this test holds it).
+   fdf138144, and this test holds it).
 5. The publisher publishes `EV_TEST_OPEN`: `alice`'s subscription without a
    filter gets it, without `gbuffer`. Up to 7.25.4 the gate took her integer
    for a gbuffer when it serialized the event back to her, and the yuno
@@ -67,12 +67,12 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    is (the publisher's `mt_subscription_added` is not called again), one
    warning. Up to 7.25.4 each repeat was deleted and made again, with a
    warning carrying a stack trace and the whole kw.
-8. `alice` sends 3 commands to `tester`, a service her channel may not
-   reach: 3 negative answers, one warning, capped; 2 commands that name
-   no command: 2 negative answers, one warning; and a command routed to her
+8. `alice` sends 3 commands to `tester`, a service her channel cannot
+   reach: 3 negative answers, one warning, capped. She sends 2 commands that name
+   no command: 2 negative answers, one warning. She also sends a command routed to her
    own service whose `service` is `__yuno__`: a negative answer, and no
    warning more (the same kind, capped). Up to 7.30.14 that command reached
-   `__yuno__` -- its `help`, and `write-attr`, `shutdown`, ... Then a frame with no
+   `__yuno__`: its `help`, and `write-attr`, `shutdown`, ... Then a frame with no
    `__md_iev__` (50 KB): one warning, capped, and her channel is closed. Up
    to 7.25.4 each such frame logged an error with a stack trace and the
    whole kw, and the frame without routing was processed.
@@ -87,7 +87,7 @@ test writes by hand, as a hostile peer would, and `bob`, a plain client.
    its own, `EV_TEST_OPEN`, through the `C_IEVENT_SRV` of his channel, as an
    app does: with no `__service__` the gate addresses it to the service of his
    identity card, his transport, which publishes it to its subscribers (the
-   `tester`, which is not that service); with `__service__: tester` it goes to
+   `tester`, which is not that service). With `__service__: tester` it goes to
    `tester` by name. Each arrives once. Up to 7.26.9 both closed bob's channel:
    the gate wrote its own label for an anonymous yuno (`^peer-sock`) as
    `dst_yuno`, and the client refused it (*"It's not my name"*).

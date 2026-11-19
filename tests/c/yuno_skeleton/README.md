@@ -27,14 +27,14 @@ them) and builds it against the SDK in `outputs/`:
   Without `node` in `PATH` the run is skipped and says `SKIP`.
 - `project` and `project_commercial`: each gets a `yuno_citizen` made in its
   `yunos/` and added to `yunos/CMakeLists.txt`, and is built from the
-  project root with no warning; the `LICENSE` is the one of its kind (MIT,
+  project root with no warning. The `LICENSE` is the one of its kind (MIT,
   proprietary) and the README says the license asked for. Their `gui/`
   without a network: `package.json` is json naming `sktapp_gui`, no marker
   is left but i18next's `{{name}}` and `{{n}}` (kept, not emptied), and every
   `.js` parses. `utils/c/yuno-skeleton/check_project_gui.sh` installs and
   builds it (npm and the registry, so not under ctest).
 - A required answer missing is an error, not the same prompt for ever (it
-  looped up to 7.28.6); answers missing that have a default take it (7.28.7
+  looped up to 7.28.6). Answers missing that have a default take it (7.28.7
   made every end of input an error).
 - The generated view carries logical class names (`PLACEHOLDER_CARD`,
   `PLACEHOLDER_HEADER`, ...), as every JS GUI must.
@@ -51,9 +51,9 @@ up to 7.28.6 (21 checks fail against those binaries):
   as they were (a key is replaced as a whole word), reports `C_TIMER` as left
   untouched, and the clone builds.
 - `yclone-project` to a name that holds the old one (`sktcln` ->
-  `sktcln_two`) replaces it once; a binary is copied byte for byte, a
+  `sktcln_two`) replaces it once. A binary is copied byte for byte, a
   script keeps its mode, a symlink is kept, `.git` and `build` are not
-  cloned; the clone builds and says its new role; a destination inside the
+  cloned. The clone builds and says its new role. A destination inside the
   source is refused.
 - `ymake-skeleton` makes a template (`+rootname+` names, `{{yunorole}}`
   markers, `_tmpl` on text files only) that `yuno-skeleton` instantiates and
@@ -61,12 +61,12 @@ up to 7.28.6 (21 checks fail against those binaries):
 
 And the ones of 7.28.7 to 7.29.1: a symlink to a file the clone renames
 follows it, in `yclone-project`, `ymake-skeleton` and `yuno-skeleton` (it
-was left dangling); the round trip keeps the mode of a script (`yuno-skeleton`
-dropped it); a destination longer than `PATH_MAX` is an error that says so
+was left dangling). The round trip keeps the mode of a script (`yuno-skeleton`
+dropped it). A destination longer than `PATH_MAX` is an error that says so
 (the truncated path was used).
 
 And one after 7.29.2: a symlink to another symlink (`run2.link -> run.link`)
-keeps pointing to that link in all three tools; `ymake-skeleton` gave it the
+keeps pointing to that link in all three tools. `ymake-skeleton` gave it the
 suffix of the file at the end of the chain (`run.link_tmpl`), dangling in the
 template.
 

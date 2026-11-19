@@ -18,7 +18,7 @@ Peer A must get `s1 s2 s3 s4 s5 hello` and peer B `world b1 b2 b3`, with no
 error logged. Up to 7.25.4 `C_UDP_S` cleared the gbuffer after the publish and
 read the next datagram into it: an answer was sent empty (dropped, *"Cannot
 send datagram: dropped"*) or with the bytes and the peer of another datagram,
-and a zero-copy send could read memory the next read was writing. Now, when the
+and a zero-copy send was able to read memory that the next read was writing. Now, when the
 host keeps the gbuffer, the next datagram is read into a new one.
 
 ## Run

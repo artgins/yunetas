@@ -6,18 +6,18 @@ meters of the bus (it parses the master's frames with `mbus_telegram.h`).
 
 `test1` (`main_test1.c` + `c_test1.c`) reads four slaves for three cycles:
 
-- **slave 1** (primary) answers `SND_NKE` and then two telegrams: the first
+- Slave 1 (primary) answers `SND_NKE` and then two telegrams: the first
   ends with `DIF 1F`. The first `REQ_UD2` must carry FCB 1 (`7B`) and the
-  second FCB 0 (`5B`); the reading published has the records of both;
-- **slave 2** (primary) is silent in cycles 1 and 2: *"M-Bus slave not read"*
+  second FCB 0 (`5B`). The reading published has the records of both.
+- Slave 2 (primary) is silent in cycles 1 and 2: *"M-Bus slave not read"*
   is logged once, as a warning, in cycle 1 and not in cycle 2, and nothing is
   published for it. In cycle 3 its first `RSP_UD` has a bad checksum: the
   master waits out `timeout_response` and repeats the `REQ_UD2` with the SAME
   FCB, the slave answers it, the reading is published and *"M-Bus slave
-  answered again"* is logged;
-- **slave `12345678` KAM** (secondary) is selected every cycle (`CI 52` with
-  FCB 1, `73`; the bytes checked) and read at `FD`;
-- **slave 3** is disabled and must never be asked.
+  answered again"* is logged.
+- Slave `12345678` KAM (secondary) is selected every cycle (`CI 52` with
+  FCB 1, `73`, and the bytes checked) and read at `FD`.
+- Slave 3 is disabled and must never be asked.
 
 At the end the counters must be what three cycles give: `badFrames` 1,
 `timeouts` 4, `repeats` 3, `failedReads` 2, `readings` 7.
@@ -53,11 +53,11 @@ the wire than `timeout_response` (100 ms here), as a long frame does at 2400
 baud (~1.2 s). The one meter, at address 1, sends its 246-byte `RSP_UD` in
 chunks of 10 bytes every 30 ms (~750 ms):
 
-- in cycle 1 the master must read it with no timeout and no repeat;
-- in cycle 2 the first answer is broken at its first byte and the rest is
+- In cycle 1 the master must read it with no timeout and no repeat.
+- In cycle 2 the first answer is broken at its first byte and the rest is
   dribbled all the same. The master must wait until the bus is quiet before it
-  repeats the `REQ_UD2` (same FCB), and the repeat is answered at once;
-- in cycle 3 the first answer is noise that never goes quiet: one bad byte
+  repeats the `REQ_UD2` (same FCB), and the repeat is answered at once.
+- In cycle 3 the first answer is noise that never goes quiet: one bad byte
   every 80 ms, less than `timeout_response`. The master must give up on it
   in its time bound (`timeout_response` plus the wire time of two frames at
   2400 baud, ~2.5 s): the repeat must reach the bus 2.4-3.5 s after the

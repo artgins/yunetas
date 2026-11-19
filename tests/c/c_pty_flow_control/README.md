@@ -15,7 +15,7 @@ A `C_PTY` running `bash` (`C_TEST_PTY` drives it, `src/c_test_pty.c`) prints
 4. Paused inside its `EV_TTY_DATA` again, and stopped: its `EV_TTY_CLOSE` and
    `EV_STOPPED` come at once, and it is destroyed.
 5. A `C_PTY` created with `rx_paused` `TRUE` and sent `echo HELLO`: no
-   `EV_TTY_DATA` in 500 ms; once resumed, its output comes.
+   `EV_TTY_DATA` in 500 ms. Once resumed, its output comes.
 
 A failure is an ERROR *"TEST FAIL"*, which the strict FIFO of expected logs
 (`main.c`) does not hold. Up to 7.30.26 `C_PTY` had no `rx_paused` (the

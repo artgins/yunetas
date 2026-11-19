@@ -1,6 +1,6 @@
 # c_agent_sandbox test
 
-Runs the **real agent** (`yunos/c/yuno_agent/build/yuneta_agent`) and talks to
+Runs the real agent (`yunos/c/yuno_agent/build/yuneta_agent`) and talks to
 its `1991` as a peer, with frames written by hand (`client.py`).
 
 The agent's `1991` and `1993` and its pid file are fixed in the binary, so it
@@ -29,11 +29,11 @@ has no `websockets`.
    this test, up to 7.30.17).
 4. A yuno installed and run by the agent (`logcenter`), then identity cards
    that the agent refuses, each naming a pid:
-   - an unknown yuno, the pid of a decoy process: the decoy lives;
-   - a second instance of the running yuno, the pid of a decoy: it lives;
-   - a second instance of the running yuno, the pid of that yuno: killed (a
-     process of its own);
-   - an unknown yuno, pid `-1`: nothing is killed.
+   - An unknown yuno, the pid of a decoy process: the decoy lives.
+   - A second instance of the running yuno, the pid of a decoy: it lives.
+   - A second instance of the running yuno, the pid of that yuno: killed (a
+     process of its own).
+   - An unknown yuno, pid `-1`: nothing is killed.
 
    Up to 7.30.17 the agent sent SIGKILL to the pid of every card it refused,
    whatever process that was. `-1` is every process of the user: the peer
@@ -55,11 +55,11 @@ has no `websockets`.
    SIGQUIT to every process of the user (the peer dumped a core).
 
 6. `trace-on-yuno` and `trace-off-yuno` of the relaunched `logcenter`:
-   - without `level`, or with `level=machine,no_such_level`: refused (-1),
-     the global levels listed in the `data`, nothing set, `traced` false;
+   - Without `level`, or with `level=machine,no_such_level`: refused (-1),
+     the global levels listed in the `data`, nothing set, `traced` false.
    - `level=machine,ev_kw`, then `level=commands` on the traced yuno: the
      yuno's `get-global-trace` (asked with `command-yuno`) says the three,
-     and `traced` is true;
+     and `traced` is true.
    - `trace-off-yuno`: `get-global-trace` says none, `traced` is false.
 
    Three times. Each answer of the yuno goes to the agent, which logs no
@@ -69,35 +69,35 @@ has no `websockets`.
    *"gobj not found: ''"*), the answer of `trace-off-yuno` reached the peer
    as a second answer (its next question read it), and every call left the
    yunos it found in the agent (421 blocks at the end of this test).
-7. A crash of the running `logcenter` (SIGSEGV; the sandbox runs with
+7. A crash of the running `logcenter` (SIGSEGV, and the sandbox runs with
    `ulimit -c 0`, so no core reaches the host's `/var/crash`): its watcher
    relaunches it 2 s later, and a `run-yuno` asked 1 s after the crash
    launches nothing (*"alive but not connected to the agent: not launched
    again"*: the watcher is a process of the yuno). The relaunched one is
    registered with its new pid and the same watcher, and only two processes
    of it live. It is the order of events of a relaunch by the watcher that
-   meets a launch by the agent; the agent log has no *"yuno ALREADY
+   meets a launch by the agent. The agent log has no *"yuno ALREADY
    living"* for it (two in all, from the cards of 4).
 8. `trace-on-yuno` and `trace-off-yuno` of a yuno not connected: the
    `logcenter` is run again and traced (`machine,ev_kw`), then killed.
    `trace-off-yuno` answers -1, *"…: yuno 1 not connected to the agent
    (stopped, starting or stopping): its trace not changed"*, and `traced`
-   stays true; a `trace-on-yuno` of it is refused the same way. Run again,
-   the yuno has its saved levels; `trace-off-yuno` then answers 0, `traced`
+   stays true. A `trace-on-yuno` of it is refused the same way. Run again,
+   the yuno has its saved levels. `trace-off-yuno` then answers 0, `traced`
    is false and the yuno traces nothing. Up to 7.30.22 `trace-off-yuno` of
-   the stopped yuno answered 0 and set `traced` false, and the yuno came
-   back with `ev_kw` and `machine`.
+   the stopped yuno answered 0 and set `traced` false, and the yuno started
+   again with `ev_kw` and `machine`.
 9. `delete-yuno whole=1` removes the trace the yuno saved: an
    `emailsender` (`logcenter` fixes its `domain_dir` in its binary, so the
    agent does not know where it saves) traced with `machine`, its
-   `data/C_YUNO-z-persistent-attrs.json` there; killed, deleted whole: the
-   file is gone; created again with the same id and run: it traces nothing,
+   `data/C_YUNO-z-persistent-attrs.json` there. Killed, deleted whole: the
+   file is gone. Created again with the same id and run: it traces nothing,
    `traced` false. Up to 7.30.22 the file stayed and the new yuno traced
    `machine`.
 10. `delete-yuno yuno_release=<its only release>` takes the whole yuno, so
     it removes the saved trace too: the same `emailsender`, run and traced
     with `machine` again, killed, deleted by its only release (the answer
-    is 0 and `list-yunos` shows no row): the file is gone; created again
+    is 0 and `list-yunos` shows no row): the file is gone. Created again
     with the same id and run, it traces nothing. Up to 7.30.23 only
     `whole=1` removed the file, and the new yuno traced `machine`.
 11. A `run-yuno` that plays (`play=1`, the default) keeps its requester for
@@ -105,14 +105,14 @@ has no `websockets`.
     that launch only. The `logcenter` does not play by itself (`must_play`
     false): a session runs it (answered), plays it with `play-yuno`
     (answered), and its watcher relaunches it after a SIGSEGV, which plays
-    it (`must_play` is true now). The session gets no answer then; nor does
+    it (`must_play` is true now). The session gets no answer then. Nor does
     another session that took its channel when it left. Twice: the session
     stays, then it leaves. Up to 7.30.26 the relaunch answered that
     `run-yuno` again, to whoever held the channel then (with nobody, the
     yuno itself, whose link to the agent was cut by it).
 12. A `run-yuno` of a yuno that plays by itself (`must_play` true, set by a
     `play-yuno`): the session that ran it gets the answer of the run and
-    the answer of the play, once each; the watcher's relaunch after a
+    the answer of the play, once each. The watcher's relaunch after a
     SIGSEGV plays it again and answers nothing more. Then a session runs it
     and leaves before the yuno reaches the agent (the test holds the yuno's
     processes with SIGSTOP as they appear), another session takes its
@@ -121,7 +121,7 @@ has no `websockets`.
 
 Two waits are the design's, not a clock: `kill-yuno` answers once the yuno
 left the agent, and its watcher ends right after it (its child ended with
-0); until then a `run-yuno` is refused (*"alive but not connected to the
+0). Until then a `run-yuno` is refused (*"alive but not connected to the
 agent: not launched again"*), as it must be while a process of the yuno
 lives. So every kill waits until the yuno and its watcher are gone.
 `trace-on-yuno` answers once it sent the order, and the yuno saves its trace

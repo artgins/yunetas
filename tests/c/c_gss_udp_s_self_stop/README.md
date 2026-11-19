@@ -23,18 +23,18 @@ plain UDP socket, the peer:
    after a backoff"*.
 1. The host sends `lost`: refused, no second warning.
 2. After `timeout_base` the `C_UDP_S` is started again (*"UDP server started
-   again"*); the peer sends `two`, and the host must get it.
-3. The host sends `back`; the peer must get `early` and `back`, nothing else.
+   again"*). The peer sends `two`, and the host must get it.
+3. The host sends `back`. The peer must get `early` and `back`, nothing else.
 4. The `C_UDP_S` stops by itself again (`three` kept), within a minute of its
    restart: the backoff doubles to 2 s. It must still be down 1.3 s after
-   that stop; its port is then taken by another socket. At 2.3 s the restart
+   that stop. Its port is then taken by another socket. At 2.3 s the restart
    has started it and its listen failed: ONE ERROR (*"yev_create_accept_event()
    FAILED"*), and no *"UDP server started again"* (up to 7.30.18 it was said
    anyway). The host's `down` (while it is down) and `deaf` (while it does
    not listen) are refused, ONE warning for both. The port is freed, and at
    its own try the `C_UDP_S` listens (*"Listening again after a failed
    listen"*). The host's `heard` goes out with the INFO *"UDP server
-   listening again, sends refused while it was not"*, `tx_dropped` 2; the
+   listening again, sends refused while it was not"*, `tx_dropped` 2, and the
    peer gets `heard`. Up to 7.30.19 nobody said that count: it went into the
    count of the stop in case 6 (3 instead of 1), and the send refused in
    case 5 wrote no warning.
@@ -51,10 +51,10 @@ plain UDP socket, the peer:
    again"*), and the peer's `five` is heard. Up to 7.25.20 that start found
    the `C_UDP_S` still holding its socket (*"yev_server_udp ALREADY
    exists"*).
-8. The same again, and when the `C_UDP_S` says `EV_STOPPED` -- to the test
+8. The same again. The `C_UDP_S` says `EV_STOPPED` to the test
    first (the `C_GSS_UDP_S` subscribed again after it), which posts itself a
    restart, then to the `C_GSS_UDP_S`, which posts itself the start it
-   waited for -- the posted restart stops and starts the `C_GSS_UDP_S`: that
+   waited for. Then the posted restart stops and starts the `C_GSS_UDP_S`: that
    start starts the `C_UDP_S` at once, and the posted start, delivered after
    it, must do nothing (it restarted the live `C_UDP_S`). The peer's `six` is
    heard. Nothing is stopped or started inside the publish of the
@@ -64,7 +64,7 @@ Up to 7.25.20 `C_GSS_UDP_S` took that `EV_STOPPED` with no action: `lost` and
 `back` each logged *"Event NOT DEFINED in state"* (from `C_UDP_S` in
 `ST_STOPPED`), and the host never got `two`. The cases above also check that a
 send to a `C_UDP_S` still stopping is refused, not sent (*"Event NOT DEFINED
-in state"*), that a self-stop that comes back is restarted with a growing
+in state"*), that a self-stop that occurs again is restarted with a growing
 backoff and not at every tick, that a `C_UDP_S` stopped from outside is not
 restarted, and that a `timeout_base` of 0 is refused (it armed no timer: no
 peer forgotten, no restart).

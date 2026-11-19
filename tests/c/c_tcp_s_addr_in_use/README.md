@@ -16,22 +16,22 @@ binds is exact.
 
 - **held at the start, released before the retry**: one `bind() FAILED`
   (a WARNING, from `yev_create_accept_event()`), *"Address in use: listening
-  again"*, and at the retry *"Listening: its address in use was released"*;
-  the server is in `ST_IDLE` and a client is accepted;
+  again"*, and at the retry *"Listening: its address in use was released"*.
+  The server is in `ST_IDLE` and a client is accepted.
 - **held longer than `listen_retry_msec`** (1 ms): the retry is refused too,
   and the listen fails: ONE ERROR, *"yev_create_accept_event() FAILED"*
   (`errno` 98), `listening` false, and the yuno goes on. Its first
   try (1 s later) is refused too and says nothing more (only the `bind()`
-  WARNING); the port is released, and the second try (2 s after the first)
-  listens, with one INFO, *"Listening again after a failed listen"*; a
-  client is accepted;
+  WARNING). The port is released, and the second try (2 s after the first)
+  listens, with one INFO, *"Listening again after a failed listen"*, and a
+  client is accepted.
 - **`listen_retry_msec` 0**: no window, the listen fails at once (the same
-  ERROR); its stop takes the try back, and with the port released nothing
-  more is tried nor said;
+  ERROR). Its stop takes the try back, and with the port released nothing
+  more is tried nor said.
 - **a bad url**: an empty one at the start (*"URL NULL"*), then written while
   down: one of port 0 (*"Cannot Listen on port 0"*), one with no schema
   (*"Parsing url failed"*). Each is an ERROR, the yuno goes on, and nothing is
-  tried by itself; writing the good url listens at once, and a client is
+  tried by itself. Writing the good url listens at once, and a client is
   accepted.
 
 The server sets `"exitOnError": 0`, as the agent's do: without it the second

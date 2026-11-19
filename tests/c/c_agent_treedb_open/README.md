@@ -1,6 +1,6 @@
 # c_agent_treedb_open test
 
-Tests that the agent **ends, with exit 0, when its treedb does not open**, on
+Tests that the agent ends, with exit 0, when its treedb does not open, on
 the agent's own source (`yunos/c/yuno_agent/src/agent_treedb.c`, compiled
 into the test) and its own schema.
 
@@ -17,9 +17,9 @@ The yuno creates a `C_TREEDB` service as the agent's `mt_play` does, in a
 store of its own (`~/tests_yuneta/c_agent_treedb_open`), and calls
 `open_agent_treedb()` twice:
 
-1. the first opens the treedb, under the id of the agent's schema;
+1. the first opens the treedb, under the id of the agent's schema.
 2. the second answers -1 (*"treedb 'treedb_yuneta_agent' is already open
-   here"*), and the process must end there with **exit 0** and *"Cannot
+   here"*), and the process must end there with exit 0 and *"Cannot
    start agent treedb: ..."* on the console.
 
 The yuno cannot check its own exit code, so ctest runs it through

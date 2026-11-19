@@ -16,23 +16,23 @@ message of each `pkey2`:
 
 1. a file of `dev1` whose only append was never acknowledged (a md2 of 0
    rows, its content not empty), between its old and its new message: the
-   file is ignored with a warning, and the NEW message is served;
+   file is ignored with a warning, and the NEW message is served.
 2. the md2 of the new message damaged (it cannot be read, mode 000):
    `dev1` is reloaded backward, the load stops at once at its newest file, and
-   `dev1` is not served (absent, with an ERROR naming it); `dev2`, whole, is.
+   `dev1` is not served (absent, with an ERROR naming it). `dev2`, whole, is.
    The damaged file is the file of the current period, where the next message
    goes: a second ERROR says so, and the next message of `dev1` is refused
    (tranger refuses an append into a flagged file), so it is not served
-   either;
+   either.
 3. the damage in the MIDDLE of `dev1`'s history, with two alarms: `X`, whose
-   newest message is in the last file, is served (its current message); `Y`,
+   newest message is in the last file, is served (its current message). `Y`,
    whose newest message is in the damaged file, is absent (its old message is
-   not served as current); `msg2db_id_incomplete()` is TRUE for `dev1`, FALSE
-   for `dev2`, and stays TRUE after `Y`'s next message, which is served;
+   not served as current). `msg2db_id_incomplete()` is TRUE for `dev1`, FALSE
+   for `dev2`, and stays TRUE after `Y`'s next message, which is served.
 4. the store of 3 with a record of `dev1` whose `pkey2` is empty on each side
    of the damage: one read by the forward load, one read only by the backward
    reload. Both are dropped, and "Records NOT loaded, 'pkey2' empty" says
-   `dropped: 2`;
+   `dropped: 2`.
 5. the md2 of the new message ends in a part of a row (a power cut during
    the write of a row). That is an append that was never acknowledged, not
    damage: the md2 is cut back to its whole rows with one warning, `dev1` is
@@ -54,11 +54,11 @@ log. Up to 7.28.7 the first message that carried a field freed its default
 *"BAD json_decref()"*.
 
 `test_msg2db_topics_left_out` pins that a topic `msg2db_open_db()` leaves
-out gets nothing of the msg2db. The schema has three topics: `good`, taken;
-`a/b`, whose name breaks the name rule; and `pre`, which has no `pkey2` and is
+out gets nothing of the msg2db. The schema has three topics. `good` is taken.
+`a/b` has a name that breaks the name rule. `pre` has no `pkey2` and is
 opened in the tranger before the msg2db. Each one left out is said ONCE, and
 only `good` gets an index. Up to 7.26.9 the loop that opens the lists asked
-whether the topic was in the tranger, not whether it had been taken, so `pre`
+whether the topic was in the tranger, not whether it was taken, so `pre`
 got a list and an index without a word.
 
 Cases 2, 3 and 4 of `test_msg2db_load_failed` use a md2 of mode 000. As root they are SKIPPED, and each
@@ -79,7 +79,7 @@ memory was still allocated at the check.
 
 `drain_loop()` runs the loop ten times after each shutdown, as
 `tests/c/timeranger2/test_rt_disk_multi_feed.c` does, and the test passes
-clean. Any test that shuts down a master tranger with a `yev_loop` needs the
+clean. Any test that does a shutdown of a master tranger with a `yev_loop` needs the
 same turns before its leak check:
 
 ```c

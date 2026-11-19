@@ -1,11 +1,11 @@
 # kw test
 
-Unit tests for the `kw_*` keyword / JSON helpers in `kernel/c/gobj-c/src/kwid.c`. These are the workhorse functions every GClass uses to read config values, pattern-match events and build responses — a regression here breaks almost everything.
+Unit tests for the `kw_*` keyword / JSON helpers in `kernel/c/gobj-c/src/kwid.c`. These are the workhorse functions every GClass uses to read config values, pattern-match events and build responses. A regression here breaks almost everything.
 
 Among them: `kw_find_path()` walks a path of any depth and any segment
 length in a loop, logging nothing for a path that is not there with `verbose`
 FALSE (`test_reg_f003_kw_find_path_depth`: it recursed, and was cut at 64
-segments and 255 bytes with an ERROR); and `json_refcounts_report()` answers
+segments and 255 bytes with an ERROR). And `json_refcounts_report()` answers
 what the refcounts say, each json once, a cycle walked once, logging nothing
 -- also a cycle whose refcounts are corrupted below the truth, which it
 walked round until its frames passed `MAX_BLOCK`, and which it now REPORTS as
@@ -24,7 +24,7 @@ and `iev_create_from_gbuffer()` leave no `"gbuffer"` key at any depth in a
 peer's json (spelled with `\u` escapes too: each of the 127 ways, beside a
 `\u00e9` that is no letter of it), with ONE warning. And
 `iev_create_from_gbuffer()` hands on the kw of an inter-event without the
-peer's `__temp__` (a list, a dict with a `channel_gobj`, an integer; with
+peer's `__temp__` (a list, a dict with a `channel_gobj`, an integer, with
 `verbose` 0 and 1), and logs nothing for it: `__temp__` is local, C_IOGATE
 writes a pointer of this process there (up to 7.30.26 a peer's was handed
 on). And `iev_create_to_gbuffer()` writes no `__temp__` in a frame, from a

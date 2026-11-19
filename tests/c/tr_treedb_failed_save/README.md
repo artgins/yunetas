@@ -1,6 +1,6 @@
 # tr_treedb_failed_save test
 
-A treedb write whose **save fails** is taken back in memory.
+A treedb write whose save fails is taken back in memory.
 
 `treedb_update_node()`, `treedb_link_nodes()`, `treedb_unlink_nodes()`,
 `treedb_replace_links()` and `treedb_autolink()` change the node in memory
@@ -39,7 +39,7 @@ disk says what memory said.
    names the id alone: an unlink from the second instance (list hook and
    dict hook), and a move of a single fkey away from it, whose save fails,
    leave the child in that instance, in its place, and nothing in the primary.
-9. Two snaps active on disk: the open deactivates all but the last; a
+9. Two snaps active on disk: the open deactivates all but the last. A
    deactivation that cannot be saved leaves the snap active in memory as on
    disk, and a replica does not try.
 10. A take-back puts a child back into EVERY instance of the parent that

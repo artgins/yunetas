@@ -1,6 +1,6 @@
 # Tests
 
-C tests use **CTest** (the CMake test runner). Each subdirectory under
+C tests use CTest (the CMake test runner). Each subdirectory under
 `tests/c/` is a self-contained test binary registered with `ctest` at
 build time.
 
@@ -16,7 +16,7 @@ List available tests:
 ctest -N
 ```
 
-Runs only test #5:
+Run only test #5:
 
 ```bash
 ctest -I 5,5
