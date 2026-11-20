@@ -44,6 +44,7 @@
  *  node that builds from source (the test of the packages' preinst)
  */
 #define AGENT_DIR           "/yuneta/agent"
+#define AGENT_UPGRADE_DIR   "/yuneta/agent/upgrade"
 #define MAIN_AGENT          "yuneta_agent"
 #define MAIN_AGENT_UNIT     "yuneta_agent.service"
 #define YUNETAS_SOURCE_DIR  "/yuneta/development/yunetas"
@@ -848,9 +849,11 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 /***************************************************************************
  *  Replace the binary of the main agent and restart it: the twin of the
- *  rule that each agent maintains the other. The binary is written beside
- *  the running one (`yuneta_agent.new`), must say it is a yuneta_agent
- *  (--print-role), the one on disk is kept as `yuneta_agent.bak-pre-<new
+ *  rule that each agent maintains the other. The binary is written as
+ *  `/yuneta/agent/upgrade/yuneta_agent` (a yuno refuses to run under a
+ *  name that is not its role, so it keeps its name, and the directory is
+ *  on the same filesystem as the agent's, for the rename), must say it is
+ *  a yuneta_agent (--print-role), the one on disk is kept as `yuneta_agent.bak-pre-<new
  *  version>` (a hard link: a backup already there is left as it is), and
  *  the new one takes its name with one rename(). Then the agent is
  *  restarted in its systemd unit (`sudo -n systemctl restart --no-block`),
@@ -909,12 +912,24 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
     char agent_path[PATH_MAX];
     char new_path[PATH_MAX];
     if(!build_path(agent_path, sizeof(agent_path), AGENT_DIR, MAIN_AGENT, NULL) ||
-            !build_path(new_path, sizeof(new_path), AGENT_DIR, MAIN_AGENT ".new", NULL)) {
+            !build_path(new_path, sizeof(new_path), AGENT_UPGRADE_DIR, MAIN_AGENT, NULL)) {
         // Error already logged
         return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("%s: cannot build the paths of the agent", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(!is_directory(AGENT_UPGRADE_DIR) && mkrdir(AGENT_UPGRADE_DIR, yuneta_xpermission()) < 0) {
+        // Error already logged
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot create '%s'", gobj_yuno_role_plus_name(), AGENT_UPGRADE_DIR),
             0,
             0,
             kw  // owned
