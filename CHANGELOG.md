@@ -11,6 +11,13 @@
   reads the `sha256` of agent22's `install-package` in this file, and does
   not download a package of 370 MB to get it. Release 7.31.27 got the three
   files by hand, from the sha256 computed on the nodes that installed it.
+- **`install.sh` checks the package against `SHA256SUMS`.** It downloads
+  the `SHA256SUMS` of the release and installs the package only if its
+  sha256 is the one of its line. A file with no line for the package is a
+  refusal too. A release before 7.31.27 has no `SHA256SUMS`: the package is
+  installed without a check, with a warning, or refused with
+  `YUNETA_REQUIRE_SHA256=1`. `curl` reads the installer from `main`, so this
+  applies to the next install, whatever the release it installs.
 
 ### Fixed
 

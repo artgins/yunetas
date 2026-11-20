@@ -26,6 +26,8 @@
 #   YUNETA_REPO          GitHub repo, default "artgins/yunetas"
 #   YUNETA_TAG           Release tag, default "latest" (or a positional arg)
 #   YUNETA_RUNTIME_ONLY  "1" to skip the developer toolchain
+#   YUNETA_REQUIRE_SHA256 "1" to refuse a release that publishes no SHA256SUMS
+#                        (before 7.31.27); with it, the package is always checked
 #
 
 set -eu
@@ -251,6 +253,49 @@ PKG="${TMP}/$(basename "$ASSET_URL")"
 
 echo "[i] Downloading $(basename "$PKG")"
 curl -fsSL -o "$PKG" "$ASSET_URL"
+
+# ----- Check the package against the SHA256SUMS of its release --------------
+#
+# Every release from 7.31.27 on publishes SHA256SUMS, one "<hash>  <file>"
+# line for each package. The package is installed only if its sha256 is the
+# one of its line. A SHA256SUMS that does not name the package is a refusal
+# too: the file was made for these packages, so a missing line is not normal.
+# An older release has no SHA256SUMS: the package is installed unchecked,
+# with a warning, unless YUNETA_REQUIRE_SHA256=1 asks to refuse it.
+PKG_NAME=$(basename "$PKG")
+SUMS_URL=$(printf '%s' "$JSON" |
+    grep -o "https://github.com/${REPO}/releases/download/[^\"]*/SHA256SUMS" | head -n1)
+if [ -n "$SUMS_URL" ]; then
+    if ! command -v sha256sum >/dev/null 2>&1; then
+        echo "ERROR: 'sha256sum' not found: cannot check ${PKG_NAME} against SHA256SUMS." >&2
+        exit 1
+    fi
+    if ! curl -fsSL -o "${TMP}/SHA256SUMS" "$SUMS_URL"; then
+        echo "ERROR: cannot download ${SUMS_URL}: ${PKG_NAME} not installed." >&2
+        exit 1
+    fi
+    EXPECTED=$(awk -v f="$PKG_NAME" '{n = $2; sub(/^\*/, "", n)} n == f {print $1}' "${TMP}/SHA256SUMS" | head -n1)
+    if [ -z "$EXPECTED" ]; then
+        echo "ERROR: the SHA256SUMS of release '${TAG}' has no line for ${PKG_NAME}:" >&2
+        echo "       not installed." >&2
+        exit 1
+    fi
+    GOT=$(sha256sum "$PKG" | awk '{print $1}')
+    if [ "$GOT" != "$EXPECTED" ]; then
+        echo "ERROR: ${PKG_NAME} does NOT have the sha256 of its release: not installed." >&2
+        echo "       expected ${EXPECTED}" >&2
+        echo "       got      ${GOT}" >&2
+        exit 1
+    fi
+    echo "[✓] sha256 of ${PKG_NAME} matches the SHA256SUMS of its release."
+elif [ "${YUNETA_REQUIRE_SHA256:-0}" = "1" ]; then
+    echo "ERROR: release '${TAG}' publishes no SHA256SUMS (YUNETA_REQUIRE_SHA256=1):" >&2
+    echo "       ${PKG_NAME} not installed." >&2
+    exit 1
+else
+    echo "[!] Release '${TAG}' publishes no SHA256SUMS (releases before 7.31.27):" >&2
+    echo "    ${PKG_NAME} is installed WITHOUT a check of its sha256." >&2
+fi
 
 # apt fetches as the unprivileged '_apt' user even for a local file. mktemp
 # gives us a 0700 root-owned dir it cannot traverse, so apt drops its sandbox

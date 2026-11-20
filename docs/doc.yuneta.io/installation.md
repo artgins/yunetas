@@ -82,9 +82,29 @@ curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | s
 ```
 :::
 
+The installer compares the package with the `SHA256SUMS` of its release
+(7.31.27 and later) before it installs it. If the sha256 is not the one in
+the file, or the file has no line for the package, it stops and installs
+nothing:
+
+```text
+ERROR: yuneta-agent-7.31.27-1-amd64.deb does NOT have the sha256 of its release: not installed.
+       expected 4c3a7a113dc0b7cea6ae5d658534bffeb839ece2e9bbce72a252d3f7030d9790
+       got      513beeb430e319415ea6d562d14cb17919f9bd302d8b1a8c29cd4a3feccbe464
+```
+
+A release before 7.31.27 has no `SHA256SUMS`. The installer then installs
+the package without a check and says so. To refuse such a release, set
+`YUNETA_REQUIRE_SHA256=1`, after `sudo`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh \
+  | sudo YUNETA_REQUIRE_SHA256=1 sh
+```
+
 If you download a package from a release yourself, compare it with the
-`SHA256SUMS` of that release (7.31.27 and later). Run the command in the
-directory of the package:
+`SHA256SUMS` of that release. Run the command in the directory of the
+package:
 
 ```bash
 curl -fsSL https://github.com/artgins/yunetas/releases/download/7.31.27/SHA256SUMS \
