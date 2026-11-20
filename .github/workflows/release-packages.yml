@@ -1,7 +1,11 @@
 name: Release runtime packages (.deb + .rpm)
 
 # Builds the AMD64 .deb and the x86_64 .rpm when a GitHub Release is
-# published, and uploads both as release assets.
+# published, and uploads both as release assets, each with its
+# `<package>.sha256`. A last job joins those two lines into `SHA256SUMS`, the
+# file an operator reads the sha256 from: agent22's install-package installs a
+# package only when its sha256 is the one given, and without this file the
+# only way to get it was to download the 370 MB package first.
 #
 # Each package is built ON ITS OWN DISTRIBUTION, in its own job. That is not
 # cosmetic. Besides the static binaries — which really do run anywhere — each
@@ -152,6 +156,17 @@ jobs:
           ./AMD64.sh
           ls -la dist/
 
+      - name: sha256 of the .deb
+        shell: bash
+        run: |
+          # One line per package, "<hash>  <file name>", the format sha256sum -c
+          # reads. Written in dist/ so the name in the line has no directory.
+          cd packages/deb/dist
+          for f in yuneta-agent-*-amd64.deb; do
+            sha256sum "$f" > "$f.sha256"
+            cat "$f.sha256"
+          done
+
       - name: Resolve release tag
         id: tag
         # Untrusted values (release tag / dispatch input) are passed via env,
@@ -171,7 +186,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          files: packages/deb/dist/yuneta-agent-*-amd64.deb
+          files: |
+            packages/deb/dist/yuneta-agent-*-amd64.deb
+            packages/deb/dist/yuneta-agent-*-amd64.deb.sha256
           fail_on_unmatched_files: true
 
   rpm:
@@ -271,6 +288,15 @@ jobs:
           ./x86_64.sh
           ls -la dist/
 
+      - name: sha256 of the .rpm
+        shell: bash
+        run: |
+          cd packages/rpm/dist
+          for f in yuneta-agent-*.x86_64.rpm; do
+            sha256sum "$f" > "$f.sha256"
+            cat "$f.sha256"
+          done
+
       - name: Resolve release tag
         id: tag
         env:
@@ -288,5 +314,50 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          files: packages/rpm/dist/yuneta-agent-*.x86_64.rpm
+          files: |
+            packages/rpm/dist/yuneta-agent-*.x86_64.rpm
+            packages/rpm/dist/yuneta-agent-*.x86_64.rpm.sha256
+          fail_on_unmatched_files: true
+
+  checksums:
+    name: SHA256SUMS of the packages
+    needs: [deb, rpm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Resolve release tag
+        id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          if [ "$EVENT_NAME" = "release" ]; then
+            echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Join the sha256 of each package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          # Only the small .sha256 files are downloaded, not the packages.
+          mkdir sums
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.deb.sha256' --pattern '*.rpm.sha256' --dir sums
+          cat sums/*.sha256 | sort -k2 > SHA256SUMS
+          cat SHA256SUMS
+          # Both packages, or no file: a SHA256SUMS that lacks one would
+          # look complete to whoever reads it.
+          test "$(grep -c '\.deb$' SHA256SUMS)" = "1"
+          test "$(grep -c '\.rpm$' SHA256SUMS)" = "1"
+
+      - name: Upload SHA256SUMS to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: SHA256SUMS
           fail_on_unmatched_files: true

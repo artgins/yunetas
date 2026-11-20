@@ -207,8 +207,8 @@ On a package node, the agent comes in the `yuneta-agent` package.
 commands through the control center to the `agent22` of the node:
 
 ```bash
-# 1. On your machine, get the sha256 of the package.
-curl -fsSL https://github.com/artgins/yunetas/releases/download/7.31.27/yuneta-agent-7.31.27-1-amd64.deb | sha256sum
+# 1. Read the sha256 of the package from the SHA256SUMS of its release.
+curl -fsSL https://github.com/artgins/yunetas/releases/download/7.31.27/SHA256SUMS | awk '/amd64\.deb$/ {print $1}'
 
 # 2. Start the install.
 ycommand --url=wss://<control center>:1997 <login options> -w 20 \
@@ -219,7 +219,10 @@ ycommand --url=wss://<control center>:1997 <login options> -w 20 \
   -c 'command-agent agent_id=<node> cmd2agent="install-package-status"'
 ```
 
-A node on Rocky or Red Hat takes the `.rpm` asset of the same release.
+A node on Rocky or Red Hat takes the `.rpm` asset of the same release, and
+the line of `SHA256SUMS` that ends in `.rpm`. Each release from 7.31.27 on
+has `SHA256SUMS`. For an older release, download the package and run
+`sha256sum` on it.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

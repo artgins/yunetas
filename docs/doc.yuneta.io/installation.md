@@ -82,6 +82,17 @@ curl -fsSL https://raw.githubusercontent.com/artgins/yunetas/main/install.sh | s
 ```
 :::
 
+If you download a package from a release yourself, compare it with the
+`SHA256SUMS` of that release (7.31.27 and later). Run the command in the
+directory of the package:
+
+```bash
+curl -fsSL https://github.com/artgins/yunetas/releases/download/7.31.27/SHA256SUMS \
+  | sha256sum -c --ignore-missing
+```
+
+The output is `yuneta-agent-7.31.27-1-amd64.deb: OK` for a good package.
+
 (install-on-a-build-node)=
 ### Not on a node that builds from source
 

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- **Each release has `SHA256SUMS`.** The `.deb` and the `.rpm` each go up
+  with a `<package>.sha256`, and a last job of `release-packages.yml` joins
+  the two lines into `SHA256SUMS`. It downloads only the `.sha256` files. It
+  refuses to publish a file that lacks one of the packages. The operator
+  reads the `sha256` of agent22's `install-package` in this file, and does
+  not download a package of 370 MB to get it. Release 7.31.27 got the three
+  files by hand, from the sha256 computed on the nodes that installed it.
+
 ### Fixed
 
 - **`upgrade-agent` keeps the binary that runs, and gives its version.** A
