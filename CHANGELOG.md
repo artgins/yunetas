@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v7.31.25 (2026-11-20)
+
+Lite release: only `C_AUTH_BFF` (the `auth_bff` yuno).
+
 ### Fixed
 
 - **`C_AUTH_BFF` expires the other variants of each cookie that it writes.**
@@ -17,6 +21,12 @@
   written only when it is a DNS name of at most 253 bytes. An answer that
   writes no cookie expires nothing. Tests: `test23_cookie_no_host` and
   `test24_no_refresh_token`.
+
+### Changed
+
+- **`kernel/js/gobj-ui` at 7.31.7**, which adds the icon `yi-qrcode` (the QR
+  code of Font Awesome Free). `yunos/js`: `gui_agent` 1.4.8 and `gui_treedb`
+  1.3.6 take it. The `gui/` of the project templates is on `^7.31.7`.
 
 ## v7.31.24 (2026-11-20)
 
