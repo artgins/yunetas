@@ -390,6 +390,12 @@ here is a candidate for promotion to Tier 1:
   are a shell on the node -- and a reboot drops the mount, so it is done
   again. A per-yuno `data_path` the agent honours (or a `tmpfs` flag of the
   yuno record) is the Tier-1 answer.
+- Installing **a riscv64 package** on a package node (2026-11-20). The
+  riscv64 `.deb` is built on a riscv64 board that builds from source, and no
+  release publishes it, so it has no `https://` URL for `install-package`. It
+  is copied to the node and installed with `dpkg -i` over SSH. The Tier-1
+  answer is an `https://` package server (the deploy-center), or riscv64
+  assets on the release with their lines in `SHA256SUMS`.
 - Upgrading **the binary of `yuneta_agent22` on a node that builds from
   source**. The agent is a standalone daemon, not a managed yuno:
   `update-binary` does not reach it, and it is restarted with `systemctl
