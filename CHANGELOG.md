@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v7.31.28 (2026-11-20)
+
+Lite release: `yuneta_agent22`, the release workflow and the installer. The
+only C change is in `yuneta_agent22`. Tests: `test_c_agent22_write_tty`, and
+`upgrade-agent` on a staging node. No performance study: no hot path changed.
+
 ### Added
 
 - **Each release has `SHA256SUMS`.** The `.deb` and the `.rpm` each go up
