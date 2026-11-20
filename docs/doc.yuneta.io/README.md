@@ -64,7 +64,7 @@ other pages link to its anchor.
 
 ## API coverage verifier
 
-[`scripts/verify_api_coverage.py`](https://github.com/artgins/yunetas/blob/7.31.23/scripts/verify_api_coverage.py) compares every `PUBLIC`
+[`scripts/verify_api_coverage.py`](https://github.com/artgins/yunetas/blob/7.31.24/scripts/verify_api_coverage.py) compares every `PUBLIC`
 function declared in the kernel and module C headers it maps against the `(funcname)=`
 anchors present in the documentation landing pages. It reports
 per-header MISSING (exported but not documented) and EXTRA (documented

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v7.31.24 (2026-11-20)
+
+Lite release: no C source changed. It adds a tool to the packages and changes
+the docs.
+
 ### Added
 
 - **`yuneta-node-label`**, in the `.deb` and the `.rpm`
