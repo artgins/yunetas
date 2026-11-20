@@ -165,8 +165,13 @@ The layout on disk, with the default mask:
 
 ```
 <database>/
+  __timeranger2__.json      ← the metadata of the database; the master opens it to write
   <topic>/
-    topic_desc.json
+    topic_desc.json         ← the fixed metadata: pkey, tkey, filename_mask
+    topic_cols.json         ← the fields of the records (optional)
+    topic_var.json          ← the metadata that changes: topic_version, last_rowid_id
+    delete_seq.json         ← the order of the key deletes, for the readers
+    disks/                  ← a reader that follows the topic has a directory here
     keys/
       <key>/
         2026-11-18.json     ← the records, appended
@@ -174,6 +179,10 @@ The layout on disk, with the default mask:
         2026-11-19.json
         2026-11-19.md2
 ```
+
+The master writes `delete_seq.json` when it opens the topic, with the value 0.
+A `<file>.unordered` file beside a `.md2` file marks that a record went back in
+`t`, so a load reads that file whole.
 
 The agent opens its treedb with a coarser mask, because its store changes
 rarely (`yunos/c/yuno_agent/src/agent_treedb.c`):
