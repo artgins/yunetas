@@ -306,8 +306,10 @@ Verified against [`c_agent.c`](src/c_agent.c) (2026-07-22 command surface):
   Verified end to end through the control center on both package nodes
   (2026-11-20, 7.31.27): a wrong sha256 installs nothing, and the `.deb` and
   the `.rpm` of the version installed end in `done 0` with nothing changed.
-  An upgrade to a newer version, where the postinst restarts `agent22` in the
-  middle of the install, waits for the next release.
+  The first real upgrade (7.31.27 to 7.31.28, sha256 read from the
+  `SHA256SUMS` of the release) ended in `done 0` on both nodes. The
+  postinst restarted the main agent and then `agent22` in the middle of the
+  install, and the install went on in its own unit.
 
 The deploy tooling already lives in this tier: `sync_binaries`, `sync_configs`
 and `set_start_priorities` (`yunetas.agent_tools.*`) drive a remote `wss://`
