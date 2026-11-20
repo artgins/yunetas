@@ -79,6 +79,8 @@ PRIVATE BOOL node_builds_from_source(void);
 PRIVATE BOOL version_names_a_file(const char *version);
 PRIVATE json_t *binary_role_info(hgobj gobj, const char *path);
 PRIVATE int restart_main_agent(hgobj gobj);
+PRIVATE long main_agent_unit_pid(void);
+PRIVATE int copy_running_main_agent(hgobj gobj, char *path, size_t path_size);
 PRIVATE const char *package_file_name(const char *url, char *bf, size_t bfsize);
 PRIVATE int write_small_file(hgobj gobj, const char *dir, const char *name, const char *text, int mode);
 PRIVATE int read_small_file(hgobj gobj, const char *dir, const char *name, char *bf, size_t bfsize);
@@ -937,9 +939,15 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
  *  `/yuneta/agent/upgrade/yuneta_agent` (a yuno refuses to run under a
  *  name that is not its role, so it keeps its name, and the directory is
  *  on the same filesystem as the agent's, for the rename), must say it is
- *  a yuneta_agent (--print-role), the one on disk is kept as `yuneta_agent.bak-pre-<new
- *  version>` (a hard link: a backup already there is left as it is), and
- *  the new one takes its name with one rename(). Then the agent is
+ *  a yuneta_agent (--print-role). The binary that RUNS is kept as
+ *  `yuneta_agent.bak-pre-<new version>`, and its version is the one the
+ *  answer gives: it is copied from /proc/<MainPID>/exe of the unit (to
+ *  `upgrade/running/yuneta_agent`, the name of its role, for --print-role).
+ *  A build that ran before has replaced the file on disk already, so the
+ *  file is not the binary that runs. With no unit, or /proc not readable,
+ *  the file on disk is kept (a hard link), and the answer says so. A
+ *  backup already there is left as it is. The new binary takes its name
+ *  with one rename(). Then the agent is
  *  restarted in its systemd unit (`sudo -n systemctl restart --no-block`),
  *  so this answers before the main agent is back.
  *
@@ -1111,15 +1119,24 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
+    /*----------------------------------------*
+     *  The binary that runs: its version
+     *----------------------------------------*/
+    char running_path[PATH_MAX] = "";
+    BOOL from_running = (copy_running_main_agent(gobj, running_path, sizeof(running_path)) == 0)?
+        TRUE : FALSE;
+    if(!from_running) {
+        running_path[0] = 0;
+    }
     char old_version[NAME_MAX] = "";
-    json_t *old_info = binary_role_info(gobj, agent_path);
+    json_t *old_info = binary_role_info(gobj, from_running? running_path : agent_path);
     if(old_info) {
         snprintf(old_version, sizeof(old_version), "%s", kw_get_str(gobj, old_info, "version", "", 0));
         JSON_DECREF(old_info)
     }
 
     /*----------------------------------------*
-     *  Keep the one on disk, then replace it
+     *  Keep the one that runs, then replace it
      *----------------------------------------*/
     char backup_name[NAME_MAX];
     char backup_path[PATH_MAX];
@@ -1133,6 +1150,9 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
             NULL
         );
         unlink(new_path);
+        if(from_running) {
+            unlink(running_path);
+        }
         return msg_iev_build_response(
             gobj,
             -1,
@@ -1146,6 +1166,9 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
     if(!build_path(backup_path, sizeof(backup_path), AGENT_DIR, backup_name, NULL)) {
         // Error already logged
         unlink(new_path);
+        if(from_running) {
+            unlink(running_path);
+        }
         return msg_iev_build_response(
             gobj,
             -1,
@@ -1156,32 +1179,37 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    BOOL backup_was_there = FALSE;
-    if(link(agent_path, backup_path) < 0) {
-        if(errno == EEXIST) {
-            backup_was_there = TRUE;
-        } else if(errno != ENOENT) {
+    BOOL backup_was_there = (access(backup_path, F_OK) == 0)? TRUE : FALSE;
+    if(!backup_was_there) {
+        const char *kept = from_running? running_path : agent_path;
+        int ret = from_running? rename(running_path, backup_path) : link(agent_path, backup_path);
+        if(ret < 0 && !(errno == ENOENT && !from_running)) {   // no file on disk: nothing to keep
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot keep the binary of the main agent: not replaced",
-                "path",         "%s", agent_path,
+                "path",         "%s", kept,
                 "backup",       "%s", backup_path,
                 "errno",        "%d", errno,
                 "strerror",     "%s", strerror(errno),
                 NULL
             );
             unlink(new_path);
+            if(from_running) {
+                unlink(running_path);
+            }
             return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("%s: cannot keep '%s' as '%s': not replaced",
-                    gobj_yuno_role_plus_name(), agent_path, backup_path),
+                    gobj_yuno_role_plus_name(), kept, backup_path),
                 0,
                 0,
                 kw  // owned
             );
         }
+    } else if(from_running) {
+        unlink(running_path);   // the backup there is left as it is
     }
 
     if(rename(new_path, agent_path) < 0) {
@@ -1212,6 +1240,7 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
         "msgset",       "%s", MSGSET_OPERATIONAL,
         "msg",          "%s", "Main agent binary replaced",
         "old_version",  "%s", old_version,
+        "old_from",     "%s", from_running? "running" : "disk",
         "new_version",  "%s", new_version,
         "backup",       "%s", backup_path,
         "backup_was_there", "%d", backup_was_there,
@@ -1235,8 +1264,9 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
             break;
     }
 
-    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:b, s:s}",
+    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s, s:b, s:s}",
         "old_version", old_version,
+        "old_from", from_running? "running" : "disk",
         "new_version", new_version,
         "backup", backup_path,
         "backup_was_there", backup_was_there,
@@ -1245,11 +1275,12 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
     return msg_iev_build_response(
         gobj,
         (restarted < 0)? -1 : 0,
-        json_sprintf("%s: %s %s -> %s, the one before kept as %s%s; %s",
+        json_sprintf("%s: %s %s -> %s, the %s kept as %s%s; %s",
             gobj_yuno_role_plus_name(),
             MAIN_AGENT,
             empty_string(old_version)? "?" : old_version,
             new_version,
+            from_running? "one that runs" : "one on disk (NOT the one that runs: see the log)",
             backup_path,
             backup_was_there? " (a backup already there, left as it was)" : "",
             restart
@@ -1677,13 +1708,7 @@ PRIVATE json_t *binary_role_info(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int restart_main_agent(hgobj gobj)
 {
-    gbuffer_t *gbuf = run_command("systemctl show -p MainPID --value " MAIN_AGENT_UNIT " 2>/dev/null");
-    if(!gbuf) {
-        return 1;   // no systemctl
-    }
-    char *output = gbuffer_cur_rd_pointer(gbuf);
-    long main_pid = output? strtol(output, NULL, 10) : 0;
-    gbuffer_decref(gbuf);
+    long main_pid = main_agent_unit_pid();
     if(main_pid <= 0) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1708,6 +1733,73 @@ PRIVATE int restart_main_agent(hgobj gobj)
             "status",       "%d", status,
             NULL
         );
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The MainPID of the unit of the main agent (its watcher): 0 when the
+ *  unit does not run it, or there is no systemctl
+ ***************************************************************************/
+PRIVATE long main_agent_unit_pid(void)
+{
+    gbuffer_t *gbuf = run_command("systemctl show -p MainPID --value " MAIN_AGENT_UNIT " 2>/dev/null");
+    if(!gbuf) {
+        return 0;   // Error already logged
+    }
+    char *output = gbuffer_cur_rd_pointer(gbuf);
+    long main_pid = output? strtol(output, NULL, 10) : 0;
+    gbuffer_decref(gbuf);
+    return main_pid;
+}
+
+/***************************************************************************
+ *  Copy the binary that the main agent runs (/proc/<MainPID>/exe of its
+ *  unit, the watcher: it runs the image the worker runs) to
+ *  `upgrade/running/yuneta_agent`, the name of its role. 0 with its path
+ *  in `path`, or -1: no unit (a WARNING), or it cannot be copied (logged).
+ *  The file on disk may be another binary already: a build replaces it
+ *  while the agent runs.
+ ***************************************************************************/
+PRIVATE int copy_running_main_agent(hgobj gobj, char *path, size_t path_size)
+{
+    long main_pid = main_agent_unit_pid();
+    if(main_pid <= 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "The main agent runs outside its systemd unit: the file on disk is kept, not the binary that runs",
+            "unit",         "%s", MAIN_AGENT_UNIT,
+            NULL
+        );
+        return -1;
+    }
+
+    char exe[64];
+    snprintf(exe, sizeof(exe), "/proc/%ld/exe", main_pid);
+    char running_dir[PATH_MAX];
+    if(!build_path(running_dir, sizeof(running_dir), AGENT_UPGRADE_DIR, "running", NULL) ||
+            !build_path(path, path_size, running_dir, MAIN_AGENT, NULL)) {
+        return -1;  // Error already logged
+    }
+    if(!is_directory(running_dir) && mkrdir(running_dir, yuneta_xpermission()) < 0) {
+        return -1;  // Error already logged
+    }
+    if(copyfile(exe, path, 0775, TRUE) < 0) {
+        return -1;  // Error already logged
+    }
+    if(chmod(path, 0775) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "chmod() FAILED",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        unlink(path);
         return -1;
     }
     return 0;
