@@ -7,4 +7,4 @@ Enable it only on hosts that a control center must reach.
 `yuno_agent22` also replaces the binary of the main agent and restarts it in
 its systemd unit, with `upgrade-agent content64=<binary>`. The command runs
 only on a node that builds from source. The page
-[`yuneta_agent22`](https://doc.yuneta.io/yuno-yuneta_agent22) gives the steps.
+[`yuneta_agent22`](https://doc.yuneta.io/yuneta-agent22) gives the steps.
