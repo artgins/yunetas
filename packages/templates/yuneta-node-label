@@ -1,0 +1,277 @@
+#!/bin/bash
+#
+#   yuneta-node-label -- the label of this node: its node uuid as a QR code,
+#   and what a person reads with the eye
+#
+#   A field box is known by its node uuid: a central declares it with it, and
+#   an installer finds it in a queue of pending boxes. The uuid is a hash of
+#   the hardware (yuneta-node-uuid), so it exists only after the box has
+#   booted with the package, and nothing printed on the box by its maker
+#   gives it. This tool makes the label ON the box, at the time it is
+#   installed, so the label and the box cannot be two different things.
+#
+#   Usage:
+#       yuneta-node-label [--title <text>]              the label as text
+#       yuneta-node-label [--title <text>] --svg <file> also the printable
+#                                                       label (- = stdout)
+#
+#   Run it as root on a machine whose identifiers only root can read (an x86
+#   board: DMI). From another machine:
+#
+#       ssh <box> 'sudo /usr/libexec/yuneta/yuneta-node-label --svg -' > label.svg
+#
+#   It refuses to make a label when:
+#
+#     - `yuneta-node-uuid show` does not say that the stored uuid is the one
+#       this hardware gives. A label with another uuid names another box, or
+#       is lost when the next `ensure` replaces the uuid;
+#     - the uuid is `random` or `set` by hand: a reinstall loses both.
+#
+#   A uuid of the `machine` source (DMI + lowest MAC: an x86 box, a VM) gets
+#   a warning: a network card added with a lower MAC changes it.
+#
+#   The label:
+#
+#     - the QR code holds the uuid alone, in UPPER case. Upper case puts the
+#       QR in its alphanumeric mode: version 2 (25 modules) instead of 3
+#       (29), so bigger modules on the same label. A reader lowers it. No
+#       URL: the address of the server that reads it can change during the
+#       life of the box;
+#     - the first 8 characters of the uuid in big type, to say aloud and to
+#       find in a list;
+#     - the whole uuid, in lower case, as the system shows it;
+#     - the model, and the permanent MAC of each on-board wired port with its
+#       interface name. The uuid is a hash and does not give them, and the
+#       network the box goes into can ask for a MAC;
+#     - --title: a line on top, the name of the box for the people who
+#       install it ("CONTROLLER", "CONTROLADOR").
+#
+#   The SVG is 62 mm wide (a common label roll) and its height grows with
+#   the ports. It needs qrencode (a Recommends of the package); without it
+#   the text label is still given.
+#
+#   Nothing on the label is a secret: the uuid identifies the box, it does
+#   not authenticate it.
+#
+#   Environment, for tests: YUNETA_NODE_UUID_TOOL (the yuneta-node-uuid to
+#   ask, default /usr/libexec/yuneta/yuneta-node-uuid) and
+#   YUNETA_NODE_UUID_SYSROOT (a prefix of /sys, which yuneta-node-uuid reads
+#   too).
+#
+#   Exit: 0 done, 1 refused or failed, 2 usage.
+#
+#   Copyright (c) 2026, ArtGins.
+#
+set -u
+
+NODE_UUID_TOOL="${YUNETA_NODE_UUID_TOOL:-/usr/libexec/yuneta/yuneta-node-uuid}"
+SYSROOT="${YUNETA_NODE_UUID_SYSROOT:-}"
+GOOD_STATUS="the stored uuid is the one this hardware gives"
+UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+usage() {
+    echo "usage: $0 [--title <text>] [--svg <file>|-]"
+}
+
+#
+#   Arguments
+#
+SVG_OUT=""
+TITLE=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --svg|--title)
+            if [ $# -lt 2 ]; then
+                usage >&2
+                exit 2
+            fi
+            if [ "$1" = "--svg" ]; then
+                SVG_OUT="$2"
+            else
+                TITLE="$2"
+            fi
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [ ! -x "$NODE_UUID_TOOL" ]; then
+    echo "[-] $NODE_UUID_TOOL not found" >&2
+    exit 1
+fi
+if [ -n "$SVG_OUT" ] && ! command -v qrencode >/dev/null 2>&1; then
+    echo "[-] qrencode not found: install it, or run without --svg" >&2
+    exit 1
+fi
+
+#
+#   The uuid, and whether this hardware gives it
+#
+if ! show="$("$NODE_UUID_TOOL" show 2>&1)"; then
+    echo "[-] $NODE_UUID_TOOL show failed:" >&2
+    printf '%s\n' "$show" | sed 's/^/    /' >&2
+    exit 1
+fi
+show_field() {
+    printf '%s\n' "$show" | sed -n "s/^$1: *//p" | head -1
+}
+uuid="$(show_field uuid | tr 'A-F' 'a-f')"
+source="$(show_field source)"
+status="$(show_field status)"
+
+if ! printf '%s' "$uuid" | grep -Eq "$UUID_RE"; then
+    echo "[-] no uuid in what yuneta-node-uuid show says:" >&2
+    printf '%s\n' "$show" | sed 's/^/    /' >&2
+    exit 1
+fi
+if [ "$status" != "$GOOD_STATUS" ]; then
+    echo "[-] the stored uuid is not the one this hardware gives: no label" >&2
+    echo "    What yuneta-node-uuid show says:" >&2
+    printf '%s\n' "$show" | sed 's/^/    /' >&2
+    exit 1
+fi
+case "$source" in
+    devicetree-serial|soc-serial)
+        ;;
+    machine)
+        echo "[!] the uuid comes from the DMI uuid and the lowest MAC: a network card added with a lower MAC changes it" >&2
+        ;;
+    *)
+        echo "[-] the uuid comes from '$source', not from the hardware: a reinstall loses it, no label" >&2
+        exit 1
+        ;;
+esac
+
+#
+#   The model
+#
+model=""
+if [ -r "${SYSROOT}/sys/firmware/devicetree/base/model" ]; then
+    model="$(tr -d '\0' < "${SYSROOT}/sys/firmware/devicetree/base/model")"
+fi
+if [ -z "$model" ] && [ -r "${SYSROOT}/sys/class/dmi/id/product_name" ]; then
+    model="$(cat "${SYSROOT}/sys/class/dmi/id/sys_vendor" "${SYSROOT}/sys/class/dmi/id/product_name" 2>/dev/null \
+        | paste -sd' ' - | sed 's/^ *//; s/ *$//')"
+fi
+if [ -z "$model" ]; then
+    model="?"
+fi
+
+#
+#   The on-board wired ports with a permanent MAC: the interfaces that
+#   yuneta-node-uuid takes MACs from (no USB, no wireless, no random or set
+#   MAC)
+#
+ports=()
+for ifdir in "${SYSROOT}"/sys/class/net/*; do
+    if [ ! -e "$ifdir/device" ]; then
+        continue
+    fi
+    case "$(readlink -f "$ifdir/device" 2>/dev/null)" in
+        */usb*)
+            continue
+            ;;
+    esac
+    if [ -e "$ifdir/wireless" ] || [ -e "$ifdir/phy80211" ]; then
+        continue
+    fi
+    if [ "$(cat "$ifdir/type" 2>/dev/null)" != "1" ]; then
+        continue
+    fi
+    if [ "$(cat "$ifdir/addr_assign_type" 2>/dev/null)" != "0" ]; then
+        continue
+    fi
+    ports+=("$(basename "$ifdir") $(tr 'A-F' 'a-f' < "$ifdir/address")")
+done
+
+#
+#   The label as text: on stdout, or on stderr when stdout is the SVG
+#
+exec 3>&1
+if [ "$SVG_OUT" = "-" ]; then
+    exec 3>&2
+fi
+short="${uuid%%-*}"
+qr_text="$(printf '%s' "$uuid" | tr 'a-f' 'A-F')"
+{
+    if [ -n "$TITLE" ]; then
+        echo "title:  $TITLE"
+    fi
+    echo "uuid:   $uuid"
+    echo "short:  $short"
+    echo "source: $source"
+    echo "model:  $model"
+    for p in "${ports[@]}"; do
+        echo "port:   $p"
+    done
+    echo "qr:     $qr_text"
+} >&3
+if [ ${#ports[@]} -eq 0 ]; then
+    echo "[!] no on-board wired port with a permanent MAC" >&2
+fi
+
+if [ -z "$SVG_OUT" ]; then
+    exit 0
+fi
+
+#
+#   The printable label: QR on the left, the uuid on the right, the model and
+#   the ports underneath. Units are millimetres.
+#
+xml_escape() {
+    printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
+
+if ! qr_svg="$(printf '%s' "$qr_text" | qrencode -t SVG --inline --svg-path -l M -m 4 -o -)" \
+        || [ -z "$qr_svg" ]; then
+    echo "[-] qrencode made no QR code" >&2
+    exit 1
+fi
+qr_svg="$(printf '%s\n' "$qr_svg" \
+    | sed -e '/^<!--.*-->$/d' \
+          -e 's/<svg /<svg x="0" y="1" width="31" height="31" /' \
+          -e 's/ width="[0-9.]*cm"//' -e 's/ height="[0-9.]*cm"//')"
+
+height=$(( 37 + 3 * ${#ports[@]} ))
+sans='font-family="DejaVu Sans, Liberation Sans, sans-serif"'
+
+svg="$(
+    printf '<svg xmlns="http://www.w3.org/2000/svg" width="62mm" height="%smm" viewBox="0 0 62 %s">\n' \
+        "$height" "$height"
+    printf '<rect x="0" y="0" width="62" height="%s" fill="#ffffff"/>\n' "$height"
+    printf '%s\n' "$qr_svg"
+    printf '<g font-family="DejaVu Sans Mono, Liberation Mono, monospace" fill="#000000">\n'
+    if [ -n "$TITLE" ]; then
+        printf '<text x="32" y="7" %s font-size="2.8" font-weight="bold">%s</text>\n' \
+            "$sans" "$(xml_escape "$TITLE")"
+    fi
+    printf '<text x="32" y="15" font-size="5.6" font-weight="bold">%s</text>\n' "$short"
+    printf '<text x="32" y="21" font-size="2.6">%s</text>\n' "${uuid:0:18}"
+    printf '<text x="32" y="24.5" font-size="2.6">%s</text>\n' "${uuid:18}"
+    printf '<text x="32" y="29.5" %s font-size="2.2">node uuid</text>\n' "$sans"
+    printf '<text x="2" y="36" %s font-size="2.4">%s</text>\n' "$sans" "$(xml_escape "$model")"
+    y=36
+    for p in "${ports[@]}"; do
+        y=$(( y + 3 ))
+        printf '<text x="2" y="%s" font-size="2.4">%s</text>\n' "$y" "$(xml_escape "$p")"
+    done
+    printf '</g>\n</svg>\n'
+)"
+
+if [ "$SVG_OUT" = "-" ]; then
+    printf '%s\n' "$svg"
+else
+    if ! printf '%s\n' "$svg" > "$SVG_OUT"; then
+        echo "[-] cannot write $SVG_OUT" >&2
+        exit 1
+    fi
+    echo "svg:    $SVG_OUT" >&3
+fi

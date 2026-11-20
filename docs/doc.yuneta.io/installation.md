@@ -634,6 +634,64 @@ both agent units, as a drop-in) and only what differs, so a second run says
 with the package or without it.
 
 (agent-own-certificate)=
+### The label of a box
+
+Run this on the box, as root, after the package is installed:
+
+```bash
+sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER
+# title:  CONTROLLER
+# uuid:   1a048bb3-e76d-8081-820e-4dea17a518d7
+# short:  1a048bb3
+# source: soc-serial
+# model:  ky x1 orangepi-rv2 board
+# port:   end0 c0:74:2b:fa:50:94
+# port:   end1 c0:74:2b:fa:50:95
+# qr:     1A048BB3-E76D-8081-820E-4DEA17A518D7
+
+# The printable label, from another machine
+ssh <box> 'sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER --svg -' > label.svg
+```
+
+Print `label.svg` from a browser, or give the text fields to the software
+of a label printer. The SVG needs `qrencode` on the box. The package
+recommends it, so `apt` installs it by default.
+
+A field box is known by its node uuid. A central declares the box with it,
+and an installer finds the box with it in a list of pending boxes. The uuid
+is a hash of the hardware, so it exists only after the box starts with the
+package. The label of the maker does not give it. Thus the box makes its own
+label, at the time it is installed.
+
+The tool refuses to make a label in two cases:
+
+- `yuneta-node-uuid show` does not say `the stored uuid is the one this
+  hardware gives`. Such a label names another box, or the next `ensure`
+  replaces its uuid.
+- The source is `random` or `manual` (`set` by hand). A reinstall loses
+  both.
+
+A uuid from the `machine` source (an x86 box, a VM) gives a warning. A
+network card with a lower MAC changes that uuid.
+
+The label carries these items:
+
+- A QR code with the uuid alone, in upper case. In upper case the QR code
+  uses its alphanumeric mode: 25 modules instead of 29, so the modules are
+  bigger on the same label. The QR code holds no URL, because the address of
+  the server that reads it can change during the life of the box.
+- The first 8 characters of the uuid in big type, to say aloud and to find
+  in a list.
+- The full uuid in lower case, as the system shows it.
+- The model, and the MAC of each on-board wired port with its interface
+  name. The uuid is a hash and does not give the MACs. The network of the
+  site can ask for a MAC.
+- The `--title` text, on top.
+
+The SVG is 62 mm wide, a common size of label roll. Its height grows with
+the number of ports. Nothing on the label is a secret: the uuid identifies
+the box, but it does not authenticate it.
+
 ### The agent's own certificate
 
 The agent serves `/yuneta/agent/certs/yuneta_agent.{crt,key}` on its secure

@@ -1071,6 +1071,11 @@ install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-uuid" \
     "${STAGE}/usr/libexec/yuneta/yuneta-node-uuid"
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-agent-cert" \
     "${STAGE}/usr/libexec/yuneta/yuneta-agent-cert"
+# The label of the node (its uuid as a QR code), run by hand when a box is
+# installed: beside yuneta-node-uuid, whose `show` it reads. Its QR needs
+# qrencode (Recommends).
+install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-label" \
+    "${STAGE}/usr/libexec/yuneta/yuneta-node-label"
 
 # --- The node's web server, as its own unit ---
 #
@@ -1780,7 +1785,7 @@ Requires:       glibc-langpack-en, glibc-langpack-es
 # policy (%post) and taken out (%postun): a chcon alone is lost on a relabel
 Requires(post): (policycoreutils-python-utils if selinux-policy)
 Requires(postun): (policycoreutils-python-utils if selinux-policy)
-Recommends:     vim-enhanced, tree, pipx, fail2ban, net-tools, mlocate, curl, telnet
+Recommends:     vim-enhanced, tree, pipx, fail2ban, net-tools, mlocate, curl, telnet, qrencode
 
 %description
 Yuneta Agent binaries, runtime directories, SysV service, certbot hooks
@@ -1815,6 +1820,7 @@ cp -a %{_staging}/. %{buildroot}/
 %dir /usr/libexec/yuneta
 %attr(0755,root,root) /usr/libexec/yuneta/yuneta-node-uuid
 %attr(0755,root,root) /usr/libexec/yuneta/yuneta-agent-cert
+%attr(0755,root,root) /usr/libexec/yuneta/yuneta-node-label
 # The agent's own pair, made on the node (yuneta-agent-cert): owned, never
 # shipped, so that an upgrade from a package that shipped it does not erase
 # the pair %post has just made (rpm erases the old package's files AFTER it)

@@ -37,7 +37,7 @@ differ only in the packaging format and the install glue of each distro.
 ```
 packages/
 ├── README.md       <- this index
-├── templates/      <- shared files: agent config samples, agent units, yuneta-node-uuid, yuneta-agent-cert
+├── templates/      <- shared files: agent config samples, agent units, yuneta-node-uuid, yuneta-node-label, yuneta-agent-cert
 ├── install-yuneta-node-uuid.sh <- the node uuid by hand, on a node without the package
 ├── install-yuneta-agent-cert.sh <- the agent's own certificate by hand, on a node without the package
 ├── tests/          <- tests of the shared scripts (run them from anywhere)
@@ -57,6 +57,13 @@ header). `tests/test-yuneta-node-uuid.sh` tests it against a fake `/sys`.
 `install-yuneta-node-uuid.sh` installs it by hand on a node that builds from
 source and does not take the package. The script is idempotent (a second run
 changes nothing). To make sure that a node is correct, run it again.
+
+`templates/yuneta-node-label` prints the label of a box: its node uuid as a
+QR code, the model and the MAC of each wired port, as text or as an SVG (see
+its header). It reads `yuneta-node-uuid show` and refuses a uuid that the
+hardware does not give. The units do not run it. On a node that builds from
+source, run it from the tree. `tests/test-yuneta-node-label.sh` tests it
+against a fake `/sys`.
 
 ## The certificate of the agent
 

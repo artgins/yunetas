@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- **`yuneta-node-label`**, in the `.deb` and the `.rpm`
+  (`/usr/libexec/yuneta/`): the label of a box, made on the box. It gives the
+  node uuid as a QR code (the uuid alone, in upper case, so the QR code is
+  version 2), the first 8 characters in big type, the model and the MAC of
+  each on-board wired port. The output is text, or an SVG 62 mm wide
+  (`--svg <file>|-`). It reads `yuneta-node-uuid show` and refuses a uuid
+  that this hardware does not give, a `random` one and a `manual` one. Both
+  packages recommend `qrencode`, which the SVG needs. Test:
+  `packages/tests/test-yuneta-node-label.sh`.
+
 ### Changed
 
 - **The plain-English check of the docs is `myst-plain-lint`**

@@ -534,6 +534,11 @@ install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-uuid" \
     "${WORKDIR}/usr/libexec/yuneta/yuneta-node-uuid"
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-agent-cert" \
     "${WORKDIR}/usr/libexec/yuneta/yuneta-agent-cert"
+# The label of the node (its uuid as a QR code), run by hand when a box is
+# installed: beside yuneta-node-uuid, whose `show` it reads. Its QR needs
+# qrencode (Recommends).
+install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-label" \
+    "${WORKDIR}/usr/libexec/yuneta/yuneta-node-label"
 
 # --- The wrapper the unit calls ---
 #
@@ -1257,7 +1262,7 @@ Architecture: ${ARCHITECTURE}
 Homepage: https://yuneta.io
 Maintainer: ArtGins S.L. <support@artgins.com>
 Depends: adduser, lsb-base, rsync, locales, rsyslog, init-system-helpers, gdb, logrotate
-Recommends: curl, vim, sudo, tree, pipx, fail2ban, net-tools, locate
+Recommends: curl, vim, sudo, tree, pipx, fail2ban, net-tools, locate, qrencode
 Suggests: git, mercurial, make, cmake, ninja-build, gcc, clang, g++, python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv, libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, snapd, gh
 Description: Yuneta's Agent
  Yuneta Agent binaries, runtime directories, systemd units (and a SysV script
