@@ -16,6 +16,8 @@
 #include <unistd.h>
 #include <limits.h>
 #include <signal.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 
 #include <c_pty.h>
 #include <c_tcp.h>
@@ -36,6 +38,15 @@
 #define SDATA_SET_BOOL(hs, key, value) json_object_set_new((hs), (key), value?json_true():json_false())
 #define SDATA_SET_JSON(hs, key, value) json_object_set((hs), (key), value)
 #define SDATA_SET_JSON_NEW(hs, key, value) json_object_set_new((hs), (key), value)
+
+/*
+ *  The main agent, as the packages install it, and the tree that tells a
+ *  node that builds from source (the test of the packages' preinst)
+ */
+#define AGENT_DIR           "/yuneta/agent"
+#define MAIN_AGENT          "yuneta_agent"
+#define MAIN_AGENT_UNIT     "yuneta_agent.service"
+#define YUNETAS_SOURCE_DIR  "/yuneta/development/yunetas"
 
 
 /***************************************************************************
@@ -60,6 +71,10 @@ PRIVATE int add_console_route(
     json_t *kw
 );
 PRIVATE int delete_console(hgobj gobj, const char *name);
+PRIVATE BOOL node_builds_from_source(void);
+PRIVATE BOOL version_names_a_file(const char *version);
+PRIVATE json_t *binary_role_info(hgobj gobj, const char *path);
+PRIVATE int restart_main_agent(hgobj gobj);
 
 /***************************************************************************
  *              Resources
@@ -76,6 +91,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -104,6 +120,11 @@ PRIVATE sdata_desc_t pm_write_tty[] = {
     SDATAPM (DTP_STRING,    "content64",    SDF_SECRET,     0,          "Content64 data to write to tty: keystrokes, a typed password among them"),
     SDATA_END()
 };
+PRIVATE sdata_desc_t pm_upgrade_agent[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "content64",    0,              0,          "The new yuneta_agent binary in base64. Use content64=$$(/yuneta/agent/yuneta_agent)"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
@@ -116,6 +137,7 @@ SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    
 SDATACM2 (DTP_SCHEMA,    "list-consoles",   0,                  0,                  0,              cmd_list_consoles, "List consoles"),
 SDATACM2 (DTP_SCHEMA,    "open-console",    0,                  0,                  pm_open_console,cmd_open_console, "Open console"),
 SDATACM2 (DTP_SCHEMA,    "close-console",   0,                  0,                  pm_close_console,cmd_close_console,"Close console"),
+SDATACM2 (DTP_SCHEMA,    "upgrade-agent",   0,                  0,                  pm_upgrade_agent,cmd_upgrade_agent,"Replace the binary of the main agent (yuneta_agent) and restart it in its systemd unit. Only on a node that builds from source: on a package node the agent comes in the package"),
 
 SDATA_END()
 };
@@ -157,6 +179,7 @@ PRIVATE sdata_desc_t authz_table[] = {
 SDATAAUTHZ (DTP_SCHEMA, "open-console",     0,      0,      0,      "Permission to open console"),
 SDATAAUTHZ (DTP_SCHEMA, "close-console",    0,      0,      0,      "Permission to close console"),
 SDATAAUTHZ (DTP_SCHEMA, "list-consoles",    0,      0,      0,      "Permission to list consoles"),
+SDATAAUTHZ (DTP_SCHEMA, "upgrade-agent",    0,      0,      0,      "Permission to replace the binary of the main agent and restart it"),
 SDATA_END()
 };
 
@@ -823,6 +846,321 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
     );
 }
 
+/***************************************************************************
+ *  Replace the binary of the main agent and restart it: the twin of the
+ *  rule that each agent maintains the other. The binary is written beside
+ *  the running one (`yuneta_agent.new`), must say it is a yuneta_agent
+ *  (--print-role), the one on disk is kept as `yuneta_agent.bak-pre-<new
+ *  version>` (a hard link: a backup already there is left as it is), and
+ *  the new one takes its name with one rename(). Then the agent is
+ *  restarted in its systemd unit (`sudo -n systemctl restart --no-block`),
+ *  so this answers before the main agent is back.
+ *
+ *  Only on a node that builds from source: on a package node what runs
+ *  is what its package installed, and the agent comes in the package.
+ *  An agent that runs outside its unit is not restarted: the answer says
+ *  so, and the binary on disk is the new one.
+ ***************************************************************************/
+PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "upgrade-agent";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: No permission to '%s' in service '%s'",
+                gobj_yuno_role_plus_name(), permission, gobj_name(gobj)),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(!node_builds_from_source()) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: this node runs from a package (no sources in %s): "
+                "its agent comes in the package",
+                gobj_yuno_role_plus_name(), YUNETAS_SOURCE_DIR
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
+    if(empty_string(content64)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: No data in content64", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    char agent_path[PATH_MAX];
+    char new_path[PATH_MAX];
+    if(!build_path(agent_path, sizeof(agent_path), AGENT_DIR, MAIN_AGENT, NULL) ||
+            !build_path(new_path, sizeof(new_path), AGENT_DIR, MAIN_AGENT ".new", NULL)) {
+        // Error already logged
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot build the paths of the agent", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    gbuffer_t *gbuf_content = gbuffer_base64_to_binary_from_peer(gobj, content64, strlen(content64));
+    if(!gbuf_content) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: Bad data in content64", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  The new binary takes the mode of the one it replaces
+     */
+    mode_t mode = 0775;
+    struct stat st;
+    if(stat(agent_path, &st) == 0) {
+        mode = st.st_mode & 07777;
+    }
+    if(gbuf2file(gobj, gbuf_content, new_path, (int)mode, TRUE) < 0 ||
+            chmod(new_path, mode) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "Cannot write the new binary of the main agent",
+            "path",         "%s", new_path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        unlink(new_path);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot write '%s'", gobj_yuno_role_plus_name(), new_path),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*----------------------------------------*
+     *  Is it a yuneta_agent?
+     *----------------------------------------*/
+    json_t *new_info = binary_role_info(gobj, new_path);
+    const char *new_role = new_info? kw_get_str(gobj, new_info, "role", "", 0) : "";
+    if(strcmp(new_role, MAIN_AGENT) != 0) {
+        json_t *comment = json_sprintf(
+            "%s: not a %s binary (it says role '%s')",
+            gobj_yuno_role_plus_name(), MAIN_AGENT, new_role
+        );
+        JSON_DECREF(new_info)
+        unlink(new_path);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            comment,
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    char new_version[NAME_MAX];
+    snprintf(new_version, sizeof(new_version), "%s", kw_get_str(gobj, new_info, "version", "", 0));
+    JSON_DECREF(new_info)
+
+    if(!version_names_a_file(new_version)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "The new agent binary gives a version that cannot name its backup",
+            "version",      "%s", new_version,
+            NULL
+        );
+        unlink(new_path);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "%s: the binary says version '%s': only [A-Za-z0-9._-] allowed, "
+                "not starting with '.', no '..'",
+                gobj_yuno_role_plus_name(), new_version
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    char old_version[NAME_MAX] = "";
+    json_t *old_info = binary_role_info(gobj, agent_path);
+    if(old_info) {
+        snprintf(old_version, sizeof(old_version), "%s", kw_get_str(gobj, old_info, "version", "", 0));
+        JSON_DECREF(old_info)
+    }
+
+    /*----------------------------------------*
+     *  Keep the one on disk, then replace it
+     *----------------------------------------*/
+    char backup_name[NAME_MAX];
+    char backup_path[PATH_MAX];
+    int backup_len = snprintf(backup_name, sizeof(backup_name), "%s.bak-pre-%s", MAIN_AGENT, new_version);
+    if(backup_len < 0 || backup_len >= (int)sizeof(backup_name)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "The version of the new agent is too long to name its backup",
+            "version",      "%s", new_version,
+            NULL
+        );
+        unlink(new_path);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: the version '%s' is too long to name the backup",
+                gobj_yuno_role_plus_name(), new_version),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(!build_path(backup_path, sizeof(backup_path), AGENT_DIR, backup_name, NULL)) {
+        // Error already logged
+        unlink(new_path);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot build the path of the backup", gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    BOOL backup_was_there = FALSE;
+    if(link(agent_path, backup_path) < 0) {
+        if(errno == EEXIST) {
+            backup_was_there = TRUE;
+        } else if(errno != ENOENT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot keep the binary of the main agent: not replaced",
+                "path",         "%s", agent_path,
+                "backup",       "%s", backup_path,
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            unlink(new_path);
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: cannot keep '%s' as '%s': not replaced",
+                    gobj_yuno_role_plus_name(), agent_path, backup_path),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+
+    if(rename(new_path, agent_path) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "rename() FAILED: the main agent binary not replaced",
+            "path",         "%s", new_path,
+            "destination",  "%s", agent_path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        unlink(new_path);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot rename '%s' to '%s'",
+                gobj_yuno_role_plus_name(), new_path, agent_path),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_OPERATIONAL,
+        "msg",          "%s", "Main agent binary replaced",
+        "old_version",  "%s", old_version,
+        "new_version",  "%s", new_version,
+        "backup",       "%s", backup_path,
+        "backup_was_there", "%d", backup_was_there,
+        NULL
+    );
+
+    /*----------------------------------------*
+     *  Restart it in its unit
+     *----------------------------------------*/
+    int restarted = restart_main_agent(gobj);
+    const char *restart;
+    switch(restarted) {
+        case 0:
+            restart = "restart of " MAIN_AGENT_UNIT " queued";
+            break;
+        case 1:
+            restart = "it runs outside its systemd unit: NOT restarted, restart it by hand";
+            break;
+        default:
+            restart = "the restart of " MAIN_AGENT_UNIT " FAILED: the binary on disk is the new one";
+            break;
+    }
+
+    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:b, s:s}",
+        "old_version", old_version,
+        "new_version", new_version,
+        "backup", backup_path,
+        "backup_was_there", backup_was_there,
+        "restart", restart
+    );
+    return msg_iev_build_response(
+        gobj,
+        (restarted < 0)? -1 : 0,
+        json_sprintf("%s: %s %s -> %s, the one before kept as %s%s; %s",
+            gobj_yuno_role_plus_name(),
+            MAIN_AGENT,
+            empty_string(old_version)? "?" : old_version,
+            new_version,
+            backup_path,
+            backup_was_there? " (a backup already there, left as it was)" : "",
+            restart
+        ),
+        0,
+        jn_data, // owned
+        kw  // owned
+    );
+}
+
 
 
 
@@ -863,6 +1201,131 @@ PRIVATE int is_yuneta_agent22(pid_t pid)
 PRIVATE void remove_pid_file(void)
 {
     unlink(pidfile);
+}
+
+/***************************************************************************
+ *  A node that builds from source: the test of the packages' preinst
+ ***************************************************************************/
+PRIVATE BOOL node_builds_from_source(void)
+{
+    char kernel_dir[PATH_MAX];
+    char git_path[PATH_MAX];
+    if(!build_path(kernel_dir, sizeof(kernel_dir), YUNETAS_SOURCE_DIR, "kernel", NULL) ||
+            !build_path(git_path, sizeof(git_path), YUNETAS_SOURCE_DIR, ".git", NULL)) {
+        return FALSE;   // Error already logged
+    }
+    return is_directory(kernel_dir) && access(git_path, F_OK) == 0;
+}
+
+/***************************************************************************
+ *  A version a file can be named after: [A-Za-z0-9._-], not starting
+ *  with '.', no ".."
+ ***************************************************************************/
+PRIVATE BOOL version_names_a_file(const char *version)
+{
+    if(empty_string(version) || version[0] == '.' || strstr(version, "..")) {
+        return FALSE;
+    }
+    for(const char *c = version; *c; c++) {
+        BOOL ok = (*c >= '0' && *c <= '9') || (*c >= 'a' && *c <= 'z') ||
+            (*c >= 'A' && *c <= 'Z') || *c == '.' || *c == '_' || *c == '-';
+        if(!ok) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  What a binary says of itself (`<path> --print-role`): a dict with its
+ *  role and version, yours, or NULL (logged). `path` is one of the fixed
+ *  paths of the agent, so it needs no quoting for the shell.
+ ***************************************************************************/
+PRIVATE json_t *binary_role_info(hgobj gobj, const char *path)
+{
+    char command[PATH_MAX + 32];
+    if(snprintf(command, sizeof(command), "%s --print-role", path) >= (int)sizeof(command)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "Path of the binary too long",
+            "path",         "%s", path,
+            NULL
+        );
+        return NULL;
+    }
+
+    gbuffer_t *gbuf = run_command(command);
+    if(!gbuf) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "The binary did not run",
+            "command",      "%s", command,
+            NULL
+        );
+        return NULL;
+    }
+    char *output = gbuffer_cur_rd_pointer(gbuf);
+    char *p = output? strchr(output, '{') : NULL;
+    if(!p) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "The binary does not say its role",
+            "command",      "%s", command,
+            "output",       "%s", output? output : "",
+            NULL
+        );
+        gbuffer_decref(gbuf);
+        return NULL;
+    }
+    json_t *jn_info = legalstring2json(p, TRUE);
+    gbuffer_decref(gbuf);
+    return jn_info;
+}
+
+/***************************************************************************
+ *  Restart the main agent in its systemd unit, without waiting for it:
+ *  0 queued, 1 it runs outside its unit (or there is no systemd), so it
+ *  is not restarted, -1 the restart failed (logged).
+ ***************************************************************************/
+PRIVATE int restart_main_agent(hgobj gobj)
+{
+    gbuffer_t *gbuf = run_command("systemctl show -p MainPID --value " MAIN_AGENT_UNIT " 2>/dev/null");
+    if(!gbuf) {
+        return 1;   // no systemctl
+    }
+    char *output = gbuffer_cur_rd_pointer(gbuf);
+    long main_pid = output? strtol(output, NULL, 10) : 0;
+    gbuffer_decref(gbuf);
+    if(main_pid <= 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
+            "msg",          "%s", "The main agent runs outside its systemd unit: not restarted",
+            "unit",         "%s", MAIN_AGENT_UNIT,
+            NULL
+        );
+        return 1;
+    }
+
+    char *const argv[] = {
+        "sudo", "-n", "systemctl", "restart", "--no-block", MAIN_AGENT_UNIT, NULL
+    };
+    int status = run_process2("/usr/bin/sudo", argv);
+    if(status < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "sudo -n systemctl restart FAILED",
+            "unit",         "%s", MAIN_AGENT_UNIT,
+            "status",       "%d", status,
+            NULL
+        );
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
