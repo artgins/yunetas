@@ -37,6 +37,7 @@ node and stream keystrokes/output to it:
 | `write-tty` | `name`, `content64` | Write (base64) data to a console's tty |
 | `list-consoles` | — | List open consoles |
 | `close-console` | `name` | Close a console |
+| `upgrade-agent` | `content64` | Replace the binary of the main agent and restart it ([Upgrading the main agent](#agent22-upgrade-agent)) |
 | `help` | — | Command help |
 
 A `write-tty` that cannot be written is refused, and the link to the control
@@ -113,6 +114,72 @@ frames of output of 2 KB when the padding is not in a hop).
 Use Yuneta only on private networks, or over encrypted **and** authenticated
 public links.
 ```
+
+(agent22-upgrade-agent)=
+## Upgrading the main agent
+
+`agent22` replaces the binary of the main agent and restarts it (7.31.27+).
+Send the command through the control center to the `agent22` of the node:
+
+```bash
+ycommand --url=wss://<control center>:1997 <login options> -w 120 \
+  -c 'command-agent agent_id=<node> cmd2agent="upgrade-agent content64=$$(/yuneta/agent/yuneta_agent)"'
+```
+
+`ycommand` reads the file and sends it in base64. Give `-w` enough seconds
+for the binary to arrive, or the answer is lost. A 36 MB binary takes some
+20 seconds.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `content64` | string | The new `yuneta_agent` binary in base64. |
+
+The command does these steps:
+
+1. It writes the binary as `/yuneta/agent/upgrade/yuneta_agent`.
+2. It runs the binary with `--print-role`. If the role is not
+   `yuneta_agent`, it deletes the binary and refuses the command.
+3. It keeps the binary on disk as `yuneta_agent.bak-pre-<new version>`, a
+   hard link. If that backup is already there, it stays as it is.
+4. It renames the new binary over `/yuneta/agent/yuneta_agent`.
+5. It restarts `yuneta_agent.service` with `sudo -n systemctl restart
+   --no-block`.
+
+The answer comes before the main agent is back:
+
+```text
+yuneta_agent22^deploycenter: yuneta_agent 7.31.26 -> 7.31.26, the one before
+kept as /yuneta/agent/yuneta_agent.bak-pre-7.31.26; restart of
+yuneta_agent.service queued
+```
+
+The yunos of the node do not restart. The unit stops only the main agent.
+
+Each step has a reason:
+
+- A yuno does not run under a name that is not its role. So the new binary
+  keeps the name `yuneta_agent`, in its own directory. That directory is on
+  the same file system as `/yuneta/agent`, so the `rename()` is atomic. At no
+  time is the node without a binary.
+- A binary that runs cannot be written to (`ETXTBSY`), but it can be
+  renamed over. The running agent keeps its old binary until the restart.
+- The package installs `/etc/sudoers.d/90-yuneta`, so `sudo -n` works for
+  the user `yuneta`. The restart stays inside the unit, so systemd and the
+  next boot see the agent.
+- If the main agent runs outside its unit, `agent22` does not restart it.
+  The answer says so, and the binary on disk is the new one.
+
+The command refuses a node that runs from a package. It uses the test of the
+preinst of the package: `/yuneta/development/yunetas` has `kernel/` and
+`.git`. On a package node, the agent comes in the package. Then the package
+database tells the truth about the node.
+
+The permission is `upgrade-agent`. The role `root` of the configuration of
+`agent22` has every permission.
+
+Before 7.31.27, the answer to a large `content64` did not arrive. Each
+answer carried the whole command line back, and the control center dropped
+the client (see [`msg_iev_stack_command_line()`](#msg_iev_stack_command_line)).
 
 ## Variant
 
