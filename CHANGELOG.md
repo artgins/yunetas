@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v7.31.27 (2026-11-20)
+
+Lite release: `yuneta_agent22`, and the command stack of `root-linux`, which
+matters to `ycommand` and the control center. The change to `root-linux` is
+on the path of commands (one `strlen()` for each command), not on a hot path,
+so this release carries no performance study. The suite ran on the dev
+machine: 468 of 468 tests passed.
+
 ### Added
 
 - **`agent22` replaces the binary of the main agent: `upgrade-agent

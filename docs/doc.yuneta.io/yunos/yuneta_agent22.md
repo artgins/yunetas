@@ -268,5 +268,5 @@ The permission of both commands is `install-package`.
 
 ## Variant
 
-The same sources also build **`yuneta_agent44`** ([`main44.c`](https://github.com/artgins/yunetas/blob/7.31.26/yunos/c/yuno_agent22/src/main44.c)), a second flavour
+The same sources also build **`yuneta_agent44`** ([`main44.c`](https://github.com/artgins/yunetas/blob/7.31.27/yunos/c/yuno_agent22/src/main44.c)), a second flavour
 of the minimal agent.
