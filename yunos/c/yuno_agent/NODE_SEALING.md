@@ -299,6 +299,15 @@ Verified against [`c_agent.c`](src/c_agent.c) (2026-07-22 command surface):
   through the control center, the agent came back in its unit, and no yuno
   restarted. See the `yuneta_agent22` page.
 
+- **Upgrading the agents on a package node** (7.31.27). `agent22`'s
+  `install-package url=<https url> sha256=<hex>` installs the `yuneta-agent`
+  package in a transient systemd unit, and the postinst restarts the main
+  agent and then `agent22`. `install-package-status` reads the result.
+  Verified on a package node 2026-11-20 by the script of the unit: a wrong
+  sha256 installs nothing, the right one installs. The first end-to-end run
+  through the control center needs a node that has a package with this
+  command.
+
 The deploy tooling already lives in this tier: `sync_binaries`, `sync_configs`
 and `set_start_priorities` (`yunetas.agent_tools.*`) drive a remote `wss://`
 agent through `ycommand` with a single OAuth2 password-grant login, reusing the
@@ -378,15 +387,14 @@ here is a candidate for promotion to Tier 1:
   are a shell on the node -- and a reboot drops the mount, so it is done
   again. A per-yuno `data_path` the agent honours (or a `tmpfs` flag of the
   yuno record) is the Tier-1 answer.
-- Upgrading **the binary of `yuneta_agent22`**, and **the binary of the main
-  agent on a package node**. The agent is a standalone daemon, not a managed
-  yuno: `update-binary` does not reach it, and it is restarted with
-  `systemctl restart` of its unit (`--stop` then `--start` on a node without
-  the units). The main agent on a node that builds from source left this tier
-  in 7.31.27 (`agent22`'s `upgrade-agent`, Tier 1 above). On a package node the
-  agent comes in the package, so its answer is a package-install command of
-  `agent22` (planned: `install-package`). `agent22` itself has no command
-  that replaces it. It changes only when its PTY code changes.
+- Upgrading **the binary of `yuneta_agent22` on a node that builds from
+  source**. The agent is a standalone daemon, not a managed yuno:
+  `update-binary` does not reach it, and it is restarted with `systemctl
+  restart` of its unit (`--stop` then `--start` on a node without the units).
+  The main agent left this tier in 7.31.27 on both kinds of node (`agent22`'s
+  `upgrade-agent` and `install-package`, Tier 1 above). On a package node the
+  package brings `agent22` too. On a source node `agent22` has no command that
+  replaces it. It changes only when its PTY code changes.
   `yunetas restart-agents` (CLI 0.23.0) does the ordered restart (main,
   verify, then the spare), but it runs ON the node, so through a shell: it
   stays here, in Tier 2.

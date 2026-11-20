@@ -38,6 +38,8 @@ node and stream keystrokes/output to it:
 | `list-consoles` | — | List open consoles |
 | `close-console` | `name` | Close a console |
 | `upgrade-agent` | `content64` | Replace the binary of the main agent and restart it ([Upgrading the main agent](#agent22-upgrade-agent)) |
+| `install-package` | `url`, `sha256` | Install a `yuneta-agent` package on a package node ([Installing a package](#agent22-install-package)) |
+| `install-package-status` | `lines` | How the last `install-package` went |
 | `help` | — | Command help |
 
 A `write-tty` that cannot be written is refused, and the link to the control
@@ -180,6 +182,89 @@ The permission is `upgrade-agent`. The role `root` of the configuration of
 Before 7.31.27, the answer to a large `content64` did not arrive. Each
 answer carried the whole command line back, and the control center dropped
 the client (see [`msg_iev_stack_command_line()`](#msg_iev_stack_command_line)).
+
+(agent22-install-package)=
+## Installing a package
+
+On a package node, the agent comes in the `yuneta-agent` package.
+`agent22` downloads the package and installs it (7.31.27+). Send the
+commands through the control center to the `agent22` of the node:
+
+```bash
+# 1. On your machine, get the sha256 of the package.
+curl -fsSL https://github.com/artgins/yunetas/releases/download/7.31.27/yuneta-agent-7.31.27-1-amd64.deb | sha256sum
+
+# 2. Start the install.
+ycommand --url=wss://<control center>:1997 <login options> -w 20 \
+  -c 'command-agent agent_id=<node> cmd2agent="install-package url=https://github.com/artgins/yunetas/releases/download/7.31.27/yuneta-agent-7.31.27-1-amd64.deb sha256=<sha256>"'
+
+# 3. When agent22 is back in list-agents, read the result.
+ycommand --url=wss://<control center>:1997 <login options> -w 20 \
+  -c 'command-agent agent_id=<node> cmd2agent="install-package-status"'
+```
+
+A node on Rocky or Red Hat takes the `.rpm` asset of the same release.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `url` | string | The `https://` URL of the `.deb` or `.rpm` of `yuneta-agent`. |
+| `sha256` | string | The sha256 of the package, 64 hex digits. |
+| `lines` | integer | `install-package-status` only: the lines of the journal to show (default 40). |
+
+The answer of `install-package` comes at once, with the name of the unit
+that installs the package:
+
+```text
+yuneta_agent22^<node>: installing yuneta-agent-7.31.27-1-amd64.deb in the unit
+yuneta-install-package-20261120211600. Its postinst restarts the main agent
+and then this one: ask install-package-status when this agent is back
+```
+
+`install-package-status` gives four things:
+
+- `result`: what the script wrote. It is `done <rc>`, `download-failed <rc>`,
+  or `sha256-mismatch`. It is empty while the install runs.
+- `installed`: the version of `yuneta-agent` that the package database has.
+- `units`: the units `yuneta-install-package-*` that systemd knows.
+- `journal`: the end of the journal of those units, with the output of
+  `apt-get` or `dnf`.
+
+The install has these steps:
+
+1. `agent22` writes a script, the URL, the sha256 and the name of the
+   package in `/yuneta/agent/install-package/`.
+2. It runs the script as root in a transient unit,
+   `yuneta-install-package-<UTC time>`, with `sudo -n systemd-run`.
+3. The script downloads the package with `curl`, `https` only (redirects
+   too).
+4. If the sha256 of the download is not the one given, the script deletes
+   the download and stops. Nothing is installed.
+5. The script installs the package with `apt-get install -y` (and
+   `--force-confold`, so the configurations of the node stay) or
+   `dnf install -y`. Then it deletes the download.
+6. The postinst of the package restarts the main agent and then `agent22`.
+
+Each step has a reason:
+
+- The install runs in its own unit, out of the cgroup of `agent22`. So the
+  postinst can restart `agent22`, and the install goes on.
+- systemd expands `%` and `$` in the command line of a unit, and a URL can
+  contain both. The option that stops it (`--expand-environment=no`) is in
+  systemd 254 and later, and Rocky 9 has 252. So the URL goes in a file, and
+  the command line of the unit has only the fixed path of the script.
+- `agent22` restarts during the install, and it forgets the install. So
+  `install-package-status` reads the result from a file and from the journal.
+
+`install-package` refuses these cases:
+
+- A node that builds from source. The preinst of the package refuses it
+  too. Use [`upgrade-agent`](#agent22-upgrade-agent) there.
+- A URL that does not start with `https://`, has a blank or a quote, or does
+  not end in the name of a `.deb` or a `.rpm`.
+- A `.deb` on a node with no `apt-get`, or a `.rpm` on a node with no `dnf`.
+- A second install while one runs.
+
+The permission of both commands is `install-package`.
 
 ## Variant
 

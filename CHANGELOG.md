@@ -24,6 +24,21 @@
   preinst: `kernel/` and `.git` in `/yuneta/development/yunetas`). On a
   package node the agent comes in the package. Permission: `upgrade-agent`.
 
+- **`agent22` installs a `yuneta-agent` package: `install-package url=<https
+  url of the .deb or .rpm> sha256=<hex>`.** On a package node, the agent comes
+  in the package. The command writes a script and its data in
+  `/yuneta/agent/install-package/` and runs the script as root in a
+  transient unit, `yuneta-install-package-<UTC time>` (`sudo -n
+  systemd-run`). The script downloads the package (`https` only), installs
+  it only if the sha256 is the one given (`apt-get install -y` with
+  `--force-confold`, or `dnf install -y`), and deletes the download. The unit
+  is out of the cgroup of `agent22`, so the postinst can restart the main
+  agent and then `agent22`. The answer comes at once.
+  `install-package-status` gives the result, the units, the end of their
+  journal, and the version installed. The URL is not on the command line of
+  systemd, which expands `%` and `$` there. The command refuses a node that
+  builds from source. Permission: `install-package`.
+
 ### Fixed
 
 - **An answer does not carry back a long command line.** Each answer
