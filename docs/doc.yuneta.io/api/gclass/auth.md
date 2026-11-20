@@ -433,7 +433,7 @@ The guide is [OAuth2 + PKCE with a BFF](../../guide/guide_oauth2_pkce_bff.md).
 | `end_session_endpoint` | `string` | Explicit end-session (logout) endpoint. |
 | `client_id` | `string` | OAuth 2 client ID. |
 | `client_secret` | `string` | OAuth 2 client secret (empty for a public client). |
-| `cookie_domain` | `string` | `Domain` of the cookies, written only when the request `Host` is that domain or a subdomain. |
+| `cookie_domain` | `string` | `Domain` of the cookies, written only when the request `Host` is that domain or a subdomain. Each answer that writes a cookie also expires its other variants first (no `Domain`, `Domain=<host>`), so a change of this attribute leaves no stale token in the browser. |
 | `allowed_origin` | `string` | The SPA's origin: the CORS origin and the only `Origin` served for login, callback, refresh, logout and token (else `403 origin_not_allowed`). It is what pins the scheme. Empty: the `Origin` must be the BFF's own (`https://` and the `Host`, or `http://` and it on a connection that is not TLS), and `/auth/token` is refused. Example: `"allowed_origin": "https://app.example.com"`. |
 | `allowed_redirect_uri` | `string` | The `redirect_uri` a `/auth/callback` can have: exactly it, or, ending with `/` after a scheme and a host, a path under it (no `.`, `..` or empty segment but the last, no `\`, no `#`). Example: `"allowed_redirect_uri": "https://app.example.com/app/"`. |
 | `expose_access_token` | `boolean` | Opt-in `POST /auth/token` (default `false`). |

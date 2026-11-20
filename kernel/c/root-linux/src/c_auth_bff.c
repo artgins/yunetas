@@ -191,6 +191,13 @@
  *                yuno configures) travels with the WebSocket upgrade to
  *                the backend yuno on any port of the same host
  *
+ *  One variant per cookie: a cookie with no Domain and one with a Domain
+ *  are two cookies to a browser, and it sends the older first. Every
+ *  answer that writes a cookie also expires its other variants it can
+ *  name (host-only, Domain=<host name of the request>), before writing it,
+ *  so a change of `cookie_domain` does not leave a stale token for the
+ *  BFF to read (make_clear_other_variants).
+ *
  *  Copyright (c) 2026, ArtGins.
  *  All Rights Reserved.
  ***********************************************************************/
@@ -1256,6 +1263,83 @@ PRIVATE char *make_set_cookie(hgobj gobj, const char *name, const char *value,
 PRIVATE char *make_clear_cookie(hgobj gobj, const char *name, const char *domain)
 {
     return make_set_cookie(gobj, name, "", 0, domain);
+}
+
+/***************************************************************************
+ *  Is `name` (`len` bytes, not NUL-terminated) a host name the BFF may
+ *  write into a Domain attribute: 1 to BFF_HOST_NAME_MAX bytes of letters,
+ *  digits, '.' and '-'. A Host is a peer's bytes: a ';' in it would add an
+ *  attribute of its own to the Set-Cookie.
+ ***************************************************************************/
+PRIVATE BOOL is_dns_host_name(const char *name, size_t len)
+{
+    if(!name || len == 0 || len > BFF_HOST_NAME_MAX) {
+        return FALSE;
+    }
+    for(size_t i = 0; i < len; i++) {
+        char c = name[i];
+        if(!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') || c == '.' || c == '-')) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  The Set-Cookie lines that expire the OTHER variants of the cookie
+ *  `name`, which the BFF is writing with the Domain `cookie_domain` (""
+ *  none: a host-only cookie).
+ *
+ *  To a browser a host-only cookie and one with Domain=<host> or
+ *  Domain=<parent> are different cookies of one name, and it sends them
+ *  all, the OLDER first -- the one find_cookie() takes. So a change of
+ *  `cookie_domain` left the old cookie in every browser that had it, and
+ *  the BFF read it: on 2026-11-20 a BFF whose cookie_domain had gone from
+ *  its host to "" took a refresh_token of a session ended weeks before,
+ *  and every session "expired" at its first refresh (invalid_grant
+ *  "Session not active"). So every cookie the BFF writes is written in
+ *  ONE variant, and the others it can name are expired: the host-only
+ *  one, and Domain=<the host name of the request>. A Domain of a parent
+ *  other than the one configured cannot be named, and is not.
+ *
+ *  The lines go BEFORE the cookie written: a browser that took two
+ *  variants for one cookie deletes it, then writes it again.
+ *  `request_host` / `host_name_len` as in effective_cookie_domain().
+ *  Returns a gbmem string the caller frees ("" when there is none).
+ ***************************************************************************/
+PRIVATE char *make_clear_other_variants(
+    hgobj gobj,
+    const char *name,
+    const char *cookie_domain,
+    const char *request_host,
+    size_t host_name_len)
+{
+    char *host_only = NULL;
+    char *host_domain = NULL;
+
+    if(!empty_string(cookie_domain)) {
+        host_only = make_clear_cookie(gobj, name, "");
+    }
+    if(is_dns_host_name(request_host, host_name_len)) {
+        char host[BFF_HOST_NAME_MAX + 1];
+        memcpy(host, request_host, host_name_len);
+        host[host_name_len] = '\0';
+        if(strcasecmp(host, cookie_domain? cookie_domain : "") != 0) {
+            host_domain = make_clear_cookie(gobj, name, host);
+        }
+    }
+
+    size_t len = (host_only? strlen(host_only) : 0) +
+        (host_domain? strlen(host_domain) : 0) + 1;
+    char *lines = gbmem_malloc(len);
+    snprintf(lines, len, "%s%s",
+        host_only? host_only : "",
+        host_domain? host_domain : ""
+    );
+    GBMEM_FREE(host_only)
+    GBMEM_FREE(host_domain)
+    return lines;
 }
 
 /***************************************************************************
@@ -2931,11 +3015,24 @@ PRIVATE json_t *send_token_to_browser(
         STOP_TASK()
     }
 
-    /* extra_headers = CORS + one or two Set-Cookie lines */
+    /*
+     *  extra_headers = CORS + the other variants of each cookie written,
+     *  expired (make_clear_other_variants), + one or two Set-Cookie lines
+     */
     const char *rt_line = rt_cookie? rt_cookie : "";
-    size_t extra_len = strlen(cors_hdrs) + strlen(at_cookie) + strlen(rt_line) + 4;
+    char *at_others = make_clear_other_variants(gobj, COOKIE_NAME_AT,
+        cookie_domain, request_host, host_name_len);
+    char *rt_others = rt_cookie?
+        make_clear_other_variants(gobj, COOKIE_NAME_RT,
+            cookie_domain, request_host, host_name_len) :
+        gbmem_strdup("");
+    size_t extra_len = strlen(cors_hdrs) + strlen(at_others) + strlen(rt_others) +
+        strlen(at_cookie) + strlen(rt_line) + 4;
     char *extra = gbmem_malloc(extra_len);
-    snprintf(extra, extra_len, "%s%s%s", cors_hdrs, at_cookie, rt_line);
+    snprintf(extra, extra_len, "%s%s%s%s%s",
+        cors_hdrs, at_others, rt_others, at_cookie, rt_line);
+    GBMEM_FREE(at_others)
+    GBMEM_FREE(rt_others)
 
     // A refresh answers the identity too: the tokens are httpOnly, a reloaded SPA learns it here
     json_t *jn_resp = json_pack("{s:b, s:s, s:s, s:I}",
@@ -3285,10 +3382,18 @@ PRIVATE char *build_logout_headers(
     if(!rt_clear) {
         rt_clear = gbmem_strdup("");    /* Error already logged (unreachable: "" value) */
     }
+    char *at_others = make_clear_other_variants(gobj, COOKIE_NAME_AT,
+        cookie_domain, request_host, host_name_len);
+    char *rt_others = make_clear_other_variants(gobj, COOKIE_NAME_RT,
+        cookie_domain, request_host, host_name_len);
 
-    size_t extra_len = strlen(cors_hdrs) + strlen(at_clear) + strlen(rt_clear) + 4;
+    size_t extra_len = strlen(cors_hdrs) + strlen(at_others) + strlen(rt_others) +
+        strlen(at_clear) + strlen(rt_clear) + 4;
     char *extra = gbmem_malloc(extra_len);
-    snprintf(extra, extra_len, "%s%s%s", cors_hdrs, at_clear, rt_clear);
+    snprintf(extra, extra_len, "%s%s%s%s%s",
+        cors_hdrs, at_others, rt_others, at_clear, rt_clear);
+    GBMEM_FREE(at_others)
+    GBMEM_FREE(rt_others)
     GBMEM_FREE(at_clear)
     GBMEM_FREE(rt_clear)
     return extra;

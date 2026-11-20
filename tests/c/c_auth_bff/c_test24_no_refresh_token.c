@@ -53,6 +53,13 @@
  *               never writes one over 4096): 400 token_too_large, both
  *               cookies cleared: every answer to a logout served clears them.
  *
+ *          Every answer that writes a cookie also expires its other
+ *          variant first ("Set-Cookie: <name>=; Max-Age=0; ...;
+ *          Domain=localhost", cookie_domain being empty), and no answer
+ *          expires the variant of a cookie it does not write. The Max-Age
+ *          counts and the texts an answer must not carry are read from the
+ *          cookies written, those lines left out.
+ *
  *          The logs are asserted by the test harness via
  *          set_expected_results in main_test24.
  *
@@ -472,6 +479,70 @@ PRIVATE BOOL read_answer(hgobj gobj)
 }
 
 /***************************************************************************
+ *  The answer without the lines that expire the other variant of a
+ *  cookie (those with "; Domain=": the BFF of this test has no
+ *  cookie_domain, it writes its own cookies with no Domain)
+ ***************************************************************************/
+PRIVATE void cookies_written(const char *answer, char *out, size_t out_size)
+{
+    size_t o = 0;
+    const char *p = answer;
+    while(*p && o < out_size - 1) {
+        const char *eol = strstr(p, "\r\n");
+        size_t len = eol? (size_t)(eol - p) + 2 : strlen(p);
+        BOOL variant = strncmp(p, "Set-Cookie: ", 12) == 0 &&
+            memmem(p, len, "; Domain=", 9) != NULL;
+        if(!variant) {
+            if(len > out_size - 1 - o) {
+                len = out_size - 1 - o;
+            }
+            memcpy(out + o, p, len);
+            o += len;
+        }
+        p += len;
+    }
+    out[o] = '\0';
+}
+
+/***************************************************************************
+ *  A cookie's other variant is expired when, and only when, the answer
+ *  writes the cookie, and before it
+ ***************************************************************************/
+PRIVATE void check_variant(hgobj gobj, int step, const char *answer, const char *name)
+{
+    char written_line[64];
+    char variant_line[128];
+    snprintf(written_line, sizeof(written_line), "Set-Cookie: %s=", name);
+    snprintf(variant_line, sizeof(variant_line),
+        "Set-Cookie: %s=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict; "
+        "Domain=localhost\r\n", name);
+
+    const char *variant = strstr(answer, variant_line);
+    const char *written = NULL;
+    for(const char *p = strstr(answer, written_line); p; p = strstr(p + 1, written_line)) {
+        const char *eol = strstr(p, "\r\n");
+        if(!eol || !memmem(p, (size_t)(eol - p), "; Domain=", 9)) {
+            written = p;
+            break;
+        }
+    }
+    if((variant != NULL) != (written != NULL) || (variant && variant > written)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", TEST_NAME ": the other variant of a cookie is not "
+                                  "expired before it, or is expired with no cookie written",
+            "step",         "%d", step,
+            "cookie",       "%s", name,
+            "written",      "%d", written != NULL,
+            "variant",      "%d", variant != NULL,
+            "answer",       "%s", answer,
+            NULL
+        );
+    }
+}
+
+/***************************************************************************
  *  The answer of the current step
  ***************************************************************************/
 PRIVATE void check_step(hgobj gobj)
@@ -507,9 +578,14 @@ PRIVATE void check_step(hgobj gobj)
             );
         }
     }
+    check_variant(gobj, priv->step + 1, answer, "access_token");
+    check_variant(gobj, priv->step + 1, answer, "refresh_token");
+
+    char written[sizeof(priv->answer)];
+    cookies_written(answer, written, sizeof(written));
     if(st->max_ages >= 0) {
         int max_ages = 0;
-        for(const char *p = strstr(answer, "Max-Age="); p; p = strstr(p + 1, "Max-Age=")) {
+        for(const char *p = strstr(written, "Max-Age="); p; p = strstr(p + 1, "Max-Age=")) {
             max_ages++;
         }
         if(max_ages != st->max_ages) {
@@ -526,7 +602,7 @@ PRIVATE void check_step(hgobj gobj)
         }
     }
     for(int i = 0; st->must_not[i]; i++) {
-        if(strstr(answer, st->must_not[i])) {
+        if(strstr(written, st->must_not[i])) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP,

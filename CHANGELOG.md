@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`C_AUTH_BFF` expires the other variants of each cookie that it writes.**
+  A cookie with no `Domain` and a cookie with a `Domain` are two cookies to a
+  browser. The browser sends both, the older first, and the BFF reads the
+  first. So a change of `cookie_domain` left the old token in each browser
+  that had it. On a node whose `cookie_domain` changed from its host to `""`,
+  the BFF read a refresh_token of a session that ended weeks before, and each
+  session expired at its first refresh (`invalid_grant`, "Session not
+  active"). Now each answer that writes a cookie (login, callback, refresh,
+  logout) first expires, with `Max-Age=0`, its variant with no `Domain` and
+  its variant with `Domain=<the host name of the request>`. The host name is
+  written only when it is a DNS name of at most 253 bytes. An answer that
+  writes no cookie expires nothing. Tests: `test23_cookie_no_host` and
+  `test24_no_refresh_token`.
+
 ## v7.31.24 (2026-11-20)
 
 Lite release: no C source changed. It adds a tool to the packages and changes

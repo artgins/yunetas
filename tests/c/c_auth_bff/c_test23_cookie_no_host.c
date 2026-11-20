@@ -21,6 +21,11 @@
  *              → each answer: 200, its Set-Cookie lines with
  *                "Domain=example.com" for the first and the fourth, with
  *                no Domain for the second and the third
+ *              → the first and the fourth expire, before writing each
+ *                cookie, its other variants: the host-only one and
+ *                Domain=<the host name>; the second (no Host) and the
+ *                third (a name longer than a host name) expire nothing,
+ *                there is no host name to write
  *              → arm the death-timer (100 ms) so io_uring closes drain
  *
  *            EV_TIMEOUT (death)
@@ -244,12 +249,12 @@ PRIVATE void post_login(hgobj gobj)
  *  The Set-Cookie lines of one answer (up to `end`): with Domain, or not
  ***************************************************************************/
 PRIVATE void check_cookies(hgobj gobj, const char *what, const char *answer,
-    const char *end, BOOL with_domain)
+    const char *end, BOOL with_domain, const char *host)
 {
     size_t len = (size_t)(end - answer);
     BOOL ok200 = len > 12 && strncmp(answer, "HTTP/1.1 200", 12) == 0;
     BOOL has_cookie = memmem(answer, len, "Set-Cookie: ", 12) != NULL;
-    BOOL has_domain = memmem(answer, len, "; Domain=example.com", 20) != NULL;
+    BOOL has_domain = memmem(answer, len, "; Domain=example.com\r\n", 22) != NULL;
     if(!ok200 || !has_cookie || has_domain != with_domain) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -260,6 +265,48 @@ PRIVATE void check_cookies(hgobj gobj, const char *what, const char *answer,
             "has_domain",   "%d", has_domain,
             NULL
         );
+    }
+
+    /*
+     *  The other variants of each cookie written (Domain=example.com):
+     *  the host-only one and Domain=<host>, expired before it. With no
+     *  host name to write (`host` NULL), no variant is expired.
+     */
+    const char *names[] = {"access_token", "refresh_token"};
+    for(int i = 0; i < 2; i++) {
+        char host_only[160];
+        char host_domain[512];
+        char written[64];
+        snprintf(host_only, sizeof(host_only),
+            "Set-Cookie: %s=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict\r\n",
+            names[i]);
+        snprintf(host_domain, sizeof(host_domain),
+            "Set-Cookie: %s=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict; Domain=%s\r\n",
+            names[i], host? host : "");
+        snprintf(written, sizeof(written), "Set-Cookie: %s=ey", names[i]);
+        const char *p_only = memmem(answer, len, host_only, strlen(host_only));
+        const char *p_domain = host? memmem(answer, len, host_domain, strlen(host_domain)) : NULL;
+        const char *p_written = memmem(answer, len, written, strlen(written));
+        BOOL ok;
+        if(host) {
+            ok = p_only && p_domain && p_written && p_only < p_written && p_domain < p_written;
+        } else {
+            ok = !p_only && memmem(answer, len, "Max-Age=0", 9) == NULL;
+        }
+        if(!ok) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_APP,
+                "msg",          "%s", "test23_cookie_no_host: the other variants of a cookie "
+                                      "are not expired as expected",
+                "what",         "%s", what,
+                "cookie",       "%s", names[i],
+                "host_only",    "%d", p_only != NULL,
+                "host_domain",  "%d", p_domain != NULL,
+                "written",      "%d", p_written != NULL,
+                NULL
+            );
+        }
     }
 }
 
@@ -295,14 +342,21 @@ PRIVATE void check_the_answers(hgobj gobj)
         );
         return;
     }
+    char long_label[289];
+    memset(long_label, 'a', sizeof(long_label) - 1);
+    long_label[sizeof(long_label) - 1] = '\0';
+    char host_253[256];
+    snprintf(host_253, sizeof(host_253), "%s.example.com",
+        long_label + (sizeof(long_label) - 1) - 241);
+
     check_cookies(gobj, "test23_cookie_no_host: the login with a Host of the domain did not get Domain",
-        starts[0], starts[1], TRUE);
+        starts[0], starts[1], TRUE, "app.example.com");
     check_cookies(gobj, "test23_cookie_no_host: the login with no Host got a Domain",
-        starts[1], starts[2], FALSE);
+        starts[1], starts[2], FALSE, NULL);
     check_cookies(gobj, "test23_cookie_no_host: the login with a Host longer than a host name got a Domain",
-        starts[2], starts[3], FALSE);
+        starts[2], starts[3], FALSE, NULL);
     check_cookies(gobj, "test23_cookie_no_host: the login with a Host of 253 bytes and a port did not get Domain",
-        starts[3], starts[4], TRUE);
+        starts[3], starts[4], TRUE, host_253);
 }
 
 

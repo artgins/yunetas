@@ -702,6 +702,31 @@ the request. A request with no `Host` gets no `Domain` either, with a WARNING
 `host_len` is the length of the name in the request (`"host_len": 300` for a
 name of 300 bytes), measured before the BFF keeps 255 bytes of the `Host`.
 
+A cookie with no `Domain` and a cookie with a `Domain` are two different
+cookies to a browser, also with the same name. The browser keeps both and
+sends both, the older first, and the BFF reads the first. So the BFF writes
+each cookie in one variant and expires the other variants that it can name:
+the cookie with no `Domain`, and `Domain=<the host name of the request>`.
+These `Max-Age=0` lines come before the cookie that the BFF writes. Without
+them, a change of `cookie_domain` leaves the old cookie in each browser that
+has it. The BFF then reads a refresh_token of an ended session, and the
+session expires at its first refresh (`invalid_grant`, *"Session not
+active"*). A login on `https://app.example.com`, with an empty
+`cookie_domain`, answers:
+
+```
+Set-Cookie: access_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict; Domain=app.example.com
+Set-Cookie: refresh_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict; Domain=app.example.com
+Set-Cookie: access_token=<JWT>; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Strict
+Set-Cookie: refresh_token=<JWT>; Max-Age=1800; Path=/; HttpOnly; Secure; SameSite=Strict
+```
+
+The BFF writes the host name into `Domain` only when it is a DNS name
+(letters, digits, `.` and `-`, at most 253 bytes). A request with no `Host`
+gets no such line. An answer that writes no cookie expires nothing: a
+refresh that keeps the browser's refresh_token does not touch its variants
+either.
+
 A token travels in a cookie and returns in one. A browser keeps a cookie
 only when its name and value take at most 4096 bytes (RFC 6265bis, in the
 algorithm that parses a `Set-Cookie`. Chrome and Firefox drop a bigger one with
