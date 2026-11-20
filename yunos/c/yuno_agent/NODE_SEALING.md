@@ -303,10 +303,11 @@ Verified against [`c_agent.c`](src/c_agent.c) (2026-07-22 command surface):
   `install-package url=<https url> sha256=<hex>` installs the `yuneta-agent`
   package in a transient systemd unit, and the postinst restarts the main
   agent and then `agent22`. `install-package-status` reads the result.
-  Verified on a package node 2026-11-20 by the script of the unit: a wrong
-  sha256 installs nothing, the right one installs. The first end-to-end run
-  through the control center needs a node that has a package with this
-  command.
+  Verified end to end through the control center on both package nodes
+  (2026-11-20, 7.31.27): a wrong sha256 installs nothing, and the `.deb` and
+  the `.rpm` of the version installed end in `done 0` with nothing changed.
+  An upgrade to a newer version, where the postinst restarts `agent22` in the
+  middle of the install, waits for the next release.
 
 The deploy tooling already lives in this tier: `sync_binaries`, `sync_configs`
 and `set_start_priorities` (`yunetas.agent_tools.*`) drive a remote `wss://`
