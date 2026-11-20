@@ -2333,7 +2333,7 @@ it by hand, run the script.
 
 3. [**`yuno_shutdown`**](runtime/runtime_entry_point.md#yuno_shutdown) — `PUBLIC void yuno_shutdown(void)`
 
-### `msg_ievent.h` — 15 functions
+### `msg_ievent.h` — 16 functions
 
 **Source:** `kernel/c/root-linux/src/msg_ievent.h`
 
@@ -2351,21 +2351,23 @@ it by hand, run the script.
 
 7. [**`msg_iev_pop_stack`**](runtime/msg_ievent.md#msg_iev_pop_stack) — `PUBLIC json_t * msg_iev_pop_stack( hgobj gobj, json_t *kw, const char *stack )`
 
-8. [**`msg_iev_set_back_metadata`**](runtime/msg_ievent.md#msg_iev_set_back_metadata) — `PUBLIC json_t *msg_iev_set_back_metadata( hgobj gobj, json_t *kw_request, json_t *kw_response, BOOL reverse_dst )`
+8. [**`msg_iev_stack_command_line`**](runtime/msg_ievent.md#msg_iev_stack_command_line) — `PUBLIC json_t *msg_iev_stack_command_line(const char *command)`
 
-9. [**`msg_iev_build_response`**](runtime/msg_ievent.md#msg_iev_build_response) — `PUBLIC json_t *msg_iev_build_response( hgobj gobj, json_int_t result, json_t *jn_comment, json_t *jn_schema, json_t *jn_data, json_t *kw_request )`
+9. [**`msg_iev_set_back_metadata`**](runtime/msg_ievent.md#msg_iev_set_back_metadata) — `PUBLIC json_t *msg_iev_set_back_metadata( hgobj gobj, json_t *kw_request, json_t *kw_response, BOOL reverse_dst )`
 
-10. [**`msg_iev_build_response_without_reverse_dst`**](runtime/msg_ievent.md#msg_iev_build_response_without_reverse_dst) — `PUBLIC json_t *msg_iev_build_response_without_reverse_dst( hgobj gobj, json_int_t result, json_t *jn_comment, json_t *jn_schema, json_t *jn_data, json_t *kw_request )`
+10. [**`msg_iev_build_response`**](runtime/msg_ievent.md#msg_iev_build_response) — `PUBLIC json_t *msg_iev_build_response( hgobj gobj, json_int_t result, json_t *jn_comment, json_t *jn_schema, json_t *jn_data, json_t *kw_request )`
 
-11. [**`msg_iev_clean_metadata`**](runtime/msg_ievent.md#msg_iev_clean_metadata) — `PUBLIC json_t *msg_iev_clean_metadata( json_t *kw )`
+11. [**`msg_iev_build_response_without_reverse_dst`**](runtime/msg_ievent.md#msg_iev_build_response_without_reverse_dst) — `PUBLIC json_t *msg_iev_build_response_without_reverse_dst( hgobj gobj, json_int_t result, json_t *jn_comment, json_t *jn_schema, json_t *jn_data, json_t *kw_request )`
 
-12. [**`msg_iev_set_msg_type`**](runtime/msg_ievent.md#msg_iev_set_msg_type) — `PUBLIC int msg_iev_set_msg_type( hgobj gobj, json_t *kw, const char *msg_type )`
+12. [**`msg_iev_clean_metadata`**](runtime/msg_ievent.md#msg_iev_clean_metadata) — `PUBLIC json_t *msg_iev_clean_metadata( json_t *kw )`
 
-13. [**`msg_iev_get_msg_type`**](runtime/msg_ievent.md#msg_iev_get_msg_type) — `PUBLIC const char *msg_iev_get_msg_type( hgobj gobj, json_t *kw )`
+13. [**`msg_iev_set_msg_type`**](runtime/msg_ievent.md#msg_iev_set_msg_type) — `PUBLIC int msg_iev_set_msg_type( hgobj gobj, json_t *kw, const char *msg_type )`
 
-14. [**`trace_inter_event`**](runtime/msg_ievent.md#trace_inter_event) — `PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event, json_t *kw)`
+14. [**`msg_iev_get_msg_type`**](runtime/msg_ievent.md#msg_iev_get_msg_type) — `PUBLIC const char *msg_iev_get_msg_type( hgobj gobj, json_t *kw )`
 
-15. [**`trace_inter_event2`**](runtime/msg_ievent.md#trace_inter_event2) — `PUBLIC void trace_inter_event2(hgobj gobj, const char *prefix, const char *event, json_t *kw)`
+15. [**`trace_inter_event`**](runtime/msg_ievent.md#trace_inter_event) — `PUBLIC void trace_inter_event(hgobj gobj, const char *prefix, const char *event, json_t *kw)`
+
+16. [**`trace_inter_event2`**](runtime/msg_ievent.md#trace_inter_event2) — `PUBLIC void trace_inter_event2(hgobj gobj, const char *prefix, const char *event, json_t *kw)`
 
 ### `run_command.h` — 3 functions
 
@@ -2437,12 +2439,12 @@ it by hand, run the script.
 
 1. [**`yunetas_register_c_core`**](runtime/runtime_entry_point.md#yunetas_register_c_core) — `PUBLIC int yunetas_register_c_core(void)`
 
-**Total: 121 functions**
+**Total: 122 functions**
 
 (alphabetical-index)=
 ## Alphabetical Index
 
-All **1063 functions** sorted alphabetically with their source header.
+All **1064 functions** sorted alphabetically with their source header.
 
 | Function | Header | Module |
 |----------|--------|--------|
@@ -3122,6 +3124,7 @@ All **1063 functions** sorted alphabetically with their source header.
 | [**`msg_iev_push_stack`**](runtime/msg_ievent.md#msg_iev_push_stack) | `msg_ievent.h` | root-linux (Runtime GClasses) |
 | [**`msg_iev_set_back_metadata`**](runtime/msg_ievent.md#msg_iev_set_back_metadata) | `msg_ievent.h` | root-linux (Runtime GClasses) |
 | [**`msg_iev_set_msg_type`**](runtime/msg_ievent.md#msg_iev_set_msg_type) | `msg_ievent.h` | root-linux (Runtime GClasses) |
+| [**`msg_iev_stack_command_line`**](runtime/msg_ievent.md#msg_iev_stack_command_line) | `msg_ievent.h` | root-linux (Runtime GClasses) |
 | [**`newdir`**](helpers/file_system.md#newdir) | `helpers.h` | gobj-c (Core Framework) |
 | [**`newfile`**](helpers/file_system.md#newfile) | `helpers.h` | gobj-c (Core Framework) |
 | [**`nice_size`**](helpers/string_helper.md#nice_size) | `helpers.h` | gobj-c (Core Framework) |

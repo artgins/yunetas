@@ -399,8 +399,8 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         gobj,
         kw,         // not owned
         COMMAND_STACK_ID,
-        json_pack("{s:s, s:o}",   // owned
-            "command", command,
+        json_pack("{s:o, s:o}",   // owned
+            "command", msg_iev_stack_command_line(command),   // every answer carries it back
             "kw", __md_command__
         )
     );

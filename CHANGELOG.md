@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### Added
+
+- **`agent22` replaces the binary of the main agent: `upgrade-agent
+  content64=<binary>`.** The two agents exist so that each can maintain the
+  other, but up to 7.31.26 no command did it. A shell on the node was the
+  only way. The command does these steps:
+    - It writes the binary as `/yuneta/agent/upgrade/yuneta_agent`. A yuno
+      does not run under a name that is not its role.
+    - It refuses the binary unless `--print-role` gives the role
+      `yuneta_agent`.
+    - It keeps the binary on disk as `yuneta_agent.bak-pre-<new version>`, a
+      hard link. A backup that is already there stays as it is.
+    - It renames the new binary over the old one, with one `rename()`.
+    - It restarts `yuneta_agent.service` with `sudo -n systemctl restart
+      --no-block`. The package installs the sudoers entry. So the answer
+      comes before the main agent is back.
+
+  An agent outside its unit is not restarted, and the answer says so. The
+  command runs only on a node that builds from source (the test of the
+  preinst: `kernel/` and `.git` in `/yuneta/development/yunetas`). On a
+  package node the agent comes in the package. Permission: `upgrade-agent`.
+
+### Fixed
+
+- **An answer does not carry back a long command line.** Each answer
+  carries back the `command_stack` of `__md_iev__` of its request, and
+  `C_IEVENT_CLI` and `C_IEVENT_SRV` pushed the whole line there. The
+  `content64` of an `upgrade-agent` or an `install-binary` (46 MB in base64
+  for a 36 MB binary) came back in the answer of the control center. While
+  that answer was in the queue, the answer of the agent arrived. The queue
+  of the client was then over `client_max_tx_bytes` (32 MB), and the control
+  center dropped the client (*"web client that does not take what is
+  relayed to it, dropped"*). So no large binary went to a node through the
+  control center. Now a line over 1 KB goes into the stack as a trace shows
+  it: each value over 1 KB is `<N bytes>` (`msg_iev_stack_command_line()`).
+  A shorter line goes as it is. The readers of the stack (`ycommand`,
+  `ycli`, gobj-ui) read only the command name and the first word of a short
+  `cmd2agent`. Deploy the new `ycommand` and the new control center. The
+  agents do not need a change. Test: `test_secret_attrs`.
+
 ## v7.31.26 (2026-11-20)
 
 Lite release: only the control center (`controlcenter`).

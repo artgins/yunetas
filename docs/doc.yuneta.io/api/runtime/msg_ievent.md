@@ -332,6 +332,58 @@ JSON_DECREF(jn_ievent_id)
 
 ---
 
+(msg_iev_stack_command_line)=
+## [`msg_iev_stack_command_line()`](https://github.com/artgins/yunetas/blob/7.31.26/kernel/c/root-linux/src/msg_ievent.c#L637)
+
+Returns the line of a command in the form that the `command_stack` of `__md_iev__` keeps.
+Each answer carries back the stack of its request, so a long line must not go there whole.
+
+```C
+json_t *msg_iev_stack_command_line(
+    const char *command
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `command` | `const char *` | The command line, as the caller sends it. `NULL` gives an empty string. |
+
+**Returns**
+
+A new json string. The caller owns it. The function never returns `NULL`.
+
+- The function returns a line of 1 KB or less as it is.
+- It returns a longer line as a trace shows it, masked by names only ([`command_mask_secret_line()`](#command_mask_secret_line) with no command table). Each parameter value over 1 KB becomes `<N bytes>`. The command name stays first.
+- It returns `<...>` for a line that is not valid UTF-8.
+
+`C_IEVENT_CLI` and `C_IEVENT_SRV` push this value into the stack (7.31.27+). Up to 7.31.26 they pushed the whole line. The `content64` of an `upgrade-agent` or an `install-binary` (tens of MB) then came back in each answer. A control center dropped the client (`client_max_tx_bytes`) before the answer of the agent arrived.
+
+**Example**
+
+How `C_IEVENT_CLI` pushes the line of a command:
+
+```C
+msg_iev_push_stack(
+    gobj,
+    kw,         // not owned
+    COMMAND_STACK_ID,
+    json_pack("{s:o, s:o}",   // owned
+        "command", msg_iev_stack_command_line(command),
+        "kw", __md_command__
+    )
+);
+```
+
+With a 46 MB `content64`, the stack keeps this line:
+
+```text
+command-agent agent_id=deploycenter cmd2agent=<48646516 bytes>
+```
+
+---
+
 (msg_iev_set_back_metadata)=
 ## [`msg_iev_set_back_metadata()`](https://github.com/artgins/yunetas/blob/7.31.26/kernel/c/root-linux/src/msg_ievent.c#L654)
 

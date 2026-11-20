@@ -15,6 +15,7 @@
  *         Constants
  ****************************************************************/
 #define IEV_LOG_DUMP_SIZE   (256)   // the kw of a refused frame shown in a log, capped
+#define MAX_STACK_COMMAND_LINE  (1024)  // a longer line goes in the command stack as a trace shows it
 
 /****************************************************************
  *         Structures
@@ -618,6 +619,37 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
         json_object_del(md_iev, stack);
     }
     return jn_data;
+}
+
+/***************************************************************************
+ *  The line of a command as the COMMAND_STACK_ID stack of __md_iev__
+ *  carries it. Every answer carries back the stack of its request
+ *  (msg_iev_set_back_metadata()), so a line up to MAX_STACK_COMMAND_LINE
+ *  goes as it is, and a longer one as a trace shows it masked by names
+ *  (command_mask_secret_line() with no command table): every parameter
+ *  value longer than 1 KB as "<N bytes>". Up to 7.31.26 the whole line went:
+ *  an install-binary's content64, tens of MB, came back in the answer of
+ *  the control center and again in the agent's, and a control center
+ *  dropped the client (client_max_tx_bytes) before the agent's answer.
+ *  What reads the stack reads the name of the command, and the first word
+ *  of a short cmd2agent. Return is YOURS, never NULL.
+ ***************************************************************************/
+PUBLIC json_t *msg_iev_stack_command_line(const char *command)
+{
+    if(!command) {
+        return json_string("");
+    }
+    json_t *jn_line = NULL;
+    if(strlen(command) <= MAX_STACK_COMMAND_LINE) {
+        jn_line = json_string(command);
+    } else {
+        char *shown = command_mask_secret_line(NULL, command);
+        if(shown) {
+            jn_line = json_string(shown);
+            GBMEM_FREE(shown)
+        }
+    }
+    return jn_line? jn_line : json_string("<...>");     // not utf-8: never the line
 }
 
 /***************************************************************************

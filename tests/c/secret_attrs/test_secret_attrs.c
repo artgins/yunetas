@@ -954,6 +954,68 @@ PRIVATE void check_wild_command_trace(void)
 }
 
 /*
+ *  The line a command stack carries, the stack every answer carries back
+ *  (msg_iev_stack_command_line()): a short line as it is; a long one with
+ *  each value over 1 KB as "<N bytes>", the name of the command first.
+ *  Up to 7.31.26 the whole line went: the content64 of an upgrade-agent
+ *  (46 MB) came back in each answer, and a control center dropped the
+ *  client before the agent's answer.
+ */
+PRIVATE void check_stack_command_line(void)
+{
+    const char *short_line = "command-agent agent_id=node-1 cmd2agent=\"read-file path=/x\"";
+    json_t *jn = msg_iev_stack_command_line(short_line);
+    check_str("a short line goes in the command stack as it is",
+        json_string_value(jn), short_line
+    );
+    JSON_DECREF(jn)
+
+    size_t len64 = 3*1024*1024;
+    gbuffer_t *gbuf = gbuffer_create(len64 + 256, len64 + 256);
+    gbuffer_printf(gbuf, "command-agent agent_id=node-1 cmd2agent=\"upgrade-agent content64=");
+    for(size_t i = 0; i < len64; i++) {
+        gbuffer_append_char(gbuf, 'A');
+    }
+    gbuffer_append_string(gbuf, "\"");
+    const char *long_line = gbuffer_cur_rd_pointer(gbuf);
+
+    jn = msg_iev_stack_command_line(long_line);
+    const char *got = json_string_value(jn);
+    check_true("a long line goes in the command stack under 1 KB", got && strlen(got) < 1024);
+    check_true("a long line keeps its command name first",
+        got && strncmp(got, "command-agent ", strlen("command-agent ")) == 0
+    );
+    check_true("a long value goes as <N bytes>", got && strstr(got, " bytes>") != NULL);
+    check_true("a long line keeps its short parameters", got && strstr(got, "agent_id=node-1") != NULL);
+    JSON_DECREF(jn)
+
+    jn = msg_iev_stack_command_line(NULL);
+    check_str("no line goes as an empty one", json_string_value(jn), "");
+    JSON_DECREF(jn)
+
+    /*
+     *  And what an answer carries back: the request's stack, so the line
+     *  as it was pushed, not the request
+     */
+    json_t *kw = json_object();
+    msg_iev_push_stack(0, kw, COMMAND_STACK_ID,
+        json_pack("{s:o, s:{}}", "command", msg_iev_stack_command_line(long_line), "kw")
+    );
+    msg_iev_push_stack(0, kw, IEVENT_STACK_ID,
+        json_pack("{s:s, s:s, s:s, s:s}",
+            "dst_yuno", "", "dst_service", "secret-holder",
+            "src_yuno", "", "src_service", "remote-cli"
+        )
+    );
+    json_t *kw_answer = msg_iev_build_response(0, 0, 0, 0, 0, kw);  // owns kw
+    char *answer = json_dumps(kw_answer, JSON_COMPACT);
+    check_true("an answer to a long line is small", answer && strlen(answer) < 4096);
+    gbmem_free(answer);
+    JSON_DECREF(kw_answer)
+    gbuffer_decref(gbuf);
+}
+
+/*
  *  Watch one secret, and one message that must be printed, around `what`
  */
 PRIVATE void watch(const char *secret, const char *msg)
@@ -3069,6 +3131,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     check_create_delete2_trace();
     check_command_trace();
     check_wild_command_trace();
+    check_stack_command_line();
     check_log_dumps(gobj);
     check_json_parse_logs(gobj);
     check_secret_values(gobj);

@@ -331,6 +331,14 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
     const char *stack
 );
 
+/*
+ *  The line of a command as the COMMAND_STACK_ID stack carries it, the
+ *  stack every answer carries back: a line up to 1 KB as it is, a longer
+ *  one as a trace shows it (a parameter value over 1 KB as "<N bytes>").
+ *  What C_IEVENT_CLI and C_IEVENT_SRV push there.
+ */
+PUBLIC json_t *msg_iev_stack_command_line(const char *command); // Return is YOURS, never NULL
+
 /*----------------------------------------------------------*
  *  TODO msg_iev_write_key() msg_iev_read_key() msg_iev_delete_key()
  *-----------------------------------------------------------*/
