@@ -125,7 +125,8 @@ When an agent opens its session, the control center checks it as follows:
 |--------------------|-------------|--------|
 | a key | never seen | recorded `pending`, WARNING *"A node to accept"*. With `enforce_node_keys` refused, and not recorded: kept `knocking`, WARNING *"A node knocking"* (the first time, then every `knocking_warning_period` while it goes on knocking, with `knocks`: it asks an operator for `accept-node`) |
 | its accepted key | `accepted` | let in |
-| another key, or none | `accepted` | WARNING, and refused if `enforce_node_keys` |
+| another key | `accepted` | refused if `enforce_node_keys`. Since 7.31.26 the key is kept in memory: `list-nodes` shows it in its own row with the state `other-key`, a WARNING *"An accepted node knocking with another key"* says it (the first time, then every `knocking_warning_period`), and the agent is told *"This node is accepted with another key"*. See *A node reinstalled* below |
+| no key | `accepted` | WARNING, and refused if `enforce_node_keys` |
 | anything | `refused` | refused if `enforce_node_keys` |
 | no key | not accepted | let in while `allow_nodes_without_key` (an agent before 7.30.10) |
 
@@ -217,9 +218,44 @@ key knocks under the uuid between your `list-nodes` and your `accept-node`,
 it does not start the same, and the control center refuses it with a WARNING
 (*"Node not accepted: the key it presents is not the one compared"*).
 `presented=` is also refused when the uuid knocked with more than one key,
-when the node presented none, for a node already accepted (its key changes
-only with `spki_sha256` whole), and together with `spki_sha256`. Each decision
+when the node presented none, and together with `spki_sha256`. Each decision
 is an INFO, *"Node key decided"*.
+
+**A node reinstalled (7.31.26+).** A node that is installed again from
+scratch keeps its uuid, because its hardware gives the uuid. But its
+agent makes a new key pair, and the control center refuses the new key: the
+node is accepted with the old one. The control center keeps the key that
+arrives in memory, in the table of the knocks, and `list-nodes` shows it in a
+row of its own, with the state `other-key`, next to the accepted row. The
+comment of `list-nodes` gives the command to run. Read the key on the node,
+compare its start, and accept it:
+
+```text
+list-nodes uuid=^08741cd6
+# "08741cd6-..." "orangepi-em235" "accepted"  false ... "4cb19a9362cb4d6a7"
+# "08741cd6-..." "orangepi-em235" "other-key" false ... "a160f42c751463675"
+# comment: node '08741cd6-...' is accepted and its agent presents another key,
+#   'a160f42c75146367...': if the node was reinstalled, compare it with the key
+#   the node gives (yuneta-agent-cert key) and run accept-node
+#   node_id=08741cd6-... presented=a160f42c75146367
+
+# on the node
+/usr/libexec/yuneta/yuneta-agent-cert key
+
+accept-node node_id=08741cd6-f436-888f-bb5d-b43a86de1eb5 presented=a160f42c75146367
+```
+
+`presented=` pins the key that knocked only when it starts with the start
+that you give, as for a new node. It is refused when the uuid knocked with
+more than one other key: then give `spki_sha256=` the whole key read on the
+node. It is refused too when no other key knocked (*"presents no other key:
+nothing to change"*). A node that cannot reach the control center gets its
+new key with `spki_sha256=` whole. The `other-key` row goes when the new key
+is accepted, or when the node logs in again with its accepted key. An open
+enrollment never changes the key of an accepted node. Each control center
+(1996, 1997) keeps its own `nodes`: accept the key in both. Up to 7.31.25 the
+control center did not show the key that arrived, and refused `presented=`
+for an accepted node.
 
 **Open enrollment (7.31.15+).** When many nodes must be accepted at once (a
 migration of the control center, a batch of new boxes), open an enrollment
@@ -1518,7 +1554,7 @@ never armed: all six read 0.
 | `stats-agent` | Fetch stats from a node |
 | `info-machine` | The machine of a node (`agent_id`: uuid or hostname): os, cpu, memory, disks, network interfaces, uptime, as its agent's yuno answers `info-machine` (permission `list-agents`, 7.31.23+) |
 | `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has, or empty: every agent) |
-| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session, empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused` or `knocking`, or empty: all). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
+| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session, empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused`, `knocking` or `other-key`, or empty: all; an `other-key` row is the key that the agent of an accepted node presents instead of its own, and the comment says what to do with it). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
 | `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so. Permission `manage-nodes`) |
 | `refuse-node` | Refuse a node. Its sessions are dropped (`node_id`, permission `manage-nodes`) |
 | `delete-node` | Delete the record of a node refused or pending, with no agent connected (`node_id`, permission `manage-nodes`). An accepted node is refused first (7.31.22+) |

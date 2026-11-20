@@ -84,10 +84,17 @@ accept the running nodes first.
 ```text
 list-nodes state=pending
 list-nodes state=knocking
+list-nodes state=other-key   # accepted nodes whose agent presents another key (a node reinstalled)
 list-nodes hostname=^orangepi- version=^7.31.   # uuid, version, hostname, os: regular expressions
 accept-node node_id=<uuid> spki_sha256=<the key read on the node>
 delete-node node_id=<uuid>    # a node refused or pending, not connected: a machine that is gone
 ```
+
+A node installed again keeps its uuid and makes a new key. `list-nodes` shows
+that key in a row with the state `other-key`, and its comment gives the
+command: compare the start of the key with the one read on the node
+(`yuneta-agent-cert key`), then `accept-node node_id=<uuid>
+presented=<start>` (7.31.26+).
 
 One key is for one node. `accept-node` refuses a key that is accepted for
 another node, because a copy of the disk of a node carries its key pair. A

@@ -2771,6 +2771,54 @@ PRIVATE int check_node_field(hgobj gobj, hgobj client, const char *uuid,
     return ret;
 }
 
+/*  The row of `uuid` in `state` (list-nodes can give a uuid two rows: its
+ *  record, and the knock of its agent with another key): its `field`
+ *  compared, or, with `expected` NULL, that there is no such row  */
+PRIVATE int check_row_in_state(hgobj gobj, hgobj client, const char *uuid,
+    const char *state, const char *field, const char *expected, const char *what)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *response = gobj_command(priv->cc, "list-nodes", client_kw(gobj_name(client)), client);
+    json_t *found = NULL;
+    size_t idx; json_t *jn;
+    json_array_foreach(kw_get_list(gobj, response, "data", 0, 0), idx, jn) {
+        if(strcmp(kw_get_str(gobj, jn, "id", "", 0), uuid)==0 &&
+                strcmp(kw_get_str(gobj, jn, "state", "", 0), state)==0) {
+            found = jn;
+            break;
+        }
+    }
+    int ret = 0;
+    if(!expected) {
+        if(found) {
+            ret = fail(gobj, what, kw_get_str(gobj, found, field, "", 0));
+        }
+    } else {
+        const char *got = found? kw_get_str(gobj, found, field, "", 0) : "(no row)";
+        if(strcmp(got, expected)!=0) {
+            ret = fail(gobj, what, got);
+        }
+    }
+    JSON_DECREF(response)
+    return ret;
+}
+
+/*  The comment of list-nodes of the uuids matching `uuid_re` holds `part`  */
+PRIVATE int check_list_nodes_comment(hgobj gobj, hgobj client, const char *uuid_re,
+    const char *part, const char *what)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "uuid", json_string(uuid_re));
+    json_t *response = gobj_command(priv->cc, "list-nodes", kw, client);
+    const char *comment = kw_get_str(gobj, response, "comment", "", 0);
+    int ret = strstr(comment, part)? 0 : fail(gobj, what, comment);
+    JSON_DECREF(response)
+    return ret;
+}
+
 /***************************************************************************
  *  The control center authenticates the identity card `card` (owned) of an
  *  agent whose C_IEVENT_SRV holds `spki` as its transport's peer_cert (no
@@ -3155,14 +3203,72 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
     json_object_set_new(kw, "node_id", json_string("uuid-pres"));
     json_object_set_new(kw, "presented", json_string(KEY_P_START));
     ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
-        -1, "is accepted: to change its key",
-        "accept-node presented= of a node already accepted is refused");
+        -1, "presents no other key: nothing to change",
+        "accept-node presented= of an accepted node that presents no other key is refused");
     auth = authenticate_by_key(gobj, "auth-p2", "uuid-pres", "preshost", KEY_P,
         username, sizeof(username));
     if(kw_get_int(gobj, auth, "result", -1, 0) != 0) {
         ret += fail(gobj, "a node accepted with the key it presented logs in by it", username);
     }
     JSON_DECREF(auth)
+
+    /*
+     *  A node accepted and reinstalled: its uuid (from the hardware) and a
+     *  new key. Its agent is refused, and told why; the knock is kept and
+     *  shown (list-nodes "other-key", and what to do in the comment);
+     *  accept-node presented=<start> pins it once the operator compared it
+     *  with the key the node gives. Up to 7.31.25 nothing showed the key,
+     *  and presented= was refused for an accepted node.
+     */
+#define KEY_Q   "8888888888888888888888888888888888888888888888888888888888888888"
+#define KEY_Q_START "8888888888888888"
+#define KEY_R   "7777777777777777777777777777777777777777777777777777777777777777"
+    ret += check_response(gobj,
+        authenticate_by_key(gobj, "auth-q", "uuid-pres", "preshost", KEY_Q,
+            username, sizeof(username)),
+        -1, "This node is accepted with another key",
+        "the agent of an accepted node with another key is refused, and told why");
+    ret += check_row_in_state(gobj, client, "uuid-pres", "other-key", "key", KEY_Q,
+        "list-nodes shows the other key of an accepted node");
+    ret += check_node_field(gobj, client, "uuid-pres", "spki_sha256", KEY_P,
+        "the knock of another key does not change the key accepted");
+    ret += check_list_nodes_comment(gobj, client, "^uuid-pres$",
+        "run accept-node node_id=uuid-pres presented=" KEY_Q_START,
+        "list-nodes says what to do with the other key");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-pres"));
+    json_object_set_new(kw, "presented", json_string("aaaaaaaaaaaaaaaa"));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        -1, "which does not start with 'aaaaaaaaaaaaaaaa'",
+        "accept-node presented= of a start that is not the other key is refused");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "node_id", json_string("uuid-pres"));
+    json_object_set_new(kw, "presented", json_string(KEY_Q_START));
+    ret += check_response(gobj, gobj_command(priv->cc, "accept-node", kw, client),
+        0, "node 'uuid-pres' accepted",
+        "accept-node presented=<start> of the other key of an accepted node");
+    ret += check_node_field(gobj, client, "uuid-pres", "spki_sha256", KEY_Q,
+        "accept-node presented=<start> pins the other key, whole");
+    ret += check_row_in_state(gobj, client, "uuid-pres", "other-key", "key", NULL,
+        "the other-key row goes when the key is accepted");
+    auth = authenticate_by_key(gobj, "auth-q2", "uuid-pres", "preshost", KEY_Q,
+        username, sizeof(username));
+    if(kw_get_int(gobj, auth, "result", -1, 0) != 0) {
+        ret += fail(gobj, "a node re-keyed logs in by its new key", username);
+    }
+    JSON_DECREF(auth)
+
+    /*  Another key knocks, then the node logs in by its own: the row goes  */
+    auth = authenticate_by_key(gobj, "auth-r", "uuid-pres", "preshost", KEY_R,
+        username, sizeof(username));
+    JSON_DECREF(auth)
+    ret += check_row_in_state(gobj, client, "uuid-pres", "other-key", "key", KEY_R,
+        "list-nodes shows another key knocking for an accepted node");
+    auth = authenticate_by_key(gobj, "auth-q3", "uuid-pres", "preshost", KEY_Q,
+        username, sizeof(username));
+    JSON_DECREF(auth)
+    ret += check_row_in_state(gobj, client, "uuid-pres", "other-key", "key", NULL,
+        "the other-key row goes when the node logs in by its accepted key");
 
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
     const char *flood[] = {"uuid-k1", "uuid-k2", "uuid-k3", 0};

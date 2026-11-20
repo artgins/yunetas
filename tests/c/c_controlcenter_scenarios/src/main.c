@@ -296,13 +296,17 @@ PRIVATE const char *expected_msgs[] = {
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-auth, refused: not written
     "Agent refused: its node key is not the one accepted",                          // 22: uuid-auth, pending
     "Node key decided",                                                             // 22: accept uuid-auth
-    "Agent not authenticated: its node key is not the one accepted",                // 22: uuid-auth, KEY_B
+    "An accepted node knocking with another key (reinstalled? compare it with the one the node gives, yuneta-agent-cert key, then accept-node presented=<its start>)", // 22: uuid-auth, KEY_B: kept (other-key), said once
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-new
     "Node key decided",                                                             // 22: accept uuid-new
     "Node key decided",                                                             // 22: accept uuid-unseen
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-pres
     "Node not accepted: the key it presents is not the one compared||||WARNING",   // 22: uuid-pres, presented= of another key
     "Node key decided",                                                             // 22: accept uuid-pres, presented=<start>
+    "An accepted node knocking with another key (reinstalled? compare it with the one the node gives, yuneta-agent-cert key, then accept-node presented=<its start>)", // 22: uuid-pres reinstalled, KEY_Q
+    "Node key not changed: the key it presents is not the one compared||||WARNING", // 22: uuid-pres, presented= of another start
+    "Node key decided",                                                             // 22: uuid-pres re-keyed to KEY_Q, presented=<start>
+    "An accepted node knocking with another key (reinstalled? compare it with the one the node gives, yuneta-agent-cert key, then accept-node presented=<its start>)", // 22: uuid-pres, KEY_R knocks
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k1
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k2
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-k3
@@ -315,7 +319,7 @@ PRIVATE const char *expected_msgs[] = {
     "Node key decided",                                                             // 22b: uuid-en2
     "Node accepted by the enrollment",                                              // 22b: uuid-en2
     "Node not accepted by the enrollment|||the node is accepted with another key|WARNING", // 22b: uuid-auth
-    "Agent not authenticated: its node key is not the one accepted|||The agent of an accepted node presents another key|WARNING", // 22b: uuid-auth
+    "An accepted node knocking with another key (reinstalled? compare it with the one the node gives, yuneta-agent-cert key, then accept-node presented=<its start>)", // 22b: uuid-auth, KEY_EN3 (its knock of KEY_B was evicted by the flood)
     "Node not accepted by the enrollment|||it knocked with another key|WARNING",    // 22b: uuid-en4
     "Node not accepted: its key is accepted for another node||||WARNING",          // 22b: uuid-en6
     "Node not accepted by the enrollment||||WARNING",                               // 22b: uuid-en6

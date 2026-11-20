@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The control center shows the new key of a node that was installed again,
+  and accepts it with `presented=`.** A node installed from scratch keeps its
+  uuid (the hardware gives it) and makes a new key, and the control
+  center refuses it, because the node is accepted with the old key. Up to
+  7.31.25 the operator saw only `accepted` and `Connected false`. Nothing
+  showed the key that arrived, and `accept-node presented=` was refused for
+  an accepted node. Now the knock is kept in memory, as the knocks of new
+  nodes. `list-nodes` shows it in its own row with the state `other-key`, and
+  its comment gives the command to run. `accept-node presented=<start>` pins
+  that key when it starts with the start that the operator compared with the
+  key read on the node, the same rule as for a new node. It is refused when
+  more than one other key knocked. The agent is told *"This node is accepted
+  with another key"*. The WARNING is said once a period, not once a knock.
+  An open enrollment still never changes the key of an accepted node. Test:
+  `test_c_controlcenter_scenarios` (scene 22, a node re-keyed).
+
 ## v7.31.25 (2026-11-20)
 
 Lite release: only `C_AUTH_BFF` (the `auth_bff` yuno).

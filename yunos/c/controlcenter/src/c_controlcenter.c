@@ -326,7 +326,8 @@ PRIVATE const char *note_knocking_node(
     const char *node_id,
     const char *hostname,
     const char *peername,
-    const char *spki
+    const char *spki,
+    BOOL *in_table
 );
 PRIVATE const char *record_node_key(
     hgobj gobj,
@@ -550,7 +551,7 @@ PRIVATE sdata_desc_t pm_drop_agent[] = {
 };
 PRIVATE sdata_desc_t pm_list_nodes[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "state",        0,              0,          "Only the nodes in this state: pending, accepted, refused, or knocking (a key not accepted, no token: in memory only)"),
+SDATAPM (DTP_STRING,    "state",        0,              0,          "Only the nodes in this state: pending, accepted, refused, knocking (a key not accepted, no token: in memory only), or other-key (an accepted node whose agent presents another key: in memory only)"),
 SDATAPM (DTP_STRING,    "uuid",         0,              0,          "Only the nodes whose uuid matches this regular expression (POSIX extended)"),
 SDATAPM (DTP_STRING,    "version",      0,              0,          "Only the nodes whose agent in session has a version that matches this regular expression (POSIX extended); a node away has none"),
 SDATAPM (DTP_STRING,    "hostname",     0,              0,          "Only the nodes whose hostname matches this regular expression (POSIX extended)"),
@@ -561,7 +562,7 @@ PRIVATE sdata_desc_t pm_accept_node[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node uuid"),
 SDATAPM (DTP_STRING,    "spki_sha256",  0,              0,          "The key to pin, read on the node itself (sha256 of its SPKI, 64 lowercase hex; on the node: yuneta-agent-cert key)"),
-SDATAPM (DTP_STRING,    "presented",    0,              0,          "The start of the key the node presented (list-nodes), at least 16 lowercase hex, as compared with the one the node gives (yuneta-agent-cert key): the whole key presented is pinned only if it starts so"),
+SDATAPM (DTP_STRING,    "presented",    0,              0,          "The start of the key the node presented (list-nodes, a knocking or other-key row), at least 16 lowercase hex, as compared with the one the node gives (yuneta-agent-cert key): the whole key presented is pinned only if it starts so"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_open_enrollment[] = {
@@ -1027,6 +1028,11 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         }
 
         if(accepted) {
+            /*
+             *  Back with its accepted key: what knocked under its uuid with
+             *  another one is not it, or no longer (list-nodes "other-key")
+             */
+            json_object_del(priv->knocking, node_id);
             char username[NAME_MAX];
             snprintf(username, sizeof(username), "agent:%s", node_id);
             gobj_write_str_attr(src, "__username__", username);
@@ -1051,8 +1057,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
              *  memory, capped, for list-nodes (knocking), and an operator
              *  accepts it giving the key read on the node itself.
              */
-            const char *refusal = note_knocking_node(gobj, node_id, hostname, peername, spki);
-            if(refusal) {
+            BOOL in_table = FALSE;
+            const char *refusal = note_knocking_node(gobj, node_id, hostname, peername, spki,
+                &in_table);
+            if(refusal && !in_table) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
@@ -1067,7 +1075,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             }
             json_t *jn_resp = json_pack("{s:i, s:s, s:s}",
                 "result", -1,
-                "comment", "The key of this node is not accepted (accept-node)",
+                "comment", (refusal && in_table)?
+                    "This node is accepted with another key (accept-node with the key this "
+                    "node gives: yuneta-agent-cert key)" :
+                    "The key of this node is not accepted (accept-node)",
                 "dst_service", dst_service
             );
             KW_DECREF(kw)
@@ -2075,18 +2086,41 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     }
     JSON_DECREF(jn_nodes)
 
-    if(empty_string(state) || strcmp(state, "knocking")==0) {
+    /*
+     *  The table of the knocks (note_knocking_node()): "knocking", a node
+     *  with no key accepted, and "other-key", an accepted node whose agent
+     *  presents another key -- its own row, next to the accepted one, so
+     *  the operator sees which key arrives (a reinstalled node makes a new
+     *  one) and what to do with it
+     */
+    char rekey_hint[512] = "";
+    int rekeys = 0;
+    if(empty_string(state) || strcmp(state, "knocking")==0 || strcmp(state, "other-key")==0) {
         const char *node_id; json_t *jn_knock;
         json_object_foreach(priv->knocking, node_id, jn_knock) {
+            BOOL other_key = kw_get_bool(gobj, jn_knock, "accepted_node", 0, 0);
+            const char *row_state = other_key? "other-key" : "knocking";
+            if(!empty_string(state) && strcmp(state, row_state)!=0) {
+                continue;
+            }
             if(!node_filters_match(filters,
                     node_id, "", kw_get_str(gobj, jn_knock, "hostname", "", 0), "")) {
                 continue;
             }
+            if(other_key && rekeys++ == 0) {
+                snprintf(rekey_hint, sizeof(rekey_hint),
+                    "node '%s' is accepted and its agent presents another key, '%.16s...': if "
+                    "the node was reinstalled, compare it with the key the node gives "
+                    "(yuneta-agent-cert key) and run accept-node node_id=%s presented=%.16s",
+                    node_id, kw_get_str(gobj, jn_knock, "spki_sha256", "", 0),
+                    node_id, kw_get_str(gobj, jn_knock, "spki_sha256", "", 0));
+            }
             json_t *jn = json_deep_copy(jn_knock);
             json_object_del(jn, "seq");
             json_object_del(jn, "next_warning");
+            json_object_del(jn, "accepted_node");
             json_object_set_new(jn, "id", json_string(node_id));
-            json_object_set_new(jn, "state", json_string("knocking"));
+            json_object_set_new(jn, "state", json_string(row_state));
             json_object_set_new(jn, "key", json_string(kw_get_str(gobj, jn_knock, "spki_sha256", "", 0)));
             json_object_set_new(jn, "connected", json_false());
             json_object_set_new(jn, "version", json_string(""));
@@ -2102,16 +2136,28 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  the start, to compare with the node's: whole in the form view.
      *  A string is painted as json, between quotes: 2 columns more
      */
-    json_t *jn_comment = NULL;
+    char enrollment_said[256] = "";
     if(priv->enrollment) {
         json_int_t left = kw_get_int(gobj, priv->enrollment, "until", 0, 0) - (json_int_t)time(NULL);
-        jn_comment = json_sprintf("%s: enrollment OPEN by '%s': %lld s left, %d of %lld nodes "
-            "accepted (close-enrollment)",
-            gobj_yuno_role_plus_name(),
+        snprintf(enrollment_said, sizeof(enrollment_said),
+            "enrollment OPEN by '%s': %lld s left, %d of %lld nodes accepted (close-enrollment)",
             kw_get_str(gobj, priv->enrollment, "opened_by", "", 0),
             (long long)(left > 0? left : 0),
             (int)json_array_size(json_object_get(priv->enrollment, "accepted")),
             (long long)kw_get_int(gobj, priv->enrollment, "max_nodes", 0, 0));
+    }
+    char rekeys_more[64] = "";
+    if(rekeys > 1) {
+        snprintf(rekeys_more, sizeof(rekeys_more), " (and %d more: state other-key)", rekeys - 1);
+    }
+    json_t *jn_comment = NULL;
+    if(!empty_string(enrollment_said) || rekeys > 0) {
+        jn_comment = json_sprintf("%s: %s%s%s%s",
+            gobj_yuno_role_plus_name(),
+            enrollment_said,
+            (!empty_string(enrollment_said) && rekeys > 0)? "; " : "",
+            rekey_hint,
+            rekeys_more);
     }
 
     json_t *jn_schema = json_pack("[{s:s, s:s, s:s, s:i}, {s:s, s:s, s:s, s:i},"
@@ -2309,6 +2355,13 @@ PRIVATE json_t *decide_node(
  *  pin are one call, so the key pinned is the one compared, whatever the
  *  node presents before or after. Returns NULL with the key in `presented`,
  *  or why not (a comment, yours).
+ *
+ *  For an ACCEPTED node, only the key that knocked under its uuid since
+ *  (note_knocking_node(), list-nodes "other-key") is a candidate: never the
+ *  presented_spki of its record, written before. A uuid that knocked with
+ *  two keys is refused, as a pending one. Up to 7.31.25 an accepted node
+ *  was refused outright, and the operator, who has only the control
+ *  center, did not see which key arrived nor how to go on.
  ***************************************************************************/
 PRIVATE json_t *presented_key_compared(
     hgobj gobj,
@@ -2350,10 +2403,41 @@ PRIVATE json_t *presented_key_compared(
     char recorded[80];
     snprintf(recorded, sizeof(recorded), "%s",
         node? kw_get_str(gobj, node, "presented_spki", "", 0) : "");
+    char accepted_key[80];
+    snprintf(accepted_key, sizeof(accepted_key), "%s",
+        node? kw_get_str(gobj, node, "spki_sha256", "", 0) : "");
     JSON_DECREF(node)
     if(accepted) {
-        return json_sprintf("%s: node '%s' is accepted: to change its key give "
-            "spki_sha256= the key the node gives, whole", gobj_yuno_role_plus_name(), node_id);
+        json_t *knock = json_object_get(priv->knocking, node_id);
+        if(!knock || !kw_get_bool(gobj, knock, "accepted_node", 0, 0)) {
+            return json_sprintf("%s: node '%s' is accepted with key '%.16s...' and its agent "
+                "presents no other key: nothing to change (a node that cannot reach this "
+                "control center: spki_sha256= the key the node gives, whole)",
+                gobj_yuno_role_plus_name(), node_id, accepted_key);
+        }
+        if(kw_get_bool(gobj, knock, "other_keys", 0, 0)) {
+            return json_sprintf("%s: node '%s' is accepted, and knocked with more than one "
+                "other key: which is it? give spki_sha256= the key the node gives "
+                "(yuneta-agent-cert key)", gobj_yuno_role_plus_name(), node_id);
+        }
+        const char *knocked = kw_get_str(gobj, knock, "spki_sha256", "", 0);
+        if(strncmp(knocked, compared, len)==0) {
+            snprintf(presented, presented_size, "%s", knocked);
+            return NULL;
+        }
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Node key not changed: the key it presents is not the one compared",
+            "node",         "%s", node_id,
+            "compared",     "%s", compared,
+            "knocked_spki", "%s", knocked,
+            NULL
+        );
+        return json_sprintf("%s: node '%s' is accepted and its agent presents '%.16s...', "
+            "which does not start with '%s' (another key under its uuid? give spki_sha256= "
+            "the key the node gives, whole)",
+            gobj_yuno_role_plus_name(), node_id, knocked, compared);
     }
 
     json_t *knock = json_object_get(priv->knocking, node_id);
@@ -5097,6 +5181,17 @@ PRIVATE BOOL same_address(const char *a, const char *b)
 }
 
 /***************************************************************************
+ *  A uuid that knocked with two keys while it had no key accepted: its
+ *  mark keeps an enrollment from accepting either (enroll_node()). The two
+ *  keys of an accepted node are not that: no enrollment takes it.
+ ***************************************************************************/
+PRIVATE BOOL knock_is_contested(hgobj gobj, json_t *knock)
+{
+    return kw_get_bool(gobj, knock, "other_keys", 0, 0) &&
+        !kw_get_bool(gobj, knock, "accepted_node", 0, 0);
+}
+
+/***************************************************************************
  *  An agent that presents a key not accepted and no token: not
  *  authenticated, so nothing of it goes to the store. It is kept in memory
  *  (`knocking`, the first key of a uuid kept: a later one does not replace
@@ -5107,17 +5202,32 @@ PRIVATE BOOL same_address(const char *a, const char *b)
  *  a flood cannot keep the table full of its own (and accept-node does not
  *  depend on it). Returns, for the uuid of a node in the store that is not
  *  pending, why its agent is not let in (NULL otherwise: knocking).
+ *
+ *  An ACCEPTED node whose agent presents another key is kept too, marked
+ *  `accepted_node` (list-nodes state "other-key"): a node reinstalled keeps
+ *  its uuid (it comes from the hardware) and makes a new key, and the
+ *  operator, who has only the control center, must see which key arrives
+ *  to compare it with the one read on the node (accept-node
+ *  presented=<start>). Its agent is refused all the same. Its two-key mark
+ *  (`other_keys`) refuses presented= but closes no enrollment: an
+ *  enrollment never takes an accepted node (enroll_node()).
+ *  `in_table` (may be NULL): TRUE when the knock was kept in the table, and
+ *  its WARNING is the table's (said once a period), not the caller's.
  ***************************************************************************/
 PRIVATE const char *note_knocking_node(
     hgobj gobj,
     const char *node_id,
     const char *hostname,
     const char *peername,
-    const char *spki
+    const char *spki,
+    BOOL *in_table
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(in_table) {
+        *in_table = FALSE;
+    }
     if(empty_string(node_id)) {
         return NULL;
     }
@@ -5131,20 +5241,31 @@ PRIVATE const char *note_knocking_node(
         ) : NULL;
     const char *state = node? kw_get_str(gobj, node, "state", "", 0) : "";
     const char *refusal = NULL;
+    BOOL accepted_node = FALSE;
     if(strcmp(state, "refused")==0) {
         refusal = "The node is refused";
     } else if(strcmp(state, "accepted")==0) {
         refusal = "The agent of an accepted node presents another key";
+        accepted_node = TRUE;
     }
     JSON_DECREF(node)
-    if(refusal) {
+    if(refusal && !accepted_node) {
         return refusal;
     }
 
+    const char *knock_msg = accepted_node?
+        "An accepted node knocking with another key (reinstalled? compare it with the one "
+        "the node gives, yuneta-agent-cert key, then accept-node presented=<its start>)" :
+        "A node knocking: its agent presents a key not accepted (accept-node, compare its "
+        "key with the one the node gives: yuneta-agent-cert key)";
     json_int_t now = (json_int_t)time(NULL);
     json_int_t period = gobj_read_integer_attr(gobj, "knocking_warning_period");
     json_t *entry = json_object_get(priv->knocking, node_id);
     if(entry) {
+        if(in_table) {
+            *in_table = TRUE;
+        }
+        json_object_set_new(entry, "accepted_node", json_boolean(accepted_node));
         if(strcmp(kw_get_str(gobj, entry, "spki_sha256", "", 0), spki)==0) {
             json_object_set_new(entry, "last_seen", json_integer(now));
             json_object_set_new(entry, "seq", json_integer(++priv->knock_seq));
@@ -5159,7 +5280,7 @@ PRIVATE const char *note_knocking_node(
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)",
+                "msg",          "%s", knock_msg,
                 "node",         "%s", node_id,
                 "hostname",     "%s", kw_get_str(gobj, entry, "hostname", "", 0),
                 "peername",     "%s", peername? peername : "",
@@ -5169,11 +5290,11 @@ PRIVATE const char *note_knocking_node(
                 NULL
             );
         }
-        return NULL;
+        return refusal;
     }
     json_int_t max_knocking = gobj_read_integer_attr(gobj, "max_knocking_nodes");
     if(max_knocking <= 0) {
-        return NULL;
+        return refusal;
     }
     while((json_int_t)json_object_size(priv->knocking) >= max_knocking) {
         /*
@@ -5186,7 +5307,7 @@ PRIVATE const char *note_knocking_node(
         json_int_t contested_count = 0;
         const char *key; json_t *jn;
         json_object_foreach(priv->knocking, key, jn) {
-            if(kw_get_bool(gobj, jn, "other_keys", 0, 0)) {
+            if(knock_is_contested(gobj, jn)) {
                 contested_count++;
             }
         }
@@ -5196,7 +5317,7 @@ PRIVATE const char *note_knocking_node(
         BOOL oldest_kept = FALSE;
         json_object_foreach(priv->knocking, key, jn) {
             json_int_t seq = kw_get_int(gobj, jn, "seq", 0, 0);
-            BOOL kept = keep_contested && kw_get_bool(gobj, jn, "other_keys", 0, 0);
+            BOOL kept = keep_contested && knock_is_contested(gobj, jn);
             if(!oldest || (oldest_kept && !kept) ||
                     (kept == oldest_kept && seq < oldest_seq)) {
                 oldest = key;
@@ -5207,12 +5328,12 @@ PRIVATE const char *note_knocking_node(
         if(!oldest) {
             break;
         }
-        if(kw_get_bool(gobj, json_object_get(priv->knocking, oldest), "other_keys", 0, 0)) {
+        if(knock_is_contested(gobj, json_object_get(priv->knocking, oldest))) {
             mark_evicted(gobj, oldest);
         }
         json_object_del(priv->knocking, oldest);
     }
-    json_object_set_new(priv->knocking, node_id, json_pack("{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:I}",
+    json_object_set_new(priv->knocking, node_id, json_pack("{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:I, s:b}",
         "spki_sha256", spki,
         "hostname", hostname? hostname : "",
         "peername", peername? peername : "",
@@ -5220,19 +5341,23 @@ PRIVATE const char *note_knocking_node(
         "last_seen", now,
         "knocks", (json_int_t)1,
         "seq", ++priv->knock_seq,
-        "next_warning", (json_int_t)(period > 0? start_msectimer((uint64_t)period * 1000) : 0)
+        "next_warning", (json_int_t)(period > 0? start_msectimer((uint64_t)period * 1000) : 0),
+        "accepted_node", accepted_node
     ));
+    if(in_table) {
+        *in_table = TRUE;
+    }
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_AUTH,
-        "msg",          "%s", "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)",
+        "msg",          "%s", knock_msg,
         "node",         "%s", node_id,
         "hostname",     "%s", hostname? hostname : "",
         "peername",     "%s", peername? peername : "",
         "spki_sha256",  "%s", spki,
         NULL
     );
-    return NULL;
+    return refusal;
 }
 
 /***************************************************************************
@@ -5307,7 +5432,7 @@ PRIVATE const char *record_node_key(
         }
         if(refusal && enforce) {
             if(!empty_string(spki)) {
-                note_knocking_node(gobj, node_id, hostname, peername, spki);
+                note_knocking_node(gobj, node_id, hostname, peername, spki, NULL);
             }
             JSON_DECREF(update)
             return refusal;
