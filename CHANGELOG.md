@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v7.31.26 (2026-11-20)
+
+Lite release: only the control center (`controlcenter`).
+
 ### Fixed
 
 - **The control center shows the new key of a node that was installed again,
