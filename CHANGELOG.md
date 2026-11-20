@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`upgrade-agent` keeps the binary that runs, and gives its version.** A
+  build on the node replaces `/yuneta/agent/yuneta_agent` while the agent
+  runs. Up to 7.31.27 the command kept the file on disk as the backup, so
+  after a build the backup was the new binary, and the answer said
+  `7.31.27 -> 7.31.27`. Now the command copies the binary that runs from
+  `/proc/<MainPID>/exe` of the unit, reads the old version from that copy,
+  and keeps that copy as `yuneta_agent.bak-pre-<new version>`. With no unit,
+  or a copy that fails, it keeps the file on disk as before, logs a
+  WARNING, and says so in the answer. The data of the answer has a new key,
+  `old_from` (`running` or `disk`).
+
 ## v7.31.27 (2026-11-20)
 
 Lite release: `yuneta_agent22`, and the command stack of `root-linux`, which

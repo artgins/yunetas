@@ -141,19 +141,35 @@ The command does these steps:
 1. It writes the binary as `/yuneta/agent/upgrade/yuneta_agent`.
 2. It runs the binary with `--print-role`. If the role is not
    `yuneta_agent`, it deletes the binary and refuses the command.
-3. It keeps the binary on disk as `yuneta_agent.bak-pre-<new version>`, a
-   hard link. If that backup is already there, it stays as it is.
-4. It renames the new binary over `/yuneta/agent/yuneta_agent`.
-5. It restarts `yuneta_agent.service` with `sudo -n systemctl restart
+3. It copies the binary that runs from `/proc/<MainPID>/exe` of
+   `yuneta_agent.service` to `/yuneta/agent/upgrade/running/yuneta_agent`.
+   It reads the old version from that copy (7.31.28+).
+4. It keeps that copy as `yuneta_agent.bak-pre-<new version>`. If that
+   backup is already there, it stays as it is.
+5. It renames the new binary over `/yuneta/agent/yuneta_agent`.
+6. It restarts `yuneta_agent.service` with `sudo -n systemctl restart
    --no-block`.
 
 The answer comes before the main agent is back:
 
 ```text
-yuneta_agent22^deploycenter: yuneta_agent 7.31.26 -> 7.31.26, the one before
-kept as /yuneta/agent/yuneta_agent.bak-pre-7.31.26; restart of
+yuneta_agent22^deploycenter: yuneta_agent 7.31.26 -> 7.31.27, the one that
+runs kept as /yuneta/agent/yuneta_agent.bak-pre-7.31.27; restart of
 yuneta_agent.service queued
 ```
+
+The data of the answer has `old_version`, `old_from` (`running` or `disk`),
+`new_version`, `backup`, `backup_was_there` and `restart`.
+
+A build on the node replaces `/yuneta/agent/yuneta_agent` while the agent
+runs. So the file on disk can be the new binary already, and only
+`/proc/<MainPID>/exe` is the binary that runs. Up to 7.31.27 the command
+kept the file on disk and read the old version from it. After a build, the
+backup was the new binary, and the answer said `7.31.27 -> 7.31.27`.
+
+If the main agent runs outside its unit, or the copy fails, the command
+keeps the file on disk as before (a hard link). It logs a WARNING, and the
+answer says `the one on disk (NOT the one that runs: see the log)`.
 
 The yunos of the node do not restart. The unit stops only the main agent.
 
