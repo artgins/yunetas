@@ -13,7 +13,8 @@ What it checks:
   combine), several keys in one iterator (`rkey`), a backward page that
   counts from the live end, and the frozen counts of a filtered multi-key
   iterator. A peer's `rkey` that is too costly to match (`^(a+)+$` against a
-  key of 30 `a` and a `!`) is refused with a WARNING.
+  key of 30 `a` and a `!`) is refused with a WARNING. A live list with that
+  `rkey` loads 51 costly keys in less than 1 s, and `get-list-data` names them.
 - Handles: a handle of a topic that was closed is dropped, not
   dereferenced. A key deleted under an iterator. A keys watch that is not a
   client's feed. A `no_rt` list freed with its topic. A handle of one session

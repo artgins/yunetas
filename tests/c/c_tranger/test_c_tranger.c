@@ -91,6 +91,7 @@
 #define TOPIC_NAME6 "topic_cmd6"    // a file name mask that does not sort as time
 #define TOPIC_NAME7 "topic_cmd7"    // a key flagged unlisted: add-record of a purged period
 #define TOPIC_NAME8 "topic_cmd8"    // a key a costly rkey regex cannot judge in its limits
+#define TOPIC_NAME9 "topic_cmd9"    // keys a costly (*NO_JIT) rkey takes ms to judge
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -3694,13 +3695,13 @@ PRIVATE int do_test(void)
         json_t *expected = json_array();
         expect_refusal(expected, "rkey regex too costly, refused");    // list-keys
         expect_refusal(expected, "rkey regex too costly, refused");    // one-shot open-list
-        json_array_append_new(expected, json_pack("{s:s, s:s}",       // the live open-list answer
-            "msg", "GClass Attribute NOT FOUND", "__priority__", "WARNING"));
-        json_array_append_new(expected, json_pack("{s:s, s:s}",       // its appends, once
+        json_array_append_new(expected, json_pack("{s:s, s:s}",       // the load of the live list, once
             "msg", "rkey regex too costly for a key, the key is not given to the list",
             "__priority__", "WARNING"));
-        json_array_append_new(expected, json_pack("{s:s, s:s}",       // the close-list answer
-            "msg", "GClass Attribute NOT FOUND", "__priority__", "WARNING"));
+        json_t *roles = expect_role_warnings(4);   // open-list, 2 get-list-data, close-list
+        json_array_extend(expected, roles);
+        JSON_DECREF(roles)
+        expect_refusal(expected, "rkey regex too costly, refused");    // list-keys (*NO_JIT)
         set_expected_results("a costly rkey regex is refused", expected, NULL, NULL, 1);
 
         json_t *topic8 = tranger2_create_topic(
@@ -3743,13 +3744,32 @@ PRIVATE int do_test(void)
         check_int("one-shot open-list with a costly rkey: refused", kw_get_int(0, r, "result", -999, 0), -1);
         JSON_DECREF(r)
 
-        /*  A live list matches each key of the topic and each append, in
-         *  timeranger2: the costly key is not given to it, said ONCE  */
+        /*  A live list judges each key of the topic at its LOAD and each
+         *  key appended, in timeranger2, with the same limits: 51 costly keys
+         *  are not given to it, said ONCE, named in get-list-data, and not
+         *  matched again at their appends (the verdict is kept). Up to
+         *  7.31.29 the load matched with pcre2's defaults and skipped them
+         *  with no log: seconds for these 50 keys.  */
+        for(int k = 0; k < 50; k++) {
+            char key50[64];
+            snprintf(key50, sizeof(key50), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!%d", k);
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME8, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", key50, "tm", (json_int_t)BASE_T, "content", "x"));
+        }
+        t0 = time_in_milliseconds_monotonic();
         r = gobj_command(yuno, "open-list",
             json_pack("{s:s, s:s, s:s}",
                 "list_id", "lstCostly2", "topic_name", TOPIC_NAME8, "rkey", "^(a+)+$"
             ), yuno);
+        took_ms = time_in_milliseconds_monotonic() - t0;
         check_int("live open-list with a costly rkey", kw_get_int(0, r, "result", -999, 0), 0);
+        check_bool("its load of 51 costly keys in a moment", took_ms < 1000, TRUE);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "get-list-data",
+            json_pack("{s:s}", "list_id", "lstCostly2"), yuno);
+        check_bool("get-list-data names the 51 keys not judged",
+            strstr(kw_get_str(0, r, "comment", "", 0), "51 keys not in the list") != NULL, TRUE);
         JSON_DECREF(r)
         for(int k = 0; k < 2; k++) {
             md2_record_ex_t md = {0};
@@ -3757,8 +3777,42 @@ PRIVATE int do_test(void)
                 json_pack("{s:s, s:I, s:s}",
                     "id", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!", "tm", (json_int_t)BASE_T, "content", "y"));
         }
+        r = gobj_command(yuno, "get-list-data",
+            json_pack("{s:s}", "list_id", "lstCostly2"), yuno);
+        check_bool("its appends judged once: still 51",
+            strstr(kw_get_str(0, r, "comment", "", 0), "51 keys not in the list") != NULL, TRUE);
+        JSON_DECREF(r)
         r = gobj_command(yuno, "close-list",
             json_pack("{s:s}", "list_id", "lstCostly2"), yuno);
+        JSON_DECREF(r)
+
+        /*  The time of list-keys is looked at before EVERY key, and one
+         *  match has 10000 steps: (*NO_JIT)(?:\w|\w){1,13}\W\W over 300 keys
+         *  of 36 letters and digits is refused in a moment. Up to R99 (100000
+         *  steps, the clock every 256 keys) about 7 s before its refusal.  */
+        json_t *topic9 = tranger2_create_topic(
+            tranger, TOPIC_NAME9, "id", "tm",
+            0,
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+            0
+        );
+        check_bool("topic of the keys of 36 letters", topic9 != NULL, TRUE);
+        for(int k = 0; k < 300; k++) {
+            char key36[64];
+            snprintf(key36, sizeof(key36), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa%03d", k);
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME9, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", key36, "tm", (json_int_t)BASE_T, "content", "x"));
+        }
+        t0 = time_in_milliseconds_monotonic();
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}",
+                "topic_name", TOPIC_NAME9, "rkey", "(*NO_JIT)(?:\\w|\\w){1,13}\\W\\W"
+            )), yuno);
+        took_ms = time_in_milliseconds_monotonic() - t0;
+        check_bool("list-keys with a (*NO_JIT) rkey over 300 keys in a moment", took_ms < 1000, TRUE);
+        check_int("and refused", kw_get_int(0, r, "result", -999, 0), -1);
         JSON_DECREF(r)
 
         global_result += test_json(NULL);

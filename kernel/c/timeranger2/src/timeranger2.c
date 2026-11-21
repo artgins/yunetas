@@ -39,11 +39,16 @@ extern void jsonp_free(void *ptr); // json low level
  *              Constants
  ***************************************************************/
 /*
- *  The cost of a peer's rkey regex, per match (c_tranger.c has the same)
+ *  The cost of a peer's rkey regex (c_tranger.c has the same, measured
+ *  there), and the verdicts a list keeps (rkey_verdicts: about 64 bytes and
+ *  the key, for each key)
  */
-#define RKEY_MATCH_LIMIT        100000  /* steps of one match */
+#define RKEY_PATTERN_MAX        4096    /* bytes of the pattern */
+#define RKEY_COMPILED_MAX       65536   /* bytes of the compiled pattern */
+#define RKEY_MATCH_LIMIT        10000   /* steps of one match */
 #define RKEY_DEPTH_LIMIT        10000   /* backtracking depth of one match */
-#define RKEY_HEAP_LIMIT_KB      4096    /* heap of one match */
+#define RKEY_HEAP_LIMIT_KB      1024    /* heap of one match */
+#define RKEY_MEMO_MAX           65536   /* verdicts a list keeps; a key not judged is kept past it */
 
 PRIVATE const char *topic_fields[] = {
     "topic_name",
@@ -100,6 +105,16 @@ PRIVATE const char *sf_names[16+1] = {
 /***************************************************************
  *              Structures
  ***************************************************************/
+/*
+ *  The compiled rkey of a keyless list (rkey_arm()), its memory in gbmem
+ */
+typedef struct {
+    pcre2_general_context   *general;
+    pcre2_code              *re;
+    pcre2_match_data        *md;
+    pcre2_match_context     *mc;
+} rkey_matcher_t;
+
 #pragma pack(1)
 
 typedef struct { // Size: 32 bytes — fields are big-endian on disk
@@ -522,10 +537,12 @@ PRIVATE json_int_t update_key_totals(
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE json_int_t get_topic_key_purged(json_t *topic, const char *key);
 
-PRIVATE void *rkey_compile(hgobj gobj, const char *rkey);
+PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey);
+PRIVATE void rkey_matcher_free(rkey_matcher_t *matcher);
 PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_cond);
 PRIVATE void rkey_disarm(json_t *list);
 PRIVATE BOOL list_wants_key(json_t *list, const char *key);
+PRIVATE void rkey_handover(json_t *loader, json_t *list);
 
 PRIVATE json_t *get_cache_files(json_t *topic, const char *key);
 PRIVATE json_t *get_cache_total(json_t *topic, const char *key);
@@ -19595,15 +19612,70 @@ PRIVATE json_int_t next_segment_row(
  *  a filter cost more than the load it saves. PCRE2 with JIT, like the rest
  *  of the framework (gobj-c's json_replace_vars, c_tranger's list-keys).
  ***************************************************************************/
-PRIVATE void *rkey_compile(hgobj gobj, const char *rkey)
+PRIVATE void *rkey_gbmem_malloc(PCRE2_SIZE size, void *data)
 {
+    return gbmem_malloc(size);
+}
+
+PRIVATE void rkey_gbmem_free(void *ptr, void *data)
+{
+    gbmem_free(ptr);
+}
+
+PRIVATE void rkey_matcher_free(rkey_matcher_t *matcher)
+{
+    if(!matcher) {
+        return;
+    }
+    if(matcher->mc) {
+        pcre2_match_context_free(matcher->mc);
+    }
+    if(matcher->md) {
+        pcre2_match_data_free(matcher->md);
+    }
+    if(matcher->re) {
+        pcre2_code_free(matcher->re);
+    }
+    if(matcher->general) {
+        pcre2_general_context_free(matcher->general);
+    }
+    GBMEM_FREE(matcher)
+}
+
+/***************************************************************************
+ *  The compiled rkey, its memory in gbmem (a general context), its size
+ *  and the cost of each match bounded (RKEY_*). NULL, logged, when it does
+ *  not compile: a WARNING, the pattern is a peer's.
+ ***************************************************************************/
+PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey)
+{
+    rkey_matcher_t *matcher = GBMEM_MALLOC(sizeof(rkey_matcher_t));
+    if(!matcher) {
+        return NULL;    // Error already logged
+    }
+    matcher->general = pcre2_general_context_create(rkey_gbmem_malloc, rkey_gbmem_free, NULL);
+    pcre2_compile_context *compile_context = matcher->general?
+        pcre2_compile_context_create(matcher->general) : NULL;
+    if(!compile_context) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "pcre2 contexts not created",
+            NULL
+        );
+        rkey_matcher_free(matcher);
+        return NULL;
+    }
+    pcre2_set_max_pattern_length(compile_context, RKEY_PATTERN_MAX);
+    pcre2_set_max_pattern_compiled_length(compile_context, RKEY_COMPILED_MAX);
+
     int errornumber = 0;
     PCRE2_SIZE erroroffset = 0;
-
-    pcre2_code *re = pcre2_compile(
-        (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0, &errornumber, &erroroffset, NULL
+    matcher->re = pcre2_compile(
+        (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0, &errornumber, &erroroffset, compile_context
     );
-    if(!re) {
+    pcre2_compile_context_free(compile_context);
+    if(!matcher->re) {
         /*
          *  Warning, not error: the pattern is CALLER input (it reaches here
          *  straight from a remote client via c_tranger's open-list), and a
@@ -19617,18 +19689,41 @@ PRIVATE void *rkey_compile(hgobj gobj, const char *rkey)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Bad rkey regex",
-            "rkey",         "%s", rkey,
+            "rkey",         "%.256s", rkey,
             "offset",       "%d", (int)erroroffset,
             "error",        "%s", (char *)err,
             NULL
         );
-        gobj_log_set_last_message("Bad rkey regex '%s' at %d: %s",
+        gobj_log_set_last_message("Bad rkey regex '%.64s' at %d: %s",
             rkey, (int)erroroffset, (char *)err
         );
+        rkey_matcher_free(matcher);
         return NULL;
     }
-    pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
-    return re;
+    pcre2_jit_compile(matcher->re, PCRE2_JIT_COMPLETE);
+
+    matcher->md = pcre2_match_data_create_from_pattern(matcher->re, matcher->general);
+    matcher->mc = pcre2_match_context_create(matcher->general);
+    if(!matcher->md || !matcher->mc) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "pcre2 match data or context FAILED",
+            NULL
+        );
+        rkey_matcher_free(matcher);
+        return NULL;
+    }
+    /*
+     *  The pattern is a peer's, matched for each key of the topic at the
+     *  load and at each append of a key not judged yet: its cost is
+     *  bounded, as c_tranger's list-keys bounds it. Up to 7.31.29 pcre2's
+     *  defaults applied (ten million steps a match), on the writer's path.
+     */
+    pcre2_set_match_limit(matcher->mc, RKEY_MATCH_LIMIT);
+    pcre2_set_depth_limit(matcher->mc, RKEY_DEPTH_LIMIT);
+    pcre2_set_heap_limit(matcher->mc, RKEY_HEAP_LIMIT_KB);
+    return matcher;
 }
 
 /***************************************************************************
@@ -19646,66 +19741,79 @@ PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_co
         return 0;   // a keyed list ignores rkey; no rkey is "every key"
     }
 
-    pcre2_code *re = rkey_compile(gobj, rkey);
-    if(!re) {
+    rkey_matcher_t *matcher = rkey_compile(gobj, rkey);
+    if(!matcher) {
         return -1;      // Error already logged
     }
-    pcre2_match_data *md = pcre2_match_data_create_from_pattern(re, NULL);
-    pcre2_match_context *mc = pcre2_match_context_create(NULL);
-    if(!md || !mc) {
-        if(md) {
-            pcre2_match_data_free(md);
-        }
-        if(mc) {
-            pcre2_match_context_free(mc);
-        }
-        pcre2_code_free(re);
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "pcre2 match data or context FAILED",
-            NULL
-        );
-        return -1;
-    }
-    /*
-     *  The pattern is a peer's, matched once per appended record: its cost
-     *  is bounded, as c_tranger's list-keys bounds it. Up to 7.31.29
-     *  pcre2's defaults applied (ten million steps a match), on the writer's
-     *  path.
-     */
-    pcre2_set_match_limit(mc, RKEY_MATCH_LIMIT);
-    pcre2_set_depth_limit(mc, RKEY_DEPTH_LIMIT);
-    pcre2_set_heap_limit(mc, RKEY_HEAP_LIMIT_KB);
-
-    json_object_set_new(list, "rkey_re", json_integer((json_int_t)(uintptr_t)re));
-    json_object_set_new(list, "rkey_md", json_integer((json_int_t)(uintptr_t)md));
-    json_object_set_new(list, "rkey_mc", json_integer((json_int_t)(uintptr_t)mc));
+    json_object_set_new(list, "rkey_matcher", json_integer((json_int_t)(uintptr_t)matcher));
+    json_object_set_new(list, "rkey_verdicts", json_object());
     return 0;
 }
 
 PRIVATE void rkey_disarm(json_t *list)
 {
-    pcre2_code *re = (pcre2_code *)(uintptr_t)json_integer_value(
-        json_object_get(list, "rkey_re")
+    rkey_matcher_t *matcher = (rkey_matcher_t *)(uintptr_t)json_integer_value(
+        json_object_get(list, "rkey_matcher")
     );
-    pcre2_match_data *md = (pcre2_match_data *)(uintptr_t)json_integer_value(
-        json_object_get(list, "rkey_md")
-    );
-    pcre2_match_context *mc = (pcre2_match_context *)(uintptr_t)json_integer_value(
-        json_object_get(list, "rkey_mc")
-    );
-    if(mc) {
-        pcre2_match_context_free(mc);
-        json_object_del(list, "rkey_mc");
+    if(matcher) {
+        rkey_matcher_free(matcher);
+        json_object_del(list, "rkey_matcher");
     }
-    if(md) {
-        pcre2_match_data_free(md);
-        json_object_del(list, "rkey_md");
+    json_object_del(list, "rkey_verdicts");
+}
+
+/***************************************************************************
+ *  A key the rkey could not judge: a limit of one match, or an error of
+ *  pcre2. The key is not given to the list, and is NAMED in it
+ *  (`rkey_unjudged_keys`, once each: its verdict is kept), with one WARNING
+ *  per list for the limits and one ERROR for the errors.
+ ***************************************************************************/
+PRIVATE void rkey_unjudged(json_t *list, const char *key, int ret)
+{
+    json_t *unjudged = json_object_get(list, "rkey_unjudged_keys");
+    if(!unjudged) {
+        unjudged = json_array();
+        json_object_set_new(list, "rkey_unjudged_keys", unjudged);
     }
-    if(re) {
-        pcre2_code_free(re);
-        json_object_del(list, "rkey_re");
+    json_array_append_new(unjudged, json_string(key));
+
+    BOOL limit = (ret == PCRE2_ERROR_MATCHLIMIT || ret == PCRE2_ERROR_DEPTHLIMIT ||
+        ret == PCRE2_ERROR_HEAPLIMIT || ret == PCRE2_ERROR_JIT_STACKLIMIT)? TRUE : FALSE;
+    const char *said = limit? "rkey_limit_said" : "rkey_error_said";
+    if(json_object_get(list, said)) {
+        return;
+    }
+    json_object_set_new(list, said, json_true());
+
+    PCRE2_UCHAR err[256];
+    pcre2_get_error_message(ret, err, sizeof(err));
+    json_t *match_cond = json_object_get(list, "match_cond");
+    if(limit) {
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "rkey regex too costly for a key, the key is not given to the list",
+            "topic_name",   "%s", kw_get_str(0, list, "topic_name", "", 0),
+            "list_id",      "%s", kw_get_str(0, list, "id", "", 0),
+            "creator",      "%s", kw_get_str(0, list, "creator", "", 0),
+            "rkey",         "%.256s", kw_get_str(0, match_cond, "rkey", "", 0),
+            "key",          "%.256s", key,
+            "error",        "%s", (char *)err,
+            NULL
+        );
+    } else {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "pcre2_match() FAILED, the key is not given to the list",
+            "topic_name",   "%s", kw_get_str(0, list, "topic_name", "", 0),
+            "list_id",      "%s", kw_get_str(0, list, "id", "", 0),
+            "creator",      "%s", kw_get_str(0, list, "creator", "", 0),
+            "rkey",         "%.256s", kw_get_str(0, match_cond, "rkey", "", 0),
+            "key",          "%.256s", key,
+            "error",        "%s", (char *)err,
+            NULL
+        );
     }
 }
 
@@ -19717,6 +19825,13 @@ PRIVATE void rkey_disarm(json_t *list)
  *  decides, so the disk load, the memory feed and the disk feed cannot drift
  *  apart — a list whose initial load was filtered and whose realtime was not
  *  is the worst of both worlds.
+ *
+ *  The verdict of a key is kept in the list (rkey_verdicts): a fixed
+ *  pattern on a fixed key always gives the same one, and the feed asks it
+ *  for every append (the follower, several times per record). Up to 7.31.29
+ *  each append matched again, and a key the rkey could not judge paid its
+ *  limit each time. RKEY_MEMO_MAX bounds the verdicts kept, but not those
+ *  of the keys not judged, which are the costly ones.
  ***************************************************************************/
 PRIVATE BOOL list_wants_key(json_t *list, const char *key)
 {
@@ -19725,43 +19840,62 @@ PRIVATE BOOL list_wants_key(json_t *list, const char *key)
         return strcmp(key_, key?key:"")==0;
     }
 
-    pcre2_code *re = (pcre2_code *)(uintptr_t)json_integer_value(
-        json_object_get(list, "rkey_re")
+    rkey_matcher_t *matcher = (rkey_matcher_t *)(uintptr_t)json_integer_value(
+        json_object_get(list, "rkey_matcher")
     );
-    if(!re) {
+    if(!matcher) {
         return TRUE;    // keyless and no rkey: every key of the topic
     }
-    pcre2_match_data *md = (pcre2_match_data *)(uintptr_t)json_integer_value(
-        json_object_get(list, "rkey_md")
-    );
-    if(!md) {
-        return TRUE;    // armed without its match data: cannot happen (rkey_arm)
+    if(!key) {
+        key = "";
     }
 
-    pcre2_match_context *mc = (pcre2_match_context *)(uintptr_t)json_integer_value(
-        json_object_get(list, "rkey_mc")
-    );
+    json_t *verdicts = json_object_get(list, "rkey_verdicts");
+    json_t *verdict = json_object_get(verdicts, key);
+    if(verdict) {
+        return json_is_true(verdict);
+    }
 
     int ret = pcre2_match(
-        re, (PCRE2_SPTR)(key?key:""), PCRE2_ZERO_TERMINATED, 0, 0, md, mc
+        matcher->re, (PCRE2_SPTR)key, PCRE2_ZERO_TERMINATED, 0, 0, matcher->md, matcher->mc
     );
-    if((ret == PCRE2_ERROR_MATCHLIMIT || ret == PCRE2_ERROR_DEPTHLIMIT ||
-            ret == PCRE2_ERROR_HEAPLIMIT || ret == PCRE2_ERROR_JIT_STACKLIMIT) &&
-            !json_object_get(list, "rkey_limit_said")) {
-        /*
-         *  Said once per list: the key is not given to it
-         */
-        json_object_set_new(list, "rkey_limit_said", json_true());
-        gobj_log_warning(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "rkey regex too costly for a key, the key is not given to the list",
-            "key",          "%.256s", key?key:"",
-            "error",        "%d", ret,
-            NULL
-        );
+    BOOL wants = (ret >= 0)? TRUE : FALSE;
+    if(ret < 0 && ret != PCRE2_ERROR_NOMATCH) {
+        rkey_unjudged(list, key, ret);
+        json_object_set_new(verdicts, key, json_false());   // judged once: kept past the max
+    } else if(json_object_size(verdicts) < RKEY_MEMO_MAX) {
+        json_object_set_new(verdicts, key, json_boolean(wants));
     }
-    return ret >= 0;
+    return wants;
+}
+
+/***************************************************************************
+ *  What the load of a keyless list judged (`loader`, armed by
+ *  tranger2_open_list()) goes to the list: its verdicts, so the feed does
+ *  not match again what the load matched, and the keys it could not judge,
+ *  and whether that was said. Then the loader is freed. `list` NULL: only
+ *  free it.
+ ***************************************************************************/
+PRIVATE void rkey_handover(json_t *loader, json_t *list)
+{
+    if(!loader) {
+        return;
+    }
+    if(list) {
+        json_t *verdicts = json_object_get(loader, "rkey_verdicts");
+        if(verdicts && json_object_get(list, "rkey_matcher")) {
+            json_object_set(list, "rkey_verdicts", verdicts);
+        }
+        const char *keys[] = {"rkey_unjudged_keys", "rkey_limit_said", "rkey_error_said", 0};
+        for(int i = 0; keys[i]; i++) {
+            json_t *value = json_object_get(loader, keys[i]);
+            if(value) {
+                json_object_set(list, keys[i], value);
+            }
+        }
+    }
+    rkey_disarm(loader);
+    json_decref(loader);
 }
 
 /***************************************************************************
@@ -20593,6 +20727,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
     const char *load_creator = "__tranger2_open_list__";
 
     json_t *load_failed_keys = NULL;    // keys of a keyless list whose history did not load
+    json_t *rkey_load = NULL;           // what the load of a keyless list judged (rkey_handover())
 
     const char *key = kw_get_str(gobj, match_cond, "key", "", 0);
     if(!empty_string(key)) {
@@ -20640,29 +20775,24 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
          *  A malformed rkey refuses the list. Loading everything instead would
          *  be the same lie in a louder voice.
          */
-        const char *rkey = kw_get_str(gobj, match_cond, "rkey", "", 0);
-        pcre2_code *re = NULL;
-        pcre2_match_data *md = NULL;
-        if(!empty_string(rkey)) {
-            re = rkey_compile(gobj, rkey);
-            if(!re) {
-                JSON_DECREF(match_cond)     // Error already logged
-                JSON_DECREF(extra)
-                return NULL;
-            }
-            md = pcre2_match_data_create_from_pattern(re, NULL);
-            if(!md) {
-                pcre2_code_free(re);
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MEMORY,
-                    "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
-                    NULL
-                );
-                JSON_DECREF(match_cond)
-                JSON_DECREF(extra)
-                return NULL;
-            }
+        /*
+         *  The keys of the load are judged as the feed judges them
+         *  (list_wants_key()): the same limits, the same WARNING, and the
+         *  verdicts handed to the list after. Up to 7.31.29 the load had a
+         *  matcher of its own, with pcre2's defaults (ten million steps a
+         *  key), and a key it could not judge was skipped with no log.
+         */
+        json_t *loader = json_pack("{s:s, s:s, s:s, s:O}",
+            "topic_name",   topic_name,
+            "id",           rt_id? rt_id : "",
+            "creator",      creator? creator : "",
+            "match_cond",   match_cond
+        );
+        if(rkey_arm(gobj, loader, "", match_cond) < 0) {
+            JSON_DECREF(loader)         // Error already logged
+            JSON_DECREF(match_cond)
+            JSON_DECREF(extra)
+            return NULL;
         }
 
         /*
@@ -20690,13 +20820,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 if(!key_) {
                     key_ = "";
                 }
-                if(re) {
-                    int m = pcre2_match(
-                        re, (PCRE2_SPTR)key_, PCRE2_ZERO_TERMINATED, 0, 0, md, NULL
-                    );
-                    if(m < 0) {
-                        continue;   // this key is not in the list
-                    }
+                if(!list_wants_key(loader, key_)) {
+                    continue;   // this key is not in the list
                 }
 
                 /*
@@ -20736,10 +20861,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         }
         json_decref(jn_keys);
 
-        if(re) {
-            pcre2_match_data_free(md);
-            pcre2_code_free(re);
-        }
+        rkey_load = loader;     // what it judged goes to the list: rkey_handover()
         if(json_array_size(failed_keys) > 0) {
             load_failed_keys = failed_keys;
         } else {
@@ -20782,6 +20904,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
              *  here said "internal" of what is often a peer's bad rt id.
              */
             JSON_DECREF(load_failed_keys)
+            rkey_handover(rkey_load, NULL);
             JSON_DECREF(match_cond)
             JSON_DECREF(extra)
             return NULL;
@@ -20790,6 +20913,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             json_object_set_new(rt, "load_failed", json_true());
             json_object_set_new(rt, "load_failed_keys", load_failed_keys);
         }
+        rkey_handover(rkey_load, rt);
 
         JSON_DECREF(match_cond)
         JSON_DECREF(extra)
@@ -20805,6 +20929,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 NULL
             );
             JSON_DECREF(load_failed_keys)
+            rkey_handover(rkey_load, NULL);
             JSON_DECREF(match_cond)
             JSON_DECREF(extra)
             return NULL;
@@ -20814,6 +20939,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
             json_object_set_new(extra, "load_failed", json_true());
             json_object_set_new(extra, "load_failed_keys", load_failed_keys);
         }
+        rkey_handover(rkey_load, extra);
 
         JSON_DECREF(match_cond)
 
