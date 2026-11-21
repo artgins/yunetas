@@ -101,7 +101,7 @@ run_label() {
 reset
 set_dt "0000c0ffee000042" "Example Board Rev 1"
 add_nic end0 C0:74:2B:FA:50:94 0
-add_nic end1 c0:74:2b:fa:50:95 0
+add_nic end1 02:00:00:00:50:95 0
 add_nic wlan0 40:d9:5a:3e:df:1e 0 wireless
 add_nic usb0 00:e0:4c:68:00:01 0 usb
 add_nic eth9 2a:00:00:00:00:09 1
@@ -115,7 +115,7 @@ check "chip: the short id" "$(out_field short)" "${uuid%%-*}"
 check "chip: the QR in upper case" "$(out_field qr)" "$(printf '%s' "$uuid" | tr 'a-f' 'A-F')"
 check "chip: the model" "$(out_field model)" "Example Board Rev 1"
 check "chip: on-board wired ports only, MACs in lower case" "$(out_field port)" \
-    "end0 c0:74:2b:fa:50:94|end1 c0:74:2b:fa:50:95"
+    "end0 02:00:00:00:50:94|end1 02:00:00:00:50:95"
 check "chip: the title" "$(out_field title)" "CONTROLLER"
 check "chip: no warning" "$(wc -c < "$ERR")" "0"
 
@@ -149,7 +149,7 @@ fi
 #
 reset
 set_dt "0000c0ffee000042" "Example Board Rev 1"
-add_nic end0 c0:74:2b:fa:50:94 0
+add_nic end0 02:00:00:00:50:94 0
 "$NODE_UUID" ensure >/dev/null 2>&1
 sed -i 's/"uuid": "[0-9a-f]\{8\}/"uuid": "deadbeef/' "$FILE"
 if command -v qrencode >/dev/null 2>&1; then

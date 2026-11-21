@@ -23,7 +23,7 @@
 #     - any other machine (an x86 server, a VM) takes it from its DMI uuid
 #       AND its lowest permanent on-board MAC, together. Neither is enough
 #       alone: two Supermicro boards of one batch gave the same DMI
-#       product_uuid (00000000-0000-0000-0000-45d44083cb04), so up to 7.31.1
+#       product_uuid (00000000-0000-0000-0000-0123456789ab), so up to 7.31.1
 #       two servers got the same node uuid; and a cloned VM may keep its MAC
 #       while the hypervisor gives it a new DMI uuid.
 #

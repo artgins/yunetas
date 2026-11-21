@@ -44,9 +44,12 @@
   and `upgrade-agent` now say that they are equivalent to root.
 - **The filters of `list-agents` and `list-nodes` are PCRE2 patterns, run
   with limits.** A pattern is at most 256 bytes, with compiled code of at
-  most 16 KB, and a match stops after 1000 steps (depth 1000, heap 1 MiB). A
-  filter that hits a limit matches nothing more in that command, and the
-  answer names it. Up to 7.31.29 (the filters came in 7.31.19) they were
+  most 16 KB. PCRE2 counts its match limit at each start position of a
+  search, so each start position stops after 5000 steps (depth 5000, heap
+  1 MiB), and the filters of one command share a budget of 50 ms. A filter
+  that hits a limit, or a command that spends its budget, matches nothing
+  more, and the answer names the filters. The patterns are bytes, not UTF
+  (`PCRE2_NEVER_UTF`), with `\C` and callouts refused. Up to 7.31.29 (the filters came in 7.31.19) they were
   POSIX patterns of glibc's `regcomp()`, and any user with `list-agents`
   could stop the control center: `(a{32767}){32767}` or `a` followed by 24
   `+` took all its memory, and `(a??a??...)*` with 40 groups took days to
@@ -1238,7 +1241,7 @@ touch no hot path of timeranger2, treedb or the event loop).
   interface present (or, with no interfaces on one side, another DMI uuid)
   gives a new uuid, a copy of the old file and a warning. Up to 7.31.1 the
   uuid of such a machine came from its DMI, and two Supermicro servers of one
-  batch gave the same DMI uuid (`00000000-0000-0000-0000-45d44083cb04`): the
+  batch gave the same DMI uuid (`00000000-0000-0000-0000-0123456789ab`): the
   control center refused the second (*"its node key is not the one
   accepted"*).
     - **No node changes its uuid**: a uuid that 7.29.1-7.31.1 made from the

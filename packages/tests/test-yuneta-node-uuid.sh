@@ -164,21 +164,21 @@ check "x86, reinstall that removes the store: the same uuid" "$(field uuid)" "$x
 
 #
 #   Two boards of one batch that give the SAME DMI uuid (two Supermicro
-#   servers gave 00000000-0000-0000-0000-45d44083cb04): their MACs make
+#   servers gave 00000000-0000-0000-0000-0123456789ab): their MACs make
 #   them two, and the disk of one in the other gets the other's uuid
 #
 reset
-set_dmi "00000000-0000-0000-0000-45d44083cb04"
+set_dmi "00000000-0000-0000-0000-0123456789ab"
 add_nic eno1 "0c:c4:7a:00:00:01" 0
 run ensure
 twin_a="$(field uuid)"
-check "twin DMI A" "$twin_a" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:01)"
+check "twin DMI A" "$twin_a" "$(machine 00000000-0000-0000-0000-0123456789ab 0c:c4:7a:00:00:01)"
 del_nic eno1
 add_nic eno1 "0c:c4:7a:00:00:99" 0
 check "twin DMI, the disk of A in B: show says ensure replaces it" "$("$SCRIPT" show 2>&1 | grep -c 'ensure replaces the stored uuid')" "1"
 out="$("$SCRIPT" ensure 2>&1)"
 twin_b="$(field uuid)"
-check "twin DMI, the disk of A in B: B's uuid" "$twin_b" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:99)"
+check "twin DMI, the disk of A in B: B's uuid" "$twin_b" "$(machine 00000000-0000-0000-0000-0123456789ab 0c:c4:7a:00:00:99)"
 check "twin DMI: two uuids" "$( [ "$twin_a" != "$twin_b" ] && echo two)" "two"
 check "twin DMI, the disk of A in B: copy of A's" "$(backups)" "1"
 check "twin DMI, the disk of A in B: says other hardware" "$(echo "$out" | grep -c 'OTHER hardware')" "1"
@@ -191,20 +191,20 @@ check "twin DMI, the disk of A in B: says to accept the node again" "$(echo "$ou
 #   and both boards got the uuid of "dmi=<X>,mac=": the same uuid
 #
 reset
-set_dmi "00000000-0000-0000-0000-45d44083cb04"
+set_dmi "00000000-0000-0000-0000-0123456789ab"
 add_bond_slave eno1 "0c:c4:7a:00:00:01" "0c:c4:7a:00:00:01"
 add_bond_slave eno2 "0c:c4:7a:00:00:02" "0c:c4:7a:00:00:01"
 run ensure
 bond_a="$(field uuid)"
-check "bond A: the lowest perm_hwaddr" "$bond_a" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:01)"
+check "bond A: the lowest perm_hwaddr" "$bond_a" "$(machine 00000000-0000-0000-0000-0123456789ab 0c:c4:7a:00:00:01)"
 check "bond A: both slaves recorded" "$(ids_count)" "2"
 reset
-set_dmi "00000000-0000-0000-0000-45d44083cb04"
+set_dmi "00000000-0000-0000-0000-0123456789ab"
 add_bond_slave eno1 "0c:c4:7a:00:00:99" "0c:c4:7a:00:00:01"
 add_bond_slave eno2 "0c:c4:7a:00:00:98" "0c:c4:7a:00:00:01"
 run ensure
 bond_b="$(field uuid)"
-check "bond B: the lowest perm_hwaddr" "$bond_b" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:98)"
+check "bond B: the lowest perm_hwaddr" "$bond_b" "$(machine 00000000-0000-0000-0000-0123456789ab 0c:c4:7a:00:00:98)"
 check "bond, twin DMI: two uuids" "$( [ "$bond_a" != "$bond_b" ] && echo two)" "two"
 
 #
@@ -218,11 +218,11 @@ make_slave() {    # name perm_hwaddr
     echo "$2" > "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/$1/bonding_slave/perm_hwaddr"
 }
 reset
-set_dmi "00000000-0000-0000-0000-45d44083cb04"
+set_dmi "00000000-0000-0000-0000-0123456789ab"
 add_nic eno1 "0c:c4:7a:00:00:01" 3
 add_nic eno2 "0c:c4:7a:00:00:01" 3
 run ensure
-check "all in a bond, 7.31.29: the uuid with no MAC" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 "")"
+check "all in a bond, 7.31.29: the uuid with no MAC" "$(field uuid)" "$(machine 00000000-0000-0000-0000-0123456789ab "")"
 make_slave eno1 "0c:c4:7a:00:00:01"
 make_slave eno2 "0c:c4:7a:00:00:02"
 check "all in a bond: show names the bond" "$("$SCRIPT" show 2>&1 | grep -c 'an interface in a bond')" "1"
@@ -238,14 +238,14 @@ check "all in a bond, after the upgrade: says to accept the node again" "$(echo 
 #   of the board, and stays when every slave has a higher one
 #
 reset
-set_dmi "00000000-0000-0000-0000-45d44083cb04"
+set_dmi "00000000-0000-0000-0000-0123456789ab"
 add_nic eno1 "0c:c4:7a:00:00:05" 0
 add_nic eno2 "0c:c4:7a:00:00:01" 3
 run ensure
-check "partial bond, 7.31.29: the uuid of the other interface" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:05)"
+check "partial bond, 7.31.29: the uuid of the other interface" "$(field uuid)" "$(machine 00000000-0000-0000-0000-0123456789ab 0c:c4:7a:00:00:05)"
 make_slave eno2 "0c:c4:7a:00:00:01"
 out="$("$SCRIPT" ensure 2>&1)"
-check "partial bond, a slave with the lowest MAC: new uuid" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:01)"
+check "partial bond, a slave with the lowest MAC: new uuid" "$(field uuid)" "$(machine 00000000-0000-0000-0000-0123456789ab 0c:c4:7a:00:00:01)"
 check "partial bond, a slave with the lowest MAC: the warning names the bond" "$(echo "$out" | grep -c 'own MAC of an interface in a bond')" "1"
 #
 #   A node already on this release whose lowest MAC is a slave's: a card of
@@ -253,19 +253,19 @@ check "partial bond, a slave with the lowest MAC: the warning names the bond" "$
 #   warning says so (not the upgrade)
 #
 reset
-set_dmi "00000000-0000-0000-0000-45d44083cb04"
+set_dmi "00000000-0000-0000-0000-0123456789ab"
 add_nic eno1 "0c:c4:7a:00:00:05" 0
 add_bond_slave eno2 "0c:c4:7a:00:00:03" "0c:c4:7a:00:00:03"
 run ensure
-check "bond, this release: the slave's MAC" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:03)"
+check "bond, this release: the slave's MAC" "$(field uuid)" "$(machine 00000000-0000-0000-0000-0123456789ab 0c:c4:7a:00:00:03)"
 echo "0c:c4:7a:00:00:02" > "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/eno2/bonding_slave/perm_hwaddr"
 out="$("$SCRIPT" ensure 2>&1)"
-check "bond, a slave card changed: new uuid" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:02)"
+check "bond, a slave card changed: new uuid" "$(field uuid)" "$(machine 00000000-0000-0000-0000-0123456789ab 0c:c4:7a:00:00:02)"
 check "bond, a slave card changed: says other hardware" "$(echo "$out" | grep -c 'OTHER hardware')" "1"
 check "bond, a slave card changed: not the upgrade" "$(echo "$out" | grep -c 'did not count')" "0"
 
 reset
-set_dmi "00000000-0000-0000-0000-45d44083cb04"
+set_dmi "00000000-0000-0000-0000-0123456789ab"
 add_nic eno1 "0c:c4:7a:00:00:01" 0
 add_nic eno2 "0c:c4:7a:00:00:01" 3
 run ensure

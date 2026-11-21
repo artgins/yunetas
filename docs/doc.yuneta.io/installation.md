@@ -463,7 +463,7 @@ uuid on its first start. The control center knows a node by it.
 - **Any other machine** (an x86 server, a VM) takes it from its DMI uuid
   **and** its lowest permanent on-board MAC, together (`source: machine`).
   One of them is not enough. Two Supermicro servers of one batch gave the
-  same DMI uuid, `00000000-0000-0000-0000-45d44083cb04`, and up to 7.31.2
+  same DMI uuid, `00000000-0000-0000-0000-0123456789ab`, and up to 7.31.2
   they got the same node uuid. A cloned VM can keep its MAC, but it gets a
   new DMI uuid. A network interface in a bond counts with its own MAC
   (`/sys/class/net/<if>/bonding_slave/perm_hwaddr`), because the kernel
@@ -709,13 +709,13 @@ Run this on the box, as root, after the package is installed:
 ```bash
 sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER
 # title:  CONTROLLER
-# uuid:   1a048bb3-e76d-8081-820e-4dea17a518d7
-# short:  1a048bb3
+# uuid:   5f3e8a21-0c4b-8d17-9e2a-6b1c0d4e7f90
+# short:  5f3e8a21
 # source: soc-serial
 # model:  ky x1 orangepi-rv2 board
-# port:   end0 c0:74:2b:fa:50:94
-# port:   end1 c0:74:2b:fa:50:95
-# qr:     1A048BB3-E76D-8081-820E-4DEA17A518D7
+# port:   end0 02:00:00:00:50:94
+# port:   end1 02:00:00:00:50:95
+# qr:     5F3E8A21-0C4B-8D17-9E2A-6B1C0D4E7F90
 
 # The printable label, from another machine
 ssh <box> 'sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER --svg -' > label.svg
