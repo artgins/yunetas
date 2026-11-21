@@ -146,8 +146,25 @@ static unsigned char *set_one_octet(OSSL_PARAM_BLD *build,
 	return bin;
 }
 
+/* 1 if @pkey passes its pairwise consistency check, 0 if it fails or the check
+ * could not be set up. For an EC private key this is @rfc{7518,6.2.2.1}: the
+ * private scalar "d" is in range and d*G is the public point (x, y).
+ * Backport of upstream ccd7c6b (v3.7.0). */
+static int pkey_pairwise_ok(EVP_PKEY *pkey)
+{
+	EVP_PKEY_CTX *cc = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, NULL);
+	int ok = (cc != NULL && EVP_PKEY_pairwise_check(cc) == 1);
+
+	EVP_PKEY_CTX_free(cc);
+
+	return ok;
+}
+
+/* With @check set (a private EC key), the made key must also pass a pairwise
+ * consistency check, so a "d" that is not the private key for (x, y) is
+ * refused instead of loaded: it would sign tokens that nothing verifies. */
 static int pctx_to_pem(EVP_PKEY_CTX *pctx, OSSL_PARAM *params,
-		       jwk_item_t *item, int priv)
+		       jwk_item_t *item, int priv, int check)
 {
 	BIO *bio = NULL;
 	EVP_PKEY *pkey = NULL;
@@ -162,6 +179,15 @@ static int pctx_to_pem(EVP_PKEY_CTX *pctx, OSSL_PARAM *params,
 		jwt_write_error(item, "Unable to create PEM from pkey");
 		goto cleanup_pem;
 		// LCOV_EXCL_STOP
+	}
+
+	if (check && !pkey_pairwise_ok(pkey)) {
+		ERR_clear_error();
+		jwt_write_error(item,
+			"EC private key does not match its public key");
+		EVP_PKEY_free(pkey);
+		ret = -1;
+		goto cleanup_pem;
 	}
 
 	item->provider = JWT_CRYPTO_OPS_OPENSSL;
@@ -302,7 +328,7 @@ int openssl_process_eddsa(json_t *jwk, jwk_item_t *item)
 	}
 
 	/* Create PEM from params */
-	ret = pctx_to_pem(pctx, params, item, priv);
+	ret = pctx_to_pem(pctx, params, item, priv, 0);
 
 cleanup_eddsa:
 	OSSL_PARAM_free(params);
@@ -417,7 +443,7 @@ int openssl_process_rsa(json_t *jwk, jwk_item_t *item)
 	}
 
 	/* Create PEM from params */
-	ret = pctx_to_pem(pctx, params, item, priv);
+	ret = pctx_to_pem(pctx, params, item, priv, 0);
 
 cleanup_rsa:
 	OSSL_PARAM_free(params);
@@ -534,8 +560,8 @@ int openssl_process_ec(json_t *jwk, jwk_item_t *item)
 		// LCOV_EXCL_STOP
 	}
 
-	/* Create PEM from params */
-	ret = pctx_to_pem(pctx, params, item, priv);
+	/* Create PEM from params (a private EC key is pairwise-checked). */
+	ret = pctx_to_pem(pctx, params, item, priv, priv);
 
 cleanup_ec:
 	OSSL_PARAM_free(params);

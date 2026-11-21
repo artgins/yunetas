@@ -25,6 +25,7 @@
  ***********************************************************************/
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 #include <jansson.h>
 #include <jwt.h>
 
@@ -104,6 +105,33 @@ static const char *CRIT_NOT_ARRAY =
     "eyJhbGciOiJIUzI1NiIsImNyaXQiOiJmb28ifQ."
     "eyJzdWIiOiJsZWdpdC11c2VyIn0."
     "OCrX7FnQNBRKxGw-s8WYrBGtqjSXKHi6l5ESlRbXTtQ";
+
+/* EC P-256 PRIVATE keys (openssl ecparam -name prime256v1 -genkey). EC_A is a
+ * consistent key; the EC_BAD_* variants keep EC_A's public point (x, y) and
+ * change only "d": another key's d (in range, wrong), d = 1, d = 0 and d = n
+ * (the group order). Each must be refused when it loads (RFC 7518 6.2.2.1,
+ * backport of upstream ccd7c6b). */
+#define EC_A_XY \
+    "\"x\":\"aDYJU-7kjDvXdBXPs3NPT6wurTbbdETza6zDXBAixYo\"," \
+    "\"y\":\"j5gid6U1nF2FGWD3eJ_l7XwM61EWqSmJ9VMXyxoxWvw\""
+#define EC_PRIV_JWK(__d) \
+    "{\"kty\":\"EC\",\"kid\":\"test-ec-priv\",\"crv\":\"P-256\"," \
+    "\"alg\":\"ES256\"," EC_A_XY ",\"d\":\"" __d "\"}"
+static const char *EC_A_PRIV_JWK =
+    EC_PRIV_JWK("QdbEnSYxfm_CDJxdHNvUs5bGcFN9uapCoDbyhuRKTmE");
+static const char *EC_BAD_OTHER_D =
+    EC_PRIV_JWK("x2XCs-yJDHAUCP4Aqc8Rj1-Djcc5wc7M-hFyNORjkog");
+static const char *EC_BAD_D_ONE =
+    EC_PRIV_JWK("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE");
+static const char *EC_BAD_D_ZERO =
+    EC_PRIV_JWK("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+static const char *EC_BAD_D_ORDER =
+    EC_PRIV_JWK("_____wAAAAD__________7zm-q2nF56E87nKwvxjJVE");
+
+/* The default maximum token size of a checker (1 MiB, upstream 1760016). A
+ * static buffer, so the test allocates nothing for it. */
+#define MAX_TOKEN_SIZE (1024 * 1024)
+static char big_token[MAX_TOKEN_SIZE + 2];
 
 /***************************************************************************
  *  Tiny assert harness
@@ -636,6 +664,174 @@ static void test_key_in_error(void)
 }
 
 /***************************************************************************
+ *  alg:none with NO key (backport of upstream c1ced0e, v3.7.0). A checker
+ *  with no key used to accept an unsigned token. This tree has no
+ *  jwt_checker_setalgs() to opt in, so an unsigned token is refused always,
+ *  on both entry points, and with a key too.
+ ***************************************************************************/
+static void test_alg_none_keyless(void)
+{
+    printf("alg:none against a checker with no key (upstream c1ced0e):\n");
+
+    jwt_checker_t *checker = jwt_checker_new();
+    int ret = jwt_checker_verify(checker, NONE_TOKEN);
+    const char *msg = jwt_checker_error_msg(checker);
+    check(ret != 0 && msg && strstr(msg, "Unsigned tokens are not allowed"),
+        "verify(alg:none token, keyless checker) REJECTED");
+    printf("        reason: %s\n", msg? msg : "(null)");
+    jwt_checker_free(checker);
+
+    checker = jwt_checker_new();
+    json_t *payload = jwt_checker_verify2(checker, NONE_TOKEN);
+    check(payload == NULL && jwt_checker_error(checker) != 0,
+        "verify2(alg:none token, keyless checker) returns NULL");
+    json_decref(payload);
+    jwt_checker_free(checker);
+
+    jwk_set_t *keyring = jwks_create(NULL);
+    jwk_item_t *rsa = load_jwk(keyring, RSA_JWK);
+    checker = jwt_checker_new();
+    jwt_checker_setkey(checker, JWT_ALG_RS256, rsa);
+    jwt_checker_verify(checker, NONE_TOKEN);
+    msg = jwt_checker_error_msg(checker);
+    check(msg && strstr(msg, "Unsigned tokens are not allowed"),
+        "a keyed checker names the same reason");
+    jwt_checker_free(checker);
+    jwks_free(keyring);
+}
+
+/***************************************************************************
+ *  Maximum token size (backport of upstream 1760016, v3.8.0). A token over
+ *  1 MiB is refused with "Token too large" before it is parsed; one of
+ *  exactly 1 MiB passes the size check (and fails later, on its content).
+ *  jwt_checker_setmaxsize() takes 1 to INT_MAX - 1 and keeps the old limit
+ *  on a bad value.
+ ***************************************************************************/
+static void test_max_size(void)
+{
+    printf("Maximum token size (upstream 1760016):\n");
+
+    jwk_set_t *keyring = jwks_create(NULL);
+    jwk_item_t *oct = load_jwk(keyring, OCT_JWK);
+    if(oct == NULL) {
+        check(0, "OCT JWK parses for the max-size test");
+        jwks_free(keyring);
+        return;
+    }
+
+    /* "aaa...a.a.a": a three-segment shape, all of it base64url */
+    memset(big_token, 'a', MAX_TOKEN_SIZE + 1);
+    big_token[10] = '.';
+    big_token[20] = '.';
+    big_token[MAX_TOKEN_SIZE + 1] = '\0';
+
+    jwt_checker_t *checker = jwt_checker_new();
+    jwt_checker_setkey(checker, JWT_ALG_HS256, oct);
+    int ret = jwt_checker_verify(checker, big_token);
+    const char *msg = jwt_checker_error_msg(checker);
+    check(ret != 0 && msg && strcmp(msg, "Token too large") == 0,
+        "verify(1 MiB + 1 byte) refused: Token too large");
+
+    jwt_checker_error_clear(checker);
+    json_t *payload = jwt_checker_verify2(checker, big_token);
+    msg = jwt_checker_error_msg(checker);
+    check(payload == NULL && msg && strcmp(msg, "Token too large") == 0,
+        "verify2(1 MiB + 1 byte) refused: Token too large");
+    json_decref(payload);
+
+    big_token[MAX_TOKEN_SIZE] = '\0';
+    jwt_checker_error_clear(checker);
+    ret = jwt_checker_verify(checker, big_token);
+    msg = jwt_checker_error_msg(checker);
+    check(ret != 0 && msg && strcmp(msg, "Token too large") != 0,
+        "verify(exactly 1 MiB) passes the size check");
+    printf("        reason: %s\n", msg? msg : "(null)");
+
+    jwt_checker_error_clear(checker);
+    check(jwt_checker_verify(checker, LEGIT_HS256) == 0,
+        "a normal token still verifies (positive control)");
+
+    check(jwt_checker_setmaxsize(checker, 0) != 0,
+        "setmaxsize(0) refused");
+    check(jwt_checker_setmaxsize(checker, (size_t)INT_MAX) != 0,
+        "setmaxsize(INT_MAX) refused");
+    jwt_checker_error_clear(checker);
+    check(jwt_checker_verify(checker, LEGIT_HS256) == 0,
+        "a refused setmaxsize keeps the old limit");
+
+    check(jwt_checker_setmaxsize(checker, 16) == 0,
+        "setmaxsize(16) accepted");
+    jwt_checker_error_clear(checker);
+    ret = jwt_checker_verify(checker, LEGIT_HS256);
+    msg = jwt_checker_error_msg(checker);
+    check(ret != 0 && msg && strcmp(msg, "Token too large") == 0,
+        "with a 16-byte limit a normal token is too large");
+
+    check(jwt_checker_setmaxsize(checker, 2 * MAX_TOKEN_SIZE) == 0,
+        "setmaxsize(2 MiB) accepted");
+    big_token[MAX_TOKEN_SIZE] = 'a';
+    jwt_checker_error_clear(checker);
+    jwt_checker_verify(checker, big_token);
+    msg = jwt_checker_error_msg(checker);
+    check(msg && strcmp(msg, "Token too large") != 0,
+        "with a 2 MiB limit 1 MiB + 1 byte passes the size check");
+
+    check(jwt_checker_setmaxsize(NULL, 16) != 0, "setmaxsize(NULL) refused");
+
+    jwt_checker_free(checker);
+    jwks_free(keyring);
+}
+
+/***************************************************************************
+ *  EC private key whose "d" is not the key of (x, y) (backport of upstream
+ *  ccd7c6b, v3.7.0). It must be in error when it loads, so a builder cannot
+ *  sign with it: before, it loaded and signed tokens that nothing verified
+ *  (the controlcenter signs its assertions with an EC private JWK). A backend
+ *  with no EC JWK support (MbedTLS) refuses them all and the test says so.
+ ***************************************************************************/
+static void expect_ec_priv_refused(const char *jwk_json, const char *label)
+{
+    jwk_set_t *keyring = jwks_create(NULL);
+    jwk_item_t *item = load_jwk(keyring, jwk_json);
+    check(item != NULL && jwks_item_error(item) != 0, label);
+    if(item) {
+        printf("        reason: %s\n", jwks_item_error_msg(item));
+
+        jwt_builder_t *builder = jwt_builder_new();
+        check(jwt_builder_setkey(builder, JWT_ALG_ES256, item) != 0,
+            "    ...and a builder refuses to sign with it");
+        jwt_builder_free(builder);
+    }
+    jwks_free(keyring);
+}
+
+static void test_ec_private_mismatch(void)
+{
+    printf("EC private key consistency (upstream ccd7c6b):\n");
+
+    jwk_set_t *keyring = jwks_create(NULL);
+    jwk_item_t *good = load_jwk(keyring, EC_A_PRIV_JWK);
+    if(good && jwks_item_error(good)) {
+        printf("  skip - this backend loads no EC JWK: %s\n",
+            jwks_item_error_msg(good));
+        jwks_free(keyring);
+        return;
+    }
+    check(good != NULL && jwks_item_is_private(good),
+        "a consistent EC private key loads (positive control)");
+    jwt_builder_t *builder = jwt_builder_new();
+    check(good && jwt_builder_setkey(builder, JWT_ALG_ES256, good) == 0,
+        "    ...and a builder takes it");
+    jwt_builder_free(builder);
+    jwks_free(keyring);
+
+    expect_ec_priv_refused(EC_BAD_OTHER_D, "EC key with another key's d refused");
+    expect_ec_priv_refused(EC_BAD_D_ONE, "EC key with d = 1 refused");
+    expect_ec_priv_refused(EC_BAD_D_ZERO, "EC key with d = 0 refused");
+    expect_ec_priv_refused(EC_BAD_D_ORDER, "EC key with d = n refused");
+}
+
+/***************************************************************************
  *  Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -656,6 +852,9 @@ int main(int argc, char *argv[])
     test_crit_header();
     test_null_safety();
     test_key_in_error();
+    test_alg_none_keyless();
+    test_max_size();
+    test_ec_private_mismatch();
 
     if(failed) {
         printf("RESULT: FAILED (%d)\n", failed);

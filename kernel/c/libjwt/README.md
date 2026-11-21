@@ -37,13 +37,14 @@ it is worth the integration cost.
 
 A security review of this vendored copy against upstream was done on
 2026-06-05. It was done again against v3.4.0 on 2026-06-15, against v3.6.1
-on 2026-06-28, against v3.6.3 on 2026-11-16, and against v3.6.4 on
-2026-11-17.
+on 2026-06-28, against v3.6.3 on 2026-11-16, against v3.6.4 on
+2026-11-17, and against v3.8.0 on 2026-11-21.
 
 - Vendored base: upstream commit `375e539`
   (`v3.2.1`+2, 2025-06-04, "jwt: Use long long for json integers").
-- Analyzed up to: upstream commit `0081a8d` (v3.6.4, 2026-11-17).
-  The prior passes stopped at `a01e74b` (v3.6.3, 2026-11-16), `197ac58`
+- Analyzed up to: upstream tag `v3.8.0` (2026-11-20).
+  The prior passes stopped at `0081a8d` (v3.6.4, 2026-11-17), `a01e74b`
+  (v3.6.3, 2026-11-16), `197ac58`
   (v3.6.1, 2026-06-28) and `6ea3b6b` (v3.4.0, 2026-06-15).
 - Gap: v3.4.0 is a large feature release (full JWE, `crit` header, `jti`
   callbacks, PEM→JWK public API). Almost none of it touches the compiled subset
@@ -152,6 +153,65 @@ on 2026-06-28, against v3.6.3 on 2026-11-16, and against v3.6.4 on
   out-of-bounds write of the advisory) and `jwt_checker_verify_detached()` do
   not exist here. No test covers the check: like upstream (`LCOV_EXCL`), the
   suite does not build a 2 GiB token.
+
+- `c1ced0e`: an unsigned (`"alg":"none"`) token is refused (v3.7.0,
+  backported 2026-11-21). `__verify_config_post` (`jwt-verify.c`) answers
+  *"Unsigned tokens are not allowed"* before any other check. Before, a
+  checker with no key accepted such a token. With a key, it was already
+  refused, as *"Expected a signature, but JWT has none"*. `C_AUTHZ` always
+  sets a key, so the change is defense in depth. Upstream lets an application
+  opt in with `jwt_checker_setalgs()`. This tree has no `setalgs()`, so the
+  refusal has no exception. The branch for *"JWT has signature block, but no
+  alg set"* is gone: no `alg:none` token gets there now.
+  `test_alg_none_keyless` covers it.
+- `1760016`: a maximum token size, 1 MiB by default (v3.8.0, backported
+  2026-11-21). `jwt_checker_verify()` and `jwt_checker_verify2()` answer
+  *"Token too large"* before they parse a longer token. They read no more
+  than the limit plus one byte (`jwt_token_too_large()` in `jwt-private.h`).
+  Thus the empty-token test is now `*token == '\0'`, not `strlen()`.
+  `jwt_checker_setmaxsize()` is exported with the API of upstream. The
+  `INT_MAX` backstop of `521af8f` stays. This one is reachable: `C_AUTHZ`
+  tries a token against the checker of each configured issuer, and a frame
+  of the agent can be 200 MB. Thus a big token was decoded and parsed once
+  for each issuer before the refusal. `test_max_size` covers it.
+- `ccd7c6b`: an EC private JWK whose `d` is not the key of its `(x, y)`
+  is refused when it loads (v3.7.0, backported 2026-11-21). OpenSSL only:
+  `pctx_to_pem()` (`openssl/jwk-parse.c`) runs `EVP_PKEY_pairwise_check()`
+  for a private EC key, and the key is in error with *"EC private key does
+  not match its public key"*. Before, the key loaded and signed tokens that
+  nothing verified. The controlcenter signs its assertions with an EC private
+  JWK, so a key assembled wrongly now fails when the controlcenter loads it,
+  not on each agent. The MbedTLS backend of this tree loads no EC JWK, so it
+  has nothing to check. `test_ec_private_mismatch` covers it with another
+  key's `d`, `d = 1`, `d = 0` and `d = n`.
+- `338260c`: `jwt_copy_error` copies with `snprintf`, not `strncpy`
+  (v3.7.0). The result is the same. gcc 15 under sanitizers warns about the
+  `strncpy` form.
+
+#### v3.7.0 / v3.8.0 re-review (2026-11-21): four backports
+
+The v3.6.4→v3.8.0 gap (`0081a8d..v3.8.0`, 29 commits, 15 on the library)
+carries no advisory. The four commits above are backported. The others need
+a feature that this tree does not have:
+
+- The JWS JSON and keyring paths: `14ad1de` (the alg pin of a callback that
+  sets `JWT_ALG_NONE`), `15e5c97` (the reason of a failed signature),
+  `1f79a4b` (Compact against a keyring) and `1606c5f` (the keyring scan).
+  This tree verifies Compact tokens against one key.
+- `89b1809` `jwt_checker_verified_jwt()`: `jwt_checker_verify2()` already
+  returns the claims.
+- `4203959`, the signer of `jwt_builder_setkey()`: our builder has no
+  `jwt_builder_add_signature()`, and the controlcenter sets no builder
+  callback.
+- `dde9222` ECDH-ES: JWE is not compiled.
+- `85d4afe`, `3993288` and `66edb24`: json-c only.
+- `0d17c5d`, JSON `null` members: mostly json-c. On Jansson, this tree
+  already puts a key with `"alg":null` in error, because it never took the
+  3.6.3 change that read it as absent. A `"keys"` that is not an array still
+  gives an empty set with no error. The set is read from the configuration, so
+  the difference is only the message. No caller reads a scalar as
+  `JWT_VALUE_JSON`.
+- `tools/`, tests and docs: not compiled.
 
 #### v3.4.0 re-review (2026-06-15)
 
@@ -383,7 +443,7 @@ compiles the OpenSSL and MbedTLS backends on Jansson, not gnutls, json-c or
 # 1. Refresh upstream and re-derive the gap from the last analyzed commit.
 git clone https://github.com/benmcollins/libjwt.git libjwt.original  # if absent
 cd libjwt.original && git pull
-git log --oneline a01e74b..HEAD        # last analyzed: a01e74b (v3.6.3)
+git log --oneline v3.8.0..HEAD         # last analyzed: v3.8.0
                                        # vendored base: 375e539 (v3.2.1+2)
 
 # 2. For each new commit, classify: SEC / BUG / N-A (file not in our subset).

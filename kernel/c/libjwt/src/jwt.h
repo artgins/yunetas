@@ -622,6 +622,25 @@ JWT_EXPORT
 void *jwt_checker_getctx(jwt_checker_t *checker);
 
 /**
+ * @brief Set the maximum size of a token for a checker
+ *
+ * jwt_checker_verify() and jwt_checker_verify2() reject a token longer than
+ * this, with "Token too large", before they parse it. A new checker allows
+ * 1 MiB (1048576 bytes). Backport of upstream v3.8.0, same API.
+ *
+ * @code
+ * jwt_checker_setmaxsize(checker, 4 * 1024 * 1024);
+ * @endcode
+ *
+ * @param checker Pointer to a checker object
+ * @param size The longest token accepted, in bytes: 1 to INT_MAX - 1
+ * @return 0 on success. Any other size returns non-zero, sets
+ *   "Invalid maximum token size" on the checker and keeps the previous limit.
+ */
+JWT_EXPORT
+int jwt_checker_setmaxsize(jwt_checker_t *checker, size_t size);
+
+/**
  * @brief Verify a token
  *
  * @note If you set a callback for this checker, this is when it will be called.

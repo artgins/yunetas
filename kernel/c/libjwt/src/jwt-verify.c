@@ -262,6 +262,14 @@ static jwt_claims_t __verify_claims(jwt_t *jwt)
 static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 				unsigned int sig_len)
 {
+	/* @rfc{8725,3.2} An unsigned ("alg":"none") token is never accepted,
+	 * with or without a key: this tree has no jwt_checker_setalgs() to opt
+	 * in. First, as upstream does. Backport of upstream c1ced0e (v3.7.0). */
+	if (jwt->alg == JWT_ALG_NONE) {
+		jwt_write_error(jwt, "Unsigned tokens are not allowed");
+		return JWT_CLAIM_JWT;
+	}
+
 	/* Yes, we do this before checking a signature. */
     jwt_claims_t failed_claims = __verify_claims(jwt);
 	if (failed_claims) {
@@ -322,20 +330,10 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 		return failed_claims;
 	}
 
+	/* The token names an alg (alg:none was refused above), so it must carry
+	 * a signature. */
 	if (!sig_len) {
-		if (config->key || config->alg != JWT_ALG_NONE ||
-		    jwt->alg != JWT_ALG_NONE) {
-			jwt_write_error(jwt,
-				"Expected a signature, but JWT has none");
-			return JWT_CLAIM_JWT;
-		}
-
-		return 0;
-	}
-
-	/* Signature is known to be present from this point */
-	if (jwt->alg == JWT_ALG_NONE) {
-		jwt_write_error(jwt, "JWT has signature block, but no alg set");
+		jwt_write_error(jwt, "Expected a signature, but JWT has none");
 		return JWT_CLAIM_JWT;
 	}
 

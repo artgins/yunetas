@@ -39,6 +39,7 @@ jwt_checker_t *jwt_checker_new(void)
     __cmd->c.payload = json_object();
     __cmd->c.headers = json_object();
     __cmd->c.claims = (JWT_CLAIM_EXP | JWT_CLAIM_NBF);
+    __cmd->c.max_size = JWT_CHECKER_MAX_SIZE_DEFAULT;
 
     if(!__cmd->c.payload || !__cmd->c.headers) {
         /* cfd8902: free the json object that DID allocate before dropping __cmd */
@@ -136,6 +137,23 @@ void jwt_checker_error_clear(jwt_checker_t *__cmd)
 
     __cmd->error = 0;
     __cmd->error_msg[0] = '\0';
+}
+
+/* Backport of upstream 1760016 (v3.8.0), same API. */
+int jwt_checker_setmaxsize(jwt_checker_t *__cmd, size_t size)
+{
+    if(__cmd == NULL) {
+        return 1;
+    }
+
+    if(size < 1 || size > JWT_CHECKER_MAX_SIZE_CEILING) {
+        jwt_write_error(__cmd, "Invalid maximum token size");
+        return 1;
+    }
+
+    __cmd->c.max_size = size;
+
+    return 0;
 }
 
 int jwt_checker_setcb(jwt_checker_t *__cmd, jwt_callback_t cb, void *ctx)
@@ -298,15 +316,17 @@ int jwt_checker_verify(jwt_checker_t *__cmd, const char *token)
     if(__cmd == NULL)
         return 1;
 
-    if(token == NULL || !strlen(token)) {
+    if(token == NULL || *token == '\0') {
         jwt_write_error(__cmd, "Must pass a token");
         return 1;
     }
 
-    /* A token of INT_MAX bytes or more does not fit the int lengths of
-     * jwt_parse() and jwt_base64uri_decode(): rejected before it is parsed.
-     * Backport of upstream 521af8f (GHSA-75c8-gwgm-cvfm, v3.6.4). */
-    if(strlen(token) >= INT_MAX) {
+    /* A token longer than the checker's limit (1 MiB by default, upstream
+     * 1760016, v3.8.0) is rejected before it is parsed, reading no more than
+     * the limit plus one byte of it. The INT_MAX backstop stays: the lengths
+     * of jwt_parse() and jwt_base64uri_decode() are int (upstream 521af8f,
+     * GHSA-75c8-gwgm-cvfm, v3.6.4). */
+    if(jwt_token_too_large(token, __cmd->c.max_size)) {
         jwt_write_error(__cmd, "Token too large");
         return 1;
     }
@@ -366,15 +386,17 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token) // ArtGins
     if(__cmd == NULL)
         return NULL;
 
-    if(token == NULL || !strlen(token)) {
+    if(token == NULL || *token == '\0') {
         jwt_write_error(__cmd, "Must pass a token");
         return NULL;
     }
 
-    /* A token of INT_MAX bytes or more does not fit the int lengths of
-     * jwt_parse() and jwt_base64uri_decode(): rejected before it is parsed.
-     * Backport of upstream 521af8f (GHSA-75c8-gwgm-cvfm, v3.6.4). */
-    if(strlen(token) >= INT_MAX) {
+    /* A token longer than the checker's limit (1 MiB by default, upstream
+     * 1760016, v3.8.0) is rejected before it is parsed, reading no more than
+     * the limit plus one byte of it. The INT_MAX backstop stays: the lengths
+     * of jwt_parse() and jwt_base64uri_decode() are int (upstream 521af8f,
+     * GHSA-75c8-gwgm-cvfm, v3.6.4). */
+    if(jwt_token_too_large(token, __cmd->c.max_size)) {
         jwt_write_error(__cmd, "Token too large");
         return NULL;
     }

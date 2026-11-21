@@ -13,6 +13,9 @@
 #include <jansson.h>
 #include <time.h>
 #include <stdarg.h>
+#include <stddef.h>
+#include <limits.h>
+#include <string.h>
 
 #include "ll.h"
 
@@ -30,6 +33,22 @@
 
 #define JWT_ERR_LEN 256
 
+/* The longest token a checker verifies by default (1 MiB), and the most that
+ * jwt_checker_setmaxsize() allows: a token's length is held in an int on the
+ * parse paths, so it must stay below INT_MAX. Backport of upstream 1760016
+ * (v3.8.0). */
+#define JWT_CHECKER_MAX_SIZE_DEFAULT	((size_t)1024 * 1024)
+#define JWT_CHECKER_MAX_SIZE_CEILING	((size_t)INT_MAX - 1)
+
+/* Whether @token is longer than @max bytes, or too long for an int length
+ * (the INT_MAX backstop). Reads at most @max + 1 bytes of @token. */
+static inline int jwt_token_too_large(const char *token, size_t max)
+{
+	size_t len = strnlen(token, max + 1);
+
+	return len > max || len >= INT_MAX;
+}
+
 JWT_NO_EXPORT
 extern struct jwt_crypto_ops *jwt_ops;
 
@@ -43,11 +62,12 @@ extern struct jwt_crypto_ops *jwt_ops;
 	(__obj)->error = 1;				\
 })
 
+/* snprintf, not strncpy: upstream 338260c (v3.7.0), for gcc 15's
+ * -Wstringop-truncation under sanitizers. Same result. */
 #define jwt_copy_error(__dst, __src)				\
 ({								\
-	strncpy((__dst)->error_msg, (__src)->error_msg,		\
-		sizeof((__dst)->error_msg) - 1);		\
-	(__dst)->error_msg[sizeof((__dst)->error_msg) - 1] = '\0';	\
+	snprintf((__dst)->error_msg, sizeof((__dst)->error_msg),\
+		 "%s", (__src)->error_msg);			\
 	(__dst)->error = (__src)->error;			\
 })
 
@@ -67,6 +87,12 @@ struct jwt_common {
 	 * Both are in seconds. */
 	time_t exp;
 	time_t nbf;
+
+	/* checker: the longest token jwt_checker_verify() and
+	 * jwt_checker_verify2() accept, in bytes (see jwt_checker_setmaxsize()).
+	 * Always within 1 and JWT_CHECKER_MAX_SIZE_CEILING. Unused by the
+	 * builder. */
+	size_t max_size;
 };
 
 struct jwt_builder {

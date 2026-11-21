@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### Security
+
+- **libjwt: a token over 1 MiB is refused before it is parsed** (backport
+  of upstream v3.8.0, `1760016`). `jwt_checker_verify()` and
+  `jwt_checker_verify2()` answer *"Token too large"*, and read no more than
+  the limit plus one byte. Up to 7.31.28 only a token of `INT_MAX` bytes was
+  refused. `C_AUTHZ` tries a token against the checker of each issuer, so a
+  token of 200 MB in a frame was decoded and parsed once for each issuer. The
+  new `jwt_checker_setmaxsize()` changes the limit, with the API of upstream:
+
+  ```c
+  jwt_checker_setmaxsize(checker, 4 * 1024 * 1024);
+  ```
+
+- **libjwt: an unsigned (`alg:none`) token is always refused** (backport of
+  upstream v3.7.0, `c1ced0e`), with *"Unsigned tokens are not allowed"*.
+  Up to 7.31.28 a checker with no key accepted one. `C_AUTHZ` always sets a
+  key, so it was not reachable. A keyed checker refused the token already, as
+  *"Expected a signature, but JWT has none"*. Only that message changes.
+- **libjwt: an EC private JWK whose `d` is not the key of its `(x, y)` is in
+  error when it loads** (backport of upstream v3.7.0, `ccd7c6b`, OpenSSL
+  backend), with *"EC private key does not match its public key"*. Up to
+  7.31.28 it loaded and signed tokens that nothing verified. The
+  controlcenter signs its assertions with such a key: a key assembled wrongly
+  now fails when the controlcenter loads it, not on each agent.
+
+### Changed
+
+- **libjwt reviewed against upstream v3.7.0 and v3.8.0.** No advisory. Four
+  commits are backported (the three above, and `jwt_copy_error` with
+  `snprintf`, `338260c`). The rest is code that this tree does not compile.
+  The record is in `kernel/c/libjwt/README.md`.
+
 ## v7.31.28 (2026-11-20)
 
 Lite release: `yuneta_agent22`, the release workflow and the installer. The

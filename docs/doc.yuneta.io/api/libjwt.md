@@ -382,6 +382,41 @@ void *jwt_checker_getctx(jwt_checker_t *checker);
 
 ---
 
+(jwt_checker_setmaxsize)=
+### [`jwt_checker_setmaxsize()`](https://github.com/artgins/yunetas/blob/7.31.28/kernel/c/libjwt/src/jwt-checker.c#L143)
+
+Sets the longest token that the checker accepts. [`jwt_checker_verify()`](#jwt_checker_verify) and [`jwt_checker_verify2()`](#jwt_checker_verify2) refuse a longer token with *"Token too large"*, before they parse it. They read no more than the limit plus one byte of the token. A new checker allows 1 MiB (1048576 bytes). This is a backport of upstream libjwt v3.8.0, with the same API.
+
+```C
+int jwt_checker_setmaxsize(jwt_checker_t *checker, size_t size);
+```
+
+**Parameters**
+
+`size` is the limit in bytes, from 1 to `INT_MAX - 1`.
+
+**Returns**
+
+`0` on success. Any other `size` returns non-zero, sets *"Invalid maximum token size"* on the checker, and keeps the previous limit.
+
+**Example**
+
+```C
+jwt_checker_t *checker = jwt_checker_new();
+if(jwt_checker_setmaxsize(checker, 64 * 1024) != 0) {
+    gobj_log_error(gobj, 0,
+        "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+        "msg",      "%s", "jwt_checker_setmaxsize() FAILED",
+        "error",    "%s", jwt_checker_error_msg(checker),
+        NULL
+    );
+}
+```
+
+`C_AUTHZ` keeps the default. The tokens of an IdP are a few KB.
+
+---
+
 (jwt_checker_verify)=
 ### [`jwt_checker_verify()`](https://github.com/artgins/yunetas/blob/7.31.28/kernel/c/libjwt/src/jwt-checker.c#L292)
 
@@ -394,7 +429,7 @@ int jwt_checker_verify(jwt_checker_t *checker, const char *token);
 (jwt_checker_verify2)=
 ### [`jwt_checker_verify2()`](https://github.com/artgins/yunetas/blob/7.31.28/kernel/c/libjwt/src/jwt-checker.c#L360)
 
-The ArtGins variant of [`jwt_checker_verify()`](#jwt_checker_verify): verifies the token and **returns its claims**, so the caller reads them without parsing the token a second time. It **fails closed** (since 7.6.0, commit `46f62d8be`): a non-NULL return means the token passed every check -- signature, algorithm, `exp`/`nbf`, a `crit` header refused -- and on any failure it returns `NULL` with the cause in the checker, never the claims of a token that did not verify.
+The ArtGins variant of [`jwt_checker_verify()`](#jwt_checker_verify): verifies the token and **returns its claims**, so the caller reads them without parsing the token a second time. It **fails closed** (since 7.6.0, commit `46f62d8be`): a non-NULL return means the token passed every check -- signature, algorithm, `exp`/`nbf`, a `crit` header refused, an unsigned (`alg:none`) token refused, a token longer than [the limit of the checker](#jwt_checker_setmaxsize) refused -- and on any failure it returns `NULL` with the cause in the checker, never the claims of a token that did not verify.
 
 ```C
 json_t *jwt_checker_verify2(jwt_checker_t *checker, const char *token);
