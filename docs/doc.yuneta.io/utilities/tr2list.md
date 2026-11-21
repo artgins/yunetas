@@ -52,9 +52,8 @@ tr2list /yuneta/store/.../topic --rkey='a(*COMMIT)b'
 # Cannot list <database>/<topic>: Bad rkey regex 'a(*COMMIT)b': (*COMMIT) is refused in an rkey
 ```
 
-Up to R101 the 2 s counted the reading too, and a cheap `--rkey` over a big
-topic printed a part of it before the refusal. With `--follow` the refusal was
-not seen, and tr2list followed nothing.
+Up to 7.31.29 tr2list did not look at the answer. With `--follow` a refused
+list was not seen, and tr2list followed nothing.
 
 ## Time bounds
 

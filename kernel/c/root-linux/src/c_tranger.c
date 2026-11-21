@@ -2297,9 +2297,8 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  No address of the process goes out (up to 7.31.29 a caller with
      *  `read` got them all), and only the part shown is copied: the path
-     *  is walked on the tranger itself (in R101 the whole tranger was
-     *  copied first, on every call). A path that is not there is said by
-     *  the answer only.
+     *  is walked on the tranger itself. A path that is not there is said
+     *  by the answer only.
      */
     json_t *shown = tranger2_view_json(priv->tranger, path, expanded, lists_limit, dicts_limit);
     if(!shown) {
@@ -3598,7 +3597,7 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     /*
      *  The cause of a refusal goes to the peer, who cannot read the log:
      *  timeranger2 says it in the last message (a bad rkey, a load out of
-     *  time). Up to R101 the answer said "(see the log)".
+     *  time).
      */
     gobj_log_set_last_message("%s", "");
     json_t *list = tranger2_open_list(
@@ -4379,7 +4378,8 @@ PRIVATE json_t *match_topic_keys(
                 /*
                  *  What else the peer's pattern caused (a recursion loop,
                  *  -52; a \K a lookaround sets past the end, -75): "too
-                 *  costly", a WARNING. Up to R101 an ERROR for -75.
+                 *  costly", a WARNING. Up to 7.31.29 the key was left out
+                 *  as if it did not match.
                  */
                 pcre2_get_error_message(m, pattern_err, sizeof(pattern_err));
                 limit_reached = (const char *)pattern_err;

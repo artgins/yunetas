@@ -3798,8 +3798,8 @@ PRIVATE int do_test(void)
 
         /*  The time of list-keys is looked at before EVERY key, and one
          *  match has 10000 steps: (*NO_JIT)(?:\w|\w){1,13}\W\W over 300 keys
-         *  of 36 letters and digits is refused in a moment. Up to R99 (100000
-         *  steps, the clock every 256 keys) about 7 s before its refusal.  */
+         *  of 36 letters and digits is refused in a moment (with 100000 steps
+         *  and the clock every 256 keys, about 7 s).  */
         json_t *topic9 = tranger2_create_topic(
             tranger, TOPIC_NAME9, "id", "tm",
             0,
@@ -3832,8 +3832,8 @@ PRIVATE int do_test(void)
          *  RKEY_KEY_BUDGET_US, and one position more (rkey_judge(), the
          *  clock before each position), and it is not judged: list-keys, the
          *  load of a live list over 50 such keys, and the first append of a
-         *  new key, timed. (R101's (?:[\s\S]?){13}(?!) was cut by the frames
-         *  of position 0, not by the clock.)  */
+         *  new key, timed. ((?:[\s\S]?){13}(?!) is cut by the frames of
+         *  position 0, not by the clock: it does not test the clock.)  */
         const char *under_limits = "(*NO_JIT)(?:[\\s\\S]?){9}(?:~?~?~?~?~?~?~?~?){32}(?!)";
         json_t *topic10 = tranger2_create_topic(
             tranger, TOPIC_NAME10, "id", "tm",
@@ -3936,7 +3936,8 @@ PRIVATE int do_test(void)
         JSON_DECREF(r)
 
         /*  A recursion loop pcre2 refuses at the match is a peer's pattern:
-         *  "too costly", a WARNING. Up to R100 an ERROR.  */
+         *  "too costly", a WARNING. Up to 7.31.29 the key was left out with
+         *  no word.  */
         r = gobj_command(yuno, "list-keys",
             as_peer(json_pack("{s:s, s:s}",
                 "topic_name", TOPIC_NAME9, "rkey", "(*NO_JIT)((?2)+)((?1))"
@@ -3957,8 +3958,8 @@ PRIVATE int do_test(void)
      *-------------------------------------------------*/
     set_expected_results("rkey: what a peer causes, and exact keys", json_array(), NULL, NULL, 1);
     {
-        /*  A \K that a lookaround sets past the end (-75): up to R101 an
-         *  ERROR with MSGSET_INTERNAL  */
+        /*  A \K that a lookaround sets past the end (-75): a WARNING, not
+         *  an ERROR with MSGSET_INTERNAL  */
         r = gobj_command(yuno, "list-keys",
             as_peer(json_pack("{s:s, s:s}",
                 "topic_name", TOPIC_NAME8, "rkey", "(?(DEFINE)(?<s>b\\K))a(?=(?&s))"
@@ -4003,7 +4004,7 @@ PRIVATE int do_test(void)
                     "list_id", "lstForm", "topic_name", TOPIC_NAME8, "rkey", refused_forms[i]
                 )), yuno);
             check_int("the live list too", kw_get_int(0, r, "result", -999, 0), -1);
-            check_bool("its answer says why (up to R101 \"see the log\")",
+            check_bool("its answer says why",
                 strstr(kw_get_str(0, r, "comment", "", 0), "Bad rkey regex") != NULL, TRUE);
             JSON_DECREF(r)
         }

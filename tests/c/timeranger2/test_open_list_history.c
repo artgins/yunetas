@@ -22,8 +22,8 @@
  *      - The time of the load of a list with an rkey (RKEY_LOAD_BUDGET_MS,
  *        2 s) counts the JUDGEMENTS of the keys, not the reading of their
  *        history: every key is judged first, then the keys chosen are
- *        loaded. In R101 a cheap rkey over a history that took longer than
- *        2 s to read was refused as "too costly".
+ *        loaded. So a cheap rkey over a history that takes longer than
+ *        2 s to read loads.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -263,9 +263,6 @@ PRIVATE int do_test(void)
      *  a history that takes more than the 2 s
      *  of the load to read (each record 100 ms
      *  in the callback): loaded, every key.
-     *  In R101 refused, "rkey regex too
-     *  costly", after a part of the history
-     *  was handed.
      *-------------------------------------*/
     set_expected_results(
         "open_list history: a cheap rkey over a slow history",

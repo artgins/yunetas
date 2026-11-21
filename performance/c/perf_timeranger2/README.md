@@ -66,8 +66,8 @@ query of 7.25.4 (~13 ms, wrong when a file's tm went back). The figures are in
 The time of one judgement of a key has no bound of its own but the compiled
 code of the pattern (64 KB at most): a search reads no clock inside a start
 position, and the first search of a key reads none at all. So the cost is
-measured, with the worst patterns found. The figures of R102 (64 KB of code),
-on the development machine, idle:
+measured, with the worst patterns found. The figures for 64 KB of code, on the
+development machine, idle:
 
 | What | Pattern | Worst measured |
 |---|---|---|

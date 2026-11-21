@@ -5675,9 +5675,8 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  No address of the process goes out (up to 7.31.29 a caller with
      *  `read` got them all), and only the part shown is copied: the path
-     *  is walked on the tranger itself (in R101 the whole tranger was
-     *  copied first, on every call). A path that is not there is said by
-     *  the answer only.
+     *  is walked on the tranger itself. A path that is not there is said
+     *  by the answer only.
      */
     json_t *shown = tranger2_view_json(priv->tranger, path, expanded, lists_limit, dicts_limit);
     if(!shown) {

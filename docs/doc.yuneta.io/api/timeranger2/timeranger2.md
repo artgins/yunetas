@@ -3632,7 +3632,7 @@ The keys under which the tranger json holds an address are masked when they hold
 
 The json of a treedb can hold itself: a node hangs, by two hooks, from its own child (the treedb refuses a cycle in one hook only). A dict met again on the walk, or 64 levels down, answers collapsed (see [`kw_collapse()`](<#kw_collapse>)). Up to 7.31.29 `print-tranger` of such a treedb did not end, and the yuno died.
 
-Only the part shown is copied: the path is walked on the tranger itself, and then collapsed and masked. In R101 the whole tranger was copied on every call, before the path was walked.
+Only the part shown is copied: the path is walked on the tranger itself, and then collapsed and masked.
 
 ---
 

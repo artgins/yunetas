@@ -100,7 +100,7 @@ PRIVATE int RK_NEW_KEYS = 200;
 PRIVATE int RK_LOAD_KEYS = 3000;
 /*
  *  Under the limits of a position, and costly at all of them: the worst
- *  found for the judgement of R101 (timeranger2's rkey_judge())
+ *  found for timeranger2's judgement (rkey_judge())
  */
 #define RK_UNANCHORED "(*NO_JIT)(?:[\\s\\S]?){9}(?:~?~?~?~?~?){40}(?!)|$"
 PRIVATE const char *rk_unanchored = RK_UNANCHORED;

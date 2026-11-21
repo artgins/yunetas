@@ -19888,9 +19888,9 @@ PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_co
     /*
      *  The cap of the compiled code is the caller's, up to
      *  RKEY_COMPILED_MAX: C_TRANGER puts 1 KB in the match_cond of a
-     *  peer's list (rkey_compiled_max), so a peer's key costs the R101
-     *  figures (2.5 ms worst measured), and a local caller (tr2list,
-     *  tr2keys, a yuno's own code) keeps 64 KB (146 ms)
+     *  peer's list (rkey_compiled_max), so a peer's key costs 2.5 ms
+     *  (worst measured), and a local caller (tr2list, tr2keys, a yuno's
+     *  own code) keeps 64 KB (146 ms)
      */
     json_int_t compiled_max = kw_get_int(
         gobj, match_cond, "rkey_compiled_max", RKEY_COMPILED_MAX, KW_WILD_NUMBER
@@ -21190,9 +21190,8 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
          *  chosen loaded. The judgements have RKEY_LOAD_BUDGET_MS, asked
          *  before each key and before each position of a costly one: spent,
          *  the list is refused, as list-keys is, before a record is read.
-         *  Up to R100 the load had no time; in R101 its time counted the
-         *  reading of the history too, and a cheap rkey over a big topic was
-         *  refused as too costly.
+         *  Up to 7.31.29 the load had no time. The time does not count the
+         *  reading of the history: a cheap rkey over a big topic loads.
          */
         if(json_object_get(loader, "rkey_matcher")) {
             uint64_t load_budget = start_msectimer(RKEY_LOAD_BUDGET_MS);
@@ -21649,9 +21648,9 @@ PRIVATE json_t *collapse_one_level(json_t *value)
 /***************************************************************************
  *  What print-tranger shows (C_TRANGER and C_NODE): the path walked on
  *  the tranger itself, the part shown collapsed, and only that part
- *  copied with the addresses masked. In R101 the WHOLE tranger was copied
- *  on every call, before the path was walked: every node of a treedb once
- *  for each container that reaches it, on each click of the JSON viewer.
+ *  copied with the addresses masked. A copy of the WHOLE tranger before
+ *  the path is walked would copy every node of a treedb once for each
+ *  container that reaches it, on each click of the JSON viewer.
  ***************************************************************************/
 PUBLIC json_t *tranger2_view_json(
     json_t *tranger,
