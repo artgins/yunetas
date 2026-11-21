@@ -714,6 +714,26 @@ PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 #ifdef __linux__
         const char *filename = path_basename(priv->binary_file);
         priv->fp = newfile(filename, 02770, TRUE);
+        if(priv->fp < 0) {
+            /*
+             *  Up to 7.31.29 the download went on writing nothing, and
+             *  nothing said it: newfile() does not log
+             */
+            int err = errno;    // the log may change errno
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "Cannot create the file of the OTA image, download dropped",
+                "filename",     "%s", filename,
+                "errno",        "%d", err,
+                "serrno",       "%s", strerror(err),
+                NULL
+            );
+            priv->fp = 0;
+            gobj_send_event(priv->gobj_http_cli_ota, EV_DROP, 0, gobj);
+            KW_DECREF(kw)
+            return 0;
+        }
 #endif
     } else {
         gobj_log_error(gobj, 0,
