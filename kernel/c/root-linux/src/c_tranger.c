@@ -3631,10 +3631,19 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     stamp_owner_user(gobj, json_object_get(priv->lists, list_id), kw);
     watch_owner(gobj, src);
 
+    /*
+     *  The keys its rkey could not judge are not in the list: said when it
+     *  opens too, as get-list-data says it (up to 7.31.29 a key out of its
+     *  time was not in the list, with nothing said)
+     */
+    size_t unjudged = json_array_size(json_object_get(list, "rkey_unjudged_keys"));
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%s: List opened: '%s'", gobj_yuno_role_plus_name(), list_id),
+        unjudged > 0?
+            json_sprintf("%s: List opened: '%s', %d keys not judged: its rkey could not judge them (too costly)",
+                gobj_yuno_role_plus_name(), list_id, (int)unjudged) :
+            json_sprintf("%s: List opened: '%s'", gobj_yuno_role_plus_name(), list_id),
         0,
         0,
         kw  // owned

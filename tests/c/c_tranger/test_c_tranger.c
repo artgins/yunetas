@@ -3775,6 +3775,8 @@ PRIVATE int do_test(void)
         took_ms = time_in_milliseconds_monotonic() - t0;
         check_int("live open-list with a costly rkey", kw_get_int(0, r, "result", -999, 0), 0);
         check_bool("its load of 51 costly keys in a moment", took_ms < 1000, TRUE);
+        check_bool("the open answer says 51 keys not judged",
+            strstr(kw_get_str(0, r, "comment", "", 0), "51 keys not judged") != NULL, TRUE);
         JSON_DECREF(r)
         r = gobj_command(yuno, "get-list-data",
             json_pack("{s:s}", "list_id", "lstCostly2"), yuno);
