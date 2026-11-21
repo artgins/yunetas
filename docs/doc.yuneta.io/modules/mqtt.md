@@ -683,7 +683,9 @@ NULL queue: the yuno crashed. That case was reachable in a broker with
 `mqtt_persistent_db` false (a configuration the broker refuses at its start
 after 7.30.26: it has no mode without its treedb). Without a `C_MQTT_BROKER` each PUBLISH also
 logged a WARNING *"ACL skipped"*. An anonymous client has no user and no
-group, so it is not said any more for one.
+group, so it is not said any more for one. For a client with a user (a gate
+whose `treedb_name` names another treedb), it is said once per connection.
+Up to 7.31.29 it was said once per PUBLISH.
 
 After 7.30.25 a server sends DISCONNECT only in MQTT 5: in MQTT 3.1.1 it is a
 packet of the client. A 3.1.1 client that breaks the protocol is dropped as

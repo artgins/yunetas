@@ -422,6 +422,7 @@ typedef struct _PRIVATE_DATA {
     BOOL disconnect_received;       // the peer's DISCONNECT read, nothing after it is
     BOOL send_closing_said;         // a message refused while closing said on this connection
     BOOL too_large_said;            // server: a PUBLISH past message_size_limit said on this connection
+    BOOL acl_skipped_said;          // server: "ACL skipped, C_MQTT_BROKER service not found" said on this connection
     BOOL tx_pending;                // a packet sent and its transport's EV_TX_READY not come yet
     BOOL drop_after_tx;             // server: the drop waits for the EV_TX_READY (ws_close())
     json_int_t tx_since_check;      // server: packets handed to the transport since the last check
@@ -7537,18 +7538,25 @@ PRIVATE int handle__publish_s(
      *  define no publish_acl patterns, it returns allowed — so existing brokers
      *  are unaffected until ACLs are authored. If no broker is found we fail
      *  open (allow) but say so, never silently block traffic.
+     *  With `enable_acl` off the broker is not asked: its answer is
+     *  "allowed", and up to 7.31.29 every PUBLISH paid a kw and an event
+     *  for it.
      */
     if(priv->iamServer) {
         hgobj broker = gobj_find_service_by_gclass("C_MQTT_BROKER", FALSE);
         if(broker) {
-            json_t *kw_acl = json_pack("{s:s, s:s, s:s, s:s}",
-                "client_id",    priv->client_id?priv->client_id:"",
-                "username",     gobj_read_str_attr(gobj, "__username__"),
-                "topic",        topic?topic:"",
-                "access",       "write"
-            );
-            rc = gobj_send_event(broker, EV_MQTT_ACL_CHECK, kw_acl, gobj);
-        } else if(!priv->allow_anonymous) {    // anonymous: no user, no group, no ACL to ask
+            if(gobj_read_bool_attr(broker, "enable_acl")) {
+                json_t *kw_acl = json_pack("{s:s, s:s, s:s, s:s}",
+                    "client_id",    priv->client_id?priv->client_id:"",
+                    "username",     gobj_read_str_attr(gobj, "__username__"),
+                    "topic",        topic?topic:"",
+                    "access",       "write"
+                );
+                rc = gobj_send_event(broker, EV_MQTT_ACL_CHECK, kw_acl, gobj);
+            }
+        } else if(!priv->allow_anonymous && !priv->acl_skipped_said) {    // anonymous: no user, no group, no ACL to ask
+            // Once per connection: up to 7.31.29 once per PUBLISH, a peer could flood the log
+            priv->acl_skipped_said = TRUE;
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT,
@@ -9691,6 +9699,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     priv->disconnect_received = FALSE;
     priv->send_closing_said = FALSE;
     priv->too_large_said = FALSE;
+    priv->acl_skipped_said = FALSE;
     priv->tx_pending = FALSE;
     priv->drop_after_tx = FALSE;
     priv->tx_since_check = 0;
