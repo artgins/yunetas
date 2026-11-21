@@ -141,11 +141,10 @@ valid"*, the reason in `refusal`) and drops it in these cases:
 
 - Its `id` or its `host` is not a string, or is longer than a node uuid (63)
   or a host name (64).
-- Its `yuno_version` or the `pretty_name` of its `os` is not a string, or is
-  longer than 64. The filters of `list-agents` and `list-nodes` match these
-  texts, and a long text makes a filter slow: a pattern made to miss over 300
-  texts of 151 bytes took 84 s and 2 GB. Up to 7.31.29 these texts had no
-  limit.
+- Its `yuno_version` or the `pretty_name` of its `os` is present and is not
+  a string. A longer text is accepted, and the control center reads its first
+  64 bytes, cut at a UTF-8 boundary. A node whose os has a long name is still
+  a node.
 
 For example, a card `{"id": 7, ...}` gives `refusal: its id is not a string`. In
 7.30.15 such a session was let in, and every command that looked for an agent
@@ -156,7 +155,8 @@ after it logged an ERROR with a stack.
 | `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
 | `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`. A new one evicts the one that knocked least recently, a uuid that came with two keys last while those are half the table at most (7.31.16+, and 7.31.15 with no bound). |
-| `max_evicted_knocks` | `1024` | The uuids evicted from a full knocking table, kept in memory with the key that each one knocked with. If such a uuid knocks again with another key, the uuid has two keys: the control center does not keep the knock (a WARNING, *"A uuid evicted from the knocking table has two keys under it"*), and an open enrollment refuses both keys. When the table is full, a new eviction overwrites the oldest uuid. That is a flood: an open enrollment closes, and no enrollment opens for an hour (a WARNING, *"The tombstones of evicted knocks are full"*). `0`: none kept, and every eviction closes the enrollment so. |
+| `max_evicted_knocks` | `1024` | The uuids evicted from a full knocking table, kept in memory with the key that each one knocked with. If such a uuid knocks again with another key, the uuid has two keys: the control center does not keep the knock (a WARNING, *"A uuid evicted from the knocking table has two keys under it"*), and an open enrollment refuses both keys. When the table is full, a new eviction overwrites the oldest uuid. That is a flood: an open enrollment closes, and no enrollment opens for `mark_evicted_quarantine` seconds (a WARNING, *"The tombstones of evicted knocks are full"*). `0`: none kept, and every eviction closes the enrollment so. |
+| `mark_evicted_quarantine` | `3600` | Seconds no enrollment opens after a flood of knocks evicted what keeps an enrollment from taking a uuid (a uuid of two keys, or a live tombstone overwritten). The open enrollment closes. `0`: it closes, and a new one can open at once. Each cause gives one WARNING in a window of this length, or of `knocking_warning_period` when that is longer. |
 | `knocking_warning_period` | `600` | Seconds between the WARNINGs *"A node knocking"* of a node that goes on knocking (7.31.10+). `0`: only the first. Not one per knock: anyone who reaches the port can knock. The same pace applies to the WARNING of a refused node, and to the refusals of an enrollment. |
 
 The three are read-only at run time: set them in the `kw` of the
@@ -293,7 +293,8 @@ The enrollment does NOT accept:
   last, while such uuids hold half the table at most, so a flood of uuids
   with two keys does not keep the nodes of one key out of the table. When
   such a uuid is evicted all the same (a flood of knocks), an open
-  enrollment CLOSES and none opens for an hour, with a WARNING (*"A uuid
+  enrollment CLOSES and none opens for `mark_evicted_quarantine` seconds
+  (an hour by default), with a WARNING (*"A uuid
   that came with two keys evicted from the knocking table"*): a flood can
   keep the enrollment shut, never slip a key in.
 - a uuid that a flood evicted from the knocking table, when it knocks again
@@ -307,7 +308,8 @@ The enrollment does NOT accept:
   knocks again with its own key only is accepted. Thus a batch of nodes
   larger than the table enrolls, and the enrollment stays open. If more than
   `max_knocking_nodes` + `max_evicted_knocks` knocks evict a kept key, the
-  enrollment closes, and none opens for an hour. Up to 7.31.29, the flood
+  enrollment closes, and none opens for `mark_evicted_quarantine` seconds.
+  Up to 7.31.29, the flood
   erased the key, and the enrollment accepted another key under that uuid.
 - a key that is accepted for another node (one key, one node).
 
@@ -637,50 +639,50 @@ for [`C_IEVENT_SRV`](#gclass-c-ievent-srv) children in state `ST_SESSION` and re
 `identity_card`. A node is addressed by its **UUID** (`identity_card.id`) or
 its **hostname** (see [A node is reached by its uuid](#controlcenter-node-names)).
 
-`list-agents` takes four filters. Each filter is a regular expression (POSIX extended,
-as `grep -E` reads it) matched against one field of the agent's card:
-`uuid` (`identity_card.id`), `version` (`yuno_version`), `hostname` and `os`
-(the `pretty_name` of the os the agent says, 7.31.21+. An agent before says
-none). An
-agent is listed when it matches every filter given. A filter that is not a
-regular expression is refused (-1), and the answer says which. The control
-center runs in one thread, so it also refuses the filters that can stall it:
+`list-agents` takes four filters. Each filter is a regular expression of
+PCRE2 (the syntax of Perl, as `grep -P` reads it), searched anywhere in one
+field of the agent's card. `^` and `$` anchor it. The fields are `uuid`
+(`identity_card.id`), `version` (`yuno_version`), `hostname` and `os` (the
+`pretty_name` of the os the agent says, 7.31.21+. An agent before says
+none). An agent is listed when it matches every filter given. A filter that
+is not a regular expression is refused (-1), and the answer says which.
 
-- A filter with a back-reference (`\1`), because a match can take exponential
-  time (7.31.20+).
-- A filter longer than 256 bytes (7.31.20+).
-- A filter with a `{` that is not escaped, also inside brackets (`[{]`). A
-  bounded repetition (`{n,m}`) makes `regcomp()` copy what it repeats, and
-  nested ones multiply: `(a{1000}){1000}` takes 200 MB, and
-  `(a{32767}){32767}` takes all the memory. For the character `{`, write
-  `\{`.
-- A filter with more than 4 `+`. `regcomp()` compiles `X+` as `X X*`, so 20
-  of them make about a million copies: `a` and 20 `+` take 718 MB. Write `XX*`
-  for `X+`, and `\+` for the character `+`.
-- A filter with an anchor that is not the first `^` or the last `$`, or with a
-  word boundary (`\b`, `\B`, `\<`, `\>`, `` \` ``, `\'`). Inside nested loops
-  they make `regcomp()` slow: `(^(^...$)*$)*` with 10 levels, 50 bytes, takes
-  8 seconds. A `^` right after `[` negates the bracket, and is accepted. For
-  the characters, write `\^` and `\$`.
+The control center runs in one thread, and any user with the permission
+`list-agents` writes the filters. So each filter runs with limits:
 
-These rules apply inside brackets too (`[{]`, `[+]`, `[$]`). Up to 7.31.29
-the control center compiled all these filters.
+- The pattern is 256 bytes at most, and its compiled code 16 KB at most.
+  For example, `((a{100}){100}){100}` is refused ("regular expression is too
+  large").
+- One match stops after 1000 steps (and at a depth of 1000, and at 1 MB).
+  The filters an operator writes take from 1 to 20 steps. `.*a.*b.*c` takes
+  up to about 1000 steps on a field of 63 bytes. A pattern made to backtrack,
+  such as `(a|aa)+[^a]`, stops at the limit in about 30 microseconds.
+- A filter that hits a limit matches nothing more in that command. The
+  command still answers (0), and its comment names the filter: "hostname:
+  too costly to match (match limit exceeded): it matched nothing from the
+  first node that hit the limit; write a simpler one".
+
+Up to 7.31.29 the filters were POSIX patterns of glibc's `regcomp()`. Some
+patterns took all the memory to compile (`(a{32767}){32767}`, `a` and 24
+`+`). Others took an exponential time (`(a??a??...)*` with 40 groups, 123
+bytes, takes days). The control center did not answer any agent while it
+compiled them.
+
+The version and the os of a card are read cut to their first 64 bytes, at a
+UTF-8 boundary, for the filters and for the rows of `list-agents`.
+`expand=1` shows the card whole.
 
 ```bash
 ycommand -c 'list-agents hostname=^yunovatios-'          # the yunovatios nodes
-ycommand -c 'list-agents version=^7.31. expand=1'         # the agents of 7.31, their cards whole
+ycommand -c 'list-agents version=^7\.31\. expand=1'       # the agents of 7.31, their cards whole
 ycommand -c 'list-agents uuid=^(6bdfcb15|b221635f)-'      # two nodes by the start of their uuid
 ycommand -c 'list-agents os=^Rocky'                       # the nodes on Rocky Linux
+ycommand -c 'list-agents hostname=^node-[0-9]{2}$'        # a bounded repetition
+ycommand -c 'list-agents hostname=^web|^db'               # an anchor in each alternative
 ycommand -c 'list-agents hostname=artgins('
-# -> -1 "controlcenter^cc1: hostname='artgins(' is no regular expression: Unmatched ( or \("
-ycommand -c 'list-agents hostname=^node-[0-9]{2}$'
-# -> -1 "controlcenter^cc1: hostname: a bounded repetition ({n,m}) is refused: write \{ for the character {"
-ycommand -c 'list-agents hostname=^node-[0-9][0-9]$'      # accepted: the same match, written out
-ycommand -c 'list-agents hostname=^web|^db'
-# -> -1 "controlcenter^cc1: hostname: an anchor is refused but ^ first and $ last: write \^ or \$ for the character"
-ycommand -c 'list-agents hostname=^(web|db)'              # accepted: one anchor, first
-ycommand -c 'list-agents hostname=^node-[^0-9]'           # accepted: a ^ that negates a bracket
-ycommand -c 'list-agents hostname=^lab\{1\}'               # accepted: the characters { and }
+# -> -1 "controlcenter^cc1: hostname='artgins(' is no regular expression: missing closing parenthesis (at byte 8)"
+ycommand -c 'list-agents hostname=(a|aa)+[^a]'
+# -> 0, comment "controlcenter^cc1: hostname: too costly to match (match limit exceeded): ..."
 ```
 
 What a node IS (its os, cpu, memory, disks, network interfaces, uptime) is

@@ -285,12 +285,14 @@ PRIVATE const char *expected_msgs[] = {
     "Creating topic",
     "Creating topic",
     "Creating topic",       // nodes (7.30.10)
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-node1, by a token
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 22: uuid-keyed
     "Node key decided",                                                             // 22: accept-node
     "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)", // 22: KEY_B, recording
     "Agent refused: its node key is not the one accepted",                          // 22: KEY_B, enforcing
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-stranger, refused: not written
     "Agent refused: its node key is not the one accepted",                          // 22: uuid-stranger, pending
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-old, by a token
     "Node key decided",                                                             // 22: refuse-node
     "A session of the node dropped: its key is not accepted now",                   // 22: refuse-node drops it
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22: uuid-auth, refused: not written
@@ -313,6 +315,7 @@ PRIVATE const char *expected_msgs[] = {
     "Node deleted",                                                                 // 22: delete-node of uuid-old, pending
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en1, closed
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en4, its first key (the second is not said)
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-en-old, by a token
     "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b
     "Node key decided",                                                             // 22b: uuid-en1
     "Node accepted by the enrollment",                                              // 22b: uuid-en1
@@ -349,14 +352,25 @@ PRIVATE const char *expected_msgs[] = {
     "Node key decided",                                                             // 22b: uuid-tb3
     "Node accepted by the enrollment",                                              // 22b: uuid-tb3
     "Node enrollment closed",                                                       // 22b: close-enrollment, 3 accepted
+    "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b: before a flood of tombstones, no quarantine
+    "Node not accepted by the enrollment|||its key is accepted for another node, 'uuid-en1'|WARNING", // 22b: uuid-tx0
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-tx0
+    "Node not accepted by the enrollment|||its key is accepted for another node, 'uuid-en1'|WARNING", // 22b: uuid-tx1
+    "The tombstones of evicted knocks are full, one overwritten (a flood of knocks?): no enrollment opens for mark_evicted_quarantine seconds||||WARNING", // 22b: a live tombstone overwritten (said once in its window)
+    "Node enrollment closed",                                                       // 22b: by the overwrite
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-tx1
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-tx2
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-tx3
+    "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-tx4
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ec, its first key
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ed1
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ed2
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ed3
     "Node enrollment open: the key that an agent of a node with no key accepted presents is accepted by itself||||WARNING", // 22b: after a flood that evicted no mark
     "Node not accepted by the enrollment|||it knocked with another key|WARNING",    // 22b: uuid-ec, after the flood
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-en-old2, by a token
     "Node not accepted by the enrollment|||the node was let in with no key (accept-node, with the key read on it)|WARNING", // 22b: uuid-en-old2
-    "A uuid that came with two keys evicted from the knocking table: no enrollment opens for an hour||||WARNING", // 22b
+    "A uuid that came with two keys evicted from the knocking table: no enrollment opens for mark_evicted_quarantine seconds||||WARNING", // 22b
     "Node enrollment closed",                                                       // 22b: a mark evicted
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-en-old2
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-ca
@@ -365,7 +379,6 @@ PRIVATE const char *expected_msgs[] = {
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-cd
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-s1, in a table full of uuids of two keys
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-s2
-    "The tombstones of evicted knocks are full, one overwritten (a flood of knocks?): no enrollment opens for an hour||||WARNING", // 22b: a ring of 2 (said once)
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-tv, KEY_T1
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-tw0
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 22b: uuid-tw1
@@ -380,6 +393,7 @@ PRIVATE const char *expected_msgs[] = {
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 23: A gives B's
     "write-tty: the agent_id names more than one node, nothing written",           // 23
     "write-tty without agent_id, nothing written",                                 // 23
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-nx, by a token
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 23: no key, B's
     "Node not accepted: its key is accepted for another node||||WARNING",          // 24
     "Node key decided",                                                             // 24: A, its own key
@@ -388,8 +402,7 @@ PRIVATE const char *expected_msgs[] = {
     "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: a backtick in the id
     "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: an id of 300
     "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: a host too long
-    "Agent not authenticated: its identity card is not valid|||its yuno_version is longer than 64|WARNING", // 25
-    "Agent not authenticated: its identity card is not valid|||its os pretty_name is longer than 64|WARNING", // 25
+    "Agent not authenticated: its identity card is not valid|||its os pretty_name is not a string|WARNING", // 25
     "Agent not authenticated: its identity card is not valid|||its yuno_version is not a string|WARNING",  // 25
     "Agent not authenticated: its node key is not the one accepted|||The node is refused|WARNING", // 26 (its second knock is not said)
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 28: R
@@ -405,17 +418,23 @@ PRIVATE const char *expected_msgs[] = {
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 30: C
     "Node key decided",                                                             // 30: accept C
     "Agent refused: its node key is not the one accepted|||The agent of an accepted node presents no key|WARNING", // 30: a token claims C
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: host-c, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-nx3, by a token
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 30: a token gives host-c
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-nk, by a token
     "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)",  // 31: A by a token
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 31: B, A's name
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-np, by a token
     "Agent refused: its node key is not the one accepted|||The node is not accepted (pending)|WARNING", // 32: a token with a key claims P
     "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)||||WARNING", // 32: a token with no key claims P
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-nq, by a token
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 32: another uuid gives P's name
     "write-tty: the agent_id names more than one node, nothing written",           // 32
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 33: B13
     "Node key decided",                                                             // 33: accept B13
     "A node knocking: its agent presents a key not accepted (accept-node, compare its key with the one the node gives: yuneta-agent-cert key)", // 33: a token with a key, refused: not written
     "Agent refused: its node key is not the one accepted|||The node is not accepted (pending)|WARNING", // 33
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-p13k, by a token
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 37: B
     "Node key decided",                                                             // 37: accept B
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 37: P
@@ -425,7 +444,10 @@ PRIVATE const char *expected_msgs[] = {
     "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)",  // 34: a token claims A
     "Agent refused: its identity card is not valid|||its id is not a string|WARNING",       // 34
     "Agent refused: its identity card is not valid|||its host is not a string|WARNING",     // 34
-    "Agent refused: its identity card is not valid|||its yuno_version is longer than 64|WARNING", // 34
+    "Agent refused: its identity card is not valid|||its yuno_version is not a string|WARNING", // 34
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-p7o, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-p7k0, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-p7k1, by a token
     "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)||||WARNING",   // 0: the copy, not the same host
     "Not in session||||WARNING",                            // 47: command-agent, the agent's link closing
     "Not in session||||WARNING",                            // 47: stats-agent
@@ -443,6 +465,8 @@ PRIVATE const char *expected_msgs[] = {
     "requester gone before its answer, answer dropped",     // 52: (EV_MT_COMMAND_ANSWER)
     "requester gone before its answer, answer dropped",     // 53: an EV_TTY_OPEN for a client that left
     "answer of an agent for a web client that did not ask that agent, dropped",  // 49: 39 forged, said once
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-sb, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-sc, by a token
     "web client that does not take what is relayed to it, dropped",            // 50
     "web client that does not take what is relayed to it, dropped",            // 51: in bytes
     "answer of an agent for no requester of this control center, dropped",
@@ -451,20 +475,31 @@ PRIVATE const char *expected_msgs[] = {
     "answer of an agent for no requester of this control center, dropped",  // a link that did not ask
     "answer of an agent for no requester of this control center, dropped",  // the link, after the agent's close
     "event of the users store not sent by the store, ignored||||WARNING",  // 15: three forged, said once
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-amb1, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-amb2, by a token
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 35: host-amb
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-1, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-2, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-lv, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-lim, by a token
     "stopping a scenario: its max_run is reached",          // 16
     "a step of a scenario run was not answered",            // 17: one step, said once
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-mra1, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-mra2, by a token
     "Two agents of different nodes give one hostname: reach them by their node uuid||||WARNING", // 36: host-mra
     "stopping a scenario: its max_run is reached",          // 36: mra, its name two nodes'
     "the stop of a scenario's max_run did nothing, tried again in a minute",    // 36
     "stopping a scenario: its max_run is reached",          // 19: mrx, its node away
     "the stop of a scenario's max_run did nothing, tried again when a node of it connects",
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-ghost, by a token
     "stopping a scenario: its max_run is reached",          // 19: its node connected
     "stopping a scenario: its max_run is reached",          // 20: mrn, its node connected
     "the stop of a scenario's max_run did nothing, tried again in a minute",    // 20: refused there
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-mrp, by a token
     "stopping a scenario: its max_run is reached",          // 38: mrp, a node of it away
     "the stop of a scenario's max_run did not do every step, the rest tried again when a node of it connects", // 38
     "stopping a scenario: its max_run is reached",          // 38: the rest, its node back
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-mrw, by a token
     "stopping a scenario: its max_run is reached",          // 41: mrw, a node of it away
     "the stop of a scenario's max_run did not do every step, the rest tried again when a node of it connects", // 41
     "stopping a scenario: its max_run is reached",          // 41: its node back

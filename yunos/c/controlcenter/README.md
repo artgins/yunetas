@@ -85,9 +85,8 @@ accept the running nodes first.
 list-nodes state=pending
 list-nodes state=knocking
 list-nodes state=other-key   # accepted nodes whose agent presents another key (a node reinstalled)
-list-nodes hostname=^orangepi- version=^7.31.   # uuid, version, hostname, os: regular expressions
-list-nodes hostname='^node\{1\}'    # the character {: escape it, a bare { is refused
-list-nodes hostname='^(web|db)-'     # one ^, first: an anchor elsewhere is refused, and so are 5 or more +
+list-nodes hostname=^orangepi- version=^7.31.   # uuid, version, hostname, os: regular expressions (PCRE2)
+list-nodes hostname='^web|^db-[0-9]{2}$'        # any PCRE2 pattern of 256 bytes at most, run with limits
 accept-node node_id=<uuid> spki_sha256=<the key read on the node>
 delete-node node_id=<uuid>    # a node refused or pending, not connected: a machine that is gone
 ```
@@ -131,7 +130,7 @@ node_id=<uuid> spki_sha256=<the key read on the node>`, or forget the uuid with
 `delete-node`. If the uuid knocks again with its own key only, the enrollment
 accepts it. Thus a batch of nodes larger than the table enrolls. If the second
 table is full, a new eviction overwrites a kept key: that is a flood, and the
-enrollment closes for an hour. A flood of knocks cannot put another key under
+enrollment closes for `mark_evicted_quarantine` seconds (3600 by default). A flood of knocks cannot put another key under
 a uuid. Up to 7.31.29, the flood erased the key, and an enrollment accepted
 another key under that uuid. A restart empties both tables.
 
@@ -203,7 +202,7 @@ The commands are in the `command_table` of `src/c_controlcenter.c`:
 | `help`           | List commands.                                                                |
 | `authzs`         | Authz help for this service.                                                  |
 | `logout-user`    | Force a user to log out (`username=`, permission `logout-user`). `disabled=1` also disables the user, and `disabled=0` enables it. Without `disabled`, the user stays as it is. |
-| `list-agents`    | List the connected nodes (UUID, hostname, status). `uuid=`, `version=`, `hostname=`, `os=` are regular expressions (POSIX extended), and the agent must match all of them (`list-agents hostname=^yunovatios- version=^7.31.`, `list-agents os=^Rocky`). For the hardware of a node, use `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
+| `list-agents`    | List the connected nodes (UUID, hostname, status). `uuid=`, `version=`, `hostname=`, `os=` are regular expressions (PCRE2, 256 bytes, run with a match limit: a filter that hits it is named in the answer), and the agent must match all of them (`list-agents hostname=^yunovatios- version=^7.31.`, `list-agents os=^Rocky`). For the hardware of a node, use `command-agent agent_id=<node> agent_service=__yuno__ cmd2agent=info-machine`. |
 | `command-agent`  | Forward any command to one node (`SDF_WILD_CMD`). `agent_id` is a UUID, or a hostname that one node has. |
 | `stats-agent`    | Get stats from a specific node.                                               |
 | `info-machine`   | Show the machine of a node: os, cpu, memory, disks, network interfaces, uptime (`info-machine agent_id=<uuid or hostname>`, permission `list-agents`). Give `ycommand` a `-w`. |

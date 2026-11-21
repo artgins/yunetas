@@ -297,11 +297,16 @@ still reported and fails the test.
       table, are accepted, and the enrollment stays open (3 nodes accepted
       at its close). Up to 7.31.29 the eviction erased the key, and the
       other key was accepted.
-    - Last, with `max_knocking_nodes` 2 and `max_evicted_knocks` 2:
-      `uuid-tv` knocks with K1, and five uuids evict it and overwrite its
-      tombstone. That is a flood: one WARNING (*"The tombstones of evicted
-      knocks are full"*), `open-enrollment` is refused, and K2 is not
-      accepted.
+    - With `mark_evicted_quarantine` 0 (no quarantine before it), an open
+      enrollment, `max_knocking_nodes` 2 and `max_evicted_knocks` 2: five
+      uuids whose key is accepted for another node knock, and their
+      evictions overwrite a live tombstone. That is a flood: one WARNING
+      (*"The tombstones of evicted knocks are full"*) and the enrollment
+      closes. Without the fix it stayed open.
+    - Last, the same during the quarantine of a uuid of two keys: `uuid-tv`
+      knocks with K1, five uuids evict it and overwrite its tombstone, and
+      K2 is not accepted. Its WARNING is not said again in its window (a
+      mask of causes).
 
 23. A node is reached by its uuid, and by a hostname only when one node has
     it. Nodes A and B are accepted with their keys, `enforce_node_keys` on:
@@ -323,9 +328,8 @@ still reported and fails the test.
 25. The card of an agent not authenticated yet: an `id` that is not a string
     or not shaped as a node uuid (a backtick, 300 characters), a `host`
     that is not a string or is longer than a host name, and a
-    `yuno_version` or an `os.pretty_name` that is not a string or is longer
-    than 64, are refused (a WARNING each), and none of them is kept
-    knocking. Up to 7.30.14 a value
+    `yuno_version` or an `os.pretty_name` that is not a string, are refused
+    (a WARNING each), and none of them is kept knocking. Up to 7.30.14 a value
     that was not a string gave an ERROR with a stack, and the rest was kept.
 26. A refused node whose agent presents its key: the WARNING's `refusal` says
     *"The node is refused"*. Up to 7.30.14 it said *"another key"*. Its
@@ -392,8 +396,8 @@ still reported and fails the test.
 34. `enforce_node_keys` off: a session of a token that claims an accepted
     node's uuid, first, does not get what goes to the node: the session that
     logged in by the key gets it. And a session of a token whose card has an
-    `id` or a `host` that is not a string, or a `yuno_version` longer than
-    64, is refused (a WARNING each).
+    `id` or a `host` that is not a string, or a `yuno_version` that is not a
+    string, is refused (a WARNING each).
     `command-agent`, `list-agents` and another agent's open after it log
     nothing. A `knows_operator_assertion` that is not a boolean (`1`,
     `"yes"`) is no: `command-agent` reaches that agent with no
@@ -612,23 +616,19 @@ still reported and fails the test.
     too, with no bound, until the agent's channel closed. A reading went
     with the node the agent wrote. And a link got any stream.
 
-The filters of `list-agents` and `list-nodes` (regular expressions of
-`uuid`, `version`, `hostname`, `os`) are checked after case 34. A node must
-match all of them. The control center refuses these patterns:
-
-- A pattern that does not compile, a back-reference, and a pattern longer
-  than 256 bytes.
-- A `{` that is not escaped: `(la){2}`, `[{]`, `\\{2}`, `((la){2}){2}`.
-- More than 4 `+`: `l+a+-+a+l+`, `((((la+)+)+)+)+`, `[+][+][+][+][+]`.
-- An anchor that is not the first `^` or the last `$`: `(^la-alpha)*`,
-  `^la-alpha|^la-b`, `(la-alpha$)*`, `\[^la`.
-- A word boundary: `(\bla)*`, `\<la`, `la\'`.
-
-It accepts an escaped backslash before a digit, an escaped brace (`\{`), 4 `+`
-with `^` first and `$` last, a `^` that negates a bracket (`[^b]`), and an
-escaped `$` or `+`. Up to 7.31.29 all of them were compiled: `(a{32767}){32767}`
-or `a` and 24 `+` take all the memory in `regcomp()`, and an anchor inside 10
-nested loops takes 8 s.
+The filters of `list-agents` and `list-nodes` (PCRE2 patterns of `uuid`,
+`version`, `hostname`, `os`) are checked after case 34. A node must match
+all of them. The control center refuses a pattern that does not compile, one
+longer than 256 bytes, and one whose code is over 16 KB
+(`((a{100}){100}){100}`, `(a|b|c|d|e|f|g|h){1000}`). It accepts what the
+POSIX rules refused before PCRE2: a back-reference, a bounded repetition, many
+`+`, an anchor anywhere, a word boundary. It accepts `(a??...)*` with 40
+groups and `((||)...)*` with 30, which took days in glibc's `regcomp()`. A
+match stops at its limit: `(a|aa)+[^a]` over a hostname of 63 bytes is no
+match, the command answers 0 with the filter named in its comment ("too
+costly to match"), and a cheap filter still matches that host. A version and
+an os longer than 64 bytes are read cut at a UTF-8 boundary, and the agent is
+let in.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes
@@ -637,6 +637,10 @@ never seen are kept knocking, not written (7.30.15 wrote them `pending`).
 The channel of a session has a `peername` (an attribute of `C_TEST_CC_PEER`,
 as `C_TCP`'s), with a new port at every session, as a link that connects
 again.
+
+Every record of a node never seen that a session writes `pending` is
+logged: a WARNING when it presents a key, an INFO (*"A node recorded
+pending"*, with the uuid, the user and the address) when it has none.
 
 Sessions are opened as a token's (no `__username__`) or as a login by the key
 (`agent:<uuid>` in the session and in its `EV_ON_OPEN`, as `C_IEVENT_SRV`

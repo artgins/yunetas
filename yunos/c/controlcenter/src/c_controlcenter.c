@@ -117,7 +117,8 @@
  *      before 7.30.10) is let in while `allow_nodes_without_key`.
  *  A refused agent's channel is dropped and skipped by the commands that
  *  look for an agent, and its open writes nothing. A card whose id, host,
- *  yuno_version or os pretty_name is not a string, or too long, is refused
+ *  yuno_version or os pretty_name is not a string (or an id or a host too
+ *  long; a version or an os too long is read cut to 64), is refused
  *  so too, enforce or not. Without `enforce_node_keys` nothing is refused: the
  *  keys are recorded, so an operator can accept the nodes that run before
  *  it is switched on. `list-nodes`, `accept-node` (pins the key GIVEN, read
@@ -160,16 +161,17 @@
  *  the node's?), never a key accepted for another node. A full knocking
  *  table evicts a uuid that came with two keys last (while such uuids hold
  *  half the table at most), and when one is evicted all the same (a flood
- *  of knocks) an open enrollment closes and none opens for an hour, a
- *  WARNING: a flood can keep the enrollment shut, never slip a key in. A
+ *  of knocks) an open enrollment closes and none opens for
+ *  `mark_evicted_quarantine` (an hour), a WARNING: a flood can keep the
+ *  enrollment shut, never slip a key in. A
  *  uuid of one key that a flood evicts keeps its key in `evicted`: the
  *  enrollment refuses it with another key ("it knocked with another key"),
  *  and from then on with either key (the tombstone is disputed, as a uuid
  *  of two keys in the table), and accepts it with its own key alone, so a
  *  batch of nodes larger than the knocking table closes nothing (up to
  *  7.31.29 the flood wiped the key, and another key took the uuid). A full
- *  ring of tombstones that overwrites a live one closes the enrollment for
- *  an hour, as the eviction of a uuid of two keys. A refused knock is said
+ *  ring of tombstones that overwrites a live one closes the enrollment so,
+ *  as the eviction of a uuid of two keys. A refused knock is said
  *  the first time in each enrollment and then at the pace of the table,
  *  never once per knock.
  *  It closes when its minutes (1-60) are over, when it has accepted
@@ -213,6 +215,8 @@
 #include <pwd.h>
 #include <time.h>
 #include <jwt.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 
 #include "c_controlcenter.h"
 #include "treedb_schema_controlcenter.c"
@@ -223,14 +227,27 @@
 /*  A run id is `<scenario id>.<ms>` and must fit in NAME_MAX.  */
 #define SCENARIO_ID_MAX 200
 
-/*  The longest regular expression of a filter of list-agents/list-nodes  */
-#define NODE_FILTER_PATTERN_MAX 256
+/*
+ *  The filters of list-agents/list-nodes are PCRE2 patterns run with limits
+ *  (compile_node_filters()). The longest pattern, and its compiled code:
+ *  the patterns an operator writes compile to under 1 KB, and PCRE2's own
+ *  cap (64 KB, "regular expression is too large") compiles in 0.2 ms  */
+#define NODE_FILTER_PATTERN_MAX     256
+#define NODE_FILTER_COMPILED_MAX    16384
 
-/*  The most `+` in such a filter: glibc compiles X+ as X X*, so k of them
- *  copy what they repeat 2^k times. Measured (regcomp): 20 take 718 MB and
- *  0.46 s, 24 run out of 6 GB. 4 make 16 copies of 256 bytes at most: about
- *  4 MB and 1 ms in the worst case measured  */
-#define NODE_FILTER_PLUS_MAX    4
+/*
+ *  The limits of ONE match (pcre2_set_match_limit/depth_limit/heap_limit,
+ *  the heap in KiB). Measured on 556 fields of 63 bytes (300 records and
+ *  256 knocks): the patterns an operator writes need from 1 to 17
+ *  (^yunovatios-, ^7\.31\., ^(6bdfcb15|b221635f)-, (a|b)*c), `.*a.*b.*c`
+ *  needs 998 at most; a pattern built to backtrack ((a|aa)+[^a],
+ *  ((a*|b*)...)*, (.*.*.*.*)*) stops at the limit in about 30 us, 17 ms for
+ *  the 556 rows if each one hit it (the default limit, 10 M, took 110 ms
+ *  per row). A filter that hits a limit matches nothing more in that
+ *  command, and the answer says so  */
+#define NODE_FILTER_MATCH_LIMIT     1000
+#define NODE_FILTER_DEPTH_LIMIT     1000
+#define NODE_FILTER_HEAP_LIMIT      1024
 
 /*  The longest max_run of a scenario: a week, in seconds  */
 #define MAX_RUN_LIMIT   (7*24*3600)
@@ -243,21 +260,22 @@
 /*  The longest node uuid: what node_uuid() holds (its buffer of 64)  */
 #define NODE_ID_MAX     63
 
-/*  The longest yuno_version and os pretty name of an agent's card. A
- *  filter of list-agents/list-nodes matches them, and regexec() keeps every
- *  state it builds until regfree(): a pattern built to miss
- *  (`.*a` and 62 `.`) over 300 fields of 101 bytes took 23 s and 790 MB,
- *  of 151 bytes 84 s and 2 GB; over 556 fields of 63 bytes (the uuids of
- *  the knocks) 9 s and 450 MB. So as long as a host name, no more  */
+/*  What the control center reads of the yuno_version and the os pretty
+ *  name of an agent's card: their first 64 bytes, cut at a UTF-8 boundary
+ *  (card_text()). The filters of list-agents/list-nodes match them, and the
+ *  cost of a match grows with the length of its field  */
 #define CARD_TEXT_MAX   64
 
 /*  The longest open enrollment, in minutes, and the most nodes it accepts  */
 #define MAX_ENROLLMENT_MINUTES  60
 #define MAX_ENROLLMENT_NODES    256
 
-/*  After a uuid that came with two keys is evicted from the knocking table,
- *  no enrollment opens for this long, in ms  */
-#define MARK_EVICTED_QUARANTINE (3600*1000)
+
+/*  The causes of mark_evicted(), a bit each: each one is said once a
+ *  quarantine  */
+#define MARK_TWO_KEYS_EVICTED       0x01
+#define MARK_TOMBSTONE_OVERWRITTEN  0x02
+#define MARK_NO_TOMBSTONE_KEPT      0x04
 
 /*  An open with nothing else changed writes the last_seen of its node
  *  only when it is this old, in seconds: a link that comes and goes does
@@ -288,7 +306,7 @@
  ***************************************************************************/
 /*
  *  The filters of list-agents and list-nodes: one regular expression
- *  (POSIX extended) per field of a node, all of them to match
+ *  (PCRE2) per field of a node, all of them to match
  */
 typedef enum {
     NODE_FILTER_UUID = 0,
@@ -300,8 +318,11 @@ typedef enum {
 
 typedef struct {
     const char *param;
-    BOOL compiled;
-    regex_t re;
+    pcre2_general_context *general;     // its memory goes through gbmem
+    pcre2_code *re;                     // NULL: no filter on this field
+    pcre2_match_data *match_data;
+    pcre2_match_context *match_context; // the NODE_FILTER_*_LIMIT
+    int failed;                         // the first pcre2_match() error (a limit): matches nothing more
 } node_filter_t;
 
 /***************************************************************************
@@ -334,7 +355,7 @@ PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgo
 PRIVATE json_t *cmd_close_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *enrollment_status(hgobj gobj);
 PRIVATE void close_enrollment(hgobj gobj, const char *why);
-PRIVATE void mark_evicted(hgobj gobj, const char *node_id, const char *what);
+PRIVATE void mark_evicted(hgobj gobj, const char *node_id, int cause);
 PRIVATE BOOL enroll_node(
     hgobj gobj,
     const char *node_id,
@@ -362,6 +383,7 @@ PRIVATE BOOL key_accepted_for_another_node(
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open);
 PRIVATE BOOL node_id_shaped(json_t *jn_id);
 PRIVATE const char *card_texts_refused(json_t *card);
+PRIVATE const char *card_text(const char *text, char buf[CARD_TEXT_MAX + 1]);
 PRIVATE void drop_sessions_not_accepted(
     hgobj gobj,
     const char *node_id,
@@ -388,6 +410,7 @@ PRIVATE const char *record_node_key(
     BOOL without_key_ok,
     BOOL by_key,
     BOOL enforce,
+    const char *username,
     const char **warning
 );
 PRIVATE BOOL agent_is_refused(hgobj agent_srv);
@@ -397,7 +420,6 @@ PRIVATE const char *card_host(json_t *card);
 PRIVATE const char *card_os(json_t *card);
 PRIVATE void node_state(hgobj gobj, const char *node_id, char *state, size_t statesz);
 PRIVATE json_t *say_why_no_agent(hgobj gobj, const char *agent_id);
-PRIVATE const char *why_pattern_refused(const char *pattern);
 PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filters[NODE_FILTERS]);
 PRIVATE BOOL node_filters_match(
     node_filter_t filters[NODE_FILTERS],
@@ -407,6 +429,11 @@ PRIVATE BOOL node_filters_match(
     const char *os
 );
 PRIVATE void free_node_filters(node_filter_t filters[NODE_FILTERS]);
+PRIVATE BOOL node_filters_failed(
+    node_filter_t filters[NODE_FILTERS],
+    char *said,
+    size_t said_size
+);
 PRIVATE BOOL same_address(const char *a, const char *b);
 PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid);
 PRIVATE json_t *agent_channels_by_uuid(hgobj gobj);
@@ -570,10 +597,10 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_list_agents[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_INTEGER,   "expand",        0,              0,          "Expand details"),
-SDATAPM (DTP_STRING,    "uuid",          0,              0,          "Only the agents whose node uuid matches this regular expression (POSIX extended)"),
-SDATAPM (DTP_STRING,    "version",       0,              0,          "Only the agents whose version matches this regular expression (POSIX extended)"),
-SDATAPM (DTP_STRING,    "hostname",      0,              0,          "Only the agents whose hostname matches this regular expression (POSIX extended)"),
-SDATAPM (DTP_STRING,    "os",            0,              0,          "Only the agents whose os (its pretty name) matches this regular expression (POSIX extended)"),
+SDATAPM (DTP_STRING,    "uuid",          0,              0,          "Only the agents whose node uuid matches this regular expression (PCRE2)"),
+SDATAPM (DTP_STRING,    "version",       0,              0,          "Only the agents whose version matches this regular expression (PCRE2)"),
+SDATAPM (DTP_STRING,    "hostname",      0,              0,          "Only the agents whose hostname matches this regular expression (PCRE2)"),
+SDATAPM (DTP_STRING,    "os",            0,              0,          "Only the agents whose os (its pretty name) matches this regular expression (PCRE2)"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_info_machine[] = {
@@ -603,10 +630,10 @@ PRIVATE sdata_desc_t pm_drop_agent[] = {
 PRIVATE sdata_desc_t pm_list_nodes[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "state",        0,              0,          "Only the nodes in this state: pending, accepted, refused, knocking (a key not accepted, no token: in memory only), or other-key (an accepted node whose agent presents another key: in memory only)"),
-SDATAPM (DTP_STRING,    "uuid",         0,              0,          "Only the nodes whose uuid matches this regular expression (POSIX extended)"),
-SDATAPM (DTP_STRING,    "version",      0,              0,          "Only the nodes whose agent in session has a version that matches this regular expression (POSIX extended); a node away has none"),
-SDATAPM (DTP_STRING,    "hostname",     0,              0,          "Only the nodes whose hostname matches this regular expression (POSIX extended)"),
-SDATAPM (DTP_STRING,    "os",           0,              0,          "Only the nodes whose agent in session has an os (its pretty name) that matches this regular expression (POSIX extended); a node away has none"),
+SDATAPM (DTP_STRING,    "uuid",         0,              0,          "Only the nodes whose uuid matches this regular expression (PCRE2)"),
+SDATAPM (DTP_STRING,    "version",      0,              0,          "Only the nodes whose agent in session has a version that matches this regular expression (PCRE2); a node away has none"),
+SDATAPM (DTP_STRING,    "hostname",     0,              0,          "Only the nodes whose hostname matches this regular expression (PCRE2)"),
+SDATAPM (DTP_STRING,    "os",           0,              0,          "Only the nodes whose agent in session has an os (its pretty name) that matches this regular expression (PCRE2); a node away has none"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_accept_node[] = {
@@ -685,7 +712,7 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
 SDATACM (DTP_SCHEMA,    "logout-user",      0,                  pm_logout_user, cmd_logout_user,"Logout user"),
-SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given (POSIX extended, 256 bytes at most; no back-reference, no {n,m}, no word boundary, 4 + at most, ^ only first and $ only last)"),
+SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given (PCRE2, 256 bytes at most, run with a match limit: a filter too costly is said in the answer)"),
 
 SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              pm_command_agent,cmd_command_agent,"Command to agent (agent id = UUID or HOSTNAME)"),
 
@@ -731,7 +758,8 @@ SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
 SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); a new one evicts the one knocked least recently, one that came with two keys last while those are half the table at most"),
-SDATA (DTP_INTEGER,     "max_evicted_knocks",SDF_RD,        "1024",     "Uuids evicted from the knocking table (a full table) kept in memory with the key they knocked with: one that knocks again with another key is disputed, and an open enrollment refuses both keys; with its key alone it is accepted. A full ring overwrites the oldest, and that closes the open enrollment and opens none for an hour (a flood). 0: none kept, and every eviction does so"),
+SDATA (DTP_INTEGER,     "max_evicted_knocks",SDF_RD,        "1024",     "Uuids evicted from the knocking table (a full table) kept in memory with the key they knocked with: one that knocks again with another key is disputed, and an open enrollment refuses both keys; with its key alone it is accepted. A full ring overwrites the oldest, and that closes the open enrollment and opens none for mark_evicted_quarantine (a flood). 0: none kept, and every eviction does so"),
+SDATA (DTP_INTEGER,     "mark_evicted_quarantine",SDF_RD,   "3600",     "Seconds no enrollment opens after a flood of knocks evicted what keeps an enrollment from taking a uuid (a uuid of two keys, a live tombstone overwritten); the open one closes. 0: it closes, and another one can open at once"),
 SDATA (DTP_INTEGER,     "knocking_warning_period",SDF_RD,   "600",      "Seconds between the WARNINGs 'A node knocking' of a node that goes on knocking; 0: said once"),
 SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
@@ -846,7 +874,8 @@ typedef struct _PRIVATE_DATA {
     hgobj enrollment_timer;         // closes the open enrollment when its minutes are over
     json_t *enrollment;             // the open enrollment {opened_by, opened_at, until, max_nodes, accepted: [uuid]}, or NULL: in memory only
     uint64_t mark_evicted_until;    // msectimer: a flood evicted what keeps an enrollment from taking a uuid, no enrollment opens before it (0: none)
-    char mark_evicted_said[NAME_MAX];   // what mark_evicted() said in this quarantine
+    int mark_evicted_said;          // the MARK_* causes said before mark_said_until
+    uint64_t mark_said_until;       // msectimer: the window of mark_evicted_said (0: none)
     uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
@@ -1023,7 +1052,8 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  The card of an agent that presents a key is checked first, being a
  *  peer's not authenticated yet: an `id` that is no node uuid, or a `host`
  *  that is not a string or is longer than a host name, or a `yuno_version`
- *  or os `pretty_name` so (card_texts_refused()), is refused (a WARNING),
+ *  or os `pretty_name` that is not a string (card_texts_refused()), is
+ *  refused (a WARNING),
  *  and nothing of it is kept.
  ***************************************************************************/
 PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
@@ -1645,8 +1675,11 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         json_t *card = gobj_read_json_attr(child, "identity_card");
-        if(!node_filters_match(filters,
-                card_str(card, "id"), card_str(card, "yuno_version"), card_host(card), card_os(card))) {
+        char version_buf[CARD_TEXT_MAX + 1];
+        char os_buf[CARD_TEXT_MAX + 1];
+        const char *version = card_text(card_str(card, "yuno_version"), version_buf);
+        const char *os = card_text(card_os(card), os_buf);
+        if(!node_filters_match(filters, card_str(card, "id"), version, card_host(card), os)) {
             continue;
         }
         if(expand) {
@@ -1658,19 +1691,22 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 json_sprintf("UUID:%s (%s,%s),  HOSTNAME:'%s',  OS:'%s'",
                     card_str(card, "id"),
                     card_str(card, "yuno_role"),
-                    card_str(card, "yuno_version"),
+                    version,
                     card_host(card),
-                    card_os(card)
+                    os
                 )
             );
         }
     }
     gobj_free_iter(dl_children);
+    char filters_failed[PATH_MAX];
+    json_t *jn_comment = node_filters_failed(filters, filters_failed, sizeof(filters_failed))?
+        json_sprintf("%s: %s", gobj_yuno_role_plus_name(), filters_failed) : NULL;
     free_node_filters(filters);
 
     return msg_iev_build_response(gobj,
         0,
-        0,
+        jn_comment,
         0,
         jn_data,
         kw  // owned
@@ -2145,8 +2181,10 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         const char *uuid = kw_get_str(gobj, jn_node, "id", "", 0);
         hgobj agent = (hgobj)(size_t)json_integer_value(json_object_get(channels, uuid));
         json_t *card = agent? gobj_read_json_attr(agent, "identity_card") : NULL;
-        const char *version = card? card_str(card, "yuno_version") : "";
-        const char *os = card? card_os(card) : "";
+        char version_buf[CARD_TEXT_MAX + 1];
+        char os_buf[CARD_TEXT_MAX + 1];
+        const char *version = card? card_text(card_str(card, "yuno_version"), version_buf) : "";
+        const char *os = card? card_text(card_os(card), os_buf) : "";
         if(!node_filters_match(filters,
                 uuid, version, kw_get_str(gobj, jn_node, "hostname", "", 0), os)) {
             continue;
@@ -2204,6 +2242,8 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_array_append_new(jn_data, jn);
         }
     }
+    char filters_failed[PATH_MAX];
+    BOOL failed = node_filters_failed(filters, filters_failed, sizeof(filters_failed));
     free_node_filters(filters);
 
     /*
@@ -2227,9 +2267,11 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         snprintf(rekeys_more, sizeof(rekeys_more), " (and %d more: state other-key)", rekeys - 1);
     }
     json_t *jn_comment = NULL;
-    if(!empty_string(enrollment_said) || rekeys > 0) {
-        jn_comment = json_sprintf("%s: %s%s%s%s",
+    if(!empty_string(enrollment_said) || rekeys > 0 || failed) {
+        jn_comment = json_sprintf("%s: %s%s%s%s%s%s",
             gobj_yuno_role_plus_name(),
+            failed? filters_failed : "",
+            (failed && (!empty_string(enrollment_said) || rekeys > 0))? "; " : "",
             enrollment_said,
             (!empty_string(enrollment_said) && rekeys > 0)? "; " : "",
             rekey_hint,
@@ -2975,17 +3017,58 @@ PRIVATE void close_enrollment(hgobj gobj, const char *why)
  *  evicted from the knocking table (note_knocking_node()), or the
  *  tombstone of an evicted knock overwritten in a full ring
  *  (remember_evicted_knock()). Its loss is not silent: an open enrollment
- *  closes, and none opens for MARK_EVICTED_QUARANTINE. A WARNING, once per
- *  quarantine and cause.
+ *  closes, and none opens for `mark_evicted_quarantine`. A WARNING, once per
+ *  cause in a window of the quarantine (or of knocking_warning_period, when
+ *  longer): a mask, because remembering only the last cause said, two
+ *  causes in turn gave a WARNING per call.
  ***************************************************************************/
-PRIVATE void mark_evicted(hgobj gobj, const char *node_id, const char *what)
+PRIVATE void mark_evicted(hgobj gobj, const char *node_id, int cause)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    BOOL said = priv->mark_evicted_until && !test_msectimer(priv->mark_evicted_until) &&
-        strcmp(priv->mark_evicted_said, what)==0;
-    priv->mark_evicted_until = start_msectimer(MARK_EVICTED_QUARANTINE);
-    snprintf(priv->mark_evicted_said, sizeof(priv->mark_evicted_said), "%s", what);
+    const char *what;
+    switch(cause) {
+        case MARK_TWO_KEYS_EVICTED:
+            what = "A uuid that came with two keys evicted from the knocking table: no "
+                "enrollment opens for mark_evicted_quarantine seconds";
+            break;
+        case MARK_TOMBSTONE_OVERWRITTEN:
+            what = "The tombstones of evicted knocks are full, one overwritten (a flood of "
+                "knocks?): no enrollment opens for mark_evicted_quarantine seconds";
+            break;
+        case MARK_NO_TOMBSTONE_KEPT:
+            what = "A knock evicted from the knocking table and no tombstone kept "
+                "(max_evicted_knocks 0): no enrollment opens for mark_evicted_quarantine seconds";
+            break;
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL,
+                "msg",          "%s", "mark_evicted(): unknown cause",
+                "cause",        "%d", cause,
+                NULL
+            );
+            what = "A mark evicted: no enrollment opens for mark_evicted_quarantine seconds";
+            break;
+    }
+    json_int_t quarantine = gobj_read_integer_attr(gobj, "mark_evicted_quarantine");
+    if(quarantine < 0) {
+        quarantine = 0;
+    }
+    if(!priv->mark_said_until || test_msectimer(priv->mark_said_until)) {
+        /*
+         *  A new window: a quarantine, or knocking_warning_period when that
+         *  is longer (with a quarantine of 0 a flood would say each mark)
+         */
+        json_int_t period = gobj_read_integer_attr(gobj, "knocking_warning_period");
+        priv->mark_evicted_said = 0;
+        priv->mark_said_until = start_msectimer(
+            (uint64_t)(period > quarantine? period : quarantine) * 1000
+        );
+    }
+    BOOL said = (priv->mark_evicted_said & cause)? TRUE : FALSE;
+    priv->mark_evicted_said |= cause;
+    priv->mark_evicted_until = start_msectimer((uint64_t)quarantine * 1000);
     if(!said) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5042,9 +5125,10 @@ PRIVATE BOOL node_id_shaped(json_t *jn_id)
 
 /***************************************************************************
  *  The texts of an agent's card that the filters match besides its id and
- *  host: its `yuno_version` and the `pretty_name` of its `os`, each a
- *  string of CARD_TEXT_MAX at most when present. NULL, or why not. Up to
- *  7.31.29 their length had no bound.
+ *  host: its `yuno_version` and the `pretty_name` of its `os`, a string
+ *  when present. NULL, or why not. A longer one is accepted and read cut
+ *  (card_text()): a node whose os has a long name is still a node. Up to
+ *  7.31.29 neither was checked.
  ***************************************************************************/
 PRIVATE const char *card_texts_refused(json_t *card)
 {
@@ -5053,16 +5137,29 @@ PRIVATE const char *card_texts_refused(json_t *card)
     if(jn_version && !json_is_string(jn_version)) {
         return "its yuno_version is not a string";
     }
-    if(jn_version && json_string_length(jn_version) > CARD_TEXT_MAX) {
-        return "its yuno_version is longer than 64";
-    }
     if(jn_os && !json_is_string(jn_os)) {
         return "its os pretty_name is not a string";
     }
-    if(jn_os && json_string_length(jn_os) > CARD_TEXT_MAX) {
-        return "its os pretty_name is longer than 64";
-    }
     return NULL;
+}
+
+/***************************************************************************
+ *  `text` as the control center reads it: its first CARD_TEXT_MAX bytes,
+ *  cut at a UTF-8 boundary, in `buf` when it is longer.
+ ***************************************************************************/
+PRIVATE const char *card_text(const char *text, char buf[CARD_TEXT_MAX + 1])
+{
+    size_t len = strnlen(text, CARD_TEXT_MAX + 1);
+    if(len <= CARD_TEXT_MAX) {
+        return text;
+    }
+    size_t cut = CARD_TEXT_MAX;
+    while(cut > 0 && ((unsigned char)text[cut] & 0xC0) == 0x80) {
+        cut--;
+    }
+    memcpy(buf, text, cut);
+    buf[cut] = 0;
+    return buf;
 }
 
 /***************************************************************************
@@ -5266,80 +5363,37 @@ PRIVATE json_t *say_why_no_agent(hgobj gobj, const char *agent_id)
 }
 
 /***************************************************************************
- *  A pattern a filter may run: NULL, or why not. The control center is one
- *  thread, and glibc's ERE has four ways to stall it, all measured with
- *  regcomp() (the memory is libc's malloc, out of gbmem and its limits):
- *    - a back-reference (`\1`) makes a match exponential;
- *    - a bounded repetition (`{n,m}`) is COMPILED by copying what it
- *      repeats up to m times (RE_DUP_MAX: 32767), and nested ones
- *      multiply: `(a{1000}){1000}`, 15 bytes, takes 200 MB and 0.16 s, and
- *      `(a{32767}){32767}` grows until the memory runs out;
- *    - `X+` is compiled as `X X*` (a copy of X), so k of them copy 2^k
- *      times, chained (`a++++`) or nested (`((a+)+)+`): 20 take 718 MB,
- *      24 run out of 6 GB. Up to NODE_FILTER_PLUS_MAX are let in;
- *    - an anchor (`^`, `$`) or a word boundary (`\b`, `\B`, `\<`, `\>`,
- *      `\``, `\'`) inside nested loops makes regcomp() exponential in TIME
- *      (its closures of the empty transitions): `(^(^...$)*$)*` with 10
- *      levels, 50 bytes, takes 8 s, with 12 more than 20 s; `(\b(\b...)*)*`
- *      with 8 levels more than 20 s. So `^` is let in only as the first
- *      character (or right after `[`, where it negates the bracket) and `$`
- *      only as the last one, where no loop holds them, and the word
- *      boundaries not at all.
- *  `*` and `?` copy nothing (measured: 24 of them, chained or nested, cost
- *  nothing). So a `\` followed by a digit or by a word boundary, an
- *  unescaped `{`, more than NODE_FILTER_PLUS_MAX `+`, an anchor anywhere
- *  else, and a pattern longer than NODE_FILTER_PATTERN_MAX are refused.
- *  They are refused inside brackets too, where they are literal (`[{]`,
- *  `[+]`, `[$]`): one rule to read, and an escaped character (`\{`, `\+`,
- *  `\$`) is that character everywhere. Up to 7.31.29 all of them were let
- *  in.
+ *  PCRE2 allocates through gbmem: its memory is the yuno's, under its
+ *  limits and its leak audit
  ***************************************************************************/
-PRIVATE const char *why_pattern_refused(const char *pattern)
+PRIVATE void *pcre2_gbmem_malloc(PCRE2_SIZE size, void *data)
 {
-    if(strnlen(pattern, NODE_FILTER_PATTERN_MAX + 1) > NODE_FILTER_PATTERN_MAX) {
-        return "a regular expression longer than 256 bytes is refused";
+    return gbmem_malloc(size);
+}
+
+PRIVATE void pcre2_gbmem_free(void *ptr, void *data)
+{
+    if(ptr) {
+        gbmem_free(ptr);
     }
-    int pluses = 0;
-    BOOL after_bracket = FALSE;     // the character before is an unescaped '['
-    for(const char *p = pattern; *p; p++) {
-        BOOL opens_bracket = after_bracket;
-        after_bracket = FALSE;
-        if(*p == '{') {
-            return "a bounded repetition ({n,m}) is refused: write \\{ for the character {";
-        }
-        if(*p == '+') {
-            if(++pluses > NODE_FILTER_PLUS_MAX) {
-                return "more than 4 + are refused: write XX* for X+, \\+ for the character +";
-            }
-            continue;
-        }
-        if((*p == '^' && p != pattern && !opens_bracket) || (*p == '$' && p[1])) {
-            return "an anchor is refused but ^ first and $ last: write \\^ or \\$ for the character";
-        }
-        if(*p == '[') {
-            after_bracket = TRUE;
-            continue;
-        }
-        if(*p != '\\') {
-            continue;
-        }
-        if(isdigit((unsigned char)p[1])) {
-            return "a back-reference (\\ and a digit) is refused";
-        }
-        if(p[1] && strchr("bB<>`'", p[1])) {
-            return "a word boundary (\\b \\B \\< \\> \\` \\') is refused";
-        }
-        if(p[1]) {
-            p++;    // an escaped character, whatever it is
-        }
-    }
-    return NULL;
 }
 
 /***************************************************************************
  *  Compile the filters of list-agents / list-nodes given in `kw` (`uuid`,
  *  `version`, `hostname`, `os`). Return NULL, or the answer that refuses one that
  *  does not compile (nothing left to free then).
+ *
+ *  A filter is a PCRE2 pattern, searched anywhere in its field (`^` and `$`
+ *  anchor it), run with the limits of NODE_FILTER_*: the control center is
+ *  one thread, and any user with the permission list-agents writes the
+ *  pattern. Up to 7.31.29 they were POSIX patterns of glibc's regcomp(),
+ *  whose compilation can take all the memory ((a{32767}){32767}, a and 24
+ *  `+`) or an exponential time with what no rule of shape closes
+ *  ((a??a??...)*: 24 of them about 3 s, 40 for days): every R97/R98 rule
+ *  against one shape left another. PCRE2 compiles in a bounded size
+ *  (NODE_FILTER_COMPILED_MAX), and each match stops at its limits. A
+ *  back-reference is let in: the match limit bounds it too. In the pattern,
+ *  (*LIMIT_MATCH=n) and the like can only lower the limits.
  ***************************************************************************/
 PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filters[NODE_FILTERS])
 {
@@ -5357,29 +5411,76 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
         if(empty_string(pattern)) {
             continue;
         }
-        const char *refusal = why_pattern_refused(pattern);
-        if(refusal) {
+        if(strnlen(pattern, NODE_FILTER_PATTERN_MAX + 1) > NODE_FILTER_PATTERN_MAX) {
             free_node_filters(filters);
-            return json_sprintf("%s: %s: %s",
-                gobj_yuno_role_plus_name(), params[i], refusal
+            return json_sprintf("%s: %s: a regular expression longer than 256 bytes is refused",
+                gobj_yuno_role_plus_name(), params[i]
             );
         }
-        int rc = regcomp(&filters[i].re, pattern, REG_EXTENDED|REG_NOSUB);
-        if(rc != 0) {
-            char err[NAME_MAX];
-            regerror(rc, &filters[i].re, err, sizeof(err));
+        filters[i].general = pcre2_general_context_create(
+            pcre2_gbmem_malloc, pcre2_gbmem_free, NULL
+        );
+        pcre2_compile_context *compile_context = filters[i].general?
+            pcre2_compile_context_create(filters[i].general) : NULL;
+        filters[i].match_context = filters[i].general?
+            pcre2_match_context_create(filters[i].general) : NULL;
+        if(!compile_context || !filters[i].match_context) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "pcre2 contexts not created",
+                "param",        "%s", params[i],
+                NULL
+            );
+            if(compile_context) {
+                pcre2_compile_context_free(compile_context);
+            }
             free_node_filters(filters);
-            return json_sprintf("%s: %s='%s' is no regular expression: %s",
-                gobj_yuno_role_plus_name(), params[i], pattern, err
+            return json_sprintf("%s: %s: no memory to compile it", gobj_yuno_role_plus_name(), params[i]);
+        }
+        pcre2_set_max_pattern_length(compile_context, NODE_FILTER_PATTERN_MAX);
+        pcre2_set_max_pattern_compiled_length(compile_context, NODE_FILTER_COMPILED_MAX);
+        pcre2_set_match_limit(filters[i].match_context, NODE_FILTER_MATCH_LIMIT);
+        pcre2_set_depth_limit(filters[i].match_context, NODE_FILTER_DEPTH_LIMIT);
+        pcre2_set_heap_limit(filters[i].match_context, NODE_FILTER_HEAP_LIMIT);
+
+        int errornumber = 0;
+        PCRE2_SIZE erroroffset = 0;
+        filters[i].re = pcre2_compile(
+            (PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, 0,
+            &errornumber, &erroroffset, compile_context
+        );
+        pcre2_compile_context_free(compile_context);
+        if(!filters[i].re) {
+            PCRE2_UCHAR err[NAME_MAX];
+            pcre2_get_error_message(errornumber, err, sizeof(err));
+            free_node_filters(filters);
+            return json_sprintf("%s: %s='%s' is no regular expression: %s (at byte %d)",
+                gobj_yuno_role_plus_name(), params[i], pattern, (char *)err, (int)erroroffset
             );
         }
-        filters[i].compiled = TRUE;
+        filters[i].match_data = pcre2_match_data_create_from_pattern(
+            filters[i].re, filters[i].general
+        );
+        if(!filters[i].match_data) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY,
+                "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
+                "param",        "%s", params[i],
+                NULL
+            );
+            free_node_filters(filters);
+            return json_sprintf("%s: %s: no memory to run it", gobj_yuno_role_plus_name(), params[i]);
+        }
     }
     return NULL;
 }
 
 /***************************************************************************
- *  A node matches when every filter given matches its field
+ *  A node matches when every filter given matches its field. A match that
+ *  fails (a limit) is no match, and its filter matches nothing more in
+ *  this command: node_filters_failed() says it in the answer.
  ***************************************************************************/
 PRIVATE BOOL node_filters_match(
     node_filter_t filters[NODE_FILTERS],
@@ -5396,11 +5497,50 @@ PRIVATE BOOL node_filters_match(
         [NODE_FILTER_OS]        = os,
     };
     for(int i=0; i<NODE_FILTERS; i++) {
-        if(filters[i].compiled && regexec(&filters[i].re, fields[i], 0, NULL, 0) != 0) {
+        if(!filters[i].re) {
+            continue;
+        }
+        if(filters[i].failed) {
+            return FALSE;
+        }
+        int rc = pcre2_match(
+            filters[i].re, (PCRE2_SPTR)fields[i], PCRE2_ZERO_TERMINATED, 0, 0,
+            filters[i].match_data, filters[i].match_context
+        );
+        if(rc == PCRE2_ERROR_NOMATCH) {
+            return FALSE;
+        }
+        if(rc < 0) {
+            filters[i].failed = rc;
             return FALSE;
         }
     }
     return TRUE;
+}
+
+/***************************************************************************
+ *  The filters that failed in this command (a limit), said for its answer
+ *  in `said`: TRUE if any.
+ ***************************************************************************/
+PRIVATE BOOL node_filters_failed(
+    node_filter_t filters[NODE_FILTERS],
+    char *said,
+    size_t said_size
+)
+{
+    said[0] = 0;
+    for(int i=0; i<NODE_FILTERS; i++) {
+        if(!filters[i].failed) {
+            continue;
+        }
+        PCRE2_UCHAR err[NAME_MAX];
+        pcre2_get_error_message(filters[i].failed, err, sizeof(err));
+        size_t len = strlen(said);
+        snprintf(said + len, said_size - len, "%s%s: too costly to match (%s): it matched "
+            "nothing from the first node that hit the limit; write a simpler one",
+            len? "; " : "", filters[i].param, (char *)err);
+    }
+    return !empty_string(said);
 }
 
 /***************************************************************************
@@ -5409,10 +5549,19 @@ PRIVATE BOOL node_filters_match(
 PRIVATE void free_node_filters(node_filter_t filters[NODE_FILTERS])
 {
     for(int i=0; i<NODE_FILTERS; i++) {
-        if(filters[i].compiled) {
-            regfree(&filters[i].re);
-            filters[i].compiled = FALSE;
+        if(filters[i].match_data) {
+            pcre2_match_data_free(filters[i].match_data);
         }
+        if(filters[i].re) {
+            pcre2_code_free(filters[i].re);
+        }
+        if(filters[i].match_context) {
+            pcre2_match_context_free(filters[i].match_context);
+        }
+        if(filters[i].general) {
+            pcre2_general_context_free(filters[i].general);
+        }
+        memset(&filters[i], 0, sizeof(node_filter_t));
     }
 }
 
@@ -5662,8 +5811,7 @@ PRIVATE const char *note_knocking_node(
         }
         json_t *oldest_knock = json_object_get(priv->knocking, oldest);
         if(knock_is_contested(gobj, oldest_knock)) {
-            mark_evicted(gobj, oldest, "A uuid that came with two keys evicted from the knocking "
-                "table: no enrollment opens for an hour");
+            mark_evicted(gobj, oldest, MARK_TWO_KEYS_EVICTED);
         }
         if(!kw_get_bool(gobj, oldest_knock, "accepted_node", 0, 0)) {
             remember_evicted_knock(gobj, oldest, oldest_knock);
@@ -5745,7 +5893,7 @@ PRIVATE BOOL refused_knock_due(hgobj gobj, const char *node_id, json_int_t *knoc
  *  max_knocking_nodes + max_evicted_knocks evictions) loses what keeps an
  *  enrollment from taking that uuid, so it is a flood, as the eviction of a
  *  uuid of two keys: mark_evicted() closes the open enrollment and no
- *  enrollment opens for an hour. With max_evicted_knocks 0 nothing is kept,
+ *  enrollment opens for `mark_evicted_quarantine`. With max_evicted_knocks 0 nothing is kept,
  *  and every eviction is such a loss. In memory only, as the knocks: a
  *  restart forgets them both.
  ***************************************************************************/
@@ -5755,8 +5903,7 @@ PRIVATE void remember_evicted_knock(hgobj gobj, const char *node_id, json_t *kno
 
     json_int_t max_evicted = gobj_read_integer_attr(gobj, "max_evicted_knocks");
     if(max_evicted <= 0) {
-        mark_evicted(gobj, node_id, "A knock evicted from the knocking table and no tombstone "
-            "kept (max_evicted_knocks 0): no enrollment opens for an hour");
+        mark_evicted(gobj, node_id, MARK_NO_TOMBSTONE_KEPT);
         return;
     }
     json_object_del(priv->evicted, node_id);
@@ -5781,8 +5928,7 @@ PRIVATE void remember_evicted_knock(hgobj gobj, const char *node_id, json_t *kno
         const char *uuid = json_string_value(json_array_get(priv->evicted_ring, (size_t)slot));
         json_t *jn = uuid? json_object_get(priv->evicted, uuid) : NULL;
         if(jn && kw_get_int(gobj, jn, "slot", -1, 0) == slot) {
-            mark_evicted(gobj, uuid, "The tombstones of evicted knocks are full, one overwritten "
-                "(a flood of knocks?): no enrollment opens for an hour");
+            mark_evicted(gobj, uuid, MARK_TOMBSTONE_OVERWRITTEN);
             json_object_del(priv->evicted, uuid);
         }
         json_array_set_new(priv->evicted_ring, (size_t)slot, json_string(node_id));
@@ -5803,8 +5949,11 @@ PRIVATE void remember_evicted_knock(hgobj gobj, const char *node_id, json_t *kno
 
 /***************************************************************************
  *  The `nodes` record of `node_id`, written for an agent that presents
- *  `spki` (or none): created pending the first time (an INFO when it comes
- *  with a key: a node to accept), its hostname, address and last_seen each
+ *  `spki` (or none): created pending the first time, said with the user of
+ *  the session and its address (a WARNING when it comes with a key: a node
+ *  to accept; an INFO without one: a session of a token, which up to
+ *  7.31.29 wrote a record per uuid it gave and said nothing), its
+ *  hostname, address and last_seen each
  *  time, and the key presented when it is not the accepted one. Returns why
  *  such an agent would be refused (NULL: it may be let in), and in
  *  `warning` what is said even when nothing is refused. An open REFUSED
@@ -5828,6 +5977,7 @@ PRIVATE const char *record_node_key(
     BOOL without_key_ok,
     BOOL by_key,    // the session logged in by the accepted key of node_id
     BOOL enforce,   // a refusal refuses the agent (enforce_node_keys)
+    const char *username,   // who the session is
     const char **warning
 )
 {
@@ -5881,6 +6031,12 @@ PRIVATE const char *record_node_key(
         json_object_set_new(update, "state", json_string("pending"));
         json_object_set_new(update, "first_seen", json_integer(now));
         json_object_set_new(update, "presented_spki", json_string(spki));
+        /*
+         *  Every record written is said, and only then: as many lines as
+         *  records in the store, so no pace. A session of a token that gives
+         *  a new uuid at each open writes a record each time (there is no
+         *  bound: the user decided to log it), and its user is named
+         */
         if(!empty_string(spki)) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -5888,7 +6044,20 @@ PRIVATE const char *record_node_key(
                 "msg",          "%s", "A node to accept: its agent presents a key never accepted (accept-node)",
                 "node",         "%s", node_id,
                 "hostname",     "%s", hostname? hostname : "",
+                "username",     "%s", username? username : "",
+                "peername",     "%s", peername? peername : "",
                 "spki_sha256",  "%s", spki,
+                NULL
+            );
+        } else {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "A node recorded pending: its agent presents no key (a session of a token)",
+                "node",         "%s", node_id,
+                "hostname",     "%s", hostname? hostname : "",
+                "username",     "%s", username? username : "",
+                "peername",     "%s", peername? peername : "",
                 NULL
             );
         }
@@ -5951,8 +6120,8 @@ PRIVATE const char *record_node_key(
  *  string, or is longer than a node uuid or a host name, is refused so
  *  too, enforce_node_keys or not (a WARNING): a session of a token is let
  *  in with the card its peer wrote, and what names the nodes reads it. Its
- *  `yuno_version` and os `pretty_name` too, of CARD_TEXT_MAX at most: the
- *  filters of list-agents/list-nodes match them (card_texts_refused()). See
+ *  `yuno_version` and os `pretty_name` too, when not a string; longer than
+ *  CARD_TEXT_MAX they are read cut (card_texts_refused(), card_text()). See
  *  NODE KEYS in the header.
  ***************************************************************************/
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
@@ -6011,7 +6180,8 @@ PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
 
     const char *warning = NULL;
     const char *refusal = record_node_key(
-        gobj, node_id, hostname, peername, spki, without_key_ok, by_key, enforce, &warning
+        gobj, node_id, hostname, peername, spki, without_key_ok, by_key, enforce,
+        kw_get_str(gobj, kw_open, "__username__", "", 0), &warning
     );
 
     if(refusal && enforce) {

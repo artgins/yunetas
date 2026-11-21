@@ -3578,6 +3578,31 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
     }
     ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
         0, "enrollment closed, 3 nodes accepted", "a batch larger than the knocking table leaves it open");
+
+    /*
+     *  Overwriting a live tombstone closes an OPEN enrollment, with no
+     *  quarantine before it (mark_evicted_quarantine 0, so that the cases
+     *  below open theirs). The knocks give a key accepted for another
+     *  node, so the enrollment refuses them and they knock
+     */
+    gobj_write_integer_attr(priv->cc, "mark_evicted_quarantine", 0);
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
+    gobj_write_integer_attr(priv->cc, "max_evicted_knocks", 2);
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
+        0, "enrollment open", "open-enrollment before a flood of tombstones");
+    for(int i=0; i<5; i++) {
+        char name[NAME_MAX];
+        char uuid[NAME_MAX];
+        snprintf(name, sizeof(name), "tx-%d", i);
+        snprintf(uuid, sizeof(uuid), "uuid-tx%d", i);
+        if(logs_in_by_key(gobj, name, uuid, KEY_EN1)) {
+            ret += fail(gobj, "the enrollment accepts a key accepted for another node", uuid);
+        }
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "the enrollment is not open", "overwriting a live tombstone closes the open enrollment");
+    gobj_write_integer_attr(priv->cc, "mark_evicted_quarantine", 3600);
+    gobj_write_integer_attr(priv->cc, "max_evicted_knocks", 1024);
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
 
     /*
@@ -3655,13 +3680,11 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
         -1, "no enrollment opens for", "open-enrollment after a mark was evicted is refused");
 
     /*
-     *  A full ring of tombstones that overwrites a live one loses what keeps
-     *  an enrollment from taking that uuid: it is a flood, as the eviction
-     *  of a uuid of two keys (one WARNING of its own, no enrollment for an
-     *  hour). uuid-tv knocks with K1, five uuids evict it and overwrite its
-     *  tombstone, and its K2 is refused. Up to 7.31.29 the tombstone did
-     *  not exist; before this, a full ring overwrote it in silence and K2
-     *  was accepted
+     *  The same during the quarantine of a uuid of two keys: uuid-tv knocks
+     *  with K1, five uuids evict it and overwrite its tombstone, and its K2
+     *  is refused. Its WARNING is not said again: the case of the open
+     *  enrollment above said that cause in this window (a mask of causes:
+     *  the two-keys one, said after it, did not hide it)
      */
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
     gobj_write_integer_attr(priv->cc, "max_evicted_knocks", 2);
@@ -3906,9 +3929,6 @@ PRIVATE int test_card_checked(hgobj gobj, hgobj client)
     char long_host[HOST_NAME_MAX+2];
     memset(long_host, 'h', sizeof(long_host)-1);
     long_host[sizeof(long_host)-1] = 0;
-    char long_text[66];     // one more than the 64 of a version or an os
-    memset(long_text, 'v', sizeof(long_text)-1);
-    long_text[sizeof(long_text)-1] = 0;
 
     json_t *cards[] = {
         json_pack("{s:i, s:{s:[{s:s, s:s}]}}",
@@ -3926,11 +3946,8 @@ PRIVATE int test_card_checked(hgobj gobj, hgobj client)
         json_pack("{s:s, s:{s:[{s:s, s:s}]}}",
             "id", "uuid-longhost",
             "__md_iev__", "ievent_gate_stack", "dst_service", "controlcenter", "host", long_host),
-        json_pack("{s:s, s:s, s:{s:[{s:s, s:s}]}}",
-            "id", "uuid-longversion", "yuno_version", long_text,
-            "__md_iev__", "ievent_gate_stack", "dst_service", "controlcenter", "host", "h"),
-        json_pack("{s:s, s:{s:s}, s:{s:[{s:s, s:s}]}}",
-            "id", "uuid-longos", "os", "pretty_name", long_text,
+        json_pack("{s:s, s:{s:i}, s:{s:[{s:s, s:s}]}}",
+            "id", "uuid-intos", "os", "pretty_name", 7,
             "__md_iev__", "ievent_gate_stack", "dst_service", "controlcenter", "host", "h"),
         json_pack("{s:s, s:i, s:{s:[{s:s, s:s}]}}",
             "id", "uuid-intversion", "yuno_version", 7,
@@ -3938,7 +3955,7 @@ PRIVATE int test_card_checked(hgobj gobj, hgobj client)
         0
     };
     const char *ids[] = {"7", "uuid-hostint", "uuid`tick", long_id, "uuid-longhost",
-        "uuid-longversion", "uuid-longos", "uuid-intversion", 0};
+        "uuid-intos", "uuid-intversion", 0};
     for(int i=0; cards[i]; i++) {
         char name[NAME_MAX];
         snprintf(name, sizeof(name), "card-%d", i);
@@ -4436,9 +4453,8 @@ PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
             "id", 7, "__md_iev__", "ievent_gate_stack", "host", "h7"),
         json_pack("{s:s, s:{s:[{s:i}]}}",
             "id", "uuid-p7", "__md_iev__", "ievent_gate_stack", "host", 7),
-        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
-            "id", "uuid-p7", "yuno_version",
-            "7.31.29-0123456789012345678901234567890123456789012345678901234567",
+        json_pack("{s:s, s:[s], s:{s:[{s:s}]}}",
+            "id", "uuid-p7", "yuno_version", "7.31.29",
             "__md_iev__", "ievent_gate_stack", "host", "h7"),
         0
     };
@@ -4615,14 +4631,12 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
         -1, "hostname='la-(' is no regular expression", "list-agents with a regex that does not compile");
 
     /*
-     *  What could stall the loop is refused: a back-reference (exponential
-     *  in glibc), a pattern too long. An escaped backslash before a digit is
-     *  no back-reference
+     *  The filters are PCRE2 patterns: what glibc's regcomp() could not
+     *  compile in a bounded time or memory, and the R97/R98 rules refused by
+     *  shape, now works (a bounded repetition, many +, an anchor anywhere, a
+     *  word boundary, a back-reference). What is still refused: a pattern
+     *  longer than 256 bytes, and one whose code is over 16 KB
      */
-    kw = client_kw(gobj_name(client));
-    json_object_set_new(kw, "hostname", json_string("(la)\\1"));
-    ret += check_response(gobj, gobj_command(priv->cc, "list-agents", kw, client),
-        -1, "hostname: a back-reference", "list-agents with a back-reference");
     char longer[300];
     memset(longer, 'a', sizeof(longer) - 1);
     longer[sizeof(longer) - 1] = 0;
@@ -4630,62 +4644,34 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
     json_object_set_new(kw, "uuid", json_string(longer));
     ret += check_response(gobj, gobj_command(priv->cc, "list-nodes", kw, client),
         -1, "uuid: a regular expression longer than 256 bytes", "list-nodes with a pattern too long");
-    if(count_listed(gobj, client, "list-agents",
-            json_pack("{s:s}", "hostname", "^la-\\\\1"),
-            "list-agents with an escaped backslash before a digit") != 0) {
-        ret += fail(gobj, "an escaped backslash before a digit matches a hostname", "");
-    }
-
-    /*
-     *  A bounded repetition is refused: regcomp() copies what it repeats,
-     *  and nested ones grow without a bound ((a{32767}){32767}). Inside
-     *  brackets too, and after an escaped backslash. An escaped brace is
-     *  the character. Up to 7.31.29 they were compiled
-     */
-    const char *braces[] = {"(la){2}", "^la-[{]", "^la-\\\\{2}", "((la){2}){2}", 0};
-    for(int i=0; braces[i]; i++) {
+    const char *too_large[] = {"((a{100}){100}){100}", "(a|b|c|d|e|f|g|h){1000}", 0};
+    for(int i=0; too_large[i]; i++) {
         kw = client_kw(gobj_name(client));
-        json_object_set_new(kw, "hostname", json_string(braces[i]));
+        json_object_set_new(kw, "hostname", json_string(too_large[i]));
         ret += check_response(gobj, gobj_command(priv->cc, i%2? "list-nodes" : "list-agents", kw, client),
-            -1, "hostname: a bounded repetition ({n,m}) is refused", braces[i]);
-    }
-
-    /*
-     *  X+ is compiled as X X*: k of them copy 2^k times (a and 20 + take
-     *  718 MB), so 4 at most. An anchor or a word boundary inside nested
-     *  loops makes regcomp() exponential in time ((^(^...$)*$)*, 10 levels,
-     *  8 s): ^ only first (or opening a bracket) and $ only last, no word
-     *  boundary. Up to 7.31.29 they were compiled
-     */
-    const struct {
-        const char *pattern;
-        const char *refusal;
-    } refused[] = {
-        {"l+a+-+a+l+",      "hostname: more than 4 + are refused"},
-        {"((((la+)+)+)+)+", "hostname: more than 4 + are refused"},
-        {"[+][+][+][+][+]", "hostname: more than 4 + are refused"},
-        {"(^la-alpha)*",    "hostname: an anchor is refused but ^ first and $ last"},
-        {"^la-alpha|^la-b", "hostname: an anchor is refused but ^ first and $ last"},
-        {"(la-alpha$)*",    "hostname: an anchor is refused but ^ first and $ last"},
-        {"\\[^la",          "hostname: an anchor is refused but ^ first and $ last"},
-        {"(\\bla)*",        "hostname: a word boundary"},
-        {"\\<la",           "hostname: a word boundary"},
-        {"la\\'",           "hostname: a word boundary"},
-    };
-    for(size_t i=0; i<ARRAY_SIZE(refused); i++) {
-        kw = client_kw(gobj_name(client));
-        json_object_set_new(kw, "hostname", json_string(refused[i].pattern));
-        ret += check_response(gobj, gobj_command(priv->cc, i%2? "list-nodes" : "list-agents", kw, client),
-            -1, refused[i].refusal, refused[i].pattern);
+            -1, "is no regular expression", too_large[i]);
     }
     const struct {
         const char *pattern;
         int expected;
     } accepted[] = {
-        {"^l+a+-+al+pha$",      1},     // 4 +, ^ first, $ last
-        {"^la-[^b]",            1},     // ^ that opens a bracket
-        {"^la-alpha\\$|beta",   1},     // an escaped $ is the character
-        {"\\+",                 0},
+        {"^la-\\\\1",               0},     // an escaped backslash and a digit
+        {"(la)-\\1",                0},     // a back-reference: la-la is no hostname
+        {"^(la)-(alpha|beta)$",     2},
+        {"(la){1}-",                2},     // a bounded repetition
+        {"((la){1}){1}-",           2},
+        {"^l+a+-+a+l+p+h+a+$",      1},     // many +
+        {"^la-alpha|^la-beta",      2},     // an anchor anywhere
+        {"(^la-alpha)|(^la-beta$)",   2},
+        {"\\bbeta",                 1},     // a word boundary
+        {"^la-[^b]",                1},
+        {"^la-alpha\\$|beta",       1},     // an escaped $ is the character
+        {"\\+",                     0},
+        {"^la-\\{",                 0},
+        {"(a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?"
+         "a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?a\?\?)*la-",      2},     // days in regcomp()
+        {"((||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)"
+         "(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||)(||))*la-",      2},
     };
     for(size_t i=0; i<ARRAY_SIZE(accepted); i++) {
         int n = count_listed(gobj, client, "list-agents",
@@ -4695,11 +4681,6 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
             snprintf(detail, sizeof(detail), "%d agents, expected %d", n, accepted[i].expected);
             ret += fail(gobj, accepted[i].pattern, detail);
         }
-    }
-    if(count_listed(gobj, client, "list-agents",
-            json_pack("{s:s}", "hostname", "^la-\\{"),
-            "list-agents with an escaped brace") != 0) {
-        ret += fail(gobj, "an escaped brace matches a hostname", "");
     }
 
     /*
@@ -4741,6 +4722,76 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
             "list-nodes by version, the nodes away") != 0) {
         ret += fail(gobj, "a node away matches a version", "");
     }
+
+    /*
+     *  A match stops at its limits (1000 steps): a pattern built to
+     *  backtrack, over a hostname of 63 bytes, takes some 30 us and is no
+     *  match, and the answer says the filter was too costly (the filter
+     *  matches nothing more in that command). A cheap filter beside it is
+     *  not touched
+     */
+    /*
+     *  A yuno_version or an os longer than 64 bytes is read cut, at a UTF-8
+     *  boundary: the agent is let in. 9 bytes and
+     *  28 two-byte characters: 65 bytes, read as 63
+     */
+    char long_version[NAME_MAX];
+    snprintf(long_version, sizeof(long_version), "7.31.29-x%s",
+        "\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9"
+        "\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9"
+        "\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9");
+    char cut_version[NAME_MAX];
+    snprintf(cut_version, sizeof(cut_version), "(,%.63s)", long_version);
+    hgobj lv = open_session_card(gobj, "la-longversion",
+        json_pack("{s:s, s:s, s:{s:s}, s:{s:[{s:s}]}}",
+            "id", "uuid-la-lv", "yuno_version", long_version, "os", "pretty_name", long_version,
+            "__md_iev__", "ievent_gate_stack", "host", "la-longversion"
+        ), NULL, NULL);
+    if(drops_of(lv) != 0) {
+        ret += fail(gobj, "an agent with a long version or os is refused", "");
+    }
+    {
+        kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "hostname", json_string("^la-longversion$"));
+        json_t *response = gobj_command(priv->cc, "list-agents", kw, client);
+        const char *line = json_string_value(json_array_get(kw_get_list(gobj, response, "data", 0, 0), 0));
+        if(!line || !strstr(line, cut_version)) {
+            ret += fail(gobj, "a long version is not read cut at a UTF-8 boundary", line? line : "(none)");
+        }
+        JSON_DECREF(response)
+    }
+    close_session(lv);
+
+    char lim_host[64];
+    snprintf(lim_host, sizeof(lim_host), "lim-%.59s",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    hgobj lim = open_session_card(gobj, "la-lim",
+        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+            "id", "uuid-la-lim", "yuno_version", "7.31.29",
+            "__md_iev__", "ievent_gate_stack", "host", lim_host
+        ), NULL, NULL);
+    const char *costly[] = {"list-agents", "list-nodes", 0};
+    for(int i=0; costly[i]; i++) {
+        kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "hostname", json_string("(a|aa)+[^a]"));
+        json_t *response = gobj_command(priv->cc, costly[i], kw, client);
+        json_t *data = kw_get_list(gobj, response, "data", 0, 0);
+        size_t idx; json_t *jn;
+        json_array_foreach(data, idx, jn) {
+            if(strstr(json_is_string(jn)? json_string_value(jn) :
+                    kw_get_str(gobj, jn, "id", "", 0), "uuid-la-lim")) {
+                ret += fail(gobj, "a match that hits its limit is a match", costly[i]);
+            }
+        }
+        ret += check_response(gobj, response, 0,
+            "hostname: too costly to match (match limit exceeded)",
+            "a filter that hits a match limit is said in the answer");
+    }
+    if(count_listed(gobj, client, "list-agents",
+            json_pack("{s:s}", "hostname", "^lim-a+$"), "a cheap filter on the same host") != 1) {
+        ret += fail(gobj, "a cheap filter does not match the host a costly one gave up on", "");
+    }
+    close_session(lim);
     return ret;
 }
 
