@@ -226,10 +226,11 @@
   run that finds it taken copies nothing and exits 75, which the agent
   reports as `busy`, and the next sync copies), and only the hook waits,
   with `copy-certs.sh --wait`. The agent does not count a busy sync as a
-  failure: `cert-sync-status` shows `busy_ticks`, the syncs in a row that
-  found the lock taken, the agent logs one WARNING at the third and one INFO
-  when the lock is free again, and `cert-sync-now` says the result of its
-  sync. A node with no certificate says so once, not at each tick. When
+  failure: `cert-sync-status` shows `busy_ticks`, the busy syncs since a
+  copy last ran past the lock (a copy that fails does not end the count),
+  the agent logs one WARNING at the third and one INFO when a copy exits
+  with 0 again, and `cert-sync-now` says the result of its sync. Exit 75 of
+  `cert_sync_copy_cmd` is reserved for "busy". A node with no certificate says so once, not at each tick. When
   `logger` fails, a line of the script goes to
   `/var/log/yuneta/copy-certs.log` with its time. Every line of the script also goes to the journal,
   so the sync of the agent leaves a trace:
@@ -332,6 +333,22 @@
 
 ### Fixed
 
+- **The agent: a `write-attr` of `cert_sync_enabled` or
+  `cert_sync_interval_sec` takes effect at once.** `0` stops the timer of the
+  certificate sync, and `1` or a new interval arms it again, each with an
+  INFO:
+
+  ```
+  ycommand -S __yuno__ -c 'write-attr gobj=agent attribute=cert_sync_enabled value=0'
+  ```
+
+  Up to 7.31.29 such a `write-attr` changed only the attribute: the sync
+  went on as before until the agent restarted, although the guide said that
+  it acts at once.
+- **The agent: if the certificate sync cannot read `cert_sync_store_dir` or
+  a `.crt` in it, it logs one WARNING** with the path and `errno`, and one
+  INFO when it can read them again. Up to 7.31.29 it skipped them with no
+  log, and did not see a change there.
 - **A `tr2list --rkey` that is refused lists nothing:** it prints the cause
   and exits 1, also with `--follow` and `--recursive`. Up to 7.31.29 it did
   not look at the answer, and `--follow` went on following nothing.
