@@ -26,36 +26,78 @@
   must name `yuneta-agent`. Up to 7.31.29, any `.deb` or `.rpm` with the
   given sha256 was installed, and a node without curl fell back to wget,
   whose `--https-only` does not apply to redirects. A node without curl is
-  now refused. The permissions `install-package` and `upgrade-agent` now say
-  that they are equivalent to root.
-- **The filters of `list-agents` and `list-nodes` refuse a `{` that is not
-  escaped**, also inside brackets. A bounded repetition makes `regcomp()`
-  copy what it repeats, and nested ones multiply: `(a{1000}){1000}` took
-  211 MB, and `(a{32767}){32767}` took all the memory of the control center.
-  Write `\{` for the character. Up to 7.31.29 (the filters came in 7.31.19),
-  any user with `list-agents` could do this.
+  now refused. curl runs with `--globoff`, and a URL with `[ ] { }` is
+  refused by agent22 and by the root program: up to 7.31.29
+  `https://h/[1-1000000000]/yuneta-agent-X.deb` made one download per
+  match, each with its own bounds (an IPv6 literal host is refused too: use
+  the host name). When `systemctl` cannot list the installs that run, the
+  install is refused with its message. The permissions `install-package`
+  and `upgrade-agent` now say that they are equivalent to root.
+- **The filters of `list-agents` and `list-nodes` refuse the shapes that
+  make `regcomp()` explode**: a `{` that is not escaped, more than 4 `+`, an
+  anchor that is not the first `^` or the last `$`, and a word boundary
+  (`\b \B \< \> \` \'`), also inside brackets. glibc copies what a
+  bounded repetition repeats, and compiles `X+` as `X X*`: `(a{1000}){1000}`
+  took 211 MB, `a` with 20 `+` took 718 MB, and `(a{32767}){32767}` or `a`
+  with 24 `+` took all the memory of the control center. An anchor inside
+  10 nested loops took 8 s. Write `\{`, `\+`, `\^` or `\$` for the
+  characters, and `XX*` for `X+`. Up to 7.31.29 (the filters came in
+  7.31.19), any user with `list-agents` could do this.
+- **The control center refuses an agent card whose `yuno_version` or
+  `os.pretty_name` is not a string or is longer than 64**, as it does for
+  the host. An absent field is accepted. The filters match these texts, and
+  a filter made to miss over 300 texts of 151 bytes took 84 s and 2 GB. Up
+  to 7.31.29 these texts had no limit.
 - **A flood of knocks no longer lets another key enroll under a real uuid.**
   A uuid that the flood evicts from the knocking table now keeps the key
   that it knocked with, in a bounded ring (new attribute
-  `max_evicted_knocks`, default 1024, 0 keeps none). An open enrollment
-  refuses that uuid with another key ("it knocked with another key") and
-  accepts it with its own key. A batch of nodes larger than the table still
-  enrolls, and the enrollment stays open. An evicted uuid that knocks with
-  another key is not taken back into the table: accept it with
-  `accept-node spki_sha256=<key>` or forget it with `delete-node`. The ring
-  is in memory, like the knocks. Up to 7.31.29 (the enrollment came in
-  7.31.15), the flood erased the key, and the enrollment accepted another
-  key under that uuid.
-
+  `max_evicted_knocks`, default 1024). An open enrollment accepts that uuid
+  with its own key. If the uuid knocks again with ANOTHER key, it has two
+  keys, and the enrollment refuses both, as it does for a uuid with two keys
+  in the table. Accept the right one with `accept-node spki_sha256=<the key
+  read on the node>`, or forget the uuid with `delete-node`. An evicted uuid
+  is not taken back into the table. When the ring is full and an eviction
+  overwrites a live entry, that is a flood: the open enrollment closes, no
+  enrollment opens for an hour, and one WARNING says it
+  (`max_evicted_knocks` 0 does the same at every eviction). A batch of
+  nodes larger than the table still enrolls. The ring is in memory, like the
+  knocks. Up to 7.31.29 (the enrollment came in 7.31.15), the flood erased
+  the key, and the enrollment accepted another key under that uuid.
+- **`help` no longer takes a time that grows with the square of the line.**
+  Each `cmd=` of a help line read the whole line again, and the masking went
+  on after its output was full. A 240 KB `help` line from a peer took 37 s of
+  a single-thread yuno, the agent included, and `help` asks for no
+  permission. It takes about 8 ms now. This existed in 7.31.0.
+- **The certbot deploy hook and `copy-certs.sh` write less as root.** Root
+  only reads the keys of `/etc/letsencrypt`, and the user `yuneta` writes
+  the copies in `/yuneta/store/certs` (an unchanged certificate keeps its
+  mtime). A name in `certs.list` that is not `[A-Za-z0-9._-]`, starts with a
+  dot or has `..` is skipped with a log line, and so is a `.pem` that
+  resolves outside `/etc/letsencrypt`. A symbolic link in place of
+  `/yuneta/store/certs` or `private/` is refused. `check-certs-validity.sh`,
+  `restart-yuneta` and `ycommand` run as `yuneta` (`setpriv`), so the
+  fallback `restart-yuneta` of the hook needs `sudo` to restart the agent.
+  Up to 7.31.29 root followed a name of `certs.list` (which `yuneta` writes)
+  anywhere under `/etc/letsencrypt/live/`, wrote as root into the tree of
+  `yuneta`, and ran these three files as root. Root still runs the web
+  server and `copy-certs.sh` from `/yuneta`: the page *Files outside
+  `/yuneta`* lists them, and says that removing `sudo` does not make
+  `yuneta` a privilege boundary while that is so. The hook and the script
+  are now one file each in `packages/templates`, for the `.deb` and the
+  `.rpm`.
 ### Changed
 
 - **`yuneta-node-uuid`: an interface in a bond counts with its own MAC**
-  (`bonding_slave/perm_hwaddr`). From 7.31.3 to 7.31.29 such interfaces
-  were skipped, so two servers of one batch with the same DMI uuid and
-  bonded NICs got the same node uuid. A deployed node whose NICs are all in
-  a bond gets a new uuid at the first agent start after the upgrade, with a
-  copy and a warning, and must be accepted again (`accept-node`). Before
-  you upgrade a node, look for bonds with `ls /sys/class/net/*/bonding_slave`.
+  (`bonding_slave/perm_hwaddr`). From 7.31.3 to 7.31.29 every bond slave was
+  skipped, so two servers of one batch with the same DMI uuid and all their
+  NICs in a bond got the same node uuid. After the upgrade, the uuid of a
+  server changes when one of its bond slaves has the lowest on-board MAC of
+  the server, also with a partial bond. A server whose bond slaves all have
+  higher MACs than another on-board interface keeps its uuid. To find these
+  servers, run `ls /sys/class/net/*/bonding_slave` on each one. A changed
+  node gets the new uuid at the first agent start after the upgrade, with a
+  copy of the old file and a WARNING that names the bond. Accept it again
+  (`accept-node`), and print its label (`yuneta-node-label`) again.
   `yuneta-node-label` lists such ports with their own MAC.
 - **MQTT broker: `max_subscriptions_per_client` is also the limit of a
   persistent session.** The filters that the session kept from earlier
@@ -90,21 +132,34 @@
 - **Release packages: `SHA256SUMS` lists every package of the release.** It
   came in 7.31.27, and up to 7.31.29 it had to hold exactly one `.deb` and
   one `.rpm`: a repackage on the same tag failed the job, and `install.sh`
-  then refused the release.
+  then refused the release. A manual run with `checksums_only=true` remakes
+  `SHA256SUMS` from the `.sha256` assets and builds nothing. Use it for a
+  package uploaded by hand (a `-2`, a riscv64 `.deb`):
+
+  ```sh
+  gh workflow run release-packages.yml -f release_tag=7.32.0 -f checksums_only=true
+  ```
+
+  A plain manual run on a published tag rebuilds and replaces its packages
+  with other bytes.
 - **`install.sh` downloads the package to `/var/tmp`, not `/tmp`** (a tmpfs
   on Debian 13), and removes it also when it is interrupted. Up to 7.31.29
   the package of about 370 MB was held in RAM.
-- **C_AUTH_BFF with `issuers`: at start, the discovery of the first IdP
-  waits `idp_failover_connect_ms` (4 s) to connect, as a login does.** From
-  7.31.6 to 7.31.29 it waited `idp_connect_timeout_ms` (30 s), and a login
-  that came meanwhile waited for it. A BFF that started with its first IdP
-  down answered logins after the SPA had given up.
+- **C_AUTH_BFF with `issuers`: a discovery fails over like a login.** At
+  start, the discovery of the first IdP waits `idp_failover_connect_ms`
+  (4 s) to connect, and every discovery that a login waits for waits
+  `idp_failover_response_ms` (5 s) for the answer of an IdP that connects
+  and is silent. Then the login goes to the next IdP. From 7.31.6 to 7.31.29
+  they waited `idp_connect_timeout_ms` and `idp_timeout_ms` (30 s each), and
+  a BFF that started with its first IdP down answered logins after the SPA
+  had given up.
 - **`info-machine`: an answer that cannot be built is -1 with an ERROR.**
   When the hostname or the `node_uuid` was not UTF-8, the answer was 0 with
   no data and no log, after a read of memory that `json_pack()` had freed.
   The command came in 7.31.21.
 - **The masked form of a command line is at most 64 KB, with no ERROR and
-  no piece cut.** A parameter that does not fit shows as `<...>`. Up to
+  no piece cut.** From the first parameter that does not fit, the line ends
+  in one ` <...>`, so a secret value never shows after a hidden name. Up to
   7.31.29 a line that a peer can write (a client's `cmd2agent`) logged two
   ERRORs with a stack for each parameter past 64 KB, and kept a cut piece.
   `help cmd=<line>` and a `help` search word no longer log ERRORs when they
