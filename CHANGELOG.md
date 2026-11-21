@@ -102,23 +102,42 @@
   limit of pcre2 counts frames and starts again at each start position, so a
   pattern that stays under it at every position cost up to 150 ms per key,
   the load of a live list had no time budget, and the writer paid the same
-  on the first append of each new key. Now the compiled pattern is 1 KB at
-  most, and a key is judged first with 8 frames for each position, then, if
-  that is not enough, one position at a time with 1000 frames and the clock
-  read before each position, with 2 ms for each key. `list-keys`,
-  `open-iterator` and the one-shot `open-list` have 2 s in total, and the
-  load of a live list has 2 s too. A request that spends them, or that pcre2
-  cannot judge (a limit, an error, a recursion loop), is refused with "rkey
-  regex too costly" (a WARNING from a peer). A live list keeps the verdict of
-  each key, so a key is judged once, and a key that cannot be judged is not
-  given to the list, with one WARNING that names the list (`get-list-data`
-  says how many). The patterns are bytes (`PCRE2_NEVER_UTF`), with no `\C`
-  and no callouts, and the memory of pcre2 goes through gbmem. Measured
-  against 7.31.29, alternated: a load of 3000 keys that took 59 s is refused
-  at 2 s, the first append of a costly new key goes from 152 ms to 2 ms, an
-  append of a known costly key from 10.8 ms to 3.9 µs, and an append with a
-  cheap `rkey`, or none, does not change. `perf_timeranger2` has a new phase,
-  `rkey`, for these cases.
+  on the first append of each new key. Now:
+    - The compiled pattern is at most 1 KB when a peer sends it (a command
+      with a peer's kw, a live `open-list` included), and at most 64 KB for
+      local code (`tr2list`, `tr2keys`, the calls of a yuno). The field
+      `rkey_compiled_max` of the match conditions carries the cap of a peer.
+    - A key is judged first with 8 frames at each start position. If that is
+      not enough, it is judged one start position at a time, with 1000
+      frames each and the clock (in microseconds) read before each position,
+      with 2 ms for all the positions of a key. A pattern that can start
+      only at the start of the key or after a `\n` is tried only there.
+    - `list-keys`, `open-iterator` and the one-shot `open-list` have 2 s in
+      total. A live list judges every key first, with 2 s for all of them,
+      and only then reads the history of the keys it chose: a list out of
+      time is refused before any record is read, and the answer says why.
+    - A request that spends its time, or that pcre2 cannot judge (a limit, a
+      recursion loop, a `\K` set past the end), is refused with "rkey regex
+      too costly", a WARNING from a peer. Only "no memory" and an internal
+      error of pcre2 are ERRORs. `(*COMMIT)`, `(*SKIP)`, `\G`,
+      `(*NOTEMPTY_ATSTART)`, a newline other than LF and `(*UCP)` are refused
+      as a bad `rkey`, because a search one position at a time would answer
+      otherwise than one search, and a key is bytes.
+    - A live list keeps the verdict of each key, so a key is judged once. A
+      key that cannot be judged is not given to the list, with one WARNING
+      that names the list, and `get-list-data` says how many were left out.
+    - The patterns are bytes (`PCRE2_NEVER_UTF`, `PCRE2_NEVER_UCP`), with no
+      `\C` and no callouts, and the memory of pcre2 goes through gbmem.
+    - Worst cases measured (figures, not a proof): the `rkey` of a peer,
+      2.6 ms for the first append of a new key of 255 bytes, and a load
+      refused at 2.0 s; a local `rkey`, 146 ms per key, and a load refused at
+      2.12 s. Against 7.31.29, alternated, 10 rounds: a load of 3000 keys that
+      took 60.6 s is refused at 2 s, the first append of a costly new key goes
+      from 158 ms to 2.5 ms, an append of a known costly key from 11.5 ms to
+      3.9 µs, and an append with a cheap `rkey`, or none, does not change.
+      `perf_timeranger2` has an `rkey` phase for these cases, says when a
+      case gave up or was refused, and takes `--rkey=` and
+      `--rkey-compiled-max=`.
 - **`print-tranger` (C_TRANGER and C_NODE) answers through one function,
   `tranger2_view_json()`.** It walks the `path` on the tranger, collapses
   with the limits, and copies only what it shows. Not expanded, it answers
