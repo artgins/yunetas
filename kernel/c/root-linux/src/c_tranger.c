@@ -193,6 +193,13 @@ first (-403 included).
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE json_t *match_topic_keys(
+    hgobj gobj,
+    BOOL peer,
+    const char *topic_name,
+    const char *rkey,
+    json_t **jn_comment
+);
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -3482,82 +3489,40 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         if(!empty_string(key)) {
             jn_keys = json_pack("[s]", key);
         } else {
-            jn_keys = tranger2_list_keys(priv->tranger, topic_name);
-            if(!empty_string(rkey)) {
+            if(empty_string(rkey)) {
+                jn_keys = tranger2_list_keys(priv->tranger, topic_name);
+            } else {
                 /*
                  *  PCRE2, the same engine timeranger2 now matches rkey with
-                 *  (and list-keys above): one flavour of regex per parameter,
-                 *  or the same rkey would mean two different things depending
-                 *  on which half of open-list ran it.
+                 *  (and list-keys): one flavour of regex per parameter, or
+                 *  the same rkey would mean two different things depending
+                 *  on which half of open-list ran it. And the same limits
+                 *  of cost (match_topic_keys()): up to 7.31.29 this copy of
+                 *  the match had none.
                  */
-                int errornumber = 0;
-                PCRE2_SIZE erroroffset = 0;
-                pcre2_code *re = pcre2_compile(
-                    (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0,
-                    &errornumber, &erroroffset, NULL
+                json_t *jn_comment = NULL;
+                json_t *jn_matched = match_topic_keys(
+                    gobj, command_is_external(kw), topic_name, rkey, &jn_comment
                 );
-                if(!re) {
-                    PCRE2_UCHAR err[256];
-                    pcre2_get_error_message(errornumber, err, sizeof(err));
-                    log_refusal(gobj, command_is_external(kw),
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "Bad rkey regex",
-                        "rkey",         "%s", rkey,
-                        "offset",       "%d", (int)erroroffset,
-                        "error",        "%s", (char *)err,
-                        NULL
-                    );
-                    JSON_DECREF(jn_keys)
+                if(!jn_matched) {
+                    // Error already logged
                     JSON_DECREF(jn_data)
                     JSON_DECREF(match_cond)
                     return msg_iev_build_response(
                         gobj,
                         -1,
-                        json_sprintf("%s: Bad rkey regex '%s' at %d: %s",
-                            gobj_yuno_role_plus_name(), rkey, (int)erroroffset, (char *)err),
+                        jn_comment,
                         0,
                         0,
                         kw  // owned
                     );
                 }
-                pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
-
-                pcre2_match_data *md = pcre2_match_data_create_from_pattern(re, NULL);
-                if(!md) {
-                    pcre2_code_free(re);
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MEMORY,
-                        "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
-                        NULL
-                    );
-                    JSON_DECREF(jn_keys)
-                    JSON_DECREF(jn_data)
-                    JSON_DECREF(match_cond)
-                    return msg_iev_build_response(
-                        gobj,
-                        -1,
-                        json_sprintf("%s: No memory for the rkey matcher", gobj_yuno_role_plus_name()),
-                        0,
-                        0,
-                        kw  // owned
-                    );
+                jn_keys = json_array();
+                int m_idx; json_t *jn_m;
+                json_array_foreach(jn_matched, m_idx, jn_m) {
+                    json_array_append(jn_keys, json_object_get(jn_m, "key"));
                 }
-
-                int idx = (int)json_array_size(jn_keys);
-                while(--idx >= 0) {
-                    const char *key_ = json_string_value(json_array_get(jn_keys, idx));
-                    int m = pcre2_match(
-                        re, (PCRE2_SPTR)(key_?key_:""), PCRE2_ZERO_TERMINATED,
-                        0, 0, md, NULL
-                    );
-                    if(m < 0) {
-                        json_array_remove(jn_keys, idx);
-                    }
-                }
-                pcre2_match_data_free(md);
-                pcre2_code_free(re);
+                JSON_DECREF(jn_matched)
             }
         }
 

@@ -3692,7 +3692,15 @@ PRIVATE int do_test(void)
     {
         gobj_log_add_handler("test_capture_warn", "testing", LOG_OPT_UP_WARNING, 0);
         json_t *expected = json_array();
-        expect_refusal(expected, "rkey regex too costly, refused");
+        expect_refusal(expected, "rkey regex too costly, refused");    // list-keys
+        expect_refusal(expected, "rkey regex too costly, refused");    // one-shot open-list
+        json_array_append_new(expected, json_pack("{s:s, s:s}",       // the live open-list answer
+            "msg", "GClass Attribute NOT FOUND", "__priority__", "WARNING"));
+        json_array_append_new(expected, json_pack("{s:s, s:s}",       // its appends, once
+            "msg", "rkey regex too costly for a key, the key is not given to the list",
+            "__priority__", "WARNING"));
+        json_array_append_new(expected, json_pack("{s:s, s:s}",       // the close-list answer
+            "msg", "GClass Attribute NOT FOUND", "__priority__", "WARNING"));
         set_expected_results("a costly rkey regex is refused", expected, NULL, NULL, 1);
 
         json_t *topic8 = tranger2_create_topic(
@@ -3724,6 +3732,33 @@ PRIVATE int do_test(void)
             json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "rkey", "^a+!$"), yuno);
         check_int("list-keys with a cheap rkey on the same keys", kw_get_int(0, r, "result", -999, 0), 0);
         check_int("its one key", json_array_size(kw_get_list(0, r, "data", 0, 0)), 1);
+        JSON_DECREF(r)
+
+        /*  The one-shot open-list matches the keys the same way: refused  */
+        r = gobj_command(yuno, "open-list",
+            as_peer(json_pack("{s:s, s:s, s:s, s:b}",
+                "list_id", "lstCostly1", "topic_name", TOPIC_NAME8,
+                "rkey", "^(a+)+$", "return_data", 1
+            )), yuno);
+        check_int("one-shot open-list with a costly rkey: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+
+        /*  A live list matches each key of the topic and each append, in
+         *  timeranger2: the costly key is not given to it, said ONCE  */
+        r = gobj_command(yuno, "open-list",
+            json_pack("{s:s, s:s, s:s}",
+                "list_id", "lstCostly2", "topic_name", TOPIC_NAME8, "rkey", "^(a+)+$"
+            ), yuno);
+        check_int("live open-list with a costly rkey", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        for(int k = 0; k < 2; k++) {
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME8, BASE_T + 1 + k, 0, &md,
+                json_pack("{s:s, s:I, s:s}",
+                    "id", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!", "tm", (json_int_t)BASE_T, "content", "y"));
+        }
+        r = gobj_command(yuno, "close-list",
+            json_pack("{s:s}", "list_id", "lstCostly2"), yuno);
         JSON_DECREF(r)
 
         global_result += test_json(NULL);

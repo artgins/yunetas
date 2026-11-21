@@ -38,6 +38,13 @@ extern void jsonp_free(void *ptr); // json low level
 /***************************************************************
  *              Constants
  ***************************************************************/
+/*
+ *  The cost of a peer's rkey regex, per match (c_tranger.c has the same)
+ */
+#define RKEY_MATCH_LIMIT        100000  /* steps of one match */
+#define RKEY_DEPTH_LIMIT        10000   /* backtracking depth of one match */
+#define RKEY_HEAP_LIMIT_KB      4096    /* heap of one match */
+
 PRIVATE const char *topic_fields[] = {
     "topic_name",
     "pkey",
@@ -19644,19 +19651,36 @@ PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_co
         return -1;      // Error already logged
     }
     pcre2_match_data *md = pcre2_match_data_create_from_pattern(re, NULL);
-    if(!md) {
+    pcre2_match_context *mc = pcre2_match_context_create(NULL);
+    if(!md || !mc) {
+        if(md) {
+            pcre2_match_data_free(md);
+        }
+        if(mc) {
+            pcre2_match_context_free(mc);
+        }
         pcre2_code_free(re);
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY,
-            "msg",          "%s", "pcre2_match_data_create_from_pattern() FAILED",
+            "msg",          "%s", "pcre2 match data or context FAILED",
             NULL
         );
         return -1;
     }
+    /*
+     *  The pattern is a peer's, matched once per appended record: its cost
+     *  is bounded, as c_tranger's list-keys bounds it. Up to 7.31.29
+     *  pcre2's defaults applied (ten million steps a match), on the writer's
+     *  path.
+     */
+    pcre2_set_match_limit(mc, RKEY_MATCH_LIMIT);
+    pcre2_set_depth_limit(mc, RKEY_DEPTH_LIMIT);
+    pcre2_set_heap_limit(mc, RKEY_HEAP_LIMIT_KB);
 
     json_object_set_new(list, "rkey_re", json_integer((json_int_t)(uintptr_t)re));
     json_object_set_new(list, "rkey_md", json_integer((json_int_t)(uintptr_t)md));
+    json_object_set_new(list, "rkey_mc", json_integer((json_int_t)(uintptr_t)mc));
     return 0;
 }
 
@@ -19668,6 +19692,13 @@ PRIVATE void rkey_disarm(json_t *list)
     pcre2_match_data *md = (pcre2_match_data *)(uintptr_t)json_integer_value(
         json_object_get(list, "rkey_md")
     );
+    pcre2_match_context *mc = (pcre2_match_context *)(uintptr_t)json_integer_value(
+        json_object_get(list, "rkey_mc")
+    );
+    if(mc) {
+        pcre2_match_context_free(mc);
+        json_object_del(list, "rkey_mc");
+    }
     if(md) {
         pcre2_match_data_free(md);
         json_object_del(list, "rkey_md");
@@ -19707,9 +19738,29 @@ PRIVATE BOOL list_wants_key(json_t *list, const char *key)
         return TRUE;    // armed without its match data: cannot happen (rkey_arm)
     }
 
-    int ret = pcre2_match(
-        re, (PCRE2_SPTR)(key?key:""), PCRE2_ZERO_TERMINATED, 0, 0, md, NULL
+    pcre2_match_context *mc = (pcre2_match_context *)(uintptr_t)json_integer_value(
+        json_object_get(list, "rkey_mc")
     );
+
+    int ret = pcre2_match(
+        re, (PCRE2_SPTR)(key?key:""), PCRE2_ZERO_TERMINATED, 0, 0, md, mc
+    );
+    if((ret == PCRE2_ERROR_MATCHLIMIT || ret == PCRE2_ERROR_DEPTHLIMIT ||
+            ret == PCRE2_ERROR_HEAPLIMIT || ret == PCRE2_ERROR_JIT_STACKLIMIT) &&
+            !json_object_get(list, "rkey_limit_said")) {
+        /*
+         *  Said once per list: the key is not given to it
+         */
+        json_object_set_new(list, "rkey_limit_said", json_true());
+        gobj_log_warning(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "rkey regex too costly for a key, the key is not given to the list",
+            "key",          "%.256s", key?key:"",
+            "error",        "%d", ret,
+            NULL
+        );
+    }
     return ret >= 0;
 }
 
