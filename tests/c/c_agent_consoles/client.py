@@ -734,7 +734,8 @@ async def console_of_a_yuno_card(op, row):
     routes = ((await consoles(op)).get("fy") or {}).get("routes") or {}
     y.send(command("write-tty", {"name": "fy", "content64": base64.b64encode(
         b"while true; do echo TICK; sleep 0.01; done\n").decode()}, role="logcenter"))
-    got = await y.frames(3, lambda g: "TICK\r\n" in tty_text(g))
+    # A fresh bash under a loaded suite (-j8) can take more than 3 s to print
+    got = await y.frames(10, lambda g: "TICK\r\n" in tty_text(g))
     check("yuno card: its console writes", "TICK\r\n" in tty_text(got))
     y.send(command("watch-yuno-stats", {"ids": row["id"], "period": 1000,
         "__relays__": ["EV_YUNO_STATS"]}, role="logcenter"))
