@@ -46,6 +46,7 @@ PRIVATE int add_to_head(GHTTP_PARSER *parser, gbuffer_t **pgbuf, const char *at,
 PRIVATE void publish_refused_response(GHTTP_PARSER *parser, const char *key, json_t *jn_value);
 PRIVATE int join_repeated_headers(GHTTP_PARSER *parser);
 PRIVATE void say_trailer_left_out(GHTTP_PARSER *parser, const char *key);
+PRIVATE BOOL is_interim_response(GHTTP_PARSER *parser);
 
 /****************************************************************
  *         Data
@@ -328,7 +329,7 @@ PRIVATE int on_headers_complete(llhttp_t* llhttp)
         // Error already logged
         return -1;
     }
-    if(parser->on_header_event) {
+    if(parser->on_header_event && !is_interim_response(parser)) {
         json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
             "http_parser_type",     (int)parser->type,
             "url",                  parser->url?parser->url:"",
@@ -638,6 +639,19 @@ PRIVATE json_t *build_message_kw(GHTTP_PARSER *parser)
 }
 
 /***************************************************************************
+ *  A response that is not the final one: 1xx, but 101 (Switching
+ *  Protocols), which IS the answer to an upgrade
+ ***************************************************************************/
+PRIVATE BOOL is_interim_response(GHTTP_PARSER *parser)
+{
+    if(parser->type != HTTP_RESPONSE) {
+        return FALSE;
+    }
+    int status = (int)llhttp_get_status_code(&parser->llhttp);
+    return (status >= 100 && status < 200 && status != 101)? TRUE : FALSE;
+}
+
+/***************************************************************************
  *  Clear the per-message application state, so the next pipelined
  *  message starts clean.
  *
@@ -703,6 +717,28 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
     if(join_repeated_headers(parser) < 0) {
         // Error already logged
         return -1;
+    }
+
+    if(is_interim_response(parser)) {
+        /*
+         *  A 1xx (100 Continue, 103 Early Hints) is not THE response: the
+         *  final one comes after it on the same connection. Published, a
+         *  request took it for its answer, and the final one went to the
+         *  next request (a keep-alive connection pairs nothing): one
+         *  browser got the tokens of another through the BFF. RFC 9110
+         *  15.2: a client can ignore an unexpected 1xx. Up to 7.31.29 it
+         *  was published.
+         */
+        parser->interim_dropped++;
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL,
+            "msg",          "%s", "HTTP interim response (1xx) dropped: the final one follows",
+            "status",       "%d", (int)llhttp_get_status_code(&parser->llhttp),
+            NULL
+        );
+        reset_message(parser);
+        return parser->stopped? -1 : 0;
     }
 
     if(parser->on_body_event) {

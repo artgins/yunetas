@@ -39,6 +39,13 @@ message.
 
 A negative limit is taken as its default, with an ERROR at the creation (*"A limit of C_PROT_HTTP_CL is negative: its default taken"*).
 
+An interim response (`1xx`, such as `100 Continue` or `103 Early Hints`) is
+not published: the final response that follows it on the connection is the
+`EV_ON_MESSAGE` of the request. A `101 Switching Protocols` is published, as
+it is the answer to an upgrade. The connection is keep-alive, and nothing
+pairs an answer with its request, so up to 7.31.29 a published `1xx` was taken
+as the answer, and each later answer went to the request after its own.
+
 ### Sending a request: `EV_SEND_MESSAGE`
 
 Sent to the client once it is connected (after its `EV_ON_OPEN`). The kw:

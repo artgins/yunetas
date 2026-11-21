@@ -51,6 +51,7 @@ typedef struct _GHTTP_PARSER {
     size_t max_header_size; // largest head (target or status text, names, values, GHTTP_HEADER_COST for each header); 0: GHTTP_MAX_HEADER_SIZE; never more than half the largest memory block
     size_t header_size;     // bytes of the head of the message so far
     size_t messages_published; // on_message_event published since the parser was created
+    size_t interim_dropped; // 1xx responses (but 101) dropped: not the final response
     BOOL body_refused;      // a body passed its limit: the parser is stopped, already said
     BOOL headers_refused;   // a head passed its limit: the parser is stopped, already said
     BOOL stopped;           // ghttp_parser_stop(): nothing more is delivered

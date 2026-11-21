@@ -91,6 +91,7 @@ SET(TESTS
     test33_idp_tls_names
     test34_idp_silent
     test35_late_discovery
+    test36_early_hints
 )
 
 foreach(test ${TESTS})
