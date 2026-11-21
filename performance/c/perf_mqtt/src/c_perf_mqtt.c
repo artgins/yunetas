@@ -9,6 +9,8 @@
  *            4. EV_MQTT_MESSAGE: publish the next one, MAX_MESSAGES times,
  *               timed; then disconnect and die
  *          A connection closed before the end is an error.
+ *          With `share_groups` N the client also subscribes N share
+ *          groups that do not match the topic: each publication walks them.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -53,6 +55,7 @@ extern time_measure_t time_measure;
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag----------------default-----description---------- */
 SDATA (DTP_POINTER, "subscriber",       0,                  0,          "Subscriber of output-events"),
+SDATA (DTP_INTEGER, "share_groups",     SDF_RD,             "0",        "Share groups the client also subscribes ($share/g<n>/other/<n>), none matching the topic: what each publication walks. 0: none"),
 SDATA_END()
 };
 
@@ -249,6 +252,11 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "qos",      0,
         "options",  0
     );
+    json_t *subs = kw_get_list(gobj, kw_sub, "subs", 0, KW_REQUIRED);
+    int share_groups = (int)gobj_read_integer_attr(gobj, "share_groups");
+    for(int i=0; i<share_groups; i++) {
+        json_array_append_new(subs, json_sprintf("$share/g%d/other/%d", i, i));
+    }
     json_t *kw_iev = iev_create(gobj, EV_MQTT_SUBSCRIBE, kw_sub);
     gobj_send_event(priv->gobj_output_side, EV_SEND_IEV, kw_iev, gobj);
 
@@ -283,7 +291,11 @@ PRIVATE int ac_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         publish_one(gobj);
     } else {
         MT_INCREMENT_COUNT(time_measure, MAX_MESSAGES)
-        MT_PRINT_TIME(time_measure, "mqtt qos0 round trips")
+        if(gobj_read_integer_attr(gobj, "share_groups") > 0) {
+            MT_PRINT_TIME(time_measure, "mqtt qos0 round trips, with share groups")
+        } else {
+            MT_PRINT_TIME(time_measure, "mqtt qos0 round trips")
+        }
         gobj_send_event(priv->gobj_output_side, EV_DROP, json_object(), gobj);
         set_yuno_must_die();
     }

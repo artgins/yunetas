@@ -39,6 +39,7 @@ PRIVATE int open_database(hgobj gobj);
 PRIVATE int close_database(hgobj gobj);
 PRIVATE size_t sub__messages_queue(hgobj gobj, json_t *kw_mqtt_msg);
 PRIVATE int sub__remove_client(hgobj gobj, const char *client_id);
+PRIVATE void shared_group_remove(hgobj gobj, const char *sharename);
 PRIVATE int subs__restore(hgobj gobj);
 PRIVATE BOOL session_subscription_set(json_t *session, const char *topic_filter, json_t *jn_entry);
 PRIVATE int will__send(hgobj gobj, json_t *session);
@@ -208,6 +209,9 @@ typedef struct _PRIVATE_DATA {
 
     uint64_t session_quota_t_next;      // brake of the WARNING of say_session_quota()
     uint32_t session_quota_suppressed;
+
+    uint32_t shared_publishing;         // depth of the loops of sub__messages_queue() over shared_subs
+    BOOL shared_prune_pending;          // a share group emptied during one of them, removed at its end
 
 } PRIVATE_DATA;
 
@@ -1833,6 +1837,43 @@ PRIVATE json_t *shared_group_tree(hgobj gobj, const char *sharename, BOOL create
 }
 
 /***************************************************************************
+ *  A share group left with no subscription leaves shared_subs, and its
+ *  turn with it. Not while sub__messages_queue() walks shared_subs: a
+ *  delivery can end a connection inside it (the close of a temporary
+ *  session removes its subscriptions), and that loop holds the group and
+ *  the next one. Then the empty tree stays, matches nothing, and the loop
+ *  removes it when it ends (shared_groups_prune()).
+ ***************************************************************************/
+PRIVATE void shared_group_remove(hgobj gobj, const char *sharename)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->shared_publishing > 0) {
+        priv->shared_prune_pending = TRUE;
+        return;
+    }
+    json_object_del(priv->shared_rr, sharename);
+    json_object_del(priv->shared_subs, sharename);
+}
+
+/***************************************************************************
+ *  Remove the share groups emptied while sub__messages_queue() walked them
+ ***************************************************************************/
+PRIVATE void shared_groups_prune(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->shared_prune_pending = FALSE;
+    const char *sharename; json_t *tree; void *tmp;
+    json_object_foreach_safe(priv->shared_subs, tmp, sharename, tree) {
+        if(json_object_size(tree) == 0) {
+            json_object_del(priv->shared_rr, sharename);
+            json_object_del(priv->shared_subs, sharename);   // last: sharename is its key
+        }
+    }
+}
+
+/***************************************************************************
  *  sub__add - Add a subscription to the tree
  *  Parameters:
  *      gobj                    - GObj instance (for PRIVATE_DATA access)
@@ -2269,8 +2310,7 @@ PRIVATE int sub__remove(
      *-------------------------*/
     prune_empty_branches(root, levels);
     if(sharename && json_object_size(root) == 0) {
-        json_object_del(priv->shared_subs, sharename);  // the group's last subscription
-        json_object_del(priv->shared_rr, sharename);
+        shared_group_remove(gobj, sharename);   // the group's last subscription
     }
 
 cleanup:
@@ -2564,8 +2604,7 @@ PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
     json_object_foreach_safe(priv->shared_subs, tmp, sharename, tree) {
         sub__remove_client_recursive(tree, client_id, &count);
         if(json_object_size(tree) == 0) {
-            json_object_del(priv->shared_subs, sharename);
-            json_object_del(priv->shared_rr, sharename);
+            shared_group_remove(gobj, sharename);
         }
     }
 
@@ -3914,11 +3953,21 @@ PRIVATE size_t sub__messages_queue(
      *  Search in shared_subs (shared subscriptions): each share group of a
      *  matching filter gets the message, delivered to ONE of its members
      *  [MQTT 5 4.8.2], in turn (round robin, as Mosquitto): the member whose
-     *  turn it is, or the next one that takes it
+     *  turn it is, or the next one that takes it.
+     *  A delivery can end a connection inside this loop, and with it
+     *  subscriptions and groups: shared_publishing keeps the groups (and
+     *  the keys this loop holds) in shared_subs until the loop ends. One
+     *  dict of matches for every group, created at the first group and
+     *  emptied after each one that matched: up to 7.31.29 every group made
+     *  and freed one for each PUBLISH, matching or not
      *----------------------------------------------------------------------*/
+    json_t *shared_subscribers = NULL;
+    priv->shared_publishing++;
     const char *group; json_t *group_tree;
     json_object_foreach(priv->shared_subs, group, group_tree) {
-        json_t *shared_subscribers = json_object();
+        if(!shared_subscribers) {
+            shared_subscribers = json_object();
+        }
         if(topic[0] == '$') {
             json_t *dollar_branch = json_object_get(group_tree, levels[0]);
             if(dollar_branch) {
@@ -3961,8 +4010,13 @@ PRIVATE size_t sub__messages_queue(
                     break; // one member of the group
                 }
             }
+            json_object_clear(shared_subscribers);
         }
-        JSON_DECREF(shared_subscribers)
+    }
+    JSON_DECREF(shared_subscribers)
+    priv->shared_publishing--;
+    if(priv->shared_publishing == 0 && priv->shared_prune_pending) {
+        shared_groups_prune(gobj);
     }
 
     JSON_DECREF(normal_subscribers)

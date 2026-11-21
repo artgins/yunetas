@@ -23,5 +23,16 @@ It prints one line:
 #TIME (count: 100000): elapsed 2984490860 ns, ops/sec      33506 : mqtt qos0 round trips
 ```
 
+With `share_groups` N, the client also subscribes N share groups
+(`$share/g<n>/other/<n>`) that do not match `perf/topic`. Each publication
+walks them all, so the run measures the cost of the share groups that do not
+match. Give the attribute in the json config of the command line:
+
+```bash
+$YUNETAS_OUTPUTS/bin/perf_mqtt '{"global": {"perf_mqtt.share_groups": 32}}'
+```
+
+It prints `mqtt qos0 round trips, with share groups`.
+
 What the performance round of 7.28.0 took off a publication is in the
 `CHANGELOG.md` section of that release.
