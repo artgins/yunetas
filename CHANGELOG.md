@@ -156,10 +156,15 @@
   hook, where that agent would die with the unit: the queue alarm of
   logcenter restarts the agent again. The three files of a certificate
   change all together or not at all: when a write or a move fails, the files
-  already moved are put back, and no temporary file stays. The hook and the
-  15-minute sync of the agent never run the script at the same time (`flock`
-  on `/run/yuneta-copy-certs.lock`), and a node with no certificate says so
-  once, not at each tick. Every line of the script also goes to the journal,
+  already moved are put back, and no temporary file stays (exit 2), or, if
+  that also fails, the script says so and exits 3. An old file that
+  `yuneta` cannot hard-link (`fs.protected_hardlinks`, a file left by root)
+  is kept with `cp -p`. The hook and the 15-minute sync of the agent never
+  run the script at the same time: the lock is `/run/yuneta-copy-certs/lock`,
+  in a directory of root with mode `0700`, the sync never waits for it (a
+  run that finds it taken copies nothing and exits 0, and the next sync
+  copies), and only the hook waits, with `copy-certs.sh --wait`. A node with
+  no certificate says so once, not at each tick. Every line of the script also goes to the journal,
   so the sync of the agent leaves a trace:
 
   ```sh
@@ -181,8 +186,9 @@
   which the scripts of the package use, and a minimal EL9 image can carry
   only `util-linux-core`. Its SELinux `bin_t` rules for the files that
   systemd starts (`yuneta-webserver`, `yuneta_agent`, `yuneta_agent22`,
-  `restart-yuneta`) are written in one `semanage import`, and the page
-  *Files outside `/yuneta`* lists them.
+  `restart-yuneta`) are written in one `semanage import`, and none is run on
+  an upgrade when `matchpathcon` shows that the four files already have the
+  label. The page *Files outside `/yuneta`* lists them.
 - **`yuneta-node-uuid`: an interface in a bond counts with its own MAC**
   (`bonding_slave/perm_hwaddr`). From 7.31.3 to 7.31.29 every bond slave was
   skipped, so two servers of one batch with the same DMI uuid and all their
