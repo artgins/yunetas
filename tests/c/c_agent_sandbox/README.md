@@ -118,14 +118,27 @@ has no `websockets`.
     processes with SIGSTOP as they appear), another session takes its
     channel, and the yuno goes on (SIGCONT): the play is answered to nobody
     (the agent checks the session that holds the channel).
-13. The certificate sync. In `agent.json`, `cert_sync_copy_cmd` is
-    `exit $(cat /yuneta/store/fake-copy-rc)`, so the test chooses the exit
-    code of the copy. With 75 (what `copy-certs.sh` exits with when
-    another run holds its lock), `cert-sync-now` says `busy` four times,
-    and `cert-sync-status` gives `busy_ticks` 4 and no failure. Then 0
-    gives `no-change` and `busy_ticks` 0, and 1 gives
-    `copy-script-failed` and one failure. A busy run used to exit 0, and
-    the agent said `no-change` for it.
+13. The certificate sync. In `agent.json`, `cert_sync_copy_cmd` writes down
+    each run in `/yuneta/store/copy-runs` and exits with the code in
+    `/yuneta/store/fake-copy-rc`, so the test chooses the exit code of the
+    copy. With `/yuneta/store/fake-copy-touch` it also grows a `.crt` of
+    the store. 75 is what `copy-certs.sh` exits with when another run holds
+    its lock:
+    - Two busy ticks give `busy`, `busy_ticks` 2 and no failure, and then a
+      free one (0) gives `no-change`, with no INFO (a short streak).
+    - Three busy ticks give the WARNING. A copy that fails (1) after them
+      is `copy-script-failed` and keeps `busy_ticks` at 3, with no INFO. One
+      more busy tick, then a free one: the INFO, once.
+    - A busy tick with a `.crt` that changed is `reloaded`.
+    - Each `cert-sync-now` comment says the result of its tick.
+    - `write-attr cert_sync_enabled=0` (a command of `__yuno__`) stops the
+      sync: `cert-sync-now` runs no copy and says `nothing done,
+      cert_sync_enabled is 0`, and `cert-sync-status` says `enabled`
+      false. `=1` arms the timer again (the copy runs), and `write-attr
+      cert_sync_interval_sec=60` arms it with that interval.
+
+    A busy run used to exit 0, and the agent said `no-change` for it. A
+    `write-attr` of either attribute did nothing until the agent restarted.
 
 Two waits are the design's, not a clock: `kill-yuno` answers once the yuno
 left the agent, and its watcher ends right after it (its child ended with
@@ -148,8 +161,11 @@ its pid is not a process of that yuno, not recorded"*, two *"yuno
 ALREADY living, killing new yuno"* (the second cards of 4), and from 13 one
 WARNING *"cert-sync: the copy command found its lock taken at several ticks
 in a row"* (at the third busy tick, not at each), one INFO *"cert-sync: the
-lock of the copy command is free again"*, and one WARNING *"cert-sync copy
-command FAILED"* (the exit 1 only: a busy run is not a failure).
+lock of the copy command is free again"*, two WARNINGs *"cert-sync copy
+command FAILED"* (the exits 1 only: a busy run is not a failure), three
+INFOs *"cert-sync timer armed"* (the start and two `write-attr`), one INFO
+*"cert-sync disabled: timer stopped"*, and no *"cannot read the store of
+certificates"*.
 
 ## Run
 

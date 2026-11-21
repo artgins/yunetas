@@ -1469,10 +1469,10 @@ dropping live connections.
 
 | Attribute               | Default                                          | Purpose                                  |
 |-------------------------|--------------------------------------------------|------------------------------------------|
-| `cert_sync_enabled`     | `1`                                              | Master enable                            |
-| `cert_sync_interval_sec`| `900` (15 min)                                   | How often to check                       |
+| `cert_sync_enabled`     | `1`                                              | Master enable (`write-attr`: at once)    |
+| `cert_sync_interval_sec`| `900` (15 min)                                   | How often to check (`write-attr`: at once, floor 30) |
 | `cert_sync_store_dir`   | `/yuneta/store/certs`                            | Directory the yunos read certs from      |
-| `cert_sync_copy_cmd`    | `/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh` | Command run on every tick           |
+| `cert_sync_copy_cmd`    | `/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh` | Command run on every tick. Its exit 75 is reserved: `busy` |
 | `cert_sync_last_check`  | `0`                                              | Unix ts, updated on tick                 |
 | `cert_sync_last_action` | `0`                                              | Unix ts, updated when a change applies   |
 | `cert_sync_last_result` | `""`                                             | `reloaded`, `reloaded (copy script reported error)`, `no-change`, `busy` or `copy-script-failed` |
@@ -1483,6 +1483,22 @@ configuration only (`SDF_RD`): the agent runs the command with `/bin/sh -c`
 (`run_process2()`, not `system()`), and up to 7.25.21 `write-attr` was able to
 set it and persist it. `cert-sync-now` and
 `cert-sync-status` need the authz of a command (`SDF_AUTHZ_X`).
+
+`cert_sync_enabled` and `cert_sync_interval_sec` take effect at once with
+`write-attr`, and they persist. `0` stops the timer of the sync (INFO
+`cert-sync disabled: timer stopped`), and then `cert-sync-now` runs no copy
+and says `nothing done, cert_sync_enabled is 0`. `1`, or a new interval,
+arms the timer again (INFO `cert-sync timer armed`). Up to 7.31.29 such a
+`write-attr` changed nothing until the agent restarted. For example:
+
+```bash
+ycommand -S __yuno__ -c 'write-attr gobj=agent attribute=cert_sync_enabled value=0'
+ycommand -S __yuno__ -c 'write-attr gobj=agent attribute=cert_sync_interval_sec value=600'
+```
+
+The exit code 75 of `cert_sync_copy_cmd` is reserved. The agent reads it as
+`busy` (below), not as a failure. A command of your own must not exit with
+75 for another reason.
 
 On each tick the agent takes a snapshot of `cert_sync_store_dir`, runs the
 command, and takes a snapshot again. Then it writes `cert_sync_last_result`:
@@ -1495,20 +1511,28 @@ command, and takes a snapshot again. Then it writes `cert_sync_last_result`:
 | `busy` | The command exited with 75: another run of `copy-certs.sh` holds its lock, and this run copied nothing. This is not a failure. The next tick copies. |
 | `copy-script-failed` | The command exited with an error, and nothing changed. The agent adds 1 to `cert_sync_failures`. |
 
-A run of `copy-certs.sh` lasts a few seconds. If the lock is taken at
-three ticks in a row (45 minutes with the default interval), the agent
-logs one WARNING, `cert-sync: the copy command found its lock taken at
-several ticks in a row`. No certificate is copied while the lock is
-taken. When a tick finds the lock free again, the agent logs one INFO,
-`cert-sync: the lock of the copy command is free again`.
-`cert-sync-status` gives the number of busy ticks in a row as
-`busy_ticks`. To find the processes that have the lock open (the
-`<pid>` in `/proc/<pid>/fd/`), run as root:
+A run of `copy-certs.sh` lasts a few seconds. The agent counts the busy
+ticks since the copy last ran past its lock (exit 0). A `cert-sync-now`
+counts as a tick. A copy that fails is neither busy nor free, because it
+can fail before it reaches the lock, so it does not end the count. At the
+third busy tick (the lock was taken for 30 to 45 minutes with the default
+interval), the agent logs one WARNING, `cert-sync: the copy command found
+its lock taken at several ticks in a row`. No certificate is copied while
+the lock is taken. When a copy exits with 0 again, the agent logs one
+INFO, `cert-sync: the lock of the copy command is free again`, and the
+count goes back to 0. A shorter streak logs neither. `cert-sync-status`
+gives the count as `busy_ticks`. To find the processes that have the lock
+open (the `<pid>` in `/proc/<pid>/fd/`), run as root:
 
 ```bash
 find /proc/[0-9]*/fd -lname /run/yuneta-copy-certs/lock 2>/dev/null
 journalctl -t copy-certs --since today
 ```
+
+If the agent cannot read `cert_sync_store_dir`, or a `.crt` file in it, a
+change there is not seen. The agent logs one WARNING, `cert-sync: cannot
+read the store of certificates`, with the path and the `errno`, and one
+INFO when it can read the store again.
 
 For example, `cert-sync-status` shows the last value:
 
@@ -1516,11 +1540,20 @@ For example, `cert-sync-status` shows the last value:
 ycommand -c 'cert-sync-status'
 ```
 
+The `data` of the answer:
+
 ```json
 {
-    "global": {
-        "agent.cert_sync_copy_cmd": "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh"
-    }
+    "enabled": true,
+    "interval_sec": 900,
+    "store_dir": "/yuneta/store/certs",
+    "copy_cmd": "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh",
+    "last_check": 1795287220,
+    "last_action": 1795280011,
+    "last_result": "busy",
+    "failures": 0,
+    "busy_ticks": 2,
+    "deploy_hook_last_run": 1795280010
 }
 ```
 

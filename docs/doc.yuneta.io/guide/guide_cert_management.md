@@ -103,8 +103,9 @@ certbot `deploy-hook` at
       the lock. If another run holds the lock, the run of the sync copies
       nothing, says `Another copy-certs.sh holds ...` and exits with 75.
       The agent then says `busy`, not a failure, and its next sync does
-      the copy. If the lock is taken at three syncs in a row, the agent
-      logs one WARNING, and one INFO when the lock is free again.
+      the copy. At the third busy sync since a copy last ran past the
+      lock, the agent logs one WARNING. A copy that fails does not end
+      that count. When a copy exits with 0 again, the agent logs one INFO.
       The hook runs the script with `--wait`: it waits up to 120 seconds
       for the other run, and then it copies. After 120 seconds it fails
       with exit 1. To run it by hand:
@@ -203,13 +204,22 @@ not firing.
 
 | Attr | Default | Set by | Purpose |
 |---|---|---|---|
-| `cert_sync_enabled` | `1` | config, or `write-attr` (persistent) | Master on/off for the timer |
-| `cert_sync_interval_sec` | `900` | config, or `write-attr` (persistent) | Seconds between checks (floor 30) |
+| `cert_sync_enabled` | `1` | config, or `write-attr` (persistent, at once) | Master on/off for the timer |
+| `cert_sync_interval_sec` | `900` | config, or `write-attr` (persistent, at once) | Seconds between checks (floor 30) |
 | `cert_sync_store_dir` | `/yuneta/store/certs` | config only | Watched directory |
 | `cert_sync_copy_cmd` | `sudo -n /yuneta/store/certs/copy-certs.sh` | config only | Privileged copy command, run with `sh -c`, with no signal blocked |
 
+A `write-attr` of `cert_sync_enabled` or `cert_sync_interval_sec` takes
+effect at once: `0` stops the timer, and `1` or a new interval arms it
+again. Up to 7.31.29 it took effect only after a restart of the agent:
+
+```bash
+ycommand -S __yuno__ -c 'write-attr gobj=agent attribute=cert_sync_enabled value=0'
+```
+
 The command and its directory are set in the agent's configuration only, never
-at run time. Up to 7.25.21, `write-attr` was able to set the command the agent runs
+at run time. The exit code 75 of the command is reserved: the agent reads
+it as `busy`, not as a failure. Up to 7.25.21, `write-attr` was able to set the command the agent runs
 with `system()` (as root, through `sudo`), and persist it. A value persisted
 then is no longer read. Set it in `/yuneta/agent/yuneta_agent.json`:
 

@@ -150,7 +150,7 @@ rest of Yuneta works.
 
 | Feature | Command | Without `sudo` |
 |---|---|---|
-| Certificate sync of the agent, every 15 minutes | `cert_sync_copy_cmd`: `/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh` | The copy fails and the agent logs a WARNING at each sync. The certbot hook runs as root and copies the certificates. To stop the sync, set `cert_sync_enabled` to `0`. |
+| Certificate sync of the agent, every 15 minutes | `cert_sync_copy_cmd`: `/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh` | The copy fails and the agent logs a WARNING at each sync. The certbot hook runs as root and copies the certificates. To stop the sync, set `cert_sync_enabled` to `0` (with `write-attr` it takes effect at once). |
 | `install-package` of `yuneta_agent22` | `sudo -n /usr/libexec/yuneta/install-package start` | The node cannot install a package through the agent. Root must install it. |
 | `install-package-status` of `yuneta_agent22` | `sudo -n /usr/libexec/yuneta/install-package journal <lines>` | The answer shows the error of `sudo` in place of the journal. |
 | `upgrade-agent` of `yuneta_agent22` (source nodes only) | `sudo -n systemctl restart yuneta_agent.service` | The new binary is on disk, but the agent does not restart. |

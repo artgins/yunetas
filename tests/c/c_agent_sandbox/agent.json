@@ -19,7 +19,7 @@
             ]
         },
         "agent.timerStBoot": 100,
-        "agent.cert_sync_copy_cmd": "exit $(cat /yuneta/store/fake-copy-rc)"
+        "agent.cert_sync_copy_cmd": "echo run >> /yuneta/store/copy-runs; if [ -e /yuneta/store/fake-copy-touch ]; then echo x >> /yuneta/store/certs/sandbox.crt; fi; exit $(cat /yuneta/store/fake-copy-rc)"
     },
     "environment": {
         "node_owner": "none"

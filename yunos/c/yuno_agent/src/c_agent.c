@@ -1140,7 +1140,7 @@ SDATA (DTP_INTEGER,     "audit_keep_days",  SDF_WR,             "7",            
 SDATA (DTP_BOOLEAN,     "cert_sync_enabled",     SDF_WR|SDF_PERSIST, "1",           "Enable periodic TLS certificate auto-sync + hot-reload"),
 SDATA (DTP_INTEGER,     "cert_sync_interval_sec",SDF_WR|SDF_PERSIST, "900",         "Seconds between cert-sync checks (default 15 min)"),
 SDATA (DTP_STRING,      "cert_sync_store_dir",   SDF_RD,             "/yuneta/store/certs", "Directory watched for cert file changes (owned by yuneta). Config only"),
-SDATA (DTP_STRING,      "cert_sync_copy_cmd",    SDF_RD,             "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh", "Command to copy fresh letsencrypt certs into cert_sync_store_dir (runs root, with sh -c). Config only: up to 7.25.21 write-attr could set it, and persist it"),
+SDATA (DTP_STRING,      "cert_sync_copy_cmd",    SDF_RD,             "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh", "Command to copy fresh letsencrypt certs into cert_sync_store_dir (runs root, with sh -c). Config only: up to 7.25.21 write-attr could set it, and persist it. Its exit 75 is reserved: busy (another run of copy-certs.sh holds its lock), not a failure"),
 SDATA (DTP_INTEGER,     "cert_sync_last_check",  SDF_RSTATS,         "0",           "Unix ts of last cert-sync check"),
 SDATA (DTP_INTEGER,     "cert_sync_last_action", SDF_RSTATS,         "0",           "Unix ts of last time a cert change was applied"),
 SDATA (DTP_STRING,      "cert_sync_last_result", SDF_RSTATS,         "",            "Last cert-sync outcome: reloaded, reloaded (copy script reported error), no-change, busy (another copy holds the lock of the copy script, nothing copied) or copy-script-failed"),
@@ -1231,7 +1231,8 @@ typedef struct _PRIVATE_DATA {
     BOOL cert_sync_enabled;
     int32_t cert_sync_interval_sec;
     json_t *cert_sync_state; // dict: filename -> "size:mtime", snapshot of store_dir
-    json_int_t cert_sync_busy_ticks; // ticks in a row whose copy found its lock taken
+    json_int_t cert_sync_busy_ticks; // busy ticks since the copy last ran past its lock
+    BOOL cert_sync_snapshot_failed;  // the last snapshot of store_dir missed something (said once)
 } PRIVATE_DATA;
 
 
@@ -1494,6 +1495,14 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
      PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
      IF_EQ_SET_PRIV(timeout_expiration,         gobj_read_integer_attr)
+     ELIF_EQ_SET_PRIV(cert_sync_enabled,        gobj_read_bool_attr)
+        if(gobj_is_running(gobj)) {
+            cert_sync_arm_timer(gobj);
+        }
+     ELIF_EQ_SET_PRIV(cert_sync_interval_sec,   (int32_t)gobj_read_integer_attr)
+        if(gobj_is_running(gobj)) {
+            cert_sync_arm_timer(gobj);
+        }
      END_EQ_SET_PRIV()
 }
 
@@ -8702,13 +8711,15 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_cert_sync_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     int changed = cert_sync_tick(gobj);
     json_t *resp = build_command_response(
         gobj,
         0,
         json_sprintf("%s: cert-sync tick done: %s",
             gobj_yuno_role_plus_name(),
-            gobj_read_bool_attr(gobj, "cert_sync_enabled")?
+            priv->cert_sync_enabled?
                 gobj_read_str_attr(gobj, "cert_sync_last_result"):
                 "nothing done, cert_sync_enabled is 0"),
         0,
@@ -13894,37 +13905,76 @@ PRIVATE void unhold_restarted_yuno(hgobj gobj, const char *yuno_id, const char *
  *  before and after the copy; a diff triggers the reload broadcast.
  ***************************************************************************/
 
-/* Build a {filename: "size:mtime"} snapshot of *.crt files in dir. */
-PRIVATE json_t *cert_sync_snapshot_dir(const char *dir)
+/* Build a {filename: "size:mtime"} snapshot of *.crt files in dir.
+ * A directory or a .crt that cannot be read leaves the snapshot without
+ * it: said once when it starts (WARNING), and once when it ends (INFO),
+ * not at each tick. */
+PRIVATE json_t *cert_sync_snapshot_dir(hgobj gobj, const char *dir)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *snap = json_object();
+    char failed_path[PATH_MAX] = {0};
+    int failed_errno = 0;
+
     DIR *d = opendir(dir);
     if(!d) {
-        return snap;
+        failed_errno = errno;
+        snprintf(failed_path, sizeof(failed_path), "%s", dir);
+    } else {
+        struct dirent *ent;
+        while((ent = readdir(d)) != NULL) {
+            const char *name = ent->d_name;
+            size_t len = strlen(name);
+            if(len < 5) {
+                continue;
+            }
+            /* only .crt files (ignore .chain, .key, and dotfiles) */
+            if(strcmp(name + len - 4, ".crt") != 0) {
+                continue;
+            }
+            char path[PATH_MAX];
+            if(!build_path(path, sizeof(path), dir, name, NULL)) {
+                continue;   // Error already logged
+            }
+            struct stat st;
+            if(stat(path, &st) != 0) {
+                if(!failed_errno) {
+                    failed_errno = errno;
+                    snprintf(failed_path, sizeof(failed_path), "%s", path);
+                }
+                continue;
+            }
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%lld:%lld",
+                (long long)st.st_size, (long long)st.st_mtime);
+            json_object_set_new(snap, name, json_string(buf));
+        }
+        closedir(d);
     }
-    struct dirent *ent;
-    while((ent = readdir(d)) != NULL) {
-        const char *name = ent->d_name;
-        size_t len = strlen(name);
-        if(len < 5) {
-            continue;
+
+    if(failed_errno) {
+        if(!priv->cert_sync_snapshot_failed) {
+            priv->cert_sync_snapshot_failed = TRUE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "cert-sync: cannot read the store of certificates, a change there is not seen",
+                "path",         "%s", failed_path,
+                "errno",        "%d", failed_errno,
+                "strerror",     "%s", strerror(failed_errno),
+                NULL
+            );
         }
-        /* only .crt files (ignore .chain, .key, and dotfiles) */
-        if(strcmp(name + len - 4, ".crt") != 0) {
-            continue;
-        }
-        char path[PATH_MAX];
-        snprintf(path, sizeof(path), "%s/%s", dir, name);
-        struct stat st;
-        if(stat(path, &st) != 0) {
-            continue;
-        }
-        char buf[64];
-        snprintf(buf, sizeof(buf), "%lld:%lld",
-            (long long)st.st_size, (long long)st.st_mtime);
-        json_object_set_new(snap, name, json_string(buf));
+    } else if(priv->cert_sync_snapshot_failed) {
+        priv->cert_sync_snapshot_failed = FALSE;
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "cert-sync: the store of certificates can be read again",
+            "path",         "%s", dir,
+            NULL
+        );
     }
-    closedir(d);
     return snap;
 }
 
@@ -13989,7 +14039,7 @@ PRIVATE int cert_sync_tick(hgobj gobj)
     gobj_write_integer_attr(gobj, "cert_sync_last_check", (json_int_t)time(NULL));
 
     /* 1) snapshot store dir BEFORE the copy */
-    json_t *before = cert_sync_snapshot_dir(store_dir);
+    json_t *before = cert_sync_snapshot_dir(gobj, store_dir);
 
     /* 2) run copy-certs.sh via sudo. A non-zero return means the script
      *    failed entirely (e.g. sudo denied) — we bump failures but still
@@ -14024,7 +14074,7 @@ PRIVATE int cert_sync_tick(hgobj gobj)
      *    (or the pre-copy one if it's the first). A change in either means
      *    new cert material, so we reload every yuno.
      */
-    json_t *after = cert_sync_snapshot_dir(store_dir);
+    json_t *after = cert_sync_snapshot_dir(gobj, store_dir);
 
     BOOL changed = cert_sync_snapshots_differ(priv->cert_sync_state, after)
                 || cert_sync_snapshots_differ(before, after);
@@ -14052,7 +14102,10 @@ PRIVATE int cert_sync_tick(hgobj gobj)
 
     /* A run of the script lasts seconds: a lock taken at several ticks in
      * a row is held by something that does not end, and no certificate is
-     * copied meanwhile. Said once on the way in, and once on the way out.
+     * copied meanwhile. Said once on the way in, and once on the way out:
+     * out is a copy that ran past the lock (exit 0). A copy that failed is
+     * neither busy nor free (it may have failed before the lock), so the
+     * streak stays.
      */
     if(busy) {
         priv->cert_sync_busy_ticks++;
@@ -14066,7 +14119,7 @@ PRIVATE int cert_sync_tick(hgobj gobj)
                 NULL
             );
         }
-    } else if(priv->cert_sync_busy_ticks > 0) {
+    } else if(copy_ok && priv->cert_sync_busy_ticks > 0) {
         if(priv->cert_sync_busy_ticks >= CERT_SYNC_BUSY_WARN_TICKS) {
             gobj_log_info(gobj, 0,
                 "msgset",       "%s", MSGSET_INFO,
@@ -14094,6 +14147,11 @@ PRIVATE int cert_sync_arm_timer(hgobj gobj)
     }
     if(!priv->cert_sync_enabled) {
         clear_timeout(priv->cert_sync_timer);
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "cert-sync disabled: timer stopped",
+            NULL
+        );
         return 0;
     }
 
@@ -14108,7 +14166,7 @@ PRIVATE int cert_sync_arm_timer(hgobj gobj)
      */
     const char *store_dir = gobj_read_str_attr(gobj, "cert_sync_store_dir");
     JSON_DECREF(priv->cert_sync_state);
-    priv->cert_sync_state = cert_sync_snapshot_dir(store_dir);
+    priv->cert_sync_state = cert_sync_snapshot_dir(gobj, store_dir);
 
     set_timeout_periodic(priv->cert_sync_timer, ((json_int_t)secs) * 1000);
     gobj_log_info(gobj, 0,

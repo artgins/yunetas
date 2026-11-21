@@ -13,8 +13,9 @@
 #   two "yuno ALREADY living" (the second cards of the running yuno: none
 #   for its relaunch by the watcher), and of the certificate sync one
 #   WARNING of a lock taken at several ticks in a row, one INFO of the
-#   lock free again, and one "cert-sync copy command FAILED" (busy is not
-#   a failure).
+#   lock free again, two "cert-sync copy command FAILED" (busy is not a
+#   failure), three "cert-sync timer armed" and one "timer stopped" (the
+#   start and the write-attr of case 13).
 #
 #   Usage: run_test.sh <yuneta_agent binary> <logcenter binary> <emailsender binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
@@ -59,7 +60,7 @@ unshare -rmn --pid --fork --mount-proc bash -c "
     mount -t tmpfs none /yuneta || exit 1
     mount --bind '$WORK/passwd' /etc/passwd || exit 1
     mount --bind '$WORK/group' /etc/group || exit 1
-    mkdir -p /yuneta/agent/certs /yuneta/realms/agent /yuneta/store /yuneta/bin
+    mkdir -p /yuneta/agent/certs /yuneta/realms/agent /yuneta/store/certs /yuneta/bin
     cp '$WORK/yuneta_agent' /yuneta/agent/yuneta_agent
     cp '$WORK/agent.json' /yuneta/agent/yuneta_agent.json
     cd /yuneta/agent
@@ -135,8 +136,23 @@ if [ "$n" != "1" ]; then
     failed=1
 fi
 n=$(grep -ac "cert-sync copy command FAILED" "$WORK/agent.log")
+if [ "$n" != "2" ]; then
+    echo "TEST FAILED: $n warnings of a copy command that failed, expected 2 (busy is not a failure)"
+    failed=1
+fi
+n=$(grep -ac "cert-sync timer armed" "$WORK/agent.log")
+if [ "$n" != "3" ]; then
+    echo "TEST FAILED: $n x \"cert-sync timer armed\", expected 3 (the start, write-attr cert_sync_enabled=1, write-attr cert_sync_interval_sec)"
+    failed=1
+fi
+n=$(grep -ac "cert-sync disabled: timer stopped" "$WORK/agent.log")
 if [ "$n" != "1" ]; then
-    echo "TEST FAILED: $n warnings of a copy command that failed, expected 1 (busy is not a failure)"
+    echo "TEST FAILED: $n x \"cert-sync disabled: timer stopped\", expected 1 (write-attr cert_sync_enabled=0)"
+    failed=1
+fi
+n=$(grep -ac "cert-sync: cannot read the store of certificates" "$WORK/agent.log")
+if [ "$n" != "0" ]; then
+    echo "TEST FAILED: $n x \"cannot read the store of certificates\", expected 0"
     failed=1
 fi
 if [ $failed -ne 0 ]; then

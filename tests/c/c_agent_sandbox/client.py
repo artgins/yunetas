@@ -70,15 +70,21 @@
 #      with SIGSTOP) gets nothing, and neither does the session that takes
 #      its channel.
 #
-#  13. cert-sync: the copy command of agent.json exits with the code
-#      written in /yuneta/store/fake-copy-rc. 75 is what copy-certs.sh
-#      exits with when another run holds its lock: cert-sync-now says
-#      `busy`, not `copy-script-failed`, and counts no failure;
-#      cert-sync-status counts the busy ticks in a row. At the third busy
-#      tick in a row the agent logs ONE WARNING, and an INFO when the lock
-#      is free again (run_test.sh counts both). A copy command that fails
-#      (1) is still `copy-script-failed`, and counted. A busy run used to
-#      exit 0, and cert-sync-status said `no-change` for it.
+#  13. cert-sync: the copy command of agent.json writes down each run and
+#      exits with the code written in /yuneta/store/fake-copy-rc (with
+#      /yuneta/store/fake-copy-touch it also grows a .crt of the store).
+#      75 is what copy-certs.sh exits with when another run holds its
+#      lock: cert-sync-now says `busy`, not `copy-script-failed`, counts
+#      no failure, and its comment says the result; busy with a .crt that
+#      changed is `reloaded`. Two busy ticks and a free one: no INFO. The
+#      third busy tick since the copy last ran past the lock: ONE WARNING;
+#      a copy that fails (1) after it is `copy-script-failed`, keeps the
+#      streak and says no "free again"; a free tick then: ONE INFO
+#      (run_test.sh counts them). write-attr cert_sync_enabled=0 stops the
+#      sync (cert-sync-now runs no copy and says so), =1 arms it again, and
+#      write-attr cert_sync_interval_sec arms it with the new interval. A
+#      busy run used to exit 0 (`no-change`), and a write-attr of either
+#      attribute did nothing until the agent restarted.
 #
 #   kill-yuno answers when the yuno left the agent, and its watcher ends
 #   right after: until then a run-yuno is refused ("alive but not
@@ -746,36 +752,72 @@ async def main():
     await refused_card("evil_role", -1, yuno_id="4243")
     check("a card of pid -1: this peer lives", True)
 
-    #   13. cert-sync: busy is not a failure, and a long one is said once
+    #   13. cert-sync: busy is not a failure, a long one is said once, and
+    #       write-attr of cert_sync_enabled / cert_sync_interval_sec acts
     def copy_rc(rc):
-        os.makedirs("/yuneta/store", exist_ok=True)
         with open("/yuneta/store/fake-copy-rc", "w") as f:
             f.write("%d\n" % rc)
 
-    copy_rc(75)
-    for i in range(4):
+    def copy_runs():
+        try:
+            with open("/yuneta/store/copy-runs") as f:
+                return len(f.readlines())
+        except OSError:
+            return 0
+
+    async def sync_now(rc, expected, what):
+        copy_rc(rc)
         r = await ask(ws, "cert-sync-now", {})
-        check("cert-sync-now, the lock of the copy taken (%d): busy: %s" % (i + 1, r.get("comment")),
-            r.get("result") == 0 and (r.get("data") or {}).get("result") == "busy")
-    r = await ask(ws, "cert-sync-status", {})
-    status = r.get("data") or {}
-    check("cert-sync-status: busy, 4 ticks in a row, no failure: %s" % status,
-        status.get("last_result") == "busy" and status.get("busy_ticks") == 4
-        and status.get("failures") == 0)
-    copy_rc(0)
+        result = (r.get("data") or {}).get("result")
+        check("cert-sync-now, %s: %s, said in the comment: %s" % (what, expected, r.get("comment")),
+            r.get("result") == 0 and result == expected
+            and (r.get("comment") or "").endswith("cert-sync tick done: " + expected))
+
+    async def status():
+        r = await ask(ws, "cert-sync-status", {})
+        return r.get("data") or {}
+
+    async def write_attr(attribute, value):
+        r = await ask(ws, "write-attr",     # a command of the yuno, as ycommand -S __yuno__
+            {"service": "__yuno__", "gobj": "agent", "attribute": attribute, "value": value})
+        check("write-attr %s=%s: %s" % (attribute, value, r.get("comment")), r.get("result") == 0)
+
+    for i in range(2):
+        await sync_now(75, "busy", "the lock of the copy taken, %d of 2" % (i + 1))
+    st = await status()
+    check("cert-sync-status: busy_ticks 2, no failure: %s" % st,
+        st.get("last_result") == "busy" and st.get("busy_ticks") == 2 and st.get("failures") == 0)
+    await sync_now(0, "no-change", "free after a short streak (no INFO)")
+    check("cert-sync-status: busy_ticks 0", (await status()).get("busy_ticks") == 0)
+
+    for i in range(3):
+        await sync_now(75, "busy", "the lock taken, %d of 3 (the WARNING at the third)" % (i + 1))
+    await sync_now(1, "copy-script-failed", "a failure after a streak (no INFO)")
+    st = await status()
+    check("cert-sync-status: a failure keeps the streak, busy_ticks 3, one failure: %s" % st,
+        st.get("busy_ticks") == 3 and st.get("failures") == 1)
+    await sync_now(75, "busy", "the lock taken again (no second WARNING)")
+    await sync_now(0, "no-change", "the lock free again (the INFO)")
+    check("cert-sync-status: busy_ticks 0 again", (await status()).get("busy_ticks") == 0)
+
+    open("/yuneta/store/fake-copy-touch", "w").close()
+    await sync_now(75, "reloaded", "busy, but a .crt changed")
+    os.remove("/yuneta/store/fake-copy-touch")
+    await sync_now(1, "copy-script-failed", "a copy that fails")
+    check("cert-sync-status: two failures", (await status()).get("failures") == 2)
+
+    await write_attr("cert_sync_enabled", "0")
+    runs = copy_runs()
     r = await ask(ws, "cert-sync-now", {})
-    check("cert-sync-now, the lock free again: no-change: %s" % r.get("comment"),
-        (r.get("data") or {}).get("result") == "no-change")
-    r = await ask(ws, "cert-sync-status", {})
-    status = r.get("data") or {}
-    check("cert-sync-status: no busy tick now", status.get("busy_ticks") == 0)
-    copy_rc(1)
-    r = await ask(ws, "cert-sync-now", {})
-    check("cert-sync-now, the copy fails: copy-script-failed: %s" % r.get("comment"),
-        (r.get("data") or {}).get("result") == "copy-script-failed")
-    r = await ask(ws, "cert-sync-status", {})
-    status = r.get("data") or {}
-    check("cert-sync-status: one failure", status.get("failures") == 1)
+    check("cert-sync-now, disabled by write-attr: said: %s" % r.get("comment"),
+        (r.get("comment") or "").endswith("nothing done, cert_sync_enabled is 0"))
+    check("cert-sync-now, disabled by write-attr: no copy run", copy_runs() == runs)
+    check("cert-sync-status, disabled by write-attr: enabled false", (await status()).get("enabled") is False)
+    await write_attr("cert_sync_enabled", "1")
+    await sync_now(0, "no-change", "enabled again by write-attr")
+    check("cert-sync-now, enabled again: the copy ran", copy_runs() == runs + 1)
+    await write_attr("cert_sync_interval_sec", "60")
+    check("cert-sync-status: interval_sec 60 after write-attr", (await status()).get("interval_sec") == 60)
 
     await ws.close()
 
