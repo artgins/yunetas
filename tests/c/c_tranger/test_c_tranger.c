@@ -4093,12 +4093,57 @@ PRIVATE int do_test(void)
             strstr(kw_get_str(0, r, "comment", "", 0), "too many keys") != NULL, TRUE);
         JSON_DECREF(r)
         r = gobj_command(yuno, "list-keys",
-            as_peer(json_pack("{s:s, s:[s,i]}", "topic_name", TOPIC_NAME8, "key", "b", 5)), yuno);
+            as_peer(json_pack("{s:s, s:[s,{}]}", "topic_name", TOPIC_NAME8, "key", "b")), yuno);
         check_int("a key that is not a text: refused", kw_get_int(0, r, "result", -999, 0), -1);
         JSON_DECREF(r)
         r = gobj_command(yuno, "list-keys",
             as_peer(json_pack("{s:s, s:[s%]}", "topic_name", TOPIC_NAME8, "key", "b\0x", (size_t)3)), yuno);
         check_int("a key with a NUL: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+
+        /*  `key` from a command line, and a GUI's text: the parser reads
+         *  the text of a DTP_JSON as json, so a key that reads as an
+         *  integer or a boolean comes as one, and is its text again; a
+         *  null is refused (it came as no key: every key)  */
+        const char *line_keys[] = {"861234567890123", "true"};
+        for(int k = 0; k < 2; k++) {
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME8, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", line_keys[k], "tm", (json_int_t)BASE_T, "content", "x"));
+        }
+        r = gobj_command(yuno, "list-keys topic_name=" TOPIC_NAME8 " key=861234567890123",
+            as_peer(json_object()), yuno);
+        check_int("a line's key=861234567890123", kw_get_int(0, r, "result", -999, 0), 0);
+        check_str("is that key", kw_get_str(0, json_array_get(kw_get_list(0, r, "data", 0, 0), 0),
+            "key", "", 0), "861234567890123");
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "key", "861234567890123")), yuno);
+        check_int("a GUI's key \"861234567890123\"", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("its one key", json_array_size(kw_get_list(0, r, "data", 0, 0)), 1);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys topic_name=" TOPIC_NAME8 " key=true",
+            as_peer(json_object()), yuno);
+        check_str("a line's key=true is the key true",
+            kw_get_str(0, json_array_get(kw_get_list(0, r, "data", 0, 0), 0), "key", "", 0), "true");
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys topic_name=" TOPIC_NAME8 " key=[861234567890123,\"b\"]",
+            as_peer(json_object()), yuno);
+        check_int("a line's list of keys", json_array_size(kw_get_list(0, r, "data", 0, 0)), 2);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys topic_name=" TOPIC_NAME8 " key=null",
+            as_peer(json_object()), yuno);
+        check_int("a line's key=null: refused, not every key", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys topic_name=" TOPIC_NAME8 " key=1.5",
+            as_peer(json_object()), yuno);
+        check_int("a line's key=1.5 (its text is lost): refused", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("it says how to write it",
+            strstr(kw_get_str(0, r, "comment", "", 0), "in quotes") != NULL, TRUE);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys topic_name=" TOPIC_NAME8 " key='\"1.5\"'",
+            as_peer(json_object()), yuno);
+        check_int("a line's key='\"1.5\"' asks the key 1.5", kw_get_int(0, r, "result", -999, 0), 0);
         JSON_DECREF(r)
 
         /*  The load of a live list has RKEY_LOAD_BUDGET_MS for its

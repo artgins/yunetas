@@ -224,6 +224,7 @@ PRIVATE json_t *exact_topic_keys(
     const char *topic_name,
     json_t *jn_exact
 );
+PRIVATE json_t *exact_key_text(json_t *jn);
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -4445,6 +4446,27 @@ PRIVATE json_t *match_topic_keys(
 }
 
 /***************************************************************************
+ *  A key of list-keys' `key` as the command parser hands it: a text, or
+ *  what a text read as json became, an integer (`key=861234567890123`)
+ *  or a boolean, as its text again (a JSON integer's text is its decimal
+ *  digits). NULL for anything else: a null, a real (its text is lost:
+ *  1.50 is 1.5), a dict, a list.
+ ***************************************************************************/
+PRIVATE json_t *exact_key_text(json_t *jn)
+{
+    if(json_is_string(jn)) {
+        return json_incref(jn);
+    }
+    if(json_is_integer(jn)) {
+        return json_sprintf("%"JSON_INTEGER_FORMAT, json_integer_value(jn));
+    }
+    if(json_is_boolean(jn)) {
+        return json_string(json_is_true(jn)? "true" : "false");
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *  The keys of `jn_exact` (a list of strings, checked by the caller) that
  *  the topic has, as match_topic_keys() answers them: [{key, records}], in
  *  the order asked, each key once. No regex: a key is looked up as a KEY.
@@ -4544,73 +4566,78 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     /*
      *  `key`: the exact keys asked (a GUI that restores what it showed),
      *  looked up as keys, no regex. One key or a list of them; an empty
-     *  text is no `key`.
+     *  text is no `key`. The parser reads the text of this DTP_JSON as
+     *  json, on a command line and in a kw: a key that reads as an
+     *  integer or a boolean comes as one, and is turned into its text
+     *  again (exact_key_text()). A null is refused: it is no key, and
+     *  "no key" is every key of the topic.
      */
     json_t *jn_exact = NULL;    // owned
+    const char *refused = NULL;
     json_t *jn_key_param = json_object_get(kw, "key");
-    if(json_is_string(jn_key_param)) {
-        if(json_string_length(jn_key_param) > 0) {
-            jn_exact = json_pack("[O]", jn_key_param);
+    if(json_is_array(jn_key_param)) {
+        if(json_array_size(jn_key_param) > KEYS_EXACT_MAX) {
+            refused = "too many keys in key (KEYS_EXACT_MAX, 10000)";
+        } else {
+            jn_exact = json_array();
+            size_t idx; json_t *jn_k;
+            json_array_foreach(jn_key_param, idx, jn_k) {
+                json_t *jn_text = exact_key_text(jn_k);
+                if(!jn_text) {
+                    refused = json_is_real(jn_k)?
+                        "a key that reads as a number with decimals is written in quotes: [\"1.5\"]" :
+                        "key must be a key or a list of keys";
+                    break;
+                }
+                json_array_append_new(jn_exact, jn_text);
+            }
         }
-    } else if(json_is_array(jn_key_param)) {
-        jn_exact = json_incref(jn_key_param);
-    } else if(!json_absent(jn_key_param)) {
-        log_refusal(gobj, command_is_external(kw),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER,
-            "msg",          "%s", "list-keys: key must be a key or a list of keys, refused",
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: key must be a key or a list of keys",
-                gobj_yuno_role_plus_name()),
-            0,
-            0,
-            kw  // owned
-        );
+    } else if(jn_key_param && json_is_null(jn_key_param)) {
+        refused = "key=null is no key: give a key, or no key for every key";
+    } else if(jn_key_param) {
+        json_t *jn_text = exact_key_text(jn_key_param);
+        if(!jn_text) {
+            refused = json_is_real(jn_key_param)?
+                "a key that reads as a number with decimals is written in quotes: key='\"1.5\"'" :
+                "key must be a key or a list of keys";
+        } else if(json_string_length(jn_text) > 0) {
+            jn_exact = json_pack("[o]", jn_text);
+        } else {
+            JSON_DECREF(jn_text)
+        }
     }
-    if(jn_exact) {
-        const char *refused = NULL;
+    if(jn_exact && !refused) {
         if(!empty_string(rkey)) {
             refused = "key and rkey together: ask with one of them";
-        } else if(json_array_size(jn_exact) > KEYS_EXACT_MAX) {
-            refused = "too many keys in key (KEYS_EXACT_MAX, 10000)";
         } else {
             size_t idx; json_t *jn_k;
             json_array_foreach(jn_exact, idx, jn_k) {
-                if(!json_is_string(jn_k)) {
-                    refused = "key must be a key or a list of keys";
-                    break;
-                }
                 if(strlen(json_string_value(jn_k)) != json_string_length(jn_k)) {
                     refused = "a key with a NUL in it";
                     break;
                 }
             }
         }
-        if(refused) {
-            log_refusal(gobj, command_is_external(kw),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER,
-                "msg",          "%s", "list-keys: key refused",
-                "topic_name",   "%s", topic_name,
-                "error",        "%s", refused,
-                "keys",         "%d", (int)json_array_size(jn_exact),
-                NULL
-            );
-            JSON_DECREF(jn_exact)
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("%s: %s", gobj_yuno_role_plus_name(), refused),
-                0,
-                0,
-                kw  // owned
-            );
-        }
+    }
+    if(refused) {
+        log_refusal(gobj, command_is_external(kw),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "list-keys: key refused",
+            "topic_name",   "%s", topic_name,
+            "error",        "%s", refused,
+            "keys",         "%d", (int)json_array_size(jn_key_param),
+            NULL
+        );
+        JSON_DECREF(jn_exact)
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: %s", gobj_yuno_role_plus_name(), refused),
+            0,
+            0,
+            kw  // owned
+        );
     }
 
     if(!empty_string(order) && strcmp(order, "key")!=0 && strcmp(order, "records")!=0) {
