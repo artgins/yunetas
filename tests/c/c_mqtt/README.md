@@ -399,6 +399,24 @@ A's session. 6 closed with no log. The close of A deleted the topics B had
 open: 9, 10, 13 and 14 the ERRORs *"Cannot open topic"* and *"kw must be list
 or dict"* every second, 12 a SIGSEGV. And 11 B got 5 of 30.
 
+`test_mqtt_broker_session_subs` (`main_broker_session_subs.c` +
+`c_broker_session_subs.c`) runs the broker on port 18133, with
+`max_subscriptions_per_client` 5, and raw clients on plain sockets. A
+(MQTT 3.1.1, clean session 0) subscribes `f/1`, `f/2`, `f/3`, then sends 20
+SUBSCRIBEs of `f/1` with the same QoS: the `i_rowid` of its session record
+must not move. A SUBSCRIBE of `f/1` with QoS 0 must move it by one. A
+connects again (session present 1) and subscribes `f/1`, `f/4`, `f/5`,
+`f/6`: `f/6` is past the 5 of the session and gets `0x80`, with one WARNING
+*"Mqtt: SUBSCRIBE past max_subscriptions_per_client of the session, filters
+refused"*. B (MQTT 5, Session Expiry 300) subscribes `g/1` to `g/5`,
+connects again and subscribes `g/1` and `g/6`: `g/6` gets `0x97` (its WARNING
+falls in the 10 s of the first, and is not written). C (3.1.1, clean
+session) subscribes two share groups of `sh/x` and publishes to it: it gets
+the message twice, once per group. Its UNSUBSCRIBE of one group leaves one
+group (`shared-subs`), and its close leaves none. Red on 7.31.29: the 20
+SUBSCRIBEs wrote the session 20 times (`i_rowid` 22, not 2), and `f/6` and
+`g/6` were granted.
+
 `test_mqtt_broker_takeover` (`main_broker_takeover.c` +
 `c_broker_takeover.c`) runs the broker on port 18120 with `timeout_close`
 1000 and two RAW MQTT 5 clients of one client id, clean start. A connects. B
@@ -468,8 +486,8 @@ The tests that keep a store (`acl`, `queued_in`, `client_queues`,
 `out_flight`, `wrong_ack`, `client_pubrec`, `gate_prot`, `gate_limits`,
 `client_noqueue`, `gate_cut`, `gate_flood`, `gate_answers`,
 `broker_takeover`, `broker_no_play`, `broker_answers`, `broker_stop_drain`,
-`gate_reader`, `broker_sessions`, `broker_stop_dropped`,
-`broker_treedb_src`)
+`gate_reader`, `broker_sessions`, `broker_session_subs`,
+`broker_stop_dropped`, `broker_treedb_src`)
 work in a dir of
 their own run, `<$TMPDIR or /tmp>/test_mqtt_<name>.<pid>.<n>`
 (`test_work_dir.c`), removed at the end. Each binary has a port of its own.

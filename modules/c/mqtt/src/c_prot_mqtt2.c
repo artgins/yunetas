@@ -273,7 +273,7 @@ SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This opti
 
 SDATA (DTP_BOOLEAN,     "allow_anonymous",  SDF_RD,         "0",    "Server: accept every CONNECT without asking the authentication of the yuno (C_AUTHZ). A username and a password, if the client sends them, are not checked, and the client has no user and no roles. For a gate whose devices have no account. Default false: the CONNECT is authenticated (treedb_name)."),
 
-SDATA (DTP_INTEGER,     "max_subscriptions_per_client",SDF_WR, "100", "Server: topic filters a client may hold on ONE connection, 0 no limit. Each new filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x97 Quota exceeded; 3.1.1: 0x80 Failure) and the client is kept. Said with one WARNING per connection. Counted per connection: the subscriptions of a session that a broker restores are not counted."),
+SDATA (DTP_INTEGER,     "max_subscriptions_per_client",SDF_WR, "100", "Server: topic filters a client may hold on ONE connection, 0 no limit. Each new filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x97 Quota exceeded; 3.1.1: 0x80 Failure) and the client is kept. Said with one WARNING per connection. In a broker the same limit is of the SESSION too: the filters a persistent session kept from its earlier connections count, and a new one past it gets the same refusal (the broker says it with one WARNING every 10 s)."),
 
 SDATA (DTP_INTEGER,     "max_topic_filter_length",SDF_WR,   "256",  "Server: maximum length in bytes of a topic filter, 0 no limit (MQTT allows 65535). A filter of a SUBSCRIBE past it is refused in the SUBACK (MQTT 5: 0x8F Topic Filter invalid; 3.1.1: 0x80 Failure) and the client is kept. Said with one WARNING per connection. An UNSUBSCRIBE is never refused by it."),
 
@@ -6634,12 +6634,13 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         gbuf_upper = gbuffer_create(n_upper, n_upper);
         gbuffer_incref(gbuf_upper); // Avoid be destroyed, get it the response
 
-        json_t *kw_subscribe = json_pack("{s:s, s:i, s:o, s:I, s:i}",
+        json_t *kw_subscribe = json_pack("{s:s, s:i, s:o, s:I, s:i, s:i}",
             "client_id", priv->client_id,
             "protocol_version", (int)priv->protocol_version,
             "subs", jn_list, // owned
             "gbuffer", (json_int_t)(uintptr_t)gbuf_upper,
-            "mid", (int)mid
+            "mid", (int)mid,
+            "max_subscriptions_per_client", priv->max_subscriptions_per_client  // a broker applies it to the session
         );
 
         json_t *kw_iev = iev_create(

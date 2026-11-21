@@ -62,6 +62,13 @@ broker. In such a gate:
 
 The limits per connection are `max_subscriptions_per_client` (100),
 `max_topic_filter_length` (256 bytes), and `max_inflight_messages` (20).
+In a broker, `max_subscriptions_per_client` is also the limit of the
+session: the filters that a persistent session kept from its earlier
+connections count. A new filter past it gets `0x80` (MQTT 3.1.1) or `0x97`
+(MQTT 5) in the SUBACK. For example, with
+`"max_subscriptions_per_client": 20` in the `kw` of the `C_PROT_MQTT2`, a
+session that holds 20 filters gets `0x80` or `0x97` for a 21st, on any
+connection.
 
 `EV_DROP` with `{"session_take_over": true}` is a take-over. An MQTT 5 client
 gets DISCONNECT `0x8E`. The queues close at once. If the event also has

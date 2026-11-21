@@ -261,7 +261,7 @@ of the gate's channel:
 | Attribute | Default | What it does in a gate |
 |---|---|---|
 | `allow_anonymous` | `false` | `true`: every CONNECT is accepted without asking `C_AUTHZ`. A username and a password, if the device sends them, are not checked. With `false` the CONNECT is authenticated against the `treedb_name` service (the broker's), which a gate does not have: every device gets CONNACK `5` / `0x87`. |
-| `max_subscriptions_per_client` | `100` | Topic filters one connection holds. Each new filter past it gets `0x80` (MQTT 3.1.1) or `0x97` Quota exceeded (MQTT 5) in the SUBACK, and the client stays. One WARNING per connection. |
+| `max_subscriptions_per_client` | `100` | Topic filters one connection holds. Each new filter past it gets `0x80` (MQTT 3.1.1) or `0x97` Quota exceeded (MQTT 5) in the SUBACK, and the client stays. One WARNING per connection. In a broker it is also the limit of the session (see below). |
 | `max_topic_filter_length` | `256` | A filter longer than this, in bytes, gets `0x80` or `0x8F` Topic Filter invalid in the SUBACK. One WARNING per connection. An UNSUBSCRIBE is never refused by it. |
 | `max_inflight_messages` | `20` | QoS 2 packet ids that wait for their PUBREL. One more is a protocol error of the client: it is disconnected, with a WARNING. MQTT 5 clients are told it in the CONNACK (Receive Maximum). |
 | `message_size_limit` | `0` | A PUBLISH with a larger payload is not delivered. Its QoS flow is completed (MQTT 5: PUBACK or PUBREC `0x95`), and the client stays. |
@@ -270,8 +270,35 @@ of the gate's channel:
 | `timeout_close` | `3000` | Milliseconds a connection the server closes waits: in MQTT 5, after its DISCONNECT, for the client to close, and in MQTT 3.1.1, for its answers to be written. Then the transport is dropped, with a WARNING *"Timeout waiting mqtt disconnected"*. A transport whose write in flight the peer does not take waits `timeout_stop_tx` of `C_TCP` (10 s) more, and aborts with its own WARNING (see below). |
 | `max_unwritten_bytes` | `100000` | Memory that the protocol's answers (PINGRESP, PUBACK, PUBREC, PUBREL, PUBCOMP, SUBACK, UNSUBACK...) can hold in the send queue of the transport before the reading of the peer is paused. Each answer counts its size plus about 300 bytes of buffer. A peer that reads is slowed to what it takes, however much it pipelines. A peer that takes nothing of what waits for it during `timeout_close` is dropped, with one WARNING (see below). The messages a broker forwards to a subscriber do not count. `0`: no limit. |
 
-The two subscription limits count the filters of the CONNECTION: the
-subscriptions of a session that a broker restores are not counted.
+The two subscription limits count the filters of the CONNECTION. In a
+broker, `max_subscriptions_per_client` is also the limit of the SESSION. A
+persistent session keeps the filters of its earlier connections, and they
+count. A SUBSCRIBE of a new filter past the limit of the session gets the
+same refusal: `0x80` Failure (MQTT 3.1.1) or `0x97` Quota exceeded (MQTT 5)
+in the SUBACK, and the client stays. A filter that the session holds is
+replaced and is not counted again. The broker says it with one WARNING
+*"Mqtt: SUBSCRIBE past max_subscriptions_per_client of the session, filters
+refused"* every 10 s, with the count of the WARNINGs it did not write
+(`suppressed`). Up to 7.31.29 only the connection counted. Each reconnection
+of a persistent session added up to 100 filters more, and the broker saved all
+of them and restored them at each start.
+
+Example: a broker whose clients hold at most 20 filters each. Set it in the
+`kw` of the `C_PROT_MQTT2` of the input gate:
+
+```json
+{
+    "gclass": "C_PROT_MQTT2",
+    "kw": {
+        "iamServer": true,
+        "max_subscriptions_per_client": 20
+    }
+}
+```
+
+A persistent session with 20 filters that connects again and subscribes `a/21`
+gets `0x80` (MQTT 3.1.1) or `0x97` (MQTT 5) for it. Its subscribe of one of
+its 20 filters again is granted.
 
 **Without queues:**
 
@@ -313,7 +340,7 @@ reads the return of the publication:
 |---|---|---|
 | `EV_ON_OPEN` | the client: `id`, `protocol_version`, `clean_start`, `peername`, the will (its payload as `gbuffer`) | returns `0`: CONNACK accepted, session present 0. Returns `-2`: CONNACK not authorized, and the connection closes. |
 | `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_MESSAGE` | `topic`, `qos`, `retain`, `gbuffer` (the payload, peer bytes) | takes the message. Returns `1` when it took it (MQTT 5: PUBACK Success). `0` is "no matching subscribers" (`0x10`). |
-| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_SUBSCRIBE` | `subs` (`sub`, `qos`, …), `gbuffer` | appends ONE reason code per filter of `subs` to the `gbuffer`, in order: the QoS granted, or `>= 0x80` to refuse it. The filters the protocol refused are not in `subs`, and a filter repeated in the packet is in it once. |
+| `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_SUBSCRIBE` | `subs` (`sub`, `qos`, …), `gbuffer`, `max_subscriptions_per_client` (the broker applies it to the session) | appends ONE reason code per filter of `subs` to the `gbuffer`, in order: the QoS granted, or `>= 0x80` to refuse it. The filters the protocol refused are not in `subs`, and a filter repeated in the packet is in it once. |
 | `EV_ON_IEV_MESSAGE` with `__iev_event__` `EV_MQTT_UNSUBSCRIBE` | `subs`, `gbuffer` | appends ONE reason code per filter of `subs`, in order: `0x00` Success, `0x11` No subscription existed, or `>= 0x80` to refuse it. Every distinct filter of the packet is in `subs`, once: the protocol refuses none. MQTT 3.1.1 has no codes in its UNSUBACK, but the upper level writes them all the same. |
 | `EV_ON_CLOSE` | `client_id`, `peername` | the connection ended. |
 
@@ -729,9 +756,16 @@ Up to 7.31.1 the group was not kept: every group of a filter was one tree, and
 only one member of all of them got each message, always the first.
 
 **The subscriptions of a persistent session survive a restart of the broker.**
-Each SUBSCRIBE and UNSUBSCRIBE saves them in the session
+A SUBSCRIBE or an UNSUBSCRIBE that changes them saves them in the session
 (`subscriptions`: one `{topic_filter, qos, identifier, options}` per filter,
-one write per packet), and the broker rebuilds its subscription trees from
+one write per packet). A SUBSCRIBE of a filter that the session holds with
+the same QoS and options writes nothing. Up to 7.31.29 it wrote the whole
+record of the session: with 100 filters of 250 bytes, about 30 KB per
+SUBSCRIBE, and 10 000 SUBSCRIBEs of one filter added 309 MB to the store.
+The subscriptions are part of the one record of the session, so the CONNECT
+and the close of a persistent session still write all of them (about 60 KB
+per connection with 100 filters of 250 bytes).
+The broker rebuilds its subscription trees from
 them when its treedb opens, with one INFO *"Subscriptions of the persistent
 sessions restored"*. A restored subscription is a SUBSCRIBE again: it passes
 `deny_subscribes` and the ACL in force at that moment, and one refused now is

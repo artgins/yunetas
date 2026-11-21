@@ -25,6 +25,7 @@
  ***************************************************************************/
 #define SUBS_KEY    "@subs"     /* Key for subscribers array in tree nodes */
 #define FOREIGN_TREEDB_LOG_INTERVAL_MS  (10*1000)   // one WARNING per interval, see treedb_event_is_mine()
+#define SESSION_QUOTA_LOG_INTERVAL_MS   (10*1000)   // one WARNING per interval, see say_session_quota()
 
 /***************************************************************************
  *              Structures
@@ -204,6 +205,9 @@ typedef struct _PRIVATE_DATA {
 
     uint64_t foreign_treedb_t_next;     // brake of the WARNING of treedb_event_is_mine()
     uint32_t foreign_treedb_suppressed;
+
+    uint64_t session_quota_t_next;      // brake of the WARNING of say_session_quota()
+    uint32_t session_quota_suppressed;
 
 } PRIVATE_DATA;
 
@@ -2297,6 +2301,33 @@ PRIVATE BOOL subscription_allowed(hgobj gobj, const char *client_id, const char 
 }
 
 /***************************************************************************
+ *  A SUBSCRIBE refused filters past max_subscriptions_per_client of the
+ *  session: one WARNING every SESSION_QUOTA_LOG_INTERVAL_MS, with the count
+ *  of the ones not said. The client chooses how many SUBSCRIBEs it sends
+ ***************************************************************************/
+PRIVATE void say_session_quota(hgobj gobj, const char *client_id, int max_subscriptions, int refused)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->session_quota_t_next && !test_msectimer(priv->session_quota_t_next)) {
+        priv->session_quota_suppressed++;
+        return;
+    }
+    priv->session_quota_t_next = start_msectimer(SESSION_QUOTA_LOG_INTERVAL_MS);
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_MQTT,
+        "msg",          "%s", "Mqtt: SUBSCRIBE past max_subscriptions_per_client of the session, filters refused",
+        "max_subscriptions_per_client", "%d", max_subscriptions,
+        "client_id",    "%.64s", client_id,
+        "refused",      "%d", refused,
+        "suppressed",   "%u", (unsigned)priv->session_quota_suppressed,
+        NULL
+    );
+    priv->session_quota_suppressed = 0;
+}
+
+/***************************************************************************
  *  A temporary session (MQTT 5: Session Expiry 0; 3.1.1: clean session) is
  *  deleted at its close: nothing of it outlives the connection
  ***************************************************************************/
@@ -2316,8 +2347,27 @@ PRIVATE BOOL session_is_temporary(hgobj gobj, json_t *session)
  *  too [MQTT-3.2.2-2]: subs__restore() rebuilds the trees from them when the
  *  database opens. Up to 7.31.1 the column existed and nothing wrote it.
  *
+ *  The index of the entry of a topic filter in the session, or -1.
+ ***************************************************************************/
+PRIVATE int session_subscription_index(json_t *session, const char *topic_filter)
+{
+    json_t *subscriptions = json_object_get(session, "subscriptions");
+    size_t idx; json_t *jn_sub;
+    json_array_foreach(subscriptions, idx, jn_sub) {
+        const char *tf = json_string_value(json_object_get(jn_sub, "topic_filter"));
+        if(tf && strcmp(tf, topic_filter) == 0) {
+            return (int)idx;
+        }
+    }
+    return -1;
+}
+
+/***************************************************************************
  *  Set (jn_entry given, owned) or remove (NULL) the entry of a topic filter
- *  in the session (not owned). Return TRUE when the session changed.
+ *  in the session (not owned). Return TRUE when the session changed: the
+ *  same entry set again changes nothing, and the session is not written.
+ *  Up to 7.31.29 it was: every SUBSCRIBE of a filter held rewrote the whole
+ *  record of the session (about 30 KB with 100 filters of 250 bytes)
  ***************************************************************************/
 PRIVATE BOOL session_subscription_set(json_t *session, const char *topic_filter, json_t *jn_entry)
 {
@@ -2330,17 +2380,18 @@ PRIVATE BOOL session_subscription_set(json_t *session, const char *topic_filter,
         json_object_set_new(session, "subscriptions", subscriptions);
     }
 
-    size_t idx; json_t *jn_sub;
-    json_array_foreach(subscriptions, idx, jn_sub) {
-        const char *tf = json_string_value(json_object_get(jn_sub, "topic_filter"));
-        if(tf && strcmp(tf, topic_filter) == 0) {
-            if(jn_entry) {
-                json_array_set_new(subscriptions, idx, jn_entry);
-            } else {
-                json_array_remove(subscriptions, idx);
+    int idx = session_subscription_index(session, topic_filter);
+    if(idx >= 0) {
+        if(jn_entry) {
+            if(json_equal(json_array_get(subscriptions, (size_t)idx), jn_entry)) {
+                JSON_DECREF(jn_entry)
+                return FALSE;
             }
-            return TRUE;
+            json_array_set_new(subscriptions, (size_t)idx, jn_entry);
+        } else {
+            json_array_remove(subscriptions, (size_t)idx);
         }
+        return TRUE;
     }
     if(jn_entry) {
         json_array_append_new(subscriptions, jn_entry);
@@ -4856,6 +4907,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(
         gobj, kw, "gbuffer", 0, KW_REQUIRED
     );
+    int max_subscriptions = (int)kw_get_int(gobj, kw, "max_subscriptions_per_client", 0, 0);
     json_t *session = gobj_get_node(
         priv->gobj_treedb_mqtt_broker,
         "sessions",
@@ -4867,6 +4919,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         JSON_DECREF(session)    // its subscriptions die with it: not saved
     }
     BOOL session_changed = FALSE;
+    int quota_refused = 0;
 
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
@@ -4927,6 +4980,25 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             );
         }
 
+        /*
+         *  max_subscriptions_per_client of the protocol counts the filters
+         *  of the connection. A persistent session keeps the filters of its
+         *  earlier connections, so here the limit is of the SESSION: a new
+         *  filter past it is refused as the protocol refuses it. Up to
+         *  7.31.29 every reconnection could add as many again, saved in the
+         *  record of the session and restored at each start
+         */
+        if(allowed && session && max_subscriptions > 0 &&
+                session_subscription_index(session, sub) < 0 &&
+                (int)json_array_size(json_object_get(session, "subscriptions"))
+                    >= max_subscriptions) {
+            allowed = FALSE;
+            reason = (protocol_version == mqtt_p_mqtt5)
+                ? MQTT_RC_QUOTA_EXCEEDED
+                : 0x80;
+            quota_refused++;
+        }
+
         if(allowed) {
             int rc = sub__add( // WARNING return 1 if subs already exists
                 gobj,
@@ -4969,6 +5041,10 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
          *  Add the reason code to response
          */
         gbuffer_append_char(gbuf_payload, reason);
+    }
+
+    if(quota_refused > 0) {
+        say_session_quota(gobj, client_id, max_subscriptions, quota_refused);
     }
 
     if(session_changed) {

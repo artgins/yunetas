@@ -73,6 +73,7 @@ SET(SRCS
     broker_stop_drain
     gate_reader
     broker_sessions
+    broker_session_subs
     broker_stop_dropped
     broker_treedb_src
 )
