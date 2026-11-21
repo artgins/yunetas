@@ -9796,6 +9796,39 @@ PUBLIC uint64_t time_in_milliseconds_monotonic(void)
 }
 
 /****************************************************************************
+ *  A timer of `microseconds`, on the monotonic clock: the pair of
+ *  start_msectimer() for a time shorter than a few milliseconds, where the
+ *  millisecond clock is too coarse (a "2 ms" of it is 1 to 2 ms).
+ ****************************************************************************/
+PUBLIC uint64_t start_usectimer(uint64_t microseconds)
+{
+    return time_in_microseconds_monotonic() + microseconds;
+}
+
+/****************************************************************************
+ *  TRUE when the timer `value` (start_usectimer()) has finished. 0 never.
+ ****************************************************************************/
+PUBLIC BOOL test_usectimer(uint64_t value)
+{
+    if(value == 0) {
+        return FALSE;
+    }
+    return (time_in_microseconds_monotonic() >= value)? TRUE:FALSE;
+}
+
+/****************************************************************************
+ *  Return CLOCK_MONOTONIC time in microseconds
+ ****************************************************************************/
+PUBLIC uint64_t time_in_microseconds_monotonic(void)
+{
+    struct timespec spec;
+
+    clock_gettime(CLOCK_MONOTONIC, &spec);
+
+    return ((uint64_t)spec.tv_sec) * 1000000 + ((uint64_t)spec.tv_nsec) / 1000;
+}
+
+/****************************************************************************
  *  Current **real** time in milliseconds
  ****************************************************************************/
 PUBLIC uint64_t time_in_milliseconds(void)

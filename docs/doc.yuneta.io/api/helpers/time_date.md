@@ -376,6 +376,43 @@ Returns a `time_t` value representing the future timestamp when the timer will e
 
 ---
 
+(start_usectimer)=
+## [`start_usectimer()`](https://github.com/artgins/yunetas/blob/7.31.29/kernel/c/gobj-c/src/helpers.c#L9803)
+
+`start_usectimer()` starts a timer of microseconds on the monotonic clock and returns its expiration time.
+
+```C
+uint64_t start_usectimer(
+    uint64_t microseconds
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `microseconds` | `uint64_t` | The duration of the timer in microseconds. |
+
+**Returns**
+
+The expiration time in microseconds of the monotonic clock (see [`time_in_microseconds_monotonic()`](#time_in_microseconds_monotonic)). With `microseconds` 0 it returns the current time: the timer has expired at once.
+
+**Notes**
+
+Use [`test_usectimer()`](#test_usectimer) to check if the timer has expired. It is the pair of [`start_msectimer()`](#start_msectimer) for a time of a few milliseconds or less, where the millisecond clock is too coarse: a timer of "2 ms" of the millisecond clock expires after 1 to 2 ms.
+
+```C
+uint64_t key_deadline = start_usectimer(2000);  // 2 ms, to the microsecond
+while(more_work()) {
+    if(test_usectimer(key_deadline)) {
+        break;      // its time is spent
+    }
+    do_one_step();
+}
+```
+
+---
+
 (t2timestamp)=
 ## [`t2timestamp()`](https://github.com/artgins/yunetas/blob/7.31.29/kernel/c/gobj-c/src/helpers.c#L9703)
 
@@ -458,6 +495,39 @@ Returns `TRUE` if the current time is greater than or equal to `value`, otherwis
 **Notes**
 
 If `value` is less than or equal to zero, the function returns `FALSE` without performing any time comparison.
+
+---
+
+(test_usectimer)=
+## [`test_usectimer()`](https://github.com/artgins/yunetas/blob/7.31.29/kernel/c/gobj-c/src/helpers.c#L9811)
+
+Checks if a microsecond timer of [`start_usectimer()`](#start_usectimer) has expired.
+
+```C
+BOOL test_usectimer(
+    uint64_t value
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `value` | `uint64_t` | The expiration time that [`start_usectimer()`](#start_usectimer) returned. |
+
+**Returns**
+
+`TRUE` if the timer has expired, otherwise `FALSE`. A `value` of 0 never expires (`FALSE`).
+
+**Example**
+
+```C
+uint64_t slow = start_usectimer(1000);
+first_search();
+if(test_usectimer(slow)) {
+    // the first search took 1 ms or more
+}
+```
 
 ---
 
@@ -821,6 +891,37 @@ A `uint64_t` value representing the current monotonic time in milliseconds, obta
 **Notes**
 
 Monotonic time is not affected by system clock adjustments and is suitable for measuring elapsed durations. This is the clock used by [`start_msectimer()`](#start_msectimer) and [`test_msectimer()`](#test_msectimer).
+
+---
+
+(time_in_microseconds_monotonic)=
+## [`time_in_microseconds_monotonic()`](https://github.com/artgins/yunetas/blob/7.31.29/kernel/c/gobj-c/src/helpers.c#L9822)
+
+Returns the current monotonic time in microseconds.
+
+```C
+uint64_t time_in_microseconds_monotonic(void);
+```
+
+**Parameters**
+
+This function has no parameters.
+
+**Returns**
+
+A `uint64_t`, the current time of `CLOCK_MONOTONIC` in microseconds.
+
+**Example**
+
+```C
+uint64_t t0 = time_in_microseconds_monotonic();
+tranger2_append_record(tranger, "tracks", 0, 0, &md, record);
+uint64_t took_us = time_in_microseconds_monotonic() - t0;   // the time of one append
+```
+
+**Notes**
+
+This is the clock of [`start_usectimer()`](#start_usectimer) and [`test_usectimer()`](#test_usectimer). The clock is not moved when the wall clock is set back or forward.
 
 ---
 

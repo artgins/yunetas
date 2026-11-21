@@ -1331,6 +1331,9 @@ PUBLIC BOOL   test_sectimer(time_t value);      /* Return TRUE if timer has fini
 PUBLIC uint64_t start_msectimer(uint64_t milliseconds);   /* value <=0 will disable the timer */
 PUBLIC BOOL   test_msectimer(uint64_t value);           /* Return TRUE if timer has finish */
 PUBLIC uint64_t time_in_milliseconds_monotonic(void); // Return MONOTONIC time in milliseconds
+PUBLIC uint64_t start_usectimer(uint64_t microseconds);   /* value <=0 will disable the timer */
+PUBLIC BOOL   test_usectimer(uint64_t value);           /* Return TRUE if timer has finish */
+PUBLIC uint64_t time_in_microseconds_monotonic(void); // Return MONOTONIC time in microseconds
 PUBLIC uint64_t time_in_milliseconds(void);   // Return current **real** time in milliseconds
 PUBLIC time_t time_in_seconds(void);       // Return current time in seconds (standard time(&t))
 
