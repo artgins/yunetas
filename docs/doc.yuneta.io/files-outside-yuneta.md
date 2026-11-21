@@ -96,6 +96,27 @@ manager does not remove them.
 | rsyslog enabled and started. | yes | yes |
 | The units enabled: links in `/etc/systemd/system/`. | yes | yes |
 | `/run/reboot-required`, a hint only. The install never reboots. | yes | yes |
+| SELinux local policy: a file-context rule `bin_t` for four files of `/yuneta` (see below), when SELinux is on. `%postun` removes the rules at a full uninstall. | no | yes |
+
+`/yuneta` is outside the policy of SELinux, so SELinux labels its files
+`default_t`, and systemd cannot start a `default_t` file (the unit fails
+with `203/EXEC`). So the `%post` of the `.rpm` adds a local rule `bin_t`
+(`semanage fcontext`) for each file of `/yuneta` that systemd starts, and
+applies it (`restorecon`):
+
+- `/yuneta/bin/yuneta-webserver`, started by `yuneta-webserver.service`.
+- `/yuneta/agent/yuneta_agent` and `/yuneta/agent/yuneta_agent22`, started
+  by their units.
+- `/yuneta/bin/restart-yuneta`, started by the certbot hook in a transient
+  unit (after 7.31.29).
+
+To see the rules and the labels on a node:
+
+```bash
+semanage fcontext -l -C | grep /yuneta
+ls -Z /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent \
+    /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta
+```
 
 Before an upgrade, the install scripts copy `/etc/yuneta/webserver` to
 `/etc/yuneta/webserver.pkgsave`, and put it back after the upgrade. The
@@ -252,6 +273,9 @@ These files are written at run time:
 - `/var/crash/core.<binary>`: the core dump of a yuno that crashes.
 - `/var/log/yuneta/deploy-hook.log` and `copy-certs.log`: written by the
   certbot hook, as root.
+- `/run/yuneta-copy-certs.lock`: the lock of `copy-certs.sh`, made by
+  root (empty). The certbot hook and the agent's cert sync never run it at
+  the same time. `/run` is cleared at each boot.
 - `/var/lib/yuneta/install-package/`: written by
   `/usr/libexec/yuneta/install-package`, as root. It holds the URL and the
   sha256 of the last install, its `result`, and the download while the

@@ -71,7 +71,7 @@ add_cert() {    # name content
 reset() {
     rm -rf "$ROOT" "$LOG"
     : > "$LOG"
-    mkdir -p "$LE/live" "${ROOT}/yuneta/bin"
+    mkdir -p "$LE/live" "${ROOT}/yuneta/bin" "${ROOT}/run"
 }
 
 cc() {
@@ -218,6 +218,93 @@ check "a write that fails: said" "$(echo "$out" | grep -c "FAILED to copy exampl
 check "a write that fails: the old key stays with the old crt" "$(cat "${CERTS}/private/example.com.key") / $(cat "${CERTS}/example.com.crt")" "first privkey / first fullchain"
 check "a write that fails: no temporary file left" "$(find "$CERTS" -name '*.??????' | wc -l)" "0"
 check "a write that fails: the other certificate done" "$(cat "${CERTS}/private/other.org.key")" "renewed"
+
+#
+#   A move that fails after others were done: the files already moved are
+#   put back (the old set whole), and no temporary or .old file stays
+#
+REAL_MV="$(command -v mv)"
+reset
+add_cert example.com "first"
+cc >/dev/null
+for f in fullchain chain privkey; do
+    printf 'renewed %s\n' "$f" > "${LE}/archive/example.com/${f}1.pem"
+done
+printf '#!/bin/sh\nfor a in "$@"; do\n    case "$a" in\n        *.crt)\n            echo "mv: cannot move" >&2\n            exit 1\n            ;;\n    esac\ndone\nexec "%s" "$@"\n' "$REAL_MV" > "${STUBS}/mv"
+chmod 0755 "${STUBS}/mv"
+out="$(PATH="${STUBS}:$PATH" cc)"
+rc=$?
+check "a move that fails: exit 1" "$rc" "1"
+check "a move that fails: said" "$(echo "$out" | grep -c 'FAILED to move .*example.com.crt: the old files put back')" "1"
+check "a move that fails: the old set whole" "$(cat "${CERTS}/private/example.com.key") / $(cat "${CERTS}/example.com.chain") / $(cat "${CERTS}/example.com.crt")" "first privkey / first chain / first fullchain"
+check "a move that fails: no temporary or .old file left" "$(find "$CERTS" -name '*.??????' | wc -l)" "0"
+
+# ... and when the old files cannot be put back either: said apart
+printf '#!/bin/sh\nfor a in "$@"; do\n    case "$a" in\n        *.crt|*.key.old.*)\n            exit 1\n            ;;\n    esac\ndone\nexec "%s" "$@"\n' "$REAL_MV" > "${STUBS}/mv"
+out="$(PATH="${STUBS}:$PATH" cc)"
+check "a move that fails, and its undo: rc 3" "$(echo "$out" | grep -c 'FAILED to copy example.com (rc=3)')" "1"
+check "a move that fails, and its undo: said" "$(echo "$out" | grep -c 'may not match')" "1"
+check "a move that fails, and its undo: the old key kept, and named" \
+    "$(cat "$(echo "$out" | sed -n 's/.*it is kept in \([^ ]*\)$/\1/p')")" "first privkey"
+rm -f "${STUBS}/mv"
+
+#
+#   One run at a time: two runs at once (the hook and the tick) never
+#   interleave their parts. A slow setpriv writes down when each part of
+#   the owner begins and ends
+#
+reset
+add_cert example.com "first"
+add_cert other.org "second"
+cat > "${STUBS}/setpriv-slow" <<EOF
+#!/bin/sh
+while [ \$# -gt 0 ] && [ "\$1" != "--" ]; do
+    shift
+done
+shift
+echo "begin" >> "${WORK}/order.log"
+sleep 0.2
+"\$@"
+rc=\$?
+echo "end" >> "${WORK}/order.log"
+exit \$rc
+EOF
+chmod 0755 "${STUBS}/setpriv-slow"
+: > "${WORK}/order.log"
+slow_cc() {
+    env YUNETA_COPY_CERTS_TEST_ROOT="$ROOT" YUNETA_COPY_CERTS_TEST_SETPRIV="${STUBS}/setpriv-slow" "$COPY" >/dev/null 2>&1
+}
+slow_cc &
+p1=$!
+slow_cc &
+p2=$!
+wait "$p1"
+r1=$?
+wait "$p2"
+r2=$?
+check "two runs at once: both end well" "$r1 $r2" "0 0"
+check "two runs at once: no part begins inside another" \
+    "$(awk '$1 == "begin" {if (open) bad = 1; open = 1} $1 == "end" {open = 0} END {print bad ? "interleaved" : "one at a time"}' "${WORK}/order.log")" "one at a time"
+check "two runs at once: parts of both ran" "$(grep -c '^begin' "${WORK}/order.log")" "$(grep -c '^end' "${WORK}/order.log")"
+check "the lock is under /run" "$( [ -e "${ROOT}/run/yuneta-copy-certs.lock" ] && echo yes)" "yes"
+
+#
+#   A node with no certificate: said to the journal once, not at each tick,
+#   and again after one came and went
+#
+reset
+printf '#!/bin/sh\necho "logger $*" >> "%s"\n' "$LOG" > "${STUBS}/logger"
+chmod 0755 "${STUBS}/logger"
+for i in 1 2 3; do
+    YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger" cc >/dev/null
+done
+check "no certificate: said once in three runs" "$(grep -c 'No certificates to copy' "$LOG")" "1"
+add_cert example.com "first"
+YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger" cc >/dev/null
+check "no certificate: the mark goes when there is one" "$( [ -e "${CERTS}/.no-certificates" ] && echo there || echo gone)" "gone"
+rm -rf "${LE}/live/example.com"
+YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger" cc >/dev/null
+check "no certificate again: said again" "$(grep -c 'No certificates to copy' "$LOG")" "2"
 
 #
 #   The order of the moves: the key first, the crt last (the crt is what
@@ -379,32 +466,64 @@ check "hook, the unit fails: nothing in the background" "$(grep -c '^restart-yun
 rm -rf "${ROOT}/run"
 
 #
-#   restart-yuneta (written by both packagers): its branch for a node
-#   without the units (systemctl does not know yuneta_agent.service) is
-#   refused inside a unit of systemd, where an agent started with --start
-#   would die with the unit; out of a unit it runs as always. Its paths
-#   are moved under the test root
+#   restart-yuneta (written by both packagers). Its paths, the unit files
+#   it looks for, /run/systemd/system and /proc/self/cgroup are moved under
+#   the test root. With a unit file of the agent: the agent restarted in
+#   its unit (sudo -n systemctl), also from logcenter under the agent (its
+#   INVOCATION_ID). Without one (a node before 7.25.22): from logcenter,
+#   yshutdown and --start; from the transient unit of the certbot hook,
+#   refused (an agent started there dies with the unit)
 #
+ry_run() {    # cgroup-line [env...]
+    local cg="$1"
+    shift
+    printf '0::%s\n' "$cg" > "${WORK}/cgroup"
+    env "$@" PATH="${STUBS}:$PATH" "$RY" 2>&1
+}
 for builder in deb/make-yuneta-agent-deb.sh rpm/make-yuneta-agent-rpm.sh; do
     reset
     RY="${WORK}/restart-yuneta"
     awk 'index($0, "yuneta/bin/restart-yuneta\" <<"){f=1; next} f && /^EOF$/{exit} f' \
-        "${HERE}/../${builder}" | sed "s|/yuneta/|${ROOT}/yuneta/|g" > "$RY"
+        "${HERE}/../${builder}" | sed \
+        -e "s|/yuneta/|${ROOT}/yuneta/|g" \
+        -e "s|^SYSTEMD_RUN_DIR=.*|SYSTEMD_RUN_DIR=\"${ROOT}/run/systemd/system\"|" \
+        -e "s|^AGENT_UNIT_FILES=.*|AGENT_UNIT_FILES=\"${ROOT}/usr/lib/systemd/system/yuneta_agent.service\"|" \
+        -e "s|^CGROUP_FILE=.*|CGROUP_FILE=\"${WORK}/cgroup\"|" > "$RY"
     chmod 0755 "$RY"
-    mkdir -p "${ROOT}/yuneta/agent"
+    check "restart-yuneta ($builder): the test replaced its paths" \
+        "$(grep -c -e "^SYSTEMD_RUN_DIR=\"${ROOT}" -e "^AGENT_UNIT_FILES=\"${ROOT}" -e "^CGROUP_FILE=\"${WORK}" "$RY")" "3"
+    mkdir -p "${ROOT}/yuneta/agent" "${ROOT}/run/systemd/system"
     printf '#!/bin/sh\necho "yshutdown $*" >> "%s"\n' "$LOG" > "${ROOT}/yuneta/bin/yshutdown"
     printf '#!/bin/sh\necho "yuneta_agent $*" >> "%s"\n' "$LOG" > "${ROOT}/yuneta/agent/yuneta_agent"
-    printf '#!/bin/sh\nexit 1\n' > "${STUBS}/systemctl"
-    chmod 0755 "${ROOT}/yuneta/bin/yshutdown" "${ROOT}/yuneta/agent/yuneta_agent" "${STUBS}/systemctl"
-    out="$(PATH="${STUBS}:$PATH" INVOCATION_ID=0123abcd "$RY" 2>&1)"
+    printf '#!/bin/sh\necho "sudo $*" >> "%s"\n' "$LOG" > "${STUBS}/sudo"
+    printf '#!/bin/sh\necho "systemctl $*" >> "%s"\nexit 1\n' "$LOG" > "${STUBS}/systemctl"
+    chmod 0755 "${ROOT}/yuneta/bin/yshutdown" "${ROOT}/yuneta/agent/yuneta_agent" "${STUBS}/sudo" "${STUBS}/systemctl"
+
+    # With the unit file: restarted in the unit, also from logcenter
+    mkdir -p "${ROOT}/usr/lib/systemd/system"
+    touch "${ROOT}/usr/lib/systemd/system/yuneta_agent.service"
+    out="$(ry_run /system.slice/yuneta_agent.service INVOCATION_ID=0123abcd)"
+    check "restart-yuneta ($builder), units, logcenter: exit 0" "$?" "0"
+    check "restart-yuneta ($builder), units, logcenter: restarted in the unit" "$(grep -c '^sudo -n systemctl restart yuneta_agent.service' "$LOG")" "1"
+    check "restart-yuneta ($builder), units: no systemctl cat asked" "$(grep -c '^systemctl cat' "$LOG")" "0"
+    check "restart-yuneta ($builder), units: no --start" "$(grep -c '^yuneta_agent --start' "$LOG")" "0"
+
+    # Without it: from logcenter (under the agent), yshutdown and --start
+    rm -f "${ROOT}/usr/lib/systemd/system/yuneta_agent.service"
+    : > "$LOG"
+    out="$(ry_run /system.slice/yuneta_agent.service INVOCATION_ID=0123abcd)"
+    check "restart-yuneta ($builder), no units, logcenter: yshutdown" "$(grep -c '^yshutdown' "$LOG")" "1"
+    check "restart-yuneta ($builder), no units, logcenter: the agent started" "$(grep -c '^yuneta_agent --start' "$LOG")" "1"
+
+    # Without it, from the transient unit of the hook: refused
+    : > "$LOG"
+    out="$(ry_run /system.slice/yuneta-restart-20261121000000.service INVOCATION_ID=0123abcd)"
     rc=$?
-    check "restart-yuneta ($builder), no units, inside a unit: exit 1" "$rc" "1"
-    check "restart-yuneta ($builder), no units, inside a unit: said" "$(echo "$out" | grep -c 'inside a systemd unit')" "1"
-    check "restart-yuneta ($builder), no units, inside a unit: no yunos stopped" "$(grep -c '^yshutdown' "$LOG")" "0"
-    check "restart-yuneta ($builder), no units, inside a unit: no agent started" "$(grep -c '^yuneta_agent' "$LOG")" "0"
-    out="$(env -u INVOCATION_ID PATH="${STUBS}:$PATH" "$RY" 2>&1)"
-    check "restart-yuneta ($builder), no units, out of a unit: the agent started" "$(grep -c '^yuneta_agent --start' "$LOG")" "1"
-    rm -f "${STUBS}/systemctl"
+    check "restart-yuneta ($builder), no units, the hook's unit: exit 1" "$rc" "1"
+    check "restart-yuneta ($builder), no units, the hook's unit: said" "$(echo "$out" | grep -c 'transient unit of the certbot hook')" "1"
+    check "restart-yuneta ($builder), no units, the hook's unit: no yunos stopped" "$(grep -c '^yshutdown' "$LOG")" "0"
+    check "restart-yuneta ($builder), no units, the hook's unit: no agent started" "$(grep -c '^yuneta_agent' "$LOG")" "0"
+    rm -f "${STUBS}/systemctl" "${STUBS}/sudo"
 done
 
 if [ "$FAILED" -ne 0 ]; then

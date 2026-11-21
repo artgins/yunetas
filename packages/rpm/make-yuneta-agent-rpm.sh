@@ -1397,7 +1397,20 @@ fi
 #   caller on a queue alarm), and the agent starts them again. agent22 is
 #   not touched.
 #
-if [ -d /run/systemd/system ] && systemctl cat yuneta_agent.service >/dev/null 2>&1; then
+#   "The units are there" is a question about FILES, answered without
+#   systemd: up to 7.31.29 it was `systemctl cat`, which fails as yuneta on
+#   a node with no system D-Bus for it, and sent a node WITH units to the
+#   branch below.
+#
+SYSTEMD_RUN_DIR="/run/systemd/system"
+AGENT_UNIT_FILES="/etc/systemd/system/yuneta_agent.service /usr/lib/systemd/system/yuneta_agent.service /lib/systemd/system/yuneta_agent.service"
+has_agent_unit=0
+for _f in $AGENT_UNIT_FILES; do
+    if [ -f "$_f" ]; then
+        has_agent_unit=1
+    fi
+done
+if [ -d "$SYSTEMD_RUN_DIR" ] && [ "$has_agent_unit" -eq 1 ]; then
     if ! sudo -n -l systemctl restart yuneta_agent.service >/dev/null 2>&1; then
         echo "restart-yuneta: not allowed to restart yuneta_agent.service (sudo -n systemctl): nothing done" >&2
         exit 1
@@ -1414,12 +1427,16 @@ if [ -d /run/systemd/system ] && systemctl cat yuneta_agent.service >/dev/null 2
 fi
 
 # No units (a node before 7.25.22): yshutdown + agent start, as always.
-# Not inside a unit of systemd (INVOCATION_ID: the transient unit of the
-# certbot hook, any other): systemctl failed to answer there, and an agent
-# started with --start would belong to that unit and die with it when this
-# script ends (KillMode=control-group), its yunos with it.
-if [ -n "${INVOCATION_ID:-}" ]; then
-    echo "restart-yuneta: inside a systemd unit, and systemctl does not know yuneta_agent.service (no D-Bus?): not started here, where it would die with this unit. Restart the agent by hand" >&2
+# Not from the transient unit of the certbot hook (yuneta-restart-*): its
+# KillMode is control-group, so an agent started with --start there would
+# die with it when this script ends, its yunos with it. Elsewhere it is
+# fine: logcenter runs under the agent, whose process (SysV, or the unit of
+# a node with units, KillMode=process) does not take the new agent down.
+# Up to the round before, any INVOCATION_ID refused it -- and logcenter
+# inherits the agent's.
+CGROUP_FILE="/proc/self/cgroup"
+if grep -qE '/yuneta-restart-[0-9]+\.service$' "$CGROUP_FILE" 2>/dev/null; then
+    echo "restart-yuneta: no unit file of yuneta_agent here, and this runs in the transient unit of the certbot hook, where an agent started with --start would die with the unit: not started. Restart the agent by hand" >&2
     exit 1
 fi
 if [ -x /yuneta/bin/yshutdown ]; then
@@ -1634,6 +1651,11 @@ AutoReqProv:    no
 
 Requires:       shadow-utils, rsync, rsyslog, chkconfig, initscripts, sudo, gdb
 Requires:       logrotate
+# setpriv is in util-linux; logger, setsid and flock in util-linux-core,
+# which util-linux requires (the scripts of the package drop to yuneta with
+# setpriv and setsid, and copy-certs.sh logs with logger and locks with
+# flock). A minimal EL9 image may carry util-linux-core alone.
+Requires:       util-linux
 Requires:       glibc-langpack-en, glibc-langpack-es
 # semanage, so the bin_t rule of the files systemd execs is written into the
 # policy (%post) and taken out (%postun): a chcon alone is lost on a relabel
@@ -2131,15 +2153,40 @@ fi
 # a Rocky 9 test node the agent's unit died the same way (203/EXEC, "avc:
 # denied { execute } ... scontext=init_t tcontext=default_t"), and %post left
 # the node with agent22 alone, outside its unit.
+#
+# The rules: ONE semanage to read the local ones and at most ONE import for
+# the missing (each semanage loads the whole policy, seconds each; up to
+# 7.31.29 it was up to 8 calls per install). An import that fails falls
+# back to one call per file, as before. One restorecon for all.
+#
+_yuneta_bin_t="/yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta"
 if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
-    for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta; do
-        if command -v semanage >/dev/null 2>&1; then
-            semanage fcontext -a -t bin_t "$_exe" >/dev/null 2>&1 ||
-            semanage fcontext -m -t bin_t "$_exe" >/dev/null 2>&1 || true
+    if command -v semanage >/dev/null 2>&1; then
+        _local="$(semanage fcontext -l -C 2>/dev/null)" || _local=""
+        _import=""
+        for _exe in $_yuneta_bin_t; do
+            if printf '%s\n' "$_local" | awk -v p="$_exe" '$1 == p && /:bin_t:/ {found = 1} END {exit !found}'; then
+                continue
+            fi
+            if printf '%s\n' "$_local" | awk -v p="$_exe" '$1 == p {found = 1} END {exit !found}'; then
+                _import="${_import}fcontext -m -t bin_t ${_exe}
+"
+            else
+                _import="${_import}fcontext -a -t bin_t ${_exe}
+"
+            fi
+        done
+        if [ -n "$_import" ] && ! printf '%s' "$_import" | semanage import >/dev/null 2>&1; then
+            for _exe in $_yuneta_bin_t; do
+                semanage fcontext -a -t bin_t "$_exe" >/dev/null 2>&1 ||
+                semanage fcontext -m -t bin_t "$_exe" >/dev/null 2>&1 || true
+            done
         fi
-        if command -v restorecon >/dev/null 2>&1; then
-            restorecon -F "$_exe" >/dev/null 2>&1 || true
-        fi
+    fi
+    if command -v restorecon >/dev/null 2>&1; then
+        restorecon -F $_yuneta_bin_t >/dev/null 2>&1 || true
+    fi
+    for _exe in $_yuneta_bin_t; do
         #
         # Fallback for a node without the policy tools (the package requires
         # them where selinux-policy is installed, so this is a node that
@@ -2337,9 +2384,17 @@ if [ "$1" = "0" ]; then
     fi
     # And the bin_t rules %post wrote into the policy
     if command -v semanage >/dev/null 2>&1; then
+        _import=""
         for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta; do
-            semanage fcontext -d "$_exe" >/dev/null 2>&1 || true
+            _import="${_import}fcontext -d ${_exe}
+"
         done
+        # One import; a rule that is not there makes it fail: one per file then
+        if ! printf '%s' "$_import" | semanage import >/dev/null 2>&1; then
+            for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta; do
+                semanage fcontext -d "$_exe" >/dev/null 2>&1 || true
+            done
+        fi
     fi
 fi
 exit 0

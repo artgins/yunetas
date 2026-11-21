@@ -75,14 +75,25 @@ certbot `deploy-hook` at
       whose destination file is a symbolic link.
     - It writes the changed files of a certificate to temporary files in
       their directories. Only when all of them are written does it move
-      them into place, the key first and the `.crt` last. So a failure
-      leaves the old set whole, never an old `.crt` with a new key, and the
-      `.crt` (which the agent's sync watches) changes last. No key is
+      them into place, the key first and the `.crt` last. Before each move
+      it keeps the old file as a hard link, and when a later move fails it
+      puts the moved files back. So a failure leaves the old set whole,
+      never an old `.crt` with a new key, and the `.crt` (which the agent's
+      sync watches) changes last. If the old files cannot be put back
+      either, the script says that the set can be mixed, and it keeps
+      the old file as `<file>.old.XXXXXX`. No key is
       written anywhere else. An unchanged file is not written, so it keeps
       its mtime. The agent's sync (layer 2) reloads the yunos only when the
       size or the mtime of a file changes.
     - It says `Copied <name>` and runs `/yuneta/bin/check-certs-validity.sh`
       (as `yuneta`) only when something changed.
+    - It runs one at a time: the hook and the agent's sync take the lock
+      `/run/yuneta-copy-certs.lock` (`flock`), and a run waits for the other
+      for up to 120 seconds.
+    - On a node with no certificate, it says `No certificates to copy` to
+      the journal once, not at each tick of the sync. A mark
+      `/yuneta/store/certs/.no-certificates` remembers that it said it, and
+      goes when a certificate comes.
 2. Reload the web server (`nginx -s reload` or `openresty -s reload`), as
    root.
 3. Broadcast the yuno-level `reload-certs` command to every running

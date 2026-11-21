@@ -38,6 +38,11 @@
 # "Copied <name>" is said only when something of <name> changed, and
 # check-certs-validity.sh (as yuneta) runs only then.
 #
+# One run at a time (flock on /run/yuneta-copy-certs.lock, root's). On a
+# node with no certificate, "No certificates to copy" goes to the journal
+# once (a mark .no-certificates of yuneta in /yuneta/store/certs), not at
+# each tick of the agent.
+#
 # THE LIMIT: this script is in /yuneta, which yuneta owns, and root runs it
 # (see the page "Files outside /yuneta", the root features). Removing sudo
 # from yuneta does not make yuneta a privilege boundary while that is so.
@@ -73,6 +78,9 @@ DEST_BASE="${ROOT}/yuneta/store/certs"
 DEST_PRIV="${DEST_BASE}/private"
 CERTS_FILE="${DEST_BASE}/certs.list"
 VALIDITY="${ROOT}/yuneta/bin/check-certs-validity.sh"
+NO_CERTS_MARK="${DEST_BASE}/.no-certificates"
+LOCK_FILE="${ROOT}/run/yuneta-copy-certs.lock"
+LOCK_WAIT=120
 
 #
 #   What the script says goes to its output AND to the journal (logger -t
@@ -93,7 +101,7 @@ say() {    # priority message
 #   PATH of its passwd entry), and no controlling terminal of root's
 #
 as_owner() {
-    setsid -w "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups --reset-env -- "$@"
+    setsid -w "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups --reset-env -- "$@" 9>&-
 }
 
 valid_name() {
@@ -114,10 +122,14 @@ LE_REAL="$(readlink -f -- "$LE_DIR")"
 #   written to a temporary file in its directory; only when all of them are
 #   written are they moved into place, the key first and the crt last: the
 #   crt is what the agent's cert-sync watches, so when its change is seen
-#   the key is already the new one, and a failure leaves the old set whole
-#   instead of an old crt with a new key. An unchanged file is not written
-#   (its mtime stays); its mode is set again when it moved.
-#   Exit 10: something written; 11: nothing to write; anything else failed.
+#   the key is already the new one. Before each move the old file is kept
+#   as a hard link (<file>.old.XXXXXX); when a later move fails, the files
+#   already moved are put back, so a failure leaves the old set whole
+#   instead of an old crt with a new key, and no temporary file stays. An
+#   unchanged file is not written (its mtime stays); its mode is set again
+#   when it moved. Exit 10: something written; 11: nothing to write; 2:
+#   failed, the old set whole; 3: failed, and the old set could not be put
+#   back (said); anything else failed.
 #
 OWNER_PART='
 set -u
@@ -168,24 +180,92 @@ if [ "${#same[@]}" -gt 0 ]; then
         k=$((k + 1))
     done
 fi
-written=0
+olds=("" "" "")
+moved=()
+undo() {
+    local j bad=0
+    for j in "${moved[@]}"; do
+        if [ -n "${olds[j]}" ]; then
+            if mv -f -- "${olds[j]}" "${dests[j]}"; then
+                olds[j]=""
+            else
+                echo "FAILED to put back the old ${dests[j]}: it is kept in ${olds[j]}" >&2
+                olds[j]=""
+                bad=1
+            fi
+        elif ! rm -f -- "${dests[j]}"; then
+            echo "FAILED to remove the new ${dests[j]}" >&2
+            bad=1
+        fi
+    done
+    for j in 0 1 2; do
+        if [ -n "${olds[j]}" ]; then
+            rm -f -- "${olds[j]}"
+        fi
+    done
+    return "$bad"
+}
 for i in 2 1 0; do
-    if [ -n "${tmps[i]}" ]; then
-        if ! mv -f -- "${tmps[i]}" "${dests[i]}"; then
-            echo "FAILED to move ${tmps[i]} to ${dests[i]}" >&2
-            tmps[i]=""
+    if [ -z "${tmps[i]}" ]; then
+        continue
+    fi
+    if [ -e "${dests[i]}" ]; then
+        o=""
+        if ! o="$(mktemp "${dests[i]}.old.XXXXXX")" || ! ln -f -- "${dests[i]}" "$o"; then
+            echo "FAILED to keep the old ${dests[i]}: nothing of this certificate changed" >&2
+            if [ -n "$o" ]; then
+                rm -f -- "$o"
+            fi
+            undo
             drop
             exit 2
         fi
-        tmps[i]=""
-        written=1
+        olds[i]="$o"
+    fi
+    if ! mv -f -- "${tmps[i]}" "${dests[i]}"; then
+        if undo; then
+            echo "FAILED to move ${tmps[i]} to ${dests[i]}: the old files put back, nothing of this certificate changed" >&2
+            drop
+            exit 2
+        fi
+        echo "FAILED to move ${tmps[i]} to ${dests[i]}, and to put the old files back: the files of this certificate may not match" >&2
+        drop
+        exit 3
+    fi
+    tmps[i]=""
+    moved+=("$i")
+done
+for i in 0 1 2; do
+    if [ -n "${olds[i]}" ]; then
+        rm -f -- "${olds[i]}"
     fi
 done
+written=0
+if [ "${#moved[@]}" -gt 0 ]; then
+    written=1
+fi
 if [ "$written" -ne 0 ]; then
     exit 10
 fi
 exit 11
 '
+
+#
+#   One run at a time: the certbot hook and the agent's cert-sync (sudo)
+#   both run this as root, and certbot changes the links of live/ one by
+#   one, so two runs could interleave their moves. The lock is in /run,
+#   where only root creates files (a lock in a directory of yuneta, or in
+#   /run/lock, which anybody can write, could be a link that root opens).
+#   It is waited for LOCK_WAIT seconds, then the run fails, said.
+#
+if ! exec 9>>"$LOCK_FILE"; then
+    say err "FAILED to open the lock $LOCK_FILE: no certificate copied"
+    exit 1
+fi
+if ! flock -w "$LOCK_WAIT" 9; then
+    say err "FAILED: another copy-certs.sh held $LOCK_FILE for ${LOCK_WAIT} s: no certificate copied"
+    exit 1
+fi
 
 #
 #   The destination directories: made by the owner, never a link
@@ -229,9 +309,19 @@ elif [ -d "$LIVE_DIR" ]; then
     done
 fi
 
+# "No certificates" goes to the journal once, not at each 15-min tick: a
+# mark of the owner says it was said, and goes when there is one again
 if [ "${#CERT_NAMES[@]}" -eq 0 ]; then
-    say notice "No certificates to copy (certs.list empty and no live certs found)."
+    if [ -e "$NO_CERTS_MARK" ]; then
+        echo "No certificates to copy (certs.list empty and no live certs found)."
+        exit 0
+    fi
+    say notice "No certificates to copy (certs.list empty and no live certs found). Said once, until there is one"
+    as_owner touch "$NO_CERTS_MARK" || true
     exit 0
+fi
+if [ -e "$NO_CERTS_MARK" ]; then
+    as_owner rm -f "$NO_CERTS_MARK" || true
 fi
 
 CHANGED=0

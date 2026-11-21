@@ -1522,8 +1522,10 @@ certbot deploy hook runs the same script as root. Root only reads the
 certificates of `/etc/letsencrypt/live/<name>/`. The user `yuneta`
 (`setpriv --reset-env`) compares each one with its copy in
 `/yuneta/store/certs/<name>.crt`, `<name>.chain` or `private/<name>.key`.
-It writes a file only when its content changed, in one step (a temporary
-file in the same directory, then `mv`). So an unchanged file keeps its
+It writes a file only when its content changed: all the changed files
+of a certificate go to temporary files first, and then they move into
+place, the key first and the `.crt` last. A move that fails puts the
+moved files back. So an unchanged file keeps its
 mtime, and the size and mtime snapshot of the sync sees no change. The
 script says `Copied <name>` and runs `check-certs-validity.sh` only when
 something changed.

@@ -1607,7 +1607,20 @@ fi
 #   caller on a queue alarm), and the agent starts them again. agent22 is
 #   not touched.
 #
-if [ -d /run/systemd/system ] && systemctl cat yuneta_agent.service >/dev/null 2>&1; then
+#   "The units are there" is a question about FILES, answered without
+#   systemd: up to 7.31.29 it was `systemctl cat`, which fails as yuneta on
+#   a node with no system D-Bus for it, and sent a node WITH units to the
+#   branch below.
+#
+SYSTEMD_RUN_DIR="/run/systemd/system"
+AGENT_UNIT_FILES="/etc/systemd/system/yuneta_agent.service /usr/lib/systemd/system/yuneta_agent.service /lib/systemd/system/yuneta_agent.service"
+has_agent_unit=0
+for _f in $AGENT_UNIT_FILES; do
+    if [ -f "$_f" ]; then
+        has_agent_unit=1
+    fi
+done
+if [ -d "$SYSTEMD_RUN_DIR" ] && [ "$has_agent_unit" -eq 1 ]; then
     if ! sudo -n -l systemctl restart yuneta_agent.service >/dev/null 2>&1; then
         echo "restart-yuneta: not allowed to restart yuneta_agent.service (sudo -n systemctl): nothing done" >&2
         exit 1
@@ -1624,12 +1637,16 @@ if [ -d /run/systemd/system ] && systemctl cat yuneta_agent.service >/dev/null 2
 fi
 
 # No units (a node before 7.25.22): yshutdown + agent start, as always.
-# Not inside a unit of systemd (INVOCATION_ID: the transient unit of the
-# certbot hook, any other): systemctl failed to answer there, and an agent
-# started with --start would belong to that unit and die with it when this
-# script ends (KillMode=control-group), its yunos with it.
-if [ -n "${INVOCATION_ID:-}" ]; then
-    echo "restart-yuneta: inside a systemd unit, and systemctl does not know yuneta_agent.service (no D-Bus?): not started here, where it would die with this unit. Restart the agent by hand" >&2
+# Not from the transient unit of the certbot hook (yuneta-restart-*): its
+# KillMode is control-group, so an agent started with --start there would
+# die with it when this script ends, its yunos with it. Elsewhere it is
+# fine: logcenter runs under the agent, whose process (SysV, or the unit of
+# a node with units, KillMode=process) does not take the new agent down.
+# Up to the round before, any INVOCATION_ID refused it -- and logcenter
+# inherits the agent's.
+CGROUP_FILE="/proc/self/cgroup"
+if grep -qE '/yuneta-restart-[0-9]+\.service$' "$CGROUP_FILE" 2>/dev/null; then
+    echo "restart-yuneta: no unit file of yuneta_agent here, and this runs in the transient unit of the certbot hook, where an agent started with --start would die with the unit: not started. Restart the agent by hand" >&2
     exit 1
 fi
 if [ -x /yuneta/bin/yshutdown ]; then
