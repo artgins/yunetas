@@ -182,6 +182,17 @@
 
 ### Changed
 
+- **`tr2keys` takes `--key` and `--rkey`**, as `tr2list` does, so it no
+  longer has to print every key of a topic. `--key` shows one key if the
+  topic has it, and `--rkey` the keys that match a PCRE2 regular expression.
+  With `--recursive` it prints only the topics that have a key that matches.
+  Up to 7.31.29 both options were in the code but switched off, and
+  `tr2keys` always printed every key:
+
+  ```bash
+  tr2keys /yuneta/store/myapp/treedb_myapp -r --rkey='^dev-00'
+  ```
+
 - **The `.rpm` requires `util-linux`.** That is where EL9 ships `setpriv`,
   which the scripts of the package use, and a minimal EL9 image can carry
   only `util-linux-core`. Its SELinux `bin_t` rules for the files that

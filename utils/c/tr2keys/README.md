@@ -1,6 +1,6 @@
 # tr2keys
 
-`tr2keys` lists all keys (primary ids) of a timeranger2 topic. It is like `tr2list`, but it prints only the set of keys. Use it to audit a topic or to give the keys to a batch job.
+`tr2keys` lists the keys (primary ids) of a timeranger2 topic. It is like `tr2list`, but it prints only the set of keys. Use it to audit a topic or to give the keys to a batch job.
 
 ## Usage
 
@@ -8,5 +8,29 @@
 tr2keys <PATH> [options]
 ```
 
-`PATH` is a positional argument. Active options: `--recursive`/`-r`,
-`--list-databases`. Run `tr2keys --help` for the full list.
+`PATH` is a positional argument: the directory of a topic, or of a database with `--recursive`.
+
+| Option | What it does |
+|--------|--------------|
+| `--key=KEY` | Show only this key, if the topic has it. |
+| `--rkey=RKEY` | Show only the keys that match this regular expression (PCRE2). |
+| `--recursive` / `-r` | List every topic under `PATH`. |
+| `--list-databases` | List the databases under `PATH`. |
+
+Without `--key` or `--rkey`, `tr2keys` prints every key of the topic. With one of them, it prints only the keys that match, and with `--recursive` only the topics that have a key that matches. A pattern that does not compile stops `tr2keys` before it opens a topic, with the cause.
+
+## Examples
+
+```bash
+# Every key of a topic
+tr2keys /yuneta/store/myapp/treedb_myapp/devices
+
+# Does the topic have this key?
+tr2keys /yuneta/store/myapp/treedb_myapp/devices --key=dev-0042
+
+# The keys that start with "dev-00"
+tr2keys /yuneta/store/myapp/treedb_myapp/devices --rkey='^dev-00'
+
+# In every topic of the database
+tr2keys /yuneta/store/myapp/treedb_myapp -r --rkey='^dev-00'
+```

@@ -24,6 +24,9 @@
 #include <timeranger2.h>
 #include <yev_loop.h>
 
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
@@ -124,13 +127,14 @@ static struct argp_option options[] = {
 //{"system-flag-set",     13,     "MASK",             0,      "Mask of System Flag set.",   7},
 //{"system-flag-not-set", 14,     "MASK",             0,      "Mask of System Flag not set.",7},
 //
-//{"key",                 15,     "KEY",              0,      "Key.",             9},
+{0,                     0,      0,                  0,      "Search conditions", 9},
+{"key",                 15,     "KEY",              0,      "Only this key (exact).", 9},
 //{"not-key",             16,     "KEY",              0,      "Not key.",         9},
 //
 //{"from-tm",             17,     "TIME",             0,      "From msg time.",       10},
 //{"to-tm",               18,     "TIME",             0,      "To msg time.",         10},
 //
-//{"rkey",                19,     "RKEY",             0,      "Regular expression of Key.", 11},
+{"rkey",                19,     "RKEY",             0,      "Only the keys that match this regular expression (PCRE2).", 9},
 //{"filter",              20,     "FILTER",           0,      "Filter of fields in json dict string", 11},
 
 {0,                     0,      0,                  0,      "Print", 12},
@@ -156,6 +160,9 @@ struct arguments arguments;
 int total_counter = 0;
 int partial_counter = 0;
 json_t *match_cond = 0;
+pcre2_general_context *rkey_gcontext = 0;
+pcre2_code *rkey_re = 0;
+pcre2_match_data *rkey_md = 0;
 
 /***************************************************************************
  *  Parse a single option
@@ -229,7 +236,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         arguments_->to_tm = arg;
         break;
 
-    case 19: // to_tm
+    case 19:
         arguments_->rkey = arg;
         break;
 
@@ -341,6 +348,113 @@ PRIVATE int list_topics(const char *path)
 }
 
 /***************************************************************************
+ *  pcre2 allocates through gbmem, as the rest of the process
+ ***************************************************************************/
+PRIVATE void *rkey_malloc(PCRE2_SIZE size, void *user_data)
+{
+    return gbmem_malloc(size);
+}
+PRIVATE void rkey_free(void *ptr, void *user_data)
+{
+    if(ptr) {
+        gbmem_free(ptr);
+    }
+}
+
+/***************************************************************************
+ *  Compile --rkey once, before any topic is opened. NULL with a message on
+ *  stderr when the pattern does not compile.
+ ***************************************************************************/
+PRIVATE int compile_rkey(const char *rkey)
+{
+    rkey_gcontext = pcre2_general_context_create(rkey_malloc, rkey_free, NULL);
+    if(!rkey_gcontext) {
+        fprintf(stderr, "--rkey: no memory for the pcre2 context\n\n");
+        return -1;
+    }
+    pcre2_compile_context *cc = pcre2_compile_context_create(rkey_gcontext);
+    int errorcode;
+    PCRE2_SIZE erroroffset;
+    rkey_re = pcre2_compile(
+        (PCRE2_SPTR)rkey,
+        PCRE2_ZERO_TERMINATED,
+        0,
+        &errorcode,
+        &erroroffset,
+        cc
+    );
+    if(cc) {
+        pcre2_compile_context_free(cc);
+    }
+    if(!rkey_re) {
+        PCRE2_UCHAR msg[256];
+        pcre2_get_error_message(errorcode, msg, sizeof(msg));
+        fprintf(stderr, "--rkey '%s': %s, at offset %d\n\n", rkey, (char *)msg, (int)erroroffset);
+        return -1;
+    }
+    rkey_md = pcre2_match_data_create_from_pattern(rkey_re, rkey_gcontext);
+    if(!rkey_md) {
+        fprintf(stderr, "--rkey: no memory for the match data\n\n");
+        return -1;
+    }
+    return 0;
+}
+
+PRIVATE void free_rkey(void)
+{
+    if(rkey_md) {
+        pcre2_match_data_free(rkey_md);
+        rkey_md = 0;
+    }
+    if(rkey_re) {
+        pcre2_code_free(rkey_re);
+        rkey_re = 0;
+    }
+    if(rkey_gcontext) {
+        pcre2_general_context_free(rkey_gcontext);
+        rkey_gcontext = 0;
+    }
+}
+
+/***************************************************************************
+ *  The keys of a topic that --key / --rkey ask for (all of them without
+ *  either). Return is yours.
+ ***************************************************************************/
+PRIVATE json_t *filter_keys(json_t *jn_keys)
+{
+    if(!arguments.key && !rkey_re) {
+        return json_incref(jn_keys);
+    }
+    json_t *jn_shown = json_array();
+    size_t idx;
+    json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        if(!key) {
+            fprintf(stderr, "a key of the topic is not a string: skipped\n");
+            continue;
+        }
+        if(arguments.key && strcmp(key, arguments.key) != 0) {
+            continue;
+        }
+        if(rkey_re) {
+            int rc = pcre2_match(rkey_re, (PCRE2_SPTR)key, strlen(key), 0, 0, rkey_md, NULL);
+            if(rc == PCRE2_ERROR_NOMATCH) {
+                continue;
+            }
+            if(rc < 0) {
+                PCRE2_UCHAR msg[256];
+                pcre2_get_error_message(rc, msg, sizeof(msg));
+                fprintf(stderr, "--rkey: key '%s' not judged: %s\n", key, (char *)msg);
+                continue;
+            }
+        }
+        json_array_append(jn_shown, jn_key);
+    }
+    return jn_shown;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int list_messages(void)
@@ -378,16 +492,21 @@ PRIVATE int list_messages(void)
         fprintf(stderr, "Can't open topic %s\n\n", arguments.topic);
         exit(-1);
     }
-    printf("Topic ===> '%s'\n", kw_get_str(0, topic, "directory", "", KW_REQUIRED));
-
-    json_t *jn_keys = tranger2_list_keys( // return is yours
+    json_t *jn_all_keys = tranger2_list_keys( // return is yours
         tranger,
         arguments.topic
     );
-    print_json("Keys", jn_keys);
+    json_t *jn_keys = filter_keys(jn_all_keys);
+    BOOL filtered = (arguments.key || rkey_re)? TRUE : FALSE;
+    if(!filtered || json_array_size(jn_keys) > 0) {
+        printf("Topic ===> '%s'\n", kw_get_str(0, topic, "directory", "", KW_REQUIRED));
+        print_json("Keys", jn_keys);
+    }
     total_counter += json_array_size(jn_keys);
+    partial_counter += json_array_size(jn_keys);
 
     JSON_DECREF(jn_keys)
+    JSON_DECREF(jn_all_keys)
     /*-------------------------------*
      *  Free resources
      *-------------------------------*/
@@ -450,7 +569,7 @@ PRIVATE BOOL list_recursive_topic_cb(
     list_messages();
 
     if(partial_counter > 0) {
-        printf("====> %s %s: %d records\n\n",
+        printf("====> %s %s: %d keys\n\n",
             arguments.database,
             arguments.topic,
             partial_counter
@@ -498,14 +617,14 @@ PRIVATE BOOL search_topic_cb(
         list_messages();
         if(arguments.recursive) {
             if(partial_counter > 0) {
-                printf("====> %s %s: %d records\n\n",
+                printf("====> %s %s: %d keys\n\n",
                     arguments.database,
                     arguments.topic,
                     partial_counter
                 );
             }
         } else {
-            printf("====> %s %s: %d records\n\n",
+            printf("====> %s %s: %d keys\n\n",
                 arguments.database,
                 arguments.topic,
                 partial_counter
@@ -858,6 +977,10 @@ int main(int argc, char *argv[])
         &yev_loop
     );
 
+    if(arguments.rkey && compile_rkey(arguments.rkey) < 0) {
+        exit(-1);
+    }
+
     if(arguments.list_databases) {
         list_databases(arguments.path);
     } else if(arguments.recursive) {
@@ -876,6 +999,7 @@ int main(int argc, char *argv[])
     MT_PRINT_TIME(time_measure, "list keys")
 
     JSON_DECREF(match_cond)
+    free_rkey();
     gobj_end();
 
     return gobj_get_exit_code();
