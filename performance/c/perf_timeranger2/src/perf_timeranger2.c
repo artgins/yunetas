@@ -17,11 +17,17 @@
  *                     minute in the middle file ("tm_query_unmigrated": the
  *                     name it had when the tm markers existed, 7.25.5 to
  *                     7.25.22, kept so the reports chart one trend)
- *            rkey     the appends of RK_RECS records (RK_KEYS keys) with a
- *                     keyless rt_mem list open: with no rkey, with a
- *                     cheap rkey (^0+1$), and RK_COSTLY_RECS appends (over
- *                     RK_COSTLY_KEYS keys of 20 digits) with a costly one,
- *                     (*NO_JIT)^(0+)+$
+ *            rkey     a topic for each case, its keys made before the
+ *                     timed part: the appends of RK_RECS records (RK_KEYS
+ *                     keys) with a keyless rt_mem list open, with no rkey
+ *                     and with a cheap one (^0+1$); RK_COSTLY_RECS appends
+ *                     (RK_COSTLY_KEYS keys of 20 digits) with an anchored
+ *                     costly one ((*NO_JIT)^(0+)+$); the first append of
+ *                     RK_NEW_KEYS new keys of 255 bytes with an unanchored
+ *                     costly one (RK_UNANCHORED); and the load of a live
+ *                     list (tranger2_open_list()) of RK_LOAD_KEYS keys of
+ *                     36 bytes with it. The records each list got are
+ *                     counted, and a case that gets a wrong count fails.
  *            read     1 key x READ_FILES daily files x READ_RECS rows; then,
  *                     as a master and as a replica: the open (and close)
  *                     of an iterator, unfiltered and filtered (an index of
@@ -81,6 +87,13 @@ PRIVATE int RK_RECS = 200000;
 PRIVATE int RK_KEYS = 100;
 PRIVATE int RK_COSTLY_RECS = 200;
 PRIVATE int RK_COSTLY_KEYS = 20;
+PRIVATE int RK_NEW_KEYS = 200;
+PRIVATE int RK_LOAD_KEYS = 3000;
+/*
+ *  Under the limits of a position, and costly at all of them: the worst
+ *  found for the judgement of R101 (timeranger2's rkey_judge())
+ */
+#define RK_UNANCHORED "(*NO_JIT)(?:[\\s\\S]?){9}(?:~?~?~?~?~?){40}(?!)|$"
 
 PRIVATE char path_root[PATH_MAX];
 PRIVATE char path_database[PATH_MAX];
@@ -89,6 +102,13 @@ PRIVATE int records_seen = 0;
 /***************************************************************
  *              Helpers
  ***************************************************************/
+PRIVATE int log_to_stderr(void *h, int priority, const char *bf, size_t len)
+{
+    fwrite(bf, 1, len, stderr);
+    fputc('\n', stderr);
+    return 0;
+}
+
 PRIVATE double now_s(void)
 {
     struct timespec ts;
@@ -440,15 +460,42 @@ PRIVATE int phase_read(void)
 }
 
 /***************************************************************************
+ *  One record of each of the keys of a case, before its timed part: the
+ *  creation of a key is not what is measured
+ ***************************************************************************/
+PRIVATE int rkey_make_keys(json_t *tranger, const char *topic, int keys, int digits)
+{
+    for(int k = 0; k < keys; k++) {
+        char key[NAME_MAX];
+        snprintf(key, sizeof(key), "%0*d", digits, k);
+        if(append(tranger, topic, key, TM0) < 0) {
+            return -1;  // Error already logged
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  The appends of `n` records with a keyless rt_mem list open, with its
- *  `rkey` (NULL: none), keys of `digits` digits cycling over `keys`
+ *  `rkey` (NULL: none), keys of `digits` digits cycling over `keys`, each
+ *  case in a topic of its own. `expected`: the records the list must get
+ *  (-1: not checked)
  ***************************************************************************/
 PRIVATE int rkey_appends(
-    json_t *tranger, const char *name, const char *rkey, int n, int keys, int digits
+    json_t *tranger,
+    const char *name,
+    const char *rkey,
+    int n,
+    int keys,
+    int digits,
+    int expected
 )
 {
+    if(!create_topic(tranger, name, 1) || rkey_make_keys(tranger, name, keys, digits) < 0) {
+        return -1;  // Error already logged
+    }
     json_t *list = tranger2_open_rt_mem(
-        tranger, "rk", "",
+        tranger, name, "",
         rkey? json_pack("{s:s}", "rkey", rkey) : json_object(),
         count_record, name, "", NULL
     );
@@ -456,31 +503,111 @@ PRIVATE int rkey_appends(
         return -1;  // Error already logged
     }
 
+    records_seen = 0;
     double t0 = now_s();
     for(int i = 0; i < n; i++) {
-        char key[32];
+        char key[NAME_MAX];
         snprintf(key, sizeof(key), "%0*d", digits, i % keys);
-        if(append(tranger, "rk", key, TM0 + i) < 0) {
+        if(append(tranger, name, key, TM0 + 1 + i) < 0) {
+            tranger2_close_rt_mem(tranger, list);
             return -1;  // Error already logged
         }
     }
-    result_line(name, now_s() - t0, n, NULL);
+    double seconds = now_s() - t0;
     tranger2_close_rt_mem(tranger, list);
+
+    char extra[64];
+    snprintf(extra, sizeof(extra), "\"records_seen\": %d", records_seen);
+    result_line(name, seconds, n, extra);
+    if(expected >= 0 && records_seen != expected) {
+        printf("{\"bench\": \"%s\", \"case\": \"%s\", \"result\": \"FAILED\", \"records_seen\": %d, \"expected\": %d}\n",
+            BENCH, name, records_seen, expected);
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  The first append of RK_NEW_KEYS new keys of 255 bytes with a keyless
+ *  rt_mem list open whose rkey is RK_UNANCHORED: what a writer pays for
+ *  each new key, once for each list
+ ***************************************************************************/
+PRIVATE int rkey_first_appends(json_t *tranger)
+{
+    const char *name = "first_append_rt_rkey_unanchored";
+    if(!create_topic(tranger, name, 1)) {
+        return -1;  // Error already logged
+    }
+    json_t *list = tranger2_open_rt_mem(
+        tranger, name, "", json_pack("{s:s}", "rkey", RK_UNANCHORED),
+        count_record, name, "", NULL
+    );
+    if(!list) {
+        return -1;  // Error already logged
+    }
+    records_seen = 0;
+    double t0 = now_s();
+    for(int i = 0; i < RK_NEW_KEYS; i++) {
+        char key[NAME_MAX + 1];
+        memset(key, 'a', 251);
+        snprintf(key + 251, sizeof(key) - 251, "%04d", i);
+        if(append(tranger, name, key, TM0 + i) < 0) {
+            tranger2_close_rt_mem(tranger, list);
+            return -1;  // Error already logged
+        }
+    }
+    double seconds = now_s() - t0;
+    tranger2_close_rt_mem(tranger, list);
+
+    char extra[64];
+    snprintf(extra, sizeof(extra), "\"records_seen\": %d", records_seen);
+    result_line(name, seconds, RK_NEW_KEYS, extra);
+    return 0;
+}
+
+/***************************************************************************
+ *  The load of a live keyless list of RK_LOAD_KEYS keys of 36 bytes whose
+ *  rkey is RK_UNANCHORED (tranger2_open_list()): its time, and whether it
+ *  was refused (the budget of the load)
+ ***************************************************************************/
+PRIVATE int rkey_load(json_t *tranger)
+{
+    const char *name = "load_rt_rkey_unanchored";
+    if(!create_topic(tranger, name, 1) || rkey_make_keys(tranger, name, RK_LOAD_KEYS, 36) < 0) {
+        return -1;  // Error already logged
+    }
+    records_seen = 0;
+    double t0 = now_s();
+    json_t *list = tranger2_open_list(
+        tranger, name,
+        json_pack("{s:s, s:I}",
+            "rkey", RK_UNANCHORED,
+            "load_record_callback", (json_int_t)(uintptr_t)count_record
+        ),
+        json_object(), name, FALSE, ""
+    );
+    double seconds = now_s() - t0;
+    if(list) {
+        tranger2_close_list(tranger, list);
+    }
+
+    char extra[96];
+    snprintf(extra, sizeof(extra), "\"keys\": %d, \"refused\": %d, \"records_seen\": %d",
+        RK_LOAD_KEYS, list? 0 : 1, records_seen);
+    result_line(name, seconds, 1, extra);
     return 0;
 }
 
 PRIVATE int phase_rkey(void)
 {
     json_t *tranger = start_tranger(TRUE);
-    if(!create_topic(tranger, "rk", 1)) {
-        tranger2_shutdown(tranger);
-        return -1;  // Error already logged
-    }
     int ret = 0;
-    ret += rkey_appends(tranger, "append_rt_no_rkey", NULL, RK_RECS, RK_KEYS, 10);
-    ret += rkey_appends(tranger, "append_rt_rkey", "^0+1$", RK_RECS, RK_KEYS, 10);
+    ret += rkey_appends(tranger, "append_rt_no_rkey", NULL, RK_RECS, RK_KEYS, 10, RK_RECS);
+    ret += rkey_appends(tranger, "append_rt_rkey", "^0+1$", RK_RECS, RK_KEYS, 10, RK_RECS/RK_KEYS);
     ret += rkey_appends(tranger, "append_rt_rkey_costly", "(*NO_JIT)^(0+)+$",
-        RK_COSTLY_RECS, RK_COSTLY_KEYS, 20);
+        RK_COSTLY_RECS, RK_COSTLY_KEYS, 20, RK_COSTLY_RECS/RK_COSTLY_KEYS);
+    ret += rkey_first_appends(tranger);
+    ret += rkey_load(tranger);
     tranger2_shutdown(tranger);
     return ret < 0? -1 : 0;
 }
@@ -499,7 +626,11 @@ int main(int argc, char *argv[])
     set_memory_check_list(memory_check_list);
 
     gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
+    /*
+     *  The logs to stderr: stdout is the JSON lines, one each
+     */
+    gobj_log_register_handler("stderr", 0, log_to_stderr, 0);
+    gobj_log_add_handler("stderr", "stderr", LOG_OPT_UP_WARNING, 0);
 
     BOOL do_open = FALSE, do_create = FALSE, do_tm = FALSE, do_read = FALSE, do_rkey = FALSE, any = FALSE;
     for(int i = 1; i < argc; i++) {
@@ -510,6 +641,7 @@ int main(int argc, char *argv[])
             READ_RECS /= 10;
             READ_OPS /= 10;
             RK_RECS /= 10;
+            RK_LOAD_KEYS /= 10;
         } else if(strcmp(argv[i], "open") == 0) {
             do_open = TRUE;
             any = TRUE;
@@ -548,10 +680,13 @@ int main(int argc, char *argv[])
     printf("{\"bench\": \"%s\", \"yuneta_version\": \"%s\", \"track_memory\": %d, "
         "\"keys\": %d, \"files\": %d, \"recs\": %d, \"reopen\": %d, "
         "\"tm_files\": %d, \"tm_recs\": %d, "
-        "\"read_files\": %d, \"read_recs\": %d, \"read_ops\": %d}\n",
+        "\"read_files\": %d, \"read_recs\": %d, \"read_ops\": %d, "
+        "\"rk_recs\": %d, \"rk_keys\": %d, \"rk_costly_recs\": %d, \"rk_costly_keys\": %d, "
+        "\"rk_new_keys\": %d, \"rk_load_keys\": %d}\n",
         BENCH, YUNETA_VERSION, track_memory,
         KEYS, FILES, RECS, REOPEN, TM_FILES, TM_RECS,
-        READ_FILES, READ_RECS, READ_OPS
+        READ_FILES, READ_RECS, READ_OPS,
+        RK_RECS, RK_KEYS, RK_COSTLY_RECS, RK_COSTLY_KEYS, RK_NEW_KEYS, RK_LOAD_KEYS
     );
 
     int ret = 0;

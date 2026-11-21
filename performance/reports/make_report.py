@@ -631,7 +631,10 @@ def build_html(rep, reports):
              'binaries run alternately (8 to 80 rounds, see the table). A change inside its whisker is noise. '
              'Everything is on one axis: the change of the time an operation takes.'))
     order = story.get('ab_order') or [
-        'tr2.append_rate', 'tr2.append_rate_rt', 'tr2.build_appends', 'tr2.tm_build_appends', 'tr2.open_master',
+        'tr2.append_rate', 'tr2.append_rate_rt',
+        'tr2.append_rt_no_rkey', 'tr2.append_rt_rkey', 'tr2.append_rt_rkey_costly',
+        'tr2.first_append_rt_rkey_unanchored', 'tr2.load_rt_rkey_unanchored',
+        'tr2.build_appends', 'tr2.tm_build_appends', 'tr2.open_master',
         'tr2.tm_query', 'tr2.open_replica', 'tr2.create_topic', 'tr2.topic_version_change', 'tr2.tm_query_unmigrated',
         'treedb.update_memory', 'treedb.update_saved', 'treedb.link_unlink', 'treedb.create_link_half',
         'treedb.reopen', 'treedb.delete_force', 'treedb.delete_parent',
@@ -968,7 +971,10 @@ def svg_absolute(rep):
 
 
 AB_ORDER = [
-    'tr2.append_rate', 'tr2.append_rate_rt', 'tr2.build_appends', 'tr2.open_master', 'tr2.tm_query',
+    'tr2.append_rate', 'tr2.append_rate_rt',
+    'tr2.append_rt_no_rkey', 'tr2.append_rt_rkey', 'tr2.append_rt_rkey_costly',
+    'tr2.first_append_rt_rkey_unanchored', 'tr2.load_rt_rkey_unanchored',
+    'tr2.build_appends', 'tr2.open_master', 'tr2.tm_query',
     'tr2.open_replica', 'tr2.create_topic', 'tr2.topic_version_change', 'tr2.tm_query_unmigrated',
     'treedb.update_memory', 'treedb.update_saved', 'treedb.link_unlink', 'treedb.create_link_half',
     'treedb.reopen', 'treedb.delete_force', 'treedb.delete_parent',
