@@ -4551,9 +4551,9 @@ PRIVATE int test_info_machine(hgobj gobj, hgobj client)
 }
 
 /***************************************************************************
- *  list-agents and list-nodes filtered: `uuid`, `version` and `hostname`
- *  are regular expressions (POSIX extended), all of them to match; one
- *  that does not compile is refused, saying which.
+ *  list-agents and list-nodes filtered: `uuid`, `version`, `hostname` and
+ *  `os` are regular expressions (PCRE2), all of them to match; one that
+ *  does not compile, or that uses a form refused, is refused, saying which.
  ***************************************************************************/
 PRIVATE int count_listed(
     hgobj gobj,
@@ -4634,8 +4634,8 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
      *  The filters are PCRE2 patterns: what glibc's regcomp() could not
      *  compile in a bounded time or memory, and the R97/R98 rules refused by
      *  shape, now works (a bounded repetition, many +, an anchor anywhere, a
-     *  word boundary, a back-reference). What is still refused: a pattern
-     *  longer than 256 bytes, and one whose code is over 16 KB
+     *  word boundary). What is still refused: a pattern longer than 256
+     *  bytes, one whose code is over 1 KB, and the forms below
      */
     char longer[300];
     memset(longer, 'a', sizeof(longer) - 1);
@@ -4651,12 +4651,50 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
         ret += check_response(gobj, gobj_command(priv->cc, i%2? "list-nodes" : "list-agents", kw, client),
             -1, "is no regular expression", too_large[i]);
     }
+
+    /*
+     *  Refused, and named in the answer: what makes the search position by
+     *  position answer otherwise than one search, and a back-reference (the
+     *  work inside one frame grows with the field). Up to R101 all were let
+     *  in, and the first one listed both agents: the first search hits its
+     *  limit, and position by position \G is true at each start, so `\Ga`
+     *  matched the `a` of `la-`
+     */
+    const struct {
+        const char *pattern;
+        const char *said;
+    } refused[] = {
+        {"(?:[\\s\\S]?){7}(?!)|\\Ga",   "is refused: a filter cannot use \\G"},
+        {"\\c\\\\G",                    "is refused: a filter cannot use \\G"},  // \c takes the backslash
+        {"(*COMMIT)la-",                "is refused: a filter cannot use (*COMMIT)"},
+        {"la(*SKIP:x)-",                "is refused: a filter cannot use (*SKIP)"},
+        {"(*NOTEMPTY_ATSTART)la",       "is refused: a filter cannot use (*NOTEMPTY_ATSTART)"},
+        {"(*CRLF)^la-",                 "is refused: a filter cannot use a newline other than LF"},
+        {"(la)-\\1",                    "is refused: a filter cannot use a back-reference"},
+        {"(?<h>la)-\\k<h>",             "is refused: a filter cannot use a back-reference"},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(refused); i++) {
+        kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "hostname", json_string(refused[i].pattern));
+        ret += check_response(gobj, gobj_command(priv->cc, i%2? "list-nodes" : "list-agents", kw, client),
+            -1, refused[i].said, refused[i].pattern);
+    }
+
+    /*
+     *  `(?:[\s\S]?){7}(?!)` needs 256 frames at each position, so these
+     *  go position by position, where only the positions a match can start
+     *  at are tried: the answers are those of one search
+     */
     const struct {
         const char *pattern;
         int expected;
     } accepted[] = {
         {"^la-\\\\1",               0},     // an escaped backslash and a digit
-        {"(la)-\\1",                0},     // a back-reference: la-la is no hostname
+        {"(?:[\\s\\S]?){7}(?!)|a(*PRUNE)lp",    1},     // (*PRUNE) fails one position
+        {"(?:L(?:[\\s\\S]?){7}(?!)|LA-)",       0},     // starts at L only
+        {"(?i)(?:L(?:[\\s\\S]?){7}(?!)|LA-)",   2},     // at L or l
+        {"[ab](?:[\\s\\S]?){7}(?!)|[ab]lp",     1},     // at a or b
+        {".*(?:[\\s\\S]?){7}(?!)|.*beta",       1},     // at the start only
         {"^(la)-(alpha|beta)$",     2},
         {"(la){1}-",                2},     // a bounded repetition
         {"((la){1}){1}-",           2},
@@ -4794,6 +4832,40 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
     close_session(lim);
 
     /*
+     *  An anchored filter, and one that can start only at the start of a
+     *  line (`.*` at its head), are tried at the first position only when
+     *  they go position by position, as one search tries them. Each of these
+     *  needs some 2000 frames at the first position of a host of 63 bytes,
+     *  more than the first limit; up to R101 they were tried at all 64
+     *  positions (some 90 ms), and spent the budget of the command
+     */
+    char cut_host[64];
+    snprintf(cut_host, sizeof(cut_host), "cut-%.59s",
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+    hgobj cut = open_session_card(gobj, "la-cut",
+        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+            "id", "uuid-la-cut", "yuno_version", "7.31.29",
+            "__md_iev__", "ievent_gate_stack", "host", cut_host
+        ), NULL, NULL);
+    const char *cut_patterns[] = {
+        "(?s).*(?:[\\s\\S]?){5}(?:~?~?~?~?~?~?~?~?~?~?){30}(?!)",     // anchored
+        ".*(?:[\\s\\S]?){5}(?:~?~?~?~?~?~?~?~?~?~?){30}(?!)",         // at a line start
+        0
+    };
+    for(int i=0; cut_patterns[i]; i++) {
+        kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "hostname", json_string(cut_patterns[i]));
+        json_t *response = gobj_command(priv->cc, "list-agents", kw, client);
+        const char *comment = kw_get_str(gobj, response, "comment", "", 0);
+        if(kw_get_int(gobj, response, "result", -1, 0) != 0 || strstr(comment, "spent the")) {
+            ret += fail(gobj, "a filter that can start at the first position only is tried at all",
+                comment);
+        }
+        JSON_DECREF(response)
+    }
+    close_session(cut);
+
+    /*
      *  PCRE2's match limit counts frames, not the work inside one, and
      *  starts again at each start position. The cloud's pattern of 229
      *  bytes keeps every position under the limit and took 2.9 s a search:
@@ -4801,8 +4873,9 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
      *  same way under 1 KB, over 30 hosts of 63 bytes (some 350 ms a search
      *  before), stops at the budget of the command: the answer says the
      *  budget was spent and blames no filter, and the command ends in
-     *  50 ms plus one position (10.5 ms measured, 54-57 ms end to end;
-     *  200 ms checked here, for a slow machine)
+     *  50 ms plus its longest call of pcre2_match() (18 ms the worst
+     *  measured; 54-57 ms end to end; 200 ms checked here, for a slow
+     *  machine)
      */
     hgobj bud[30];
     for(int i=0; i<30; i++) {

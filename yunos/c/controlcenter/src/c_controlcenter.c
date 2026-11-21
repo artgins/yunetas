@@ -237,31 +237,38 @@
  *  start position. So a pattern can keep every position under any limit
  *  and still cost: (?:[\s\S]?){12}(?:~?~?...x100){75}(?!)|$ (229 bytes,
  *  16 KB compiled) stays under 5000 frames a position and took 2.9 s on a
- *  uuid, 5.4 s on 64 bytes, in ONE search. Inside a frame the work is
- *  bounded by the compiled code (each item once) and by the field (a
- *  repeat only moves forward), so:
+ *  uuid, 5.4 s on 64 bytes, in ONE search. Inside a frame PCRE2 goes
+ *  forward in the code, and without a back-reference (refused,
+ *  node_filter_refused_form()) an item that does not move forward in the
+ *  field reads one or two bytes of it: the work of a frame is bounded by
+ *  the code and by the field (64 bytes at most). So:
  *    - the compiled code is NODE_FILTER_COMPILED_MAX at most, 1 KB: what an
- *      operator writes compiles to a few hundred bytes (^web- 182,
- *      ^(00000000|11111111)- 205);
+ *      operator writes compiles to a few hundred bytes of code (^web- 16,
+ *      six uuids in an alternation 464, a uuid's shape 207);
  *    - a search runs first with NODE_FILTER_FIRST_LIMIT frames a position,
- *      100 (what an operator writes needs from 1 to 17);
+ *      100 (what an operator writes needs from 1 to 40; `.*x.*` about one
+ *      a byte of the field);
  *    - only when that limit is hit it runs again position by position
  *      (PCRE2_ANCHORED at each start), with NODE_FILTER_MATCH_LIMIT frames
  *      a position, 5000 (`.*a.*b.*c` needs 998 on hex fields,
  *      `.*a.*b.*c.*d` 4289), asking the budget of the command BEFORE EACH
  *      POSITION.
- *  The worst measured, with the worst patterns found under 256 bytes and
- *  1 KB compiled on 64-byte fields (8 runs each, the maximum): a first
- *  search 6.1 ms (64 frames of a heavy code at each of the 65 positions:
- *  (?:[\s\S]?){6}(?:~?x10){30}(?!)|$), one position 10.5 ms (some 4500
- *  frames: (?:[\s\S]?){11}(?:[\s\S]?|[\s\S]?)(?:~?x8){36}(?!)|$; the
- *  same at 16 KB took 97 ms). The budget of all the searches of a command
- *  is NODE_FILTER_BUDGET_MS, 50, started at its first search, and asked
- *  before every call of pcre2_match(): so a command spends in its filters
- *  50 ms plus 10.5 ms at most, measured. The filters
- *  of a command on 300 records and 256 knocks take 1-3 ms (`.*a.*b.*c`,
- *  which goes position by position on most rows, 8 ms; `.*a.*b.*c.*d`
- *  17 ms), so 50 ms leaves room for what an operator writes  */
+ *  The ceiling is in frames: 100 at each of 65 positions for a first
+ *  search, which asks no clock, and 5000 for one position. What a frame
+ *  costs is measured, not proven. The worst measured, with the worst
+ *  patterns found under 256 bytes and 1 KB of code, on fields of 64 bytes
+ *  (8 runs each, the maximum), is some 560 \B under (*UCP), on Latin-1
+ *  letters, after a tree of empty alternatives: about 3 us a frame, a first
+ *  search 18 ms (90 frames at each position), one position 14 ms (4900
+ *  frames). With back-references ((*UCP)(?i), 150 optional ones to 32
+ *  bytes) one position took 42 ms: why they are refused. The budget of all
+ *  the searches of a command is NODE_FILTER_BUDGET_MS, 50, started at its
+ *  first search, and asked before every call of pcre2_match(): so a command
+ *  spends in its filters 50 ms plus its longest call, 18 ms worst measured.
+ *  On 556 rows (300 records, 256 knocks) of 63 hex bytes an ordinary
+ *  filter takes 0.3 ms at most, `.*a.*b.*c` 1 ms and `.*a.*b.*c.*d` 2 ms
+ *  (5 and 16 ms while they were tried at every position, not only at the
+ *  start of the field), so 50 ms leaves room for what an operator writes  */
 #define NODE_FILTER_PATTERN_MAX     256
 #define NODE_FILTER_COMPILED_MAX    1024
 #define NODE_FILTER_FIRST_LIMIT     100
@@ -346,6 +353,14 @@ typedef struct {
     pcre2_code *re;                     // NULL: no filter on this field
     pcre2_match_data *match_data;
     pcre2_match_context *match_context; // the NODE_FILTER_*_LIMIT
+    /*  Where a match can start, from pcre2_pattern_info() at compile: the
+     *  positions node_filter_search() skips, as one search skips them  */
+    BOOL anchored;                      // at the start of the field only
+    BOOL startline;                     // at the start or after a \n only
+    int first_unit;                     // -1 none; else only at this byte...
+    int first_unit_other;               // ...or at this one (its other ASCII case)
+    const uint8_t *first_bitmap;        // NULL none; else only at a byte of this set
+    uint32_t min_length;                // no match is shorter
     int failed;                         // the first pcre2_match() error (its limit): matches nothing more
     /*  Of the command, in filters[0]: the budget of all its searches  */
     uint64_t budget;                    // msectimer: NODE_FILTER_BUDGET_MS from the first search (0: none yet)
@@ -457,6 +472,9 @@ PRIVATE BOOL node_filters_match(
     const char *os
 );
 PRIVATE void free_node_filters(node_filter_t filters[NODE_FILTERS]);
+PRIVATE const char *node_filter_refused_form(pcre2_code *re, const char *pattern);
+PRIVATE void node_filter_read_start(node_filter_t *filter);
+PRIVATE BOOL node_filter_can_start(node_filter_t *filter, const char *field, size_t len, size_t pos);
 PRIVATE int node_filter_search(node_filter_t *filter, const char *field, uint64_t budget, BOOL *spent);
 PRIVATE BOOL node_filters_failed(
     node_filter_t filters[NODE_FILTERS],
@@ -5424,13 +5442,14 @@ PRIVATE void pcre2_gbmem_free(void *ptr, void *data)
  *  ((a??a??...)*: 24 of them about 3 s, 40 for days): every rule against
  *  one shape left another. PCRE2 compiles in a bounded size
  *  (NODE_FILTER_COMPILED_MAX), each search stops at its limits, and all the
- *  searches of a command at NODE_FILTER_BUDGET_MS (node_filter_search()). A back-reference is let
- *  in: the limits bound it too. In the pattern, (*LIMIT_MATCH=n) and the
- *  like can only lower the limits. Compiled as bytes (PCRE2_NEVER_UTF: a
+ *  searches of a command at NODE_FILTER_BUDGET_MS (node_filter_search()).
+ *  In the pattern, (*LIMIT_MATCH=n) and the like can only lower the limits.
+ *  Compiled as bytes (PCRE2_NEVER_UTF: a
  *  pattern cannot turn UTF on, and an invalid sequence in a field is never
  *  an error; a UTF-8 text in the pattern still matches the same bytes in
  *  the field, and `.` is a byte), with no \C and no callout (the options
- *  PCRE2 asks for a pattern from outside).
+ *  PCRE2 asks for a pattern from outside), and LF as its newline.
+ *  node_filter_refused_form() says what else is refused, and why.
  ***************************************************************************/
 PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filters[NODE_FILTERS])
 {
@@ -5478,6 +5497,7 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
         pcre2_set_max_pattern_length(compile_context, NODE_FILTER_PATTERN_MAX);
         pcre2_set_max_pattern_compiled_length(compile_context, NODE_FILTER_COMPILED_MAX);
         pcre2_set_compile_extra_options(compile_context, PCRE2_EXTRA_NEVER_CALLOUT);
+        pcre2_set_newline(compile_context, PCRE2_NEWLINE_LF);
         pcre2_set_match_limit(filters[i].match_context, NODE_FILTER_FIRST_LIMIT);
         pcre2_set_depth_limit(filters[i].match_context, NODE_FILTER_DEPTH_LIMIT);
         pcre2_set_heap_limit(filters[i].match_context, NODE_FILTER_HEAP_LIMIT);
@@ -5498,6 +5518,14 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
                 gobj_yuno_role_plus_name(), params[i], pattern, (char *)err, (int)erroroffset
             );
         }
+        const char *refused = node_filter_refused_form(filters[i].re, pattern);
+        if(refused) {
+            free_node_filters(filters);
+            return json_sprintf("%s: %s='%s' is refused: a filter cannot use %s",
+                gobj_yuno_role_plus_name(), params[i], pattern, refused
+            );
+        }
+        node_filter_read_start(&filters[i]);
         filters[i].match_data = pcre2_match_data_create_from_pattern(
             filters[i].re, filters[i].general
         );
@@ -5517,6 +5545,139 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
 }
 
 /***************************************************************************
+ *  What a compiled filter uses that the control center refuses, NULL if
+ *  nothing (said in the answer: "a filter cannot use <it>").
+ *
+ *  A back-reference: the only item that reads the field, for as long as
+ *  the text it refers to, without moving forward and without a frame, so
+ *  with it the work inside one frame grows with the field: `(*UCP)(?i)` and
+ *  150 optional back-references to 32 bytes took 42 ms at one position of
+ *  64 bytes, 14 ms the worst measured without them (NODE_FILTER_*).
+ *
+ *  And what makes a search position by position (node_filter_search())
+ *  answer otherwise than one search, since it starts pcre2_match() again at
+ *  each position:
+ *    - \G: true at the start_offset, so at every position;
+ *    - (*COMMIT) and (*SKIP): one search stops, or jumps ahead, where the
+ *      positions go on one by one;
+ *    - (*NOTEMPTY_ATSTART): one search refuses an empty match at the start
+ *      of the field, the positions at each of them;
+ *    - a newline other than LF ((*CR), (*CRLF), (*ANY)...): one search
+ *      steps over the LF of a CRLF, and node_filter_can_start() finds the
+ *      start of a line after a \n.
+ *  (*PRUNE) and (*THEN) fail one position, as they do in one search, and
+ *  are let in. \G and the verbs are found in the TEXT: an escape takes the
+ *  byte after it (\c the two after it), so one written inside \Q...\E, a
+ *  class or a comment is refused too.
+ ***************************************************************************/
+PRIVATE const char *node_filter_refused_form(pcre2_code *re, const char *pattern)
+{
+    static const struct {
+        const char *name;
+        const char *said;
+    } verbs[] = {
+        {"COMMIT",              "(*COMMIT)"},
+        {"SKIP",                "(*SKIP)"},
+        {"NOTEMPTY_ATSTART",    "(*NOTEMPTY_ATSTART)"},
+    };
+
+    uint32_t newline = 0;
+    uint32_t backref_max = 0;
+    pcre2_pattern_info(re, PCRE2_INFO_NEWLINE, &newline);
+    pcre2_pattern_info(re, PCRE2_INFO_BACKREFMAX, &backref_max);
+    if(newline != PCRE2_NEWLINE_LF) {
+        return "a newline other than LF";
+    }
+    if(backref_max > 0) {
+        return "a back-reference";
+    }
+    for(const char *p = pattern; *p; p++) {
+        if(*p == '\\') {
+            if(p[1] == 'G') {
+                return "\\G";
+            }
+            if(p[1] == 'c' && p[2]) {
+                p++;
+            }
+            if(p[1]) {
+                p++;
+            }
+            continue;
+        }
+        if(p[0] != '(' || p[1] != '*') {
+            continue;
+        }
+        size_t n = strspn(p + 2, "ABCDEFGHIJKLMNOPQRSTUVWXYZ_");
+        for(size_t i=0; i<ARRAY_SIZE(verbs); i++) {
+            if(n == strlen(verbs[i].name) && strncmp(p + 2, verbs[i].name, n)==0) {
+                return verbs[i].said;
+            }
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Read once, at compile, where a match of the filter can start: what
+ *  pcre2 knows and uses to skip positions in one search (nothing with
+ *  (*NO_START_OPT)). The first byte only when it is ASCII: its other case
+ *  is then the only other byte a caseless pattern starts with.
+ ***************************************************************************/
+PRIVATE void node_filter_read_start(node_filter_t *filter)
+{
+    uint32_t all_options = 0;
+    uint32_t first_type = 0;
+    uint32_t first_unit = 0;
+    pcre2_pattern_info(filter->re, PCRE2_INFO_ALLOPTIONS, &all_options);
+    pcre2_pattern_info(filter->re, PCRE2_INFO_FIRSTCODETYPE, &first_type);
+    pcre2_pattern_info(filter->re, PCRE2_INFO_FIRSTCODEUNIT, &first_unit);
+    pcre2_pattern_info(filter->re, PCRE2_INFO_FIRSTBITMAP, &filter->first_bitmap);
+    pcre2_pattern_info(filter->re, PCRE2_INFO_MINLENGTH, &filter->min_length);
+
+    filter->anchored = (all_options & PCRE2_ANCHORED)? TRUE : FALSE;
+    filter->startline = (first_type == 2)? TRUE : FALSE;
+    filter->first_unit = -1;
+    filter->first_unit_other = -1;
+    if(first_type == 1 && first_unit < 128) {
+        filter->first_unit = (int)first_unit;
+        filter->first_unit_other = (int)first_unit;
+        if(first_unit >= 'a' && first_unit <= 'z') {
+            filter->first_unit_other = (int)first_unit - 'a' + 'A';
+        } else if(first_unit >= 'A' && first_unit <= 'Z') {
+            filter->first_unit_other = (int)first_unit - 'A' + 'a';
+        }
+    }
+}
+
+/***************************************************************************
+ *  Can a match of the filter start at `pos` of `field` (of `len` bytes)?
+ *  The positions one search tries (node_filter_read_start()), the end of
+ *  the field included where it tries it: a position it skips cannot match.
+ *  An anchored filter stops at the first position (node_filter_search()).
+ ***************************************************************************/
+PRIVATE BOOL node_filter_can_start(node_filter_t *filter, const char *field, size_t len, size_t pos)
+{
+    if(filter->startline) {
+        return (pos == 0 || pos == len || field[pos - 1] == '\n')? TRUE : FALSE;
+    }
+    if(filter->first_unit >= 0) {
+        if(pos >= len) {
+            return FALSE;
+        }
+        int c = (unsigned char)field[pos];
+        return (c == filter->first_unit || c == filter->first_unit_other)? TRUE : FALSE;
+    }
+    if(filter->first_bitmap) {
+        if(pos >= len) {
+            return FALSE;
+        }
+        unsigned c = (unsigned char)field[pos];
+        return (filter->first_bitmap[c/8] & (1u << (c%8)))? TRUE : FALSE;
+    }
+    return TRUE;
+}
+
+/***************************************************************************
  *  One search of a filter in `field`: as pcre2_match() answers (a match,
  *  PCRE2_ERROR_NOMATCH, or an error: a limit of this filter), or
  *  PCRE2_ERROR_NOMATCH with `*spent` when the budget of the command ran out
@@ -5524,7 +5685,11 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
  *  when that is hit, again position by position (anchored at each start,
  *  as the search tries them), NODE_FILTER_MATCH_LIMIT frames each, the
  *  budget asked before each one: no single call of pcre2_match() runs
- *  longer than one position (see NODE_FILTER_* for the figures).
+ *  longer than one position (see NODE_FILTER_* for the figures). Only the
+ *  positions where a match can start are tried (node_filter_can_start()),
+ *  up to the last one that leaves room for the shortest match: so the
+ *  answer is the one of one search (node_filter_refused_form() refuses what
+ *  would make it another), and `.*a.*b.*c` tries the start of the field only.
  ***************************************************************************/
 PRIVATE int node_filter_search(node_filter_t *filter, const char *field, uint64_t budget, BOOL *spent)
 {
@@ -5537,7 +5702,13 @@ PRIVATE int node_filter_search(node_filter_t *filter, const char *field, uint64_
         return rc;
     }
     pcre2_set_match_limit(filter->match_context, NODE_FILTER_MATCH_LIMIT);
-    for(size_t pos = 0; pos <= len; pos++) {
+    for(size_t pos = 0; pos + filter->min_length <= len; pos++) {
+        if(filter->anchored && pos > 0) {
+            break;
+        }
+        if(!node_filter_can_start(filter, field, len, pos)) {
+            continue;
+        }
         if(test_msectimer(budget)) {
             *spent = TRUE;
             return PCRE2_ERROR_NOMATCH;

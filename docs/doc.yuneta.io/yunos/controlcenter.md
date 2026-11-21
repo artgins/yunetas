@@ -655,22 +655,34 @@ The control center runs in one thread, and any user with the permission
   `((a{100}){100}){100}` is refused ("regular expression is too large").
 - A search runs first with a low limit of 100 frames at each start position.
   (A frame is a point where PCRE2 can go back and try again.) The filters an
-  operator writes need 1 to 20 frames.
+  operator writes need 1 to 40 frames. A pattern like `.*web.*` needs one or
+  two frames for each byte of the field.
 - If a search hits that limit, the control center runs it again one start
   position at a time, with 5000 frames for each position. `.*a.*b.*c` needs
   up to about 1000 frames on a field of 63 bytes. Before each position, the
   control center looks at the time of the command.
+- The control center tries only the positions where a match can start, as
+  one search does. A pattern that is anchored (`^web`) starts at the start
+  of the field only. A pattern that starts with `.*` starts at the start of
+  the field or after an LF. A pattern whose first byte PCRE2 knows starts
+  at that byte only: `web` at a `w`, `(?i)web` at a `w` or a `W`.
 - All the searches of one command take 50 ms. The time starts at the first
   search, so the time to read the store does not count. When the 50 ms are
   spent, no more nodes are judged, and the answer says so: "the filters
   spent the 50 ms of the command: N nodes not judged, not listed". This text
   names no filter, because a long table can spend the time with cheap
   filters.
-- The worst cases measured, with the worst patterns found under 256 bytes and
-  1 KB of code, on fields of 64 bytes: a first search 6.1 ms, one position
-  10.5 ms. So the filters of a command take 50 ms plus 10.5 ms at most, and
-  54 to 57 ms were measured end to end. The filters of a command on 300
-  records and 256 knocks usually take 1 to 3 ms (`.*a.*b.*c` 8 ms).
+- The limit is in frames: 100 at each of 65 positions for the first
+  search, and 5000 for one position. The first search does not look at the
+  time. The time of a frame is measured, not proven. The worst cases
+  measured used the worst patterns found under 256 bytes and 1 KB of code,
+  on fields of 64 bytes, 8 runs each. They are about 3 µs for a frame,
+  18 ms for a first search and 14 ms for one position. So the filters of a
+  command take 50 ms plus 18 ms in the worst case measured.
+- On 556 rows of 63 hex bytes, an ordinary filter takes 0.3 ms at most,
+  `.*a.*b.*c` 1 ms and `.*a.*b.*c.*d` 2 ms. Before the control center
+  skipped the positions where no match can start, these two took 5 ms and
+  16 ms.
 - Before this limit on the code, a pattern of 229 bytes with 16 KB of code
   kept every position under the limit, and one search took 2.9 s on a uuid.
   PCRE2 counts frames, not the work inside a frame. With 1 KB of code, the
@@ -683,6 +695,24 @@ The control center runs in one thread, and any user with the permission
 - A filter is compiled as bytes, without UTF: a UTF-8 text in the pattern
   matches the same bytes in the field, and `.` matches one byte. A pattern
   cannot turn UTF on, and it cannot use `\C` or a callout.
+- Some forms are refused (-1), and the answer names the form, for example
+  "hostname='(web)-\1' is refused: a filter cannot use a back-reference".
+  The refused forms are these:
+    - A back-reference: `\1`, `\k<name>`, or a condition on a group
+      (`(?(1)...)`). A back-reference reads the field again without a frame,
+      so the work inside one frame grows with the field. With
+      back-references, one position took 42 ms.
+    - `\G`, `(*COMMIT)`, `(*SKIP)` and `(*NOTEMPTY_ATSTART)`. With them,
+      the search one position at a time gives another answer than one
+      search.
+    - A newline other than LF: `(*CR)`, `(*CRLF)`, `(*ANY)`, `(*ANYCRLF)`
+      or `(*NUL)`. The control center finds the start of a line after an
+      LF only.
+
+  The control center finds `\G` and the verbs in the text of the pattern.
+  So it also refuses them inside `\Q...\E`, a class or a comment.
+  `(*PRUNE)` and `(*THEN)` are accepted, because they give the same answer
+  one position at a time.
 
 Up to 7.31.29 the filters were POSIX patterns of glibc's `regcomp()`. Some
 patterns took all the memory to compile (`(a{32767}){32767}`, `a` and 24
@@ -705,6 +735,8 @@ ycommand -c 'list-agents hostname=web-01('
 # -> -1 "controlcenter^cc1: hostname='web-01(' is no regular expression: missing closing parenthesis (at byte 7)"
 ycommand -c 'list-agents hostname=(a|aa)+[^a]'
 # -> 0, comment "controlcenter^cc1: hostname: too costly to match (match limit exceeded): ..."
+ycommand -c 'list-agents hostname=(web)-\1'
+# -> -1 "controlcenter^cc1: hostname='(web)-\1' is refused: a filter cannot use a back-reference"
 ```
 
 What a node IS (its os, cpu, memory, disks, network interfaces, uptime) is

@@ -482,6 +482,7 @@ PRIVATE const char *expected_msgs[] = {
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-2, by a token
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-lv, by a token
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-lim, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-cut, by a token
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-0, by a token
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-1, by a token
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-2, by a token
