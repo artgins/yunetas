@@ -225,6 +225,7 @@ PRIVATE json_t *exact_topic_keys(
     json_t *jn_exact
 );
 PRIVATE json_t *exact_key_text(json_t *jn);
+PRIVATE void set_key_range(hgobj gobj, json_t *jn_row, json_t *range);
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -4446,6 +4447,29 @@ PRIVATE json_t *match_topic_keys(
 }
 
 /***************************************************************************
+ *  The key's time span in a row of list-keys, straight from the cache
+ *  totals (`range`, tranger2_topic_key_range(), NULL: unknown): it lets a
+ *  client bound a time picker to what the key really holds without
+ *  reading a single record. Both axes (t: persistence, tm: message) in
+ *  the topic's own unit, 0 when unknown (a key with no cache totals yet).
+ *  A key whose old files were deleted (delete-key-files) says how many
+ *  rows went: its g_rowids start after them. A key never purged has no
+ *  `purged`.
+ ***************************************************************************/
+PRIVATE void set_key_range(hgobj gobj, json_t *jn_row, json_t *range)
+{
+    static const char *range_keys[] = {"fr_t", "to_t", "fr_tm", "to_tm", NULL};
+    for(int i = 0; range_keys[i] != NULL; i++) {
+        json_int_t v = range? (json_int_t)kw_get_int(gobj, range, range_keys[i], 0, 0) : 0;
+        json_object_set_new(jn_row, range_keys[i], json_integer(v));
+    }
+    json_int_t purged = range? kw_get_int(gobj, range, "purged", 0, 0) : 0;
+    if(purged > 0) {
+        json_object_set_new(jn_row, "purged", json_integer(purged));
+    }
+}
+
+/***************************************************************************
  *  A key of list-keys' `key` as the command parser hands it: a text, or
  *  what a text read as json became, an integer (`key=861234567890123`)
  *  or a boolean, as its text again (a JSON integer's text is its decimal
@@ -4469,7 +4493,8 @@ PRIVATE json_t *exact_key_text(json_t *jn)
 /***************************************************************************
  *  The keys of `jn_exact` (a list of strings, checked by the caller) that
  *  the topic has, as match_topic_keys() answers them: [{key, records}], in
- *  the order asked, each key once. No regex: a key is looked up as a KEY.
+ *  the order asked, each key once. No regex: a key is looked up as a KEY,
+ *  once: its totals give the records and the time span of the page.
  ***************************************************************************/
 PRIVATE json_t *exact_topic_keys(
     hgobj gobj,
@@ -4492,11 +4517,13 @@ PRIVATE json_t *exact_topic_keys(
         if(!range) {
             continue;   // not in the topic
         }
-        JSON_DECREF(range)
-        json_array_append_new(jn_found, json_pack("{s:s, s:I}",
+        json_t *jn_row = json_pack("{s:s, s:I}",
             "key", key,
-            "records", (json_int_t)tranger2_topic_key_size(priv->tranger, topic_name, key)
-        ));
+            "records", (json_int_t)kw_get_int(gobj, range, "rows", 0, 0)
+        );
+        set_key_range(gobj, jn_row, range);
+        JSON_DECREF(range)
+        json_array_append_new(jn_found, jn_row);
     }
     JSON_DECREF(seen)
     return jn_found;
@@ -4710,32 +4737,12 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             continue;   // Cannot happen (i is bounded by total_rows), be safe
         }
 
-        /*
-         *  The key's time span, straight from the cache totals: it lets a
-         *  client bound a time picker to what the key really holds without
-         *  reading a single record. Both axes (t: persistence, tm: message)
-         *  in the topic's own unit.
-         */
-        const char *key = kw_get_str(gobj, jn_row, "key", "", 0);
-        json_t *range = tranger2_topic_key_range(priv->tranger, topic_name, key);
-        static const char *range_keys[] = {"fr_t", "to_t", "fr_tm", "to_tm", NULL};
-        for(int i2 = 0; range_keys[i2] != NULL; i2++) {
-            json_int_t v = 0;   // 0 = span unknown (key with no cache totals yet)
-            if(range) {
-                v = (json_int_t)kw_get_int(gobj, range, range_keys[i2], 0, 0);
-            }
-            json_object_set_new(jn_row, range_keys[i2], json_integer(v));
+        if(!json_object_get(jn_row, "fr_t")) {   // exact_topic_keys() set it
+            const char *key = kw_get_str(gobj, jn_row, "key", "", 0);
+            json_t *range = tranger2_topic_key_range(priv->tranger, topic_name, key);
+            set_key_range(gobj, jn_row, range);
+            JSON_DECREF(range)
         }
-        /*
-         *  A key whose old files were deleted (delete-key-files) says how
-         *  many rows went: its g_rowids start after them. A key never
-         *  purged has no `purged`, as before
-         */
-        json_int_t purged = range? kw_get_int(gobj, range, "purged", 0, 0) : 0;
-        if(purged > 0) {
-            json_object_set_new(jn_row, "purged", json_integer(purged));
-        }
-        JSON_DECREF(range)
 
         json_array_append_new(jn_data, jn_row);
     }

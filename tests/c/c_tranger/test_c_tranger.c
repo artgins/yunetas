@@ -4063,6 +4063,7 @@ PRIVATE int do_test(void)
         check_int("its one key", json_array_size(keys_b), 1);
         check_str("b", kw_get_str(0, json_array_get(keys_b, 0), "key", "", 0), "b");
         check_int("with its records", kw_get_int(0, json_array_get(keys_b, 0), "records", -1, 0), 1);
+        check_bool("and its time span", kw_get_int(0, json_array_get(keys_b, 0), "fr_t", 0, 0) > 0, TRUE);
         JSON_DECREF(r)
         r = gobj_command(yuno, "list-keys",
             as_peer(json_pack("{s:s, s:[s,s,s,s]}", "topic_name", TOPIC_NAME8,
