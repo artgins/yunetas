@@ -90,9 +90,11 @@ log() { printf '[%s] %s\n' "$(ts)" "$*" >>"$LOG_DIR/deploy-hook.log"; }
 
 log "deploy hook started (RENEWED_LINEAGE=${RENEWED_LINEAGE:-?} RENEWED_DOMAINS=${RENEWED_DOMAINS:-?})"
 
-# 1) Copy fresh certs into /yuneta/store/certs (synchronous, requires root)
+# 1) Copy fresh certs into /yuneta/store/certs (synchronous, requires root).
+#    --wait: when the agent's cert-sync is copying, wait for it (up to 120 s)
+#    and then copy; without it the run would copy nothing and exit 0
 if [ -x "${ROOT}/yuneta/store/certs/copy-certs.sh" ]; then
-    if "${ROOT}/yuneta/store/certs/copy-certs.sh" >>"$LOG_DIR/copy-certs.log" 2>&1; then
+    if "${ROOT}/yuneta/store/certs/copy-certs.sh" --wait >>"$LOG_DIR/copy-certs.log" 2>&1; then
         log "copy-certs.sh OK"
     else
         log "copy-certs.sh FAILED (rc=$?)"

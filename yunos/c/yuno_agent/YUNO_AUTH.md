@@ -1550,6 +1550,14 @@ or `private/`, and a `certs.list` that `yuneta` cannot read. A copy that
 fails also gives exit 1, after the other copies. The agent's sync then
 says `copy-script-failed`.
 
+The sync runs the script with no option, and the agent waits for the
+script to end. So the script never waits for its lock in that run. If
+another run (the certbot hook, which passes `--wait`) holds the lock
+`/run/yuneta-copy-certs/lock`, the script copies nothing and exits with
+0. The sync then says `no-change`, and the next sync does the copy. The
+lock is in a directory of root with mode `0700`, so no other user can
+hold it.
+
 Up to 7.31.29 this page told deployers to write their own script. But the
 package ships the script, and each upgrade replaces it. Put a local choice
 in `certs.list`, not in the script.

@@ -38,10 +38,18 @@
 # "Copied <name>" is said only when something of <name> changed, and
 # check-certs-validity.sh (as yuneta) runs only then.
 #
-# One run at a time (flock on /run/yuneta-copy-certs.lock, root's). On a
-# node with no certificate, "No certificates to copy" goes to the journal
-# once (a mark .no-certificates of yuneta in /yuneta/store/certs), not at
-# each tick of the agent.
+# Usage: copy-certs.sh [--wait]
+#
+# One run at a time: flock on /run/yuneta-copy-certs/lock, in a directory
+# of root with mode 0700, so no other user can open the lock and hold it.
+# The agent's cert-sync runs this with no option, and its tick waits for
+# the script, so that run never waits for the lock: when another run holds
+# it, the run copies nothing, says so and exits 0 (the agent reads "no
+# change"), and the next tick copies. --wait (the certbot hook) waits up to
+# 120 s for the lock, then fails (exit 1). On a node with no certificate,
+# "No certificates to copy" goes to the journal once (a mark
+# .no-certificates of yuneta in /yuneta/store/certs), not at each tick of
+# the agent.
 #
 # THE LIMIT: this script is in /yuneta, which yuneta owns, and root runs it
 # (see the page "Files outside /yuneta", the root features). Removing sudo
@@ -79,8 +87,23 @@ DEST_PRIV="${DEST_BASE}/private"
 CERTS_FILE="${DEST_BASE}/certs.list"
 VALIDITY="${ROOT}/yuneta/bin/check-certs-validity.sh"
 NO_CERTS_MARK="${DEST_BASE}/.no-certificates"
-LOCK_FILE="${ROOT}/run/yuneta-copy-certs.lock"
+LOCK_DIR="${ROOT}/run/yuneta-copy-certs"
+LOCK_FILE="${LOCK_DIR}/lock"
 LOCK_WAIT=120
+LOCK_BUSY=75
+
+WAIT=0
+for arg in "$@"; do
+    case "$arg" in
+        --wait)
+            WAIT=1
+            ;;
+        *)
+            echo "Usage: copy-certs.sh [--wait]   (--wait: wait up to ${LOCK_WAIT} s for another run, as the certbot hook does; without it a run that finds the lock taken copies nothing and exits 0)" >&2
+            exit 1
+            ;;
+    esac
+done
 
 #
 #   What the script says goes to its output AND to the journal (logger -t
@@ -253,17 +276,38 @@ exit 11
 #
 #   One run at a time: the certbot hook and the agent's cert-sync (sudo)
 #   both run this as root, and certbot changes the links of live/ one by
-#   one, so two runs could interleave their moves. The lock is in /run,
-#   where only root creates files (a lock in a directory of yuneta, or in
-#   /run/lock, which anybody can write, could be a link that root opens).
-#   It is waited for LOCK_WAIT seconds, then the run fails, said.
+#   one, so two runs could interleave their moves. The lock is in a
+#   directory of root, mode 0700, in /run, where only root makes files (a
+#   lock in a directory of yuneta, or in /run/lock, which anybody can
+#   write, could be a link that root opens). No other user can open it:
+#   flock gives an exclusive lock on a file opened only to read, so a lock
+#   that others can read is a lock that others can hold. The agent's
+#   cert-sync waits for this script, so its run (no option) never waits:
+#   with the lock taken it copies nothing and exits 0, and the next tick
+#   copies. --wait (the hook) waits LOCK_WAIT seconds, then fails, said.
 #
+if [ -L "$LOCK_DIR" ] || ! install -d -m 0700 -- "$LOCK_DIR"; then
+    say err "FAILED to make the lock directory $LOCK_DIR (mode 0700, not a link): no certificate copied"
+    exit 1
+fi
 if ! exec 9>>"$LOCK_FILE"; then
     say err "FAILED to open the lock $LOCK_FILE: no certificate copied"
     exit 1
 fi
-if ! flock -w "$LOCK_WAIT" 9; then
+lock_rc=0
+if [ "$WAIT" -ne 0 ]; then
+    flock -w "$LOCK_WAIT" -E "$LOCK_BUSY" 9 || lock_rc=$?
+else
+    flock -n -E "$LOCK_BUSY" 9 || lock_rc=$?
+fi
+if [ "$lock_rc" -eq "$LOCK_BUSY" ] && [ "$WAIT" -ne 0 ]; then
     say err "FAILED: another copy-certs.sh held $LOCK_FILE for ${LOCK_WAIT} s: no certificate copied"
+    exit 1
+elif [ "$lock_rc" -eq "$LOCK_BUSY" ]; then
+    say notice "Another copy-certs.sh holds $LOCK_FILE (the certbot hook, or a run by hand): this run copies nothing, and the next tick of the agent's cert-sync copies"
+    exit 0
+elif [ "$lock_rc" -ne 0 ]; then
+    say err "FAILED to take the lock $LOCK_FILE (flock rc=$lock_rc): no certificate copied"
     exit 1
 fi
 

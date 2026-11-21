@@ -45,7 +45,7 @@ The `.deb` package ([`packages/deb/make-yuneta-agent-deb.sh`](https://github.com
 certbot `deploy-hook` at
 `/etc/letsencrypt/renewal-hooks/deploy/reload-certs`:
 
-1. Run `/yuneta/store/certs/copy-certs.sh` as root. The package ships this
+1. Run `/yuneta/store/certs/copy-certs.sh --wait` as root. The package ships this
    script (`packages/templates/copy-certs.sh`). Root only reads the
    certificates in `/etc/letsencrypt/live/<name>/` (normally
    `root:root 0700`). The user `yuneta` (`setpriv --reset-env`, in a
@@ -88,8 +88,18 @@ certbot `deploy-hook` at
     - It says `Copied <name>` and runs `/yuneta/bin/check-certs-validity.sh`
       (as `yuneta`) only when something changed.
     - It runs one at a time: the hook and the agent's sync take the lock
-      `/run/yuneta-copy-certs.lock` (`flock`), and a run waits for the other
-      for up to 120 seconds.
+      `/run/yuneta-copy-certs/lock` (`flock`). Root makes its directory
+      with mode `0700`, so no other user can hold the lock. The agent
+      waits for its sync to end, so the run of the sync never waits for
+      the lock. If another run holds the lock, the run of the sync copies
+      nothing, says `Another copy-certs.sh holds ...` and exits with 0.
+      The agent then says `no-change`, and its next sync does the copy.
+      The hook runs the script with `--wait`: it waits up to 120 seconds
+      for the other run, and then it copies. After 120 seconds it fails
+      with exit 1. To run it by hand:
+      ```bash
+      sudo /yuneta/store/certs/copy-certs.sh --wait
+      ```
     - On a node with no certificate, it says `No certificates to copy` to
       the journal once, not at each tick of the sync. A mark
       `/yuneta/store/certs/.no-certificates` remembers that it said it, and

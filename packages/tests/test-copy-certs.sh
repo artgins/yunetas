@@ -74,9 +74,9 @@ reset() {
     mkdir -p "$LE/live" "${ROOT}/yuneta/bin" "${ROOT}/run"
 }
 
-cc() {
+cc() {    # [options of copy-certs.sh]
     env YUNETA_COPY_CERTS_TEST_ROOT="$ROOT" YUNETA_COPY_CERTS_TEST_SETPRIV="${STUBS}/setpriv" \
-        "$COPY" 2>&1
+        "$COPY" "$@" 2>&1
 }
 
 as_me_count() {    # the setpriv calls that drop to the owner, with its environment, and run $1
@@ -96,6 +96,17 @@ mtimes() {    # the mtimes of the three files of a certificate
 #
 out="$(env -u YUNETA_COPY_CERTS_TEST_ROOT "$COPY" 2>&1)"
 check "not root: refused" "$(echo "$out" | grep -c 'must run as root')" "1"
+
+#
+#   An option it does not know: refused, nothing done
+#
+reset
+add_cert example.com "first"
+out="$(cc --bogus)"
+rc=$?
+check "an unknown option: exit 1" "$rc" "1"
+check "an unknown option: the usage said" "$(echo "$out" | grep -c 'Usage: copy-certs.sh \[--wait\]')" "1"
+check "an unknown option: nothing copied" "$( [ -e "${CERTS}/example.com.crt" ] && echo copied || echo no)" "no"
 
 #
 #   Auto-discovery: every live certificate, written by the owner
@@ -249,9 +260,9 @@ check "a move that fails, and its undo: the old key kept, and named" \
 rm -f "${STUBS}/mv"
 
 #
-#   One run at a time: two runs at once (the hook and the tick) never
-#   interleave their parts. A slow setpriv writes down when each part of
-#   the owner begins and ends
+#   One run at a time: two runs at once that wait for the lock (--wait,
+#   the hook's) never interleave their parts. A slow setpriv writes down
+#   when each part of the owner begins and ends
 #
 reset
 add_cert example.com "first"
@@ -272,7 +283,7 @@ EOF
 chmod 0755 "${STUBS}/setpriv-slow"
 : > "${WORK}/order.log"
 slow_cc() {
-    env YUNETA_COPY_CERTS_TEST_ROOT="$ROOT" YUNETA_COPY_CERTS_TEST_SETPRIV="${STUBS}/setpriv-slow" "$COPY" >/dev/null 2>&1
+    env YUNETA_COPY_CERTS_TEST_ROOT="$ROOT" YUNETA_COPY_CERTS_TEST_SETPRIV="${STUBS}/setpriv-slow" "$COPY" --wait >/dev/null 2>&1
 }
 slow_cc &
 p1=$!
@@ -286,7 +297,50 @@ check "two runs at once: both end well" "$r1 $r2" "0 0"
 check "two runs at once: no part begins inside another" \
     "$(awk '$1 == "begin" {if (open) bad = 1; open = 1} $1 == "end" {open = 0} END {print bad ? "interleaved" : "one at a time"}' "${WORK}/order.log")" "one at a time"
 check "two runs at once: parts of both ran" "$(grep -c '^begin' "${WORK}/order.log")" "$(grep -c '^end' "${WORK}/order.log")"
-check "the lock is under /run" "$( [ -e "${ROOT}/run/yuneta-copy-certs.lock" ] && echo yes)" "yes"
+check "the lock: in a directory of its own under /run, 0700, of the user that runs it (root)" \
+    "$(stat -c '%a %U' "${ROOT}/run/yuneta-copy-certs") $( [ -f "${ROOT}/run/yuneta-copy-certs/lock" ] && echo lock)" "700 ${ME} lock"
+check "the lock: no file in /run itself" "$(find "${ROOT}/run" -maxdepth 1 -type f | wc -l)" "0"
+
+#
+#   A lock held by another process (up to the round before, anybody could
+#   hold it: a file 0644 in /run, and flock gives LOCK_EX on a file opened
+#   to read; each run waited 120 s and failed, and the agent's tick, which
+#   runs the script synchronously, stopped the agent for those 120 s).
+#   The run of the agent's tick (no option) does not wait: it copies
+#   nothing, says so and exits 0, which the agent reads as no change. The
+#   run of the hook (--wait) waits for the lock, then copies
+#
+reset
+add_cert example.com "first"
+cc >/dev/null
+printf 'renewed fullchain\n' > "${LE}/archive/example.com/fullchain1.pem"
+LOCK="${ROOT}/run/yuneta-copy-certs/lock"
+mkdir -p "${ROOT}/run/yuneta-copy-certs"
+rm -f "${WORK}/released"
+flock "$LOCK" sh -c "sleep 1.5; touch '${WORK}/released'" &
+holder=$!
+for i in $(seq 1 50); do
+    if ! flock -n "$LOCK" true; then
+        break
+    fi
+    sleep 0.05
+done
+printf '#!/bin/sh\necho "logger $*" >> "%s"\n' "$LOG" > "${STUBS}/logger"
+chmod 0755 "${STUBS}/logger"
+: > "$LOG"
+out="$(YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger" cc)"
+rc=$?
+check "lock held, the tick's run: did not wait for it" "$( [ -e "${WORK}/released" ] && echo waited || echo "at once")" "at once"
+check "lock held, the tick's run: exit 0 (the agent reads no change)" "$rc" "0"
+check "lock held, the tick's run: said" "$(echo "$out" | grep -c 'Another copy-certs.sh holds .*: this run copies nothing')" "1"
+check "lock held, the tick's run: said to the journal" "$(grep -c '^logger -t copy-certs -p user.notice -- Another copy-certs.sh holds' "$LOG")" "1"
+check "lock held, the tick's run: nothing copied" "$(cat "${CERTS}/example.com.crt")" "first fullchain"
+out="$(cc --wait)"
+rc=$?
+check "lock held, the hook's run (--wait): waited for it" "$( [ -e "${WORK}/released" ] && echo waited || echo "at once")" "waited"
+check "lock held, the hook's run (--wait): exit 0" "$rc" "0"
+check "lock held, the hook's run (--wait): then copied" "$(cat "${CERTS}/example.com.crt")" "renewed fullchain"
+wait "$holder"
 
 #
 #   A node with no certificate: said to the journal once, not at each tick,
@@ -419,6 +473,7 @@ for i in $(seq 1 50); do
     sleep 0.1
 done
 check "hook: copy-certs.sh ran" "$(grep -c '^copy-certs.sh' "$LOG")" "1"
+check "hook: copy-certs.sh waits for the lock (--wait)" "$(grep -c '^copy-certs.sh --wait$' "$LOG")" "1"
 check "hook: nginx reloaded" "$(grep -c '^nginx -s reload' "$LOG")" "1"
 check "hook: ycommand as the owner" "$(as_me_count 'ycommand')" "1"
 check "hook: restart-yuneta ran" "$(grep -c '^restart-yuneta' "$LOG")" "1"

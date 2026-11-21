@@ -273,9 +273,15 @@ These files are written at run time:
 - `/var/crash/core.<binary>`: the core dump of a yuno that crashes.
 - `/var/log/yuneta/deploy-hook.log` and `copy-certs.log`: written by the
   certbot hook, as root.
-- `/run/yuneta-copy-certs.lock`: the lock of `copy-certs.sh`, made by
-  root (empty). The certbot hook and the agent's cert sync never run it at
-  the same time. `/run` is cleared at each boot.
+- `/run/yuneta-copy-certs/lock`: the lock of `copy-certs.sh` (empty), in
+  a directory that root makes with mode `0700`. The certbot hook and the
+  agent's cert sync never run the script at the same time. No other user
+  can open the lock, so no other user can hold it. The system clears
+  `/run` at each boot. To see it:
+
+  ```bash
+  ls -ld /run/yuneta-copy-certs     # drwx------ root root
+  ```
 - `/var/lib/yuneta/install-package/`: written by
   `/usr/libexec/yuneta/install-package`, as root. It holds the URL and the
   sha256 of the last install, its `result`, and the download while the
