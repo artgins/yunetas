@@ -16,6 +16,7 @@ The same figures, release after release, are charted on
 
 | Release | Against | Report | Rendered | Raw figures |
 |---------|---------|--------|----------|-------------|
+| 7.32.0 | 7.31.1 | [7.32.0.html](7.32.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.32.0/performance/reports/7.32.0.html) | [7.32.0.json](7.32.0.json) |
 | 7.31.0 | 7.30.0 | [7.31.0.html](7.31.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.31.0/performance/reports/7.31.0.html) | [7.31.0.json](7.31.0.json) |
 | 7.30.0 | 7.29.3 | [7.30.0.html](7.30.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.30.0/performance/reports/7.30.0.html) | [7.30.0.json](7.30.0.json) |
 | 7.29.0 | 7.28.8 | [7.29.0.html](7.29.0.html) | [view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.29.0/performance/reports/7.29.0.html) | [7.29.0.json](7.29.0.json) |
@@ -48,6 +49,7 @@ its raw figures in `<version>.json`, a section and a column on
 
 | Release | Against | Raw figures |
 |---------|---------|-------------|
+| 7.31.1 | 7.31.0 | [7.31.1.json](7.31.1.json) |
 | 7.29.3 | 7.29.2 | [7.29.3.json](7.29.3.json) |
 | 7.29.2 | 7.29.0 | [7.29.2.json](7.29.2.json) |
 | 7.28.8 | 7.28.5 | [7.28.8.json](7.28.8.json) |
@@ -170,13 +172,14 @@ unit or its `id` between releases.
 | `ab[].previous`, `ab[].current` | `mean`, and `sd` (standard deviation) and `median` when measured. |
 | `ab[].n` | Rounds (or runs) behind each mean. |
 | `ab[].scope` | `release`: the module of each release. `release (separate runs)`: release against release, not one alternated run. `change`: one commit alone, before and after. `ctest trend`: times of `yunetas test` runs. |
-| `ab[].verdict` | `gain`, `noise` (inside the spread), `price` (slower, kept by decision), `price-until-migrated`, `gave-up` (the run did less work, so its time is not a speed-up). `make_report.py` sets `gave-up` itself when the entry or one of its sides has `"complete": false` or `"refused": 1`, as `perf_timeranger2` prints them: `{"current": {"mean": 2.0, "refused": 1}}` is drawn grey, never as faster. |
+| `ab[].verdict` | `gain`, `noise` (inside the spread), `price` (slower, kept by decision), `price-until-migrated`, `loss` (slower, bought by nothing: located by release or commit, with its cause in `reason`), `gave-up` (the run did less work, so its time is not a speed-up). `make_report.py` sets `gave-up` itself when the entry or one of its sides has `"complete": false` or `"refused": 1`, as `perf_timeranger2` prints them: `{"current": {"mean": 2.0, "refused": 1}}` is drawn grey, never as faster. |
 | `ab[].gave_up` | Optional: the words shown in place of the factor of a `gave-up` entry (`refused`, `gave up on keys` by default). |
 | `ab[].reason` | Why it moved, as the CHANGELOG states it. Every `price` has one. |
 | `ab[].commit` | For `scope: change`, the commit measured. |
 | `ab[].change_pct` | `(current - previous) / previous x 100` of the means, in the figure's own unit. |
 | `ab[].change_text` | Optional: the words the page shows in place of the percentage, for a figure where a percentage says nothing (a fixed cost on a very short operation: `+578 ns`). |
 | `figures[]` | One absolute figure of `version`, measured at tag time: `mean`, `sd`, `median`, `min`, `max`, `n`. `derived` says how a rate was computed from a benchmark's output. `headline` marks the figures shown first. |
-| `story` | Optional: the words of the page, which differ from release to release. `title`, `lead`, `hero` (`value`, `text`), `tiles` (`[id, label]` pairs of A/B figures), `append_note`, `ab_sub`, `ab_order` (the ids of the A/B chart, also used for the docs chart), `prices_sub`, `prices` (`[id, title]` pairs, `[]` for none), `no_prices` (the text shown when `prices` is empty) and `abs_sub` (the line above the absolute figures, which otherwise says they were measured at tag time). Without it the page takes the words of the 7.25.5 report. |
+| `figures[].new` | `true` for a figure that the release before cannot measure (a phase new in the benchmark): it has no `ab` entry. `complete: false` or `refused: 1` marks a run that did less work, as `perf_timeranger2` prints them, and `gave_up` gives the words the page shows for it. `records_seen` and `keys_not_judged` are copied from the benchmark's line. |
+| `story` | Optional: the words of the page, which differ from release to release. `title`, `lead`, `hero` (`value`, `text`), `tiles` (`[id, label]` pairs of A/B figures), `append_note`, `ab_sub`, `ab_order` (the ids of the A/B chart, also used for the docs chart), `prices_title` (the heading of that section, `Prices paid on purpose` by default), `prices_sub`, `prices` (`[id, title]` pairs, `[]` for none), `no_prices` (the text shown when `prices` is empty), `abs_sub` (the line above the absolute figures, which otherwise says they were measured at tag time) and `new` (`title`, `sub`, `note` and `ids`, `[id, label]` pairs of `figures` marked `new`: a chart of them, a run that gave up or was refused in grey, and a table with their meaning). Without it the page takes the words of the 7.25.5 report. |
 | `split` | Optional: a third build measured in the same rotation, between the two releases (7.28.0: the code of 7.28.0 with the jansson of 7.27.11), to say what causes a gain. `title`, `sub`, `middle_label` (the legend), `middle_short` (the bar), and `entries[]`: `id`, `label`, `unit`, `better`, `previous`, `middle`, `current` (`mean`, `sd`, `median`), `n`, `jansson_share_pct` (the share of the change of the time of one operation that the middle build does not have) and `text`. The page draws one card of three bars per entry. |
 | `binaries[]` | Size of each static executable: `bytes` on disk (with debug information), `stripped_bytes`, and the `text` / `data` / `bss` of `size`. |

@@ -73,6 +73,16 @@ def mark_gave_up(rep):
                 e.setdefault('gave_up', 'gave up on keys')
 
 
+def figure_gave_up(f):
+    # An absolute figure of a run that did less work: the words that say
+    # so, or '' for a run that did all of it
+    if f.get('refused'):
+        return f.get('gave_up') or 'refused'
+    if f.get('complete') is False:
+        return f.get('gave_up') or 'gave up on keys'
+    return ''
+
+
 def fmt(v, unit=None):
     if v is None:
         return '--'
@@ -157,6 +167,7 @@ VERDICT = {
     'price': ('price paid on purpose', 'v-price'),
     'price-until-migrated': ('price until migrated', 'v-price'),
     'gave-up': ('gave up or refused: not a speed-up', 'v-noise'),
+    'loss': ('slower: a loss, located, with its cause', 'v-price'),
 }
 
 
@@ -334,10 +345,13 @@ def diverging_chart(entries, version, prev, lo=-100.0, hi=40.0):
     """
     ticks = [t for t in range(int(lo), int(hi) + 1, 25)]
     out = ['<div class="chart">']
+    slower = 'slower: a price paid on purpose'
+    if any(e['verdict'] == 'loss' for e in entries):
+        slower = 'slower: a price paid on purpose, or a loss with its cause'
     out.append('<div class="legend">'
                '<span><i class="sw-gain"></i>faster</span>'
                '<span><i class="sw-noise"></i>within noise</span>'
-               '<span><i class="sw-price"></i>slower: a price paid on purpose</span>'
+               '<span><i class="sw-price"></i>%s</span>' % slower +
                '<span>whisker: &plusmn;1 standard deviation of the change</span></div>')
     group = None
     for e in entries:
@@ -410,7 +424,8 @@ def paired_card(title, rows, unit, reason, change=None, better='lower'):
 
 def hbar_chart(rows, unit_note, log=False, lo=None, hi=None, css='bar-cur'):
     """
-    rows: [(label, sublabel, value, value_text, tip)]
+    rows: [(label, sublabel, value, value_text, tip)], or with a sixth
+    element, the class of the bar of that row (a run that gave up is grey)
     """
     vals = [r[2] for r in rows]
     if log:
@@ -427,10 +442,11 @@ def hbar_chart(rows, unit_note, log=False, lo=None, hi=None, css='bar-cur'):
             step /= 2
         ticks = [k * step for k in range(0, int(hi / step) + 1)]
     out = ['<div class="chart">']
-    for lab, sub, v, vt, tip in rows:
+    for row in rows:
+        lab, sub, v, vt, tip = row[:5]
         parts = ['<line class="gridl" x1="%.2f%%" x2="%.2f%%" y1="0" y2="22"/>' % (f(t), f(t)) for t in ticks]
         parts.append('<rect class="%s" x="0" y="5" width="%.2f%%" height="12" rx="3"><title>%s</title></rect>'
-                     % (css, max(f(v), 0.5), esc(tip)))
+                     % (row[5] if len(row) > 5 else css, max(f(v), 0.5), esc(tip)))
         out.append('<div class="row"><div class="lab">%s%s</div>%s<div class="val">%s</div></div>' % (
             esc(lab), (' <span class="m">%s</span>' % esc(sub)) if sub else '',
             svg_track(''.join(parts), tip), esc(vt)))
@@ -686,8 +702,41 @@ def build_html(rep, reports):
             cards_.append(paired_card('%s (%s)' % (e['label'], e['unit']), rows_, unit_, e.get('text', '')))
         H.append('<div class="multi">%s</div>' % '\n'.join(cards_))
 
+    # ---- optional: figures new in this release, with no A/B (no phase in the release before)
+    new = story.get('new')
+    if new:
+        H.append('<h2>%s</h2>' % md_code(new.get('title', 'New figures')))
+        H.append('<p class="sub">%s</p>' % md_code(new.get('sub', '')))
+        rows_ = []
+        tab = []
+        for i, lab in new['ids']:
+            f = fg(i)
+            if not f:
+                continue
+            us = f['mean'] / 1000.0 if f['unit'] == 'ns' else f['mean']
+            if f['unit'] == 's':
+                us = f['mean'] * 1e6
+            elif f['unit'] == 'ms':
+                us = f['mean'] * 1000.0
+            gave = figure_gave_up(f)
+            div, unit_ = (1.0, 'us') if us < 1000 else ((1000.0, 'ms') if us < 1e6 else (1e6, 's'))
+            vt = fmt(us / div, unit_)
+            k = (us / f['mean'] if f['mean'] else 1.0) / div
+            shown = {'mean': f['mean'] * k, 'sd': (f.get('sd') or 0) * k}
+            tip = '%s: %s, mean of %d runs%s' % (lab, vt, f['n'], (' (%s)' % gave) if gave else '')
+            rows_.append((lab, '', us, vt, tip, 'bar-noise' if gave else 'bar-cur'))
+            tab.append('<tr><td>%s</td><td class="n">%s</td><td>%s</td><td class="%s">%s</td></tr>' % (
+                esc(lab), mean_sd(shown) + ' ' + esc(UNIT.get(unit_, unit_)), md_code(f.get('meaning', '')),
+                'v-noise' if gave else '', esc(gave or 'complete')))
+        if rows_:
+            H.append('<div class="legend"><span><i class="sw-cur"></i>a run that did all its work</span>'
+                     '<span><i class="sw-noise"></i>gave up or refused: its time is a budget, not a speed</span></div>')
+            H.append('<div class="card">%s</div>' % hbar_chart(rows_, md_code(new.get('note', '')), log=True))
+            H.append('<div class="card tablewrap"><table><tr><th>Figure</th><th>%s</th><th>What it means</th>'
+                     '<th>The run</th></tr>%s</table></div>' % (esc(version), ''.join(tab)))
+
     # ---- prices
-    H.append('<h2>Prices paid on purpose</h2>')
+    H.append('<h2>%s</h2>' % md_code(story.get('prices_title') or 'Prices paid on purpose'))
     H.append('<p class="sub">%s</p>' % md_code(story.get('prices_sub') or
              'What got slower, how much, and what it buys. None of these is on the path of '
              'an ordinary append, read or update: they are one-time costs (a new topic, a schema change, the '
@@ -845,8 +894,11 @@ def svg_change_chart(rep, order):
     body = []
     title = 'Yuneta %s against %s: change of the time one operation takes' % (rep['version'], rep['previous'])
     body.append('<text class="t" x="%d" y="30">%s</text>' % (LX, esc(title)))
+    red = 'red a price paid on purpose'
+    if any(e['verdict'] == 'loss' for e in entries):
+        red = 'red slower: a price or a located loss'
     body.append('<text class="m" x="%d" y="48">left of zero is faster &#183; blue faster, grey within noise, '
-                'red a price paid on purpose &#183; whisker &#177;1 sd &#183; bars past +40%% are cut (factor on the right)</text>' % LX)
+                '%s &#183; whisker &#177;1 sd &#183; bars past +40%% are cut (factor on the right)</text>' % (LX, red))
     X = lambda v: TX + xpos(v, lo, hi) / 100.0 * TW
     y += 8
     group = None

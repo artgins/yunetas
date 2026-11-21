@@ -108,6 +108,16 @@ A release that changes a lot of code ships a performance report. The report
 has charts of what the release does on one machine, and of the release before,
 measured the same way. It gives every loss with its reason.
 
+- 7.32.0 (against 7.31.1, the last release with a study, with 7.31.2 to
+  7.31.29 inside it): a regex that a peer sends to a store has a time bound,
+  the filters of `list-agents` are bounded PCRE2 patterns, `help` is linear,
+  and the BFF no longer gives one browser the session of another. 61 of the
+  66 figures are inside their noise and three are faster. Two are 2.2% to
+  2.4% slower (a treedb link and a BFF login). The study located them by
+  release: code generation of unchanged code, not new work.
+  [Report](performance/reports/7.32.0.html) (the file) ·
+  [rendered view](https://htmlpreview.github.io/?https://github.com/artgins/yunetas/blob/7.32.0/performance/reports/7.32.0.html) ·
+  [raw figures](performance/reports/7.32.0.json)
 - 7.31.0 (against 7.30.0, the last release with a study, with 7.30.1 to
   7.30.26 inside it): the agent, the control center, the MQTT broker and gates,
   the transports and the inter-yuno events hardened against peers that lie,
