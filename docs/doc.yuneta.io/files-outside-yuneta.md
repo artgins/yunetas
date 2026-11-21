@@ -127,11 +127,17 @@ rest of Yuneta works.
 | `upgrade-agent` of `yuneta_agent22` (source nodes only) | `sudo -n systemctl restart yuneta_agent.service` | The new binary is on disk, but the agent does not restart. |
 | `restart-yuneta`, and the restart action of `logcenter` | `sudo -n systemctl restart yuneta_agent.service` | The script refuses and says so. |
 
-Today the package itself gives `sudo` to `yuneta`, in two ways: the file
-`/etc/sudoers.d/90-yuneta` and the group `sudo` (or `wheel`). A site that
-does not let `yuneta` use `sudo` must change both after the install. A rule
-in `sudoers` that permits only the commands of the table above is enough
-for those features.
+The package gives `sudo` to `yuneta` with the file `/etc/sudoers.d/90-yuneta`
+(`NOPASSWD: ALL`). The package also puts `yuneta` in the group `sudo` (or
+`wheel`), but `yuneta` has no password, so the group alone does not give
+`sudo`. The standard package keeps this design. A site that does not let
+`yuneta` use `sudo` has two choices:
+
+- The site removes `NOPASSWD: ALL` from `/etc/sudoers.d/90-yuneta`. The file
+  is a configuration file of the package, so an upgrade keeps the change.
+- ArtGins supplies a package made for that site.
+
+On such a site, the features of the table above fail as the table says.
 
 (files-outside-yuneta-runtime)=
 ## Files that the software uses at run time
