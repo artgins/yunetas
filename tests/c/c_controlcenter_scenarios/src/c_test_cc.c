@@ -3339,6 +3339,11 @@ PRIVATE int test_node_keys(hgobj gobj, hgobj client)
 #define KEY_EE   "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
 #define KEY_EF   "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1"
 #define KEY_EN8 "a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8"
+#define KEY_T1  "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1"
+#define KEY_T2  "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+#define KEY_TB1 "b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3"
+#define KEY_TB2 "b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4"
+#define KEY_TB3 "b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5"
 
 /*  The agent of `uuid` presents `spki`: it logged in (by the key) or not  */
 PRIVATE BOOL logs_in_by_key(hgobj gobj, const char *name, const char *uuid, const char *spki)
@@ -3451,9 +3456,15 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
     if(logs_in_by_key(gobj, "en-3", "uuid-auth", KEY_EN3)) {
         ret += fail(gobj, "the enrollment takes a node accepted with another key", "");
     }
+    if(logs_in_by_key(gobj, "en-3b", "uuid-auth", KEY_EN3)) {    // not said again
+        ret += fail(gobj, "the enrollment takes a node accepted with another key", "");
+    }
     ret += check_node_field(gobj, client, "uuid-auth", "spki_sha256", KEY_A,
         "the enrollment does not change the key of an accepted node");
     if(logs_in_by_key(gobj, "en-4c", "uuid-en4", KEY_EN4)) {
+        ret += fail(gobj, "the enrollment accepts a uuid that knocked with two keys", "");
+    }
+    if(logs_in_by_key(gobj, "en-4d", "uuid-en4", KEY_EN4)) {     // not said again
         ret += fail(gobj, "the enrollment accepts a uuid that knocked with two keys", "");
     }
     if(logs_in_by_key(gobj, "en-6", "uuid-en6", KEY_EN1)) {
@@ -3499,6 +3510,66 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
     }
     ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
         0, "the enrollment is not open", "the enrollment closes when its minutes are over");
+
+    /*
+     *  A uuid of one key evicted by a flood of knocks leaves its key behind:
+     *  another key under it is not kept, and an enrollment refuses it (said
+     *  once, not per knock); the uuid with its own key is accepted. A batch
+     *  of nodes larger than the knocking table enrolls, and the enrollment
+     *  stays open. Up to 7.31.29 the eviction wiped the key, and the
+     *  enrollment took the other one
+     */
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
+    logs_in_by_key(gobj, "tu-1", "uuid-tu", KEY_T1);
+    logs_in_by_key(gobj, "tb-1", "uuid-tb1", KEY_TB1);  // evicts uuid-tu
+    logs_in_by_key(gobj, "tb-2", "uuid-tb2", KEY_TB2);  // evicts uuid-tb1
+    logs_in_by_key(gobj, "tb-3", "uuid-tb3", KEY_TB3);  // evicts uuid-tb2
+    logs_in_by_key(gobj, "tu-2", "uuid-tu", KEY_T2);    // another key: a WARNING, not kept
+    logs_in_by_key(gobj, "tu-2b", "uuid-tu", KEY_T2);   // not said again
+    {
+        json_t *other = node_record(gobj, client, "uuid-tu");
+        if(other) {
+            ret += fail(gobj, "an evicted uuid back with another key is kept knocking", "");
+        }
+        JSON_DECREF(other)
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
+        0, "enrollment open", "open-enrollment after a flood of one-key knocks");
+    if(logs_in_by_key(gobj, "tu-3", "uuid-tu", KEY_T2)) {
+        ret += fail(gobj, "the enrollment accepts another key under a uuid evicted by a flood", "");
+    }
+    if(logs_in_by_key(gobj, "tu-4", "uuid-tu", KEY_T2)) {   // not said again
+        ret += fail(gobj, "the enrollment accepts another key under a uuid evicted by a flood", "");
+    }
+    if(logs_in_by_key(gobj, "en-4x", "uuid-en4", KEY_EN4)) {    // said once in this enrollment
+        ret += fail(gobj, "the enrollment accepts a uuid that knocked with two keys", "");
+    }
+    if(logs_in_by_key(gobj, "en-4y", "uuid-en4", KEY_EN4)) {
+        ret += fail(gobj, "the enrollment accepts a uuid that knocked with two keys", "");
+    }
+    if(!logs_in_by_key(gobj, "tu-5", "uuid-tu", KEY_T1)) {
+        ret += fail(gobj, "the enrollment refuses a uuid evicted by a flood with its own key", "");
+    }
+    ret += check_node_field(gobj, client, "uuid-tu", "spki_sha256", KEY_T1,
+        "the enrollment pins the key a uuid knocked with before it was evicted");
+    const struct {
+        const char *name;
+        const char *uuid;
+        const char *spki;
+    } batch[] = {
+        {"tb-1b", "uuid-tb1", KEY_TB1},
+        {"tb-2b", "uuid-tb2", KEY_TB2},
+        {"tb-3b", "uuid-tb3", KEY_TB3},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(batch); i++) {
+        if(!logs_in_by_key(gobj, batch[i].name, batch[i].uuid, batch[i].spki)) {
+            ret += fail(gobj, "the enrollment refuses a node of a batch larger than the knocking table",
+                batch[i].uuid);
+        }
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
+        0, "enrollment closed, 4 nodes accepted", "a batch larger than the knocking table leaves it open");
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
 
     /*
      *  A flood of knocks of one key does not wipe the mark of a uuid that
@@ -3839,18 +3910,21 @@ PRIVATE int test_card_checked(hgobj gobj, hgobj client)
 /***************************************************************************
  *  26. A refused node whose agent presents its key is said refused, not
  *      "another key" (the WARNING's `refusal`). Up to 7.30.14 it said
- *      another key.
+ *      another key. Its agent knocks again: not said again before
+ *      knocking_warning_period. Up to 7.31.29 every knock was a WARNING.
  ***************************************************************************/
 PRIVATE int test_refused_node_by_key(hgobj gobj)
 {
-    char username[NAME_MAX];
-    json_t *auth = authenticate_by_key(gobj, "auth-r", "uuid-keyed", "keyed", KEY_A,
-        username, sizeof(username));
     int ret = 0;
-    if(kw_get_int(gobj, auth, "result", 0, 0) >= 0) {
-        ret = fail(gobj, "a refused node is authenticated by its key", username);
+    for(int i=0; i<2; i++) {
+        char username[NAME_MAX];
+        json_t *auth = authenticate_by_key(gobj, "auth-r", "uuid-keyed", "keyed", KEY_A,
+            username, sizeof(username));
+        if(kw_get_int(gobj, auth, "result", 0, 0) >= 0) {
+            ret += fail(gobj, "a refused node is authenticated by its key", username);
+        }
+        JSON_DECREF(auth)
     }
-    JSON_DECREF(auth)
     return ret;
 }
 

@@ -148,7 +148,8 @@ after it logged an ERROR with a stack.
 | `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
 | `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`. A new one evicts the one that knocked least recently, a uuid that came with two keys last while those are half the table at most (7.31.16+, and 7.31.15 with no bound). |
-| `knocking_warning_period` | `600` | Seconds between the WARNINGs *"A node knocking"* of a node that goes on knocking (7.31.10+). `0`: only the first. Not one per knock: anyone who reaches the port can knock. |
+| `max_evicted_knocks` | `1024` | The uuids evicted from a full knocking table, kept in memory with the key that each one knocked with. If such a uuid knocks again with another key, the control center does not keep the knock (a WARNING, *"A uuid evicted from the knocking table knocks with another key"*), and an open enrollment refuses it. The oldest is forgotten first. `0`: none kept. |
+| `knocking_warning_period` | `600` | Seconds between the WARNINGs *"A node knocking"* of a node that goes on knocking (7.31.10+). `0`: only the first. Not one per knock: anyone who reaches the port can knock. The same pace applies to the WARNING of a refused node, and to the refusals of an enrollment. |
 
 The three are read-only at run time: set them in the `kw` of the
 `controlcenter` service in its realm config, and restart it. For example, once
@@ -287,10 +288,20 @@ The enrollment does NOT accept:
   enrollment CLOSES and none opens for an hour, with a WARNING (*"A uuid
   that came with two keys evicted from the knocking table"*): a flood can
   keep the enrollment shut, never slip a key in.
+- a uuid that a flood evicted from the knocking table, when it knocks again
+  with another key. The evicted uuid keeps the key that it knocked with
+  (`max_evicted_knocks`, 1024 uuids). The enrollment refuses another key with
+  *"it knocked with another key"*, and accepts the uuid with its own key. Thus
+  a batch of nodes larger than the table enrolls, and the enrollment stays
+  open. Up to 7.31.29, the flood erased the key, and the enrollment accepted
+  another key under that uuid.
 - a key that is accepted for another node (one key, one node).
 
 Each of these is a WARNING (*"Node not accepted by the enrollment"*, the reason
-in `refusal`), and the agent stays knocking.
+in `refusal`), and the agent stays knocking. The control center logs it the
+first time in each enrollment, and after that once every
+`knocking_warning_period`, not at each knock. Up to 7.31.29 it logged one
+WARNING at each knock, and two for a refused node.
 
 The enrollment closes when its minutes are over, when it has accepted
 `max_nodes`, with `close-enrollment`, or when the control center pauses. It

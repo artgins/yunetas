@@ -285,6 +285,17 @@ still reported and fails the test.
     - `close-enrollment` closes it, and so does its timer (the test sends
       the `EV_TIMEOUT` of `enrollment_timer`). Opening it while open starts
       it again.
+    - A refused knock is said once in each enrollment, not at each knock:
+      the second knock of `uuid-en4` and of `uuid-auth` logs nothing. The
+      refusal of a key accepted for another node is one WARNING, not two.
+      Up to 7.31.29 every refused knock was a WARNING.
+    - With `max_knocking_nodes` 2 and the enrollment closed, `uuid-tu`
+      knocks with one key and three other uuids evict it. Back with another
+      key, it is not kept (one WARNING for two knocks). Open: that other key
+      is refused (said once for two knocks), and its own key is accepted.
+      The three other uuids, a batch larger than the table, are accepted,
+      and the enrollment stays open (4 nodes accepted at its close). Up to
+      7.31.29 the eviction erased the key, and the other key was accepted.
 
 23. A node is reached by its uuid, and by a hostname only when one node has
     it. Nodes A and B are accepted with their keys, `enforce_node_keys` on:
@@ -309,7 +320,9 @@ still reported and fails the test.
     WARNING each), and none of them is kept knocking. Up to 7.30.14 a value
     that was not a string gave an ERROR with a stack, and the rest was kept.
 26. A refused node whose agent presents its key: the WARNING's `refusal` says
-    *"The node is refused"*. Up to 7.30.14 it said *"another key"*.
+    *"The node is refused"*. Up to 7.30.14 it said *"another key"*. Its
+    second knock logs nothing (`knocking_warning_period`). Up to 7.31.29
+    every knock was a WARNING.
 27. An open with nothing changed (hostname, address, key) writes nothing in
     `nodes` (its `g_rowid` stays), though its link arrives from a new port: the
     port is no change. A new hostname is written, and so is a new address.

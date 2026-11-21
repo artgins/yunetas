@@ -120,6 +120,21 @@ The enrollment closes after its minutes, at `max_nodes`, with
 `close-enrollment`, or when the control center pauses. It exists in memory
 only.
 
+The table of knocking nodes holds `max_knocking_nodes` uuids (256 by default).
+When the table is full, a new knock evicts the oldest one. The evicted uuid
+keeps the key that it knocked with, in a second table of `max_evicted_knocks`
+uuids (1024 by default). If the evicted uuid knocks again with another key, the
+control center does not keep the knock, and the enrollment refuses it. If the
+uuid knocks again with its own key, the enrollment accepts it. Thus a batch of
+nodes larger than the table enrolls, and a flood of knocks cannot put another
+key under a uuid. Up to 7.31.29, the flood erased the key, and an
+enrollment accepted another key under that uuid. A restart empties both
+tables.
+
+The control center logs a refused knock the first time in each enrollment.
+After that, it logs it once every `knocking_warning_period` seconds, not at
+each knock. The same pace applies to the agent of a refused node.
+
 ```text
 open-enrollment minutes=10 max_nodes=20
 close-enrollment

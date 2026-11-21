@@ -141,7 +141,11 @@
  *  accepted with no token is refused, and nothing of it is written: it is
  *  kept in memory (`knocking`, capped by max_knocking_nodes, the first key of
  *  a uuid kept) for list-nodes, with a WARNING every knocking_warning_period
- *  while it goes on knocking. Anything else is C_AUTHZ's.
+ *  while it goes on knocking (a refused node too, out of the table). A knock
+ *  evicted from a full table leaves its key behind (`evicted`, capped by
+ *  max_evicted_knocks, a ring): back with another key, its uuid is not
+ *  kept. Both are in memory only: a restart forgets them, and the nodes
+ *  knock again. Anything else is C_AUTHZ's.
  *
  *  NODE ENROLLMENT (7.31.15+). `open-enrollment minutes= max_nodes=`
  *  (permission `manage-nodes`) opens a window in which the key that the
@@ -156,7 +160,14 @@
  *  table evicts a uuid that came with two keys last (while such uuids hold
  *  half the table at most), and when one is evicted all the same (a flood
  *  of knocks) an open enrollment closes and none opens for an hour, a
- *  WARNING: a flood can keep the enrollment shut, never slip a key in.
+ *  WARNING: a flood can keep the enrollment shut, never slip a key in. A
+ *  uuid of one key that a flood evicts keeps its key in `evicted`: the
+ *  enrollment refuses it with another key ("it knocked with another key")
+ *  and accepts it with its own, so a batch of nodes larger than the
+ *  knocking table closes nothing (up to 7.31.29 the flood wiped the key,
+ *  and another key took the uuid). A refused knock is said the first time
+ *  in each enrollment and then at the pace of the table, never once per
+ *  knock.
  *  It closes when its minutes (1-60) are over, when it has accepted
  *  max_nodes (1-256), with `close-enrollment`, or when the control center
  *  pauses: it lives in memory only, a restart does not open it again. Each
@@ -311,7 +322,24 @@ PRIVATE BOOL enroll_node(
     const char *node_id,
     const char *hostname,
     const char *peername,
-    const char *spki
+    const char *spki,
+    char *refusal,
+    size_t refusal_size
+);
+PRIVATE void say_enrollment_refusal(
+    hgobj gobj,
+    const char *node_id,
+    const char *hostname,
+    const char *peername,
+    const char *spki,
+    const char *refusal
+);
+PRIVATE BOOL key_accepted_for_another_node(
+    hgobj gobj,
+    const char *spki,
+    const char *node_id,
+    char *other,
+    size_t other_size
 );
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open);
 PRIVATE BOOL node_id_shaped(json_t *jn_id);
@@ -327,8 +355,11 @@ PRIVATE const char *note_knocking_node(
     const char *hostname,
     const char *peername,
     const char *spki,
+    const char *enroll_refusal,
     BOOL *in_table
 );
+PRIVATE void remember_evicted_knock(hgobj gobj, const char *node_id, json_t *knock);
+PRIVATE BOOL refused_knock_due(hgobj gobj, const char *node_id, json_int_t *knocks);
 PRIVATE const char *record_node_key(
     hgobj gobj,
     const char *node_id,
@@ -681,6 +712,7 @@ SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
 SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); a new one evicts the one knocked least recently, one that came with two keys last while those are half the table at most"),
+SDATA (DTP_INTEGER,     "max_evicted_knocks",SDF_RD,        "1024",     "Uuids evicted from the knocking table (a full table) kept in memory with the key they knocked with: an open enrollment refuses one that comes back with another key, and accepts it with that key. The oldest is forgotten first. 0: none kept"),
 SDATA (DTP_INTEGER,     "knocking_warning_period",SDF_RD,   "600",      "Seconds between the WARNINGs 'A node knocking' of a node that goes on knocking; 0: said once"),
 SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
@@ -787,6 +819,11 @@ typedef struct _PRIVATE_DATA {
     json_t *stops_rearmed;          // scenario id -> epoch seconds: a stop given up, saved: only the tries after it count
     json_t *knocking;               // node uuid -> {spki_sha256, hostname, peername, first_seen, last_seen, seq}: not authenticated, in memory only
     json_int_t knock_seq;           // order of the last knock of each entry, for the eviction
+    json_t *evicted;                // node uuid -> {spki_sha256, other_keys, hostname, first_seen, knocks, slot, said, next_warning, enrollment_said}: evicted from `knocking`, in memory only
+    json_t *evicted_ring;           // the uuids of `evicted` by slot, the oldest at evicted_next once full (max_evicted_knocks)
+    json_int_t evicted_next;        // the slot of evicted_ring the next one takes once it is full
+    json_int_t enrollments;         // enrollments opened: a refusal is said the first time in each (enrollment_said)
+    json_t *refused_knocks;         // node uuid -> {next_warning, knocks}: the knocks of a node in the store refused out of the knocking table (refused_knock_due())
     hgobj enrollment_timer;         // closes the open enrollment when its minutes are over
     json_t *enrollment;             // the open enrollment {opened_by, opened_at, until, max_nodes, accepted: [uuid]}, or NULL: in memory only
     uint64_t mark_evicted_until;    // msectimer: a uuid of two keys was evicted from the knocking table, no enrollment opens before it (0: none)
@@ -834,6 +871,9 @@ PRIVATE void mt_create(hgobj gobj)
     priv->stops_given_up = json_object();
     priv->stops_rearmed = json_object();
     priv->knocking = json_object();
+    priv->evicted = json_object();
+    priv->evicted_ring = json_array();
+    priv->refused_knocks = json_object();
     priv->enrollment_timer = gobj_create_pure_child("enrollment_timer", C_TIMER, 0, gobj);
     priv->rates_timer = gobj_create_pure_child("rates_timer", C_TIMER0, 0, gobj);
     priv->drops_timer = gobj_create_pure_child("drops_timer", C_TIMER, 0, gobj);
@@ -941,6 +981,9 @@ PRIVATE void mt_destroy(hgobj gobj)
     JSON_DECREF(priv->stops_given_up)
     JSON_DECREF(priv->stops_rearmed)
     JSON_DECREF(priv->knocking)
+    JSON_DECREF(priv->evicted)
+    JSON_DECREF(priv->evicted_ring)
+    JSON_DECREF(priv->refused_knocks)
     JSON_DECREF(priv->enrollment)
 }
 
@@ -1024,8 +1067,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             strcmp(kw_get_str(gobj, node, "spki_sha256", "", 0), spki)==0;
         JSON_DECREF(node)
 
+        char enroll_refusal[PATH_MAX] = "";
         if(!accepted && priv->enrollment) {
-            accepted = enroll_node(gobj, node_id, hostname, peername, spki);
+            accepted = enroll_node(gobj, node_id, hostname, peername, spki,
+                enroll_refusal, sizeof(enroll_refusal));
         }
 
         if(accepted) {
@@ -1034,6 +1079,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
              *  another one is not it, or no longer (list-nodes "other-key")
              */
             json_object_del(priv->knocking, node_id);
+            json_object_del(priv->evicted, node_id);
             char username[NAME_MAX];
             snprintf(username, sizeof(username), "agent:%s", node_id);
             gobj_write_str_attr(src, "__username__", username);
@@ -1060,8 +1106,9 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
              */
             BOOL in_table = FALSE;
             const char *refusal = note_knocking_node(gobj, node_id, hostname, peername, spki,
-                &in_table);
-            if(refusal && !in_table) {
+                enroll_refusal, &in_table);
+            json_int_t knocks = 0;
+            if(refusal && !in_table && refused_knock_due(gobj, node_id, &knocks)) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
@@ -1071,6 +1118,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     "hostname",     "%s", hostname,
                     "peername",     "%s", peername? peername : "",
                     "spki_sha256",  "%s", spki,
+                    "knocks",       "%lld", (long long)knocks,
                     NULL
                 );
             }
@@ -1084,6 +1132,9 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             );
             KW_DECREF(kw)
             return jn_resp;
+        }
+        if(!empty_string(enroll_refusal)) {
+            say_enrollment_refusal(gobj, node_id, hostname, peername, spki, enroll_refusal);
         }
     }
 
@@ -2258,23 +2309,8 @@ PRIVATE json_t *decide_node(
          *  One key, one node: a copy of a node's disk carries its pair,
          *  and the copy, under another uuid, would log in as both
          */
-        json_t *holders = gobj_list_nodes(
-            priv->gobj_treedb_controlcenter,
-            "nodes",
-            json_pack("{s:s, s:s}", "spki_sha256", spki, "state", "accepted"),
-            0,
-            gobj
-        );
-        const char *other = NULL;
-        size_t idx; json_t *jn_holder;
-        json_array_foreach(holders, idx, jn_holder) {
-            const char *holder_id = kw_get_str(gobj, jn_holder, "id", "", 0);
-            if(strcmp(holder_id, node_id)!=0) {
-                other = holder_id;
-                break;
-            }
-        }
-        if(other) {
+        char other[NAME_MAX];
+        if(key_accepted_for_another_node(gobj, spki, node_id, other, sizeof(other))) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
@@ -2288,12 +2324,10 @@ PRIVATE json_t *decide_node(
             *comment = json_sprintf("%s: node '%s': its key is already accepted for node '%s' "
                 "(a copy of that node? give the copy its own pair, and accept that key)",
                 gobj_yuno_role_plus_name(), node_id, other);
-            JSON_DECREF(holders)
             JSON_DECREF(update)
             JSON_DECREF(node)
             return NULL;
         }
-        JSON_DECREF(holders)
 
         /*
          *  A node not accepted until now: the operator's node_id and key are
@@ -2321,6 +2355,7 @@ PRIVATE json_t *decide_node(
                 json_integer(knock? kw_get_int(gobj, knock, "first_seen", 0, 0) : 0));
         }
         json_object_del(priv->knocking, node_id);
+        json_object_del(priv->evicted, node_id);
     }
     BOOL create = node? FALSE : TRUE;
     JSON_DECREF(node)
@@ -2626,8 +2661,9 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj
     );
     if(!node) {
-        if(json_object_get(priv->knocking, node_id)) {
+        if(json_object_get(priv->knocking, node_id) || json_object_get(priv->evicted, node_id)) {
             json_object_del(priv->knocking, node_id);
+            json_object_del(priv->evicted, node_id);
             return msg_iev_build_response(
                 gobj,
                 0,
@@ -2688,6 +2724,8 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
     json_object_del(priv->knocking, node_id);
+    json_object_del(priv->evicted, node_id);
+    json_object_del(priv->refused_knocks, node_id);
 
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -2784,6 +2822,7 @@ PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgo
     json_int_t now = (json_int_t)time(NULL);
     BOOL again = priv->enrollment? TRUE : FALSE;
     JSON_DECREF(priv->enrollment)
+    priv->enrollments++;
     priv->enrollment = json_pack("{s:s, s:I, s:I, s:I, s:[]}",
         "opened_by", opened_by,
         "opened_at", now,
@@ -2941,20 +2980,28 @@ PRIVATE void mark_evicted(hgobj gobj, const char *node_id)
  *  node has no key accepted. Not a node accepted with another key (taking
  *  it), nor a refused one, nor a node let in with no key (an agent of
  *  before never presents one: a key under its uuid is somebody else's), nor
- *  a uuid that came with another key (in its record, or knocking: which one
- *  is the node's?), nor a key accepted for another node (decide_node()).
- *  TRUE: accepted, its agent logs in by it.
+ *  a uuid that came with another key (in its record, knocking, or evicted
+ *  from the knocking table: which one is the node's?), nor a key accepted
+ *  for another node (decide_node()).
+ *  TRUE: accepted, its agent logs in by it. FALSE: why not in `refusal`,
+ *  and not said here: a refused node knocks again and again, so the caller
+ *  says it under the pace of the knocking table (note_knocking_node()), or
+ *  with say_enrollment_refusal(). Up to 7.31.29 every refused knock was a
+ *  WARNING, two for a refused node.
  ***************************************************************************/
 PRIVATE BOOL enroll_node(
     hgobj gobj,
     const char *node_id,
     const char *hostname,
     const char *peername,
-    const char *spki
+    const char *spki,
+    char *refusal,
+    size_t refusal_size
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    refusal[0] = 0;
     if(!priv->gobj_treedb_controlcenter) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2963,6 +3010,7 @@ PRIVATE BOOL enroll_node(
             "node",         "%s", node_id,
             NULL
         );
+        snprintf(refusal, refusal_size, "%s", "the treedb is not open");
         return FALSE;
     }
     json_t *node = gobj_get_node(
@@ -2972,14 +3020,14 @@ PRIVATE BOOL enroll_node(
         0,
         gobj
     );
-    const char *refusal = NULL;
+    const char *why = NULL;
     if(node) {
         const char *state = kw_get_str(gobj, node, "state", "", 0);
         const char *recorded = kw_get_str(gobj, node, "presented_spki", "", 0);
         if(strcmp(state, "accepted")==0) {
-            refusal = "the node is accepted with another key";
+            why = "the node is accepted with another key";
         } else if(strcmp(state, "refused")==0) {
-            refusal = "the node is refused";
+            why = "the node is refused";
         } else if(empty_string(recorded)) {
             /*
              *  Its agent was let in with no key (an agent of before
@@ -2987,29 +3035,34 @@ PRIVATE BOOL enroll_node(
              *  presents one, so a key under its uuid is somebody else's,
              *  and accepted it would lock the node out (enforce_node_keys)
              */
-            refusal = "the node was let in with no key (accept-node, with the key read on it)";
+            why = "the node was let in with no key (accept-node, with the key read on it)";
         } else if(strcmp(recorded, spki)!=0) {
-            refusal = "its record holds another key presented";
+            why = "its record holds another key presented";
         }
     }
     JSON_DECREF(node)
     json_t *knock = json_object_get(priv->knocking, node_id);
-    if(!refusal && knock && (kw_get_bool(gobj, knock, "other_keys", 0, 0) ||
+    if(!why && knock && (kw_get_bool(gobj, knock, "other_keys", 0, 0) ||
             strcmp(kw_get_str(gobj, knock, "spki_sha256", "", 0), spki)!=0)) {
-        refusal = "it knocked with another key";
+        why = "it knocked with another key";
     }
-    if(refusal) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "Node not accepted by the enrollment",
-            "refusal",      "%s", refusal,
-            "node",         "%s", node_id,
-            "hostname",     "%s", hostname,
-            "peername",     "%s", peername? peername : "",
-            "spki_sha256",  "%s", spki,
-            NULL
-        );
+    /*
+     *  A full knocking table evicted its knock (a flood?): the key it
+     *  knocked with is kept apart (remember_evicted_knock()), and another
+     *  key under its uuid is not taken
+     */
+    json_t *evicted = knock? NULL : json_object_get(priv->evicted, node_id);
+    if(!why && evicted && (kw_get_bool(gobj, evicted, "other_keys", 0, 0) ||
+            strcmp(kw_get_str(gobj, evicted, "spki_sha256", "", 0), spki)!=0)) {
+        why = "it knocked with another key";
+    }
+    if(why) {
+        snprintf(refusal, refusal_size, "%s", why);
+        return FALSE;
+    }
+    char other[NAME_MAX];
+    if(key_accepted_for_another_node(gobj, spki, node_id, other, sizeof(other))) {
+        snprintf(refusal, refusal_size, "its key is accepted for another node, '%s'", other);
         return FALSE;
     }
 
@@ -3021,17 +3074,7 @@ PRIVATE BOOL enroll_node(
     json_t *written = decide_node(gobj, node_id, "accepted", spki, kw_who, NULL, &comment);
     JSON_DECREF(kw_who)
     if(!written) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "Node not accepted by the enrollment",
-            "refusal",      "%s", comment? json_string_value(comment) : "",
-            "node",         "%s", node_id,
-            "hostname",     "%s", hostname,
-            "peername",     "%s", peername? peername : "",
-            "spki_sha256",  "%s", spki,
-            NULL
-        );
+        snprintf(refusal, refusal_size, "%s", comment? json_string_value(comment) : "not written");
         JSON_DECREF(comment)
         return FALSE;
     }
@@ -3056,6 +3099,67 @@ PRIVATE BOOL enroll_node(
         close_enrollment(gobj, "it has accepted max_nodes");
     }
     return TRUE;
+}
+
+/***************************************************************************
+ *  The WARNING of a node that an open enrollment does not accept
+ *  (enroll_node()): its caller decides when it is said.
+ ***************************************************************************/
+PRIVATE void say_enrollment_refusal(
+    hgobj gobj,
+    const char *node_id,
+    const char *hostname,
+    const char *peername,
+    const char *spki,
+    const char *refusal
+)
+{
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "Node not accepted by the enrollment",
+        "refusal",      "%s", refusal,
+        "node",         "%s", node_id,
+        "hostname",     "%s", hostname? hostname : "",
+        "peername",     "%s", peername? peername : "",
+        "spki_sha256",  "%s", spki,
+        NULL
+    );
+}
+
+/***************************************************************************
+ *  Is `spki` the key accepted for a node other than `node_id`? Its uuid in
+ *  `other` then. One key, one node: a copy of a node's disk carries its
+ *  pair, and the copy, under another uuid, would log in as both.
+ ***************************************************************************/
+PRIVATE BOOL key_accepted_for_another_node(
+    hgobj gobj,
+    const char *spki,
+    const char *node_id,
+    char *other,
+    size_t other_size
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    other[0] = 0;
+    json_t *holders = gobj_list_nodes(
+        priv->gobj_treedb_controlcenter,
+        "nodes",
+        json_pack("{s:s, s:s}", "spki_sha256", spki, "state", "accepted"),
+        0,
+        gobj
+    );
+    size_t idx; json_t *jn_holder;
+    json_array_foreach(holders, idx, jn_holder) {
+        const char *holder_id = kw_get_str(gobj, jn_holder, "id", "", 0);
+        if(strcmp(holder_id, node_id)!=0) {
+            snprintf(other, other_size, "%s", holder_id);
+            break;
+        }
+    }
+    JSON_DECREF(holders)
+    return !empty_string(other);
 }
 
 /***************************************************************************
@@ -4741,6 +4845,52 @@ PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid)
 }
 
 /***************************************************************************
+ *  agent_channel_of_uuid() of every uuid in session, in one pass: uuid ->
+ *  its channel (an integer), yours. For a command that answers each node
+ *  (list-nodes): a pass per node was O(nodes x gobjs). Same choice: a
+ *  refused session is skipped, and of two sessions of one uuid the one that
+ *  logged in by the node's key, else the first.
+ ***************************************************************************/
+PRIVATE json_t *agent_channels_by_uuid(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *channels = json_object();
+    json_t *by_key = json_object();     // uuid -> true: its channel logged in by the key
+
+    json_t *jn_filter = json_pack("{s:s, s:s}",
+        "__gclass_name__", C_IEVENT_SRV,
+        "__state__", ST_SESSION
+    );
+    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_children, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(agent_is_refused(child)) {
+            continue;
+        }
+        const char *uuid = card_str(gobj_read_json_attr(child, "identity_card"), "id");
+        if(json_object_get(by_key, uuid)) {
+            continue;
+        }
+        char key_login[NAME_MAX];
+        snprintf(key_login, sizeof(key_login), "agent:%s", uuid);
+        const char *username = gobj_read_str_attr(child, "__username__");
+        BOOL logged_by_key = strcmp(username? username : "", key_login)==0;
+        if(logged_by_key || !json_object_get(channels, uuid)) {
+            json_object_set_new(channels, uuid, json_integer((json_int_t)(size_t)child));
+        }
+        if(logged_by_key) {
+            json_object_set_new(by_key, uuid, json_true());
+        }
+    }
+    gobj_free_iter(dl_children);
+    JSON_DECREF(by_key)
+    return channels;
+}
+
+/***************************************************************************
  *  The channel of the connected agent named `agent_id`: a node uuid, or a
  *  hostname. The uuid of an accepted node always names it. A hostname is
  *  only what an agent writes in its card, so it names:
@@ -4834,52 +4984,6 @@ PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id, BOOL *ambiguo
         return 0;
     }
     return (n == 1)? found : by_uuid;
-}
-
-/***************************************************************************
- *  agent_channel_of_uuid() of every uuid in session, in one pass: uuid ->
- *  its channel (an integer), yours. For a command that answers each node
- *  (list-nodes): a pass per node was O(nodes x gobjs). Same choice: a
- *  refused session is skipped, and of two sessions of one uuid the one that
- *  logged in by the node's key, else the first.
- ***************************************************************************/
-PRIVATE json_t *agent_channels_by_uuid(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *channels = json_object();
-    json_t *by_key = json_object();     // uuid -> true: its channel logged in by the key
-
-    json_t *jn_filter = json_pack("{s:s, s:s}",
-        "__gclass_name__", C_IEVENT_SRV,
-        "__state__", ST_SESSION
-    );
-    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
-
-    int idx; json_t *jn_child;
-    json_array_foreach(dl_children, idx, jn_child) {
-        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
-        if(agent_is_refused(child)) {
-            continue;
-        }
-        const char *uuid = card_str(gobj_read_json_attr(child, "identity_card"), "id");
-        if(json_object_get(by_key, uuid)) {
-            continue;
-        }
-        char key_login[NAME_MAX];
-        snprintf(key_login, sizeof(key_login), "agent:%s", uuid);
-        const char *username = gobj_read_str_attr(child, "__username__");
-        BOOL logged_by_key = strcmp(username? username : "", key_login)==0;
-        if(logged_by_key || !json_object_get(channels, uuid)) {
-            json_object_set_new(channels, uuid, json_integer((json_int_t)(size_t)child));
-        }
-        if(logged_by_key) {
-            json_object_set_new(by_key, uuid, json_true());
-        }
-    }
-    gobj_free_iter(dl_children);
-    JSON_DECREF(by_key)
-    return channels;
 }
 
 /***************************************************************************
@@ -5270,6 +5374,17 @@ PRIVATE BOOL knock_is_contested(hgobj gobj, json_t *knock)
  *  presented=<start>). Its agent is refused all the same. Its two-key mark
  *  (`other_keys`) refuses presented= but closes no enrollment: an
  *  enrollment never takes an accepted node (enroll_node()).
+ *
+ *  Any other knock that is evicted leaves its key behind, in `evicted`
+ *  (remember_evicted_knock()): back with that key (or with its two-key
+ *  mark), the uuid takes its place in the table again; back with another
+ *  key, it is not taken in (its first key is the one evicted), a WARNING
+ *  at the pace of the table, and an open enrollment refuses it.
+ *
+ *  `enroll_refusal` (NULL or empty: none): why an open enrollment did not
+ *  accept this knock (enroll_node()). It is said here, at the pace of the
+ *  table: the first time in each enrollment and with the knock's WARNING,
+ *  never once per knock.
  *  `in_table` (may be NULL): TRUE when the knock was kept in the table, and
  *  its WARNING is the table's (said once a period), not the caller's.
  ***************************************************************************/
@@ -5279,6 +5394,7 @@ PRIVATE const char *note_knocking_node(
     const char *hostname,
     const char *peername,
     const char *spki,
+    const char *enroll_refusal,
     BOOL *in_table
 )
 {
@@ -5289,6 +5405,9 @@ PRIVATE const char *note_knocking_node(
     }
     if(empty_string(node_id)) {
         return NULL;
+    }
+    if(empty_string(enroll_refusal)) {
+        enroll_refusal = NULL;
     }
     json_t *node = priv->gobj_treedb_controlcenter?
         gobj_get_node(
@@ -5309,7 +5428,7 @@ PRIVATE const char *note_knocking_node(
     }
     JSON_DECREF(node)
     if(refusal && !accepted_node) {
-        return refusal;
+        return refusal;     // the caller says it, with the enrollment's same refusal
     }
 
     const char *knock_msg = accepted_node?
@@ -5333,7 +5452,14 @@ PRIVATE const char *note_knocking_node(
         }
         json_int_t knocks = kw_get_int(gobj, entry, "knocks", 0, 0) + 1;
         json_object_set_new(entry, "knocks", json_integer(knocks));
-        if(period > 0 && test_msectimer((uint64_t)kw_get_int(gobj, entry, "next_warning", 0, 0))) {
+        BOOL due = period > 0 &&
+            test_msectimer((uint64_t)kw_get_int(gobj, entry, "next_warning", 0, 0));
+        if(enroll_refusal && (due ||
+                kw_get_int(gobj, entry, "enrollment_said", 0, 0) != priv->enrollments)) {
+            json_object_set_new(entry, "enrollment_said", json_integer(priv->enrollments));
+            say_enrollment_refusal(gobj, node_id, hostname, peername, spki, enroll_refusal);
+        }
+        if(due) {
             json_object_set_new(entry, "next_warning",
                 json_integer((json_int_t)start_msectimer((uint64_t)period * 1000)));
             gobj_log_warning(gobj, 0,
@@ -5350,6 +5476,58 @@ PRIVATE const char *note_knocking_node(
             );
         }
         return refusal;
+    }
+
+    /*
+     *  Evicted before: back with its key, it takes its place again (below);
+     *  with another key it is not taken in
+     */
+    json_t *evicted = accepted_node? NULL : json_object_get(priv->evicted, node_id);
+    BOOL other_keys = FALSE;
+    json_int_t first_seen = now;
+    json_int_t knocks = 1;
+    char kept_spki[80];
+    snprintf(kept_spki, sizeof(kept_spki), "%s", spki);
+    if(evicted) {
+        other_keys = kw_get_bool(gobj, evicted, "other_keys", 0, 0);
+        knocks = kw_get_int(gobj, evicted, "knocks", 0, 0) + 1;
+        if(!other_keys && strcmp(kw_get_str(gobj, evicted, "spki_sha256", "", 0), spki)!=0) {
+            json_object_set_new(evicted, "knocks", json_integer(knocks));
+            BOOL due = !kw_get_bool(gobj, evicted, "said", 0, 0) || (period > 0 &&
+                test_msectimer((uint64_t)kw_get_int(gobj, evicted, "next_warning", 0, 0)));
+            if(due) {
+                json_object_set_new(evicted, "said", json_true());
+                json_object_set_new(evicted, "next_warning", json_integer(period > 0?
+                    (json_int_t)start_msectimer((uint64_t)period * 1000) : 0));
+            }
+            if(enroll_refusal && (due ||
+                    kw_get_int(gobj, evicted, "enrollment_said", 0, 0) != priv->enrollments)) {
+                json_object_set_new(evicted, "enrollment_said", json_integer(priv->enrollments));
+                say_enrollment_refusal(gobj, node_id, hostname, peername, spki, enroll_refusal);
+            } else if(due && !enroll_refusal) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "A uuid evicted from the knocking table knocks with another key: not kept, no enrollment accepts it",
+                    "node",         "%s", node_id,
+                    "hostname",     "%s", hostname? hostname : "",
+                    "peername",     "%s", peername? peername : "",
+                    "spki_sha256",  "%s", spki,
+                    "evicted_spki", "%s", kw_get_str(gobj, evicted, "spki_sha256", "", 0),
+                    "knocks",       "%lld", (long long)knocks,
+                    NULL
+                );
+            }
+            return refusal;
+        }
+        first_seen = kw_get_int(gobj, evicted, "first_seen", now, 0);
+        snprintf(kept_spki, sizeof(kept_spki), "%s",
+            kw_get_str(gobj, evicted, "spki_sha256", "", 0));    // its first key, as in the table
+        json_object_del(priv->evicted, node_id);
+    }
+
+    if(enroll_refusal) {
+        say_enrollment_refusal(gobj, node_id, hostname, peername, spki, enroll_refusal);
     }
     json_int_t max_knocking = gobj_read_integer_attr(gobj, "max_knocking_nodes");
     if(max_knocking <= 0) {
@@ -5387,21 +5565,28 @@ PRIVATE const char *note_knocking_node(
         if(!oldest) {
             break;
         }
-        if(knock_is_contested(gobj, json_object_get(priv->knocking, oldest))) {
+        json_t *oldest_knock = json_object_get(priv->knocking, oldest);
+        if(knock_is_contested(gobj, oldest_knock)) {
             mark_evicted(gobj, oldest);
+        }
+        if(!kw_get_bool(gobj, oldest_knock, "accepted_node", 0, 0)) {
+            remember_evicted_knock(gobj, oldest, oldest_knock);
         }
         json_object_del(priv->knocking, oldest);
     }
-    json_object_set_new(priv->knocking, node_id, json_pack("{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:I, s:b}",
-        "spki_sha256", spki,
+    json_object_set_new(priv->knocking, node_id, json_pack(
+        "{s:s, s:s, s:s, s:I, s:I, s:I, s:I, s:I, s:b, s:b, s:I}",
+        "spki_sha256", kept_spki,
         "hostname", hostname? hostname : "",
         "peername", peername? peername : "",
-        "first_seen", now,
+        "first_seen", first_seen,
         "last_seen", now,
-        "knocks", (json_int_t)1,
+        "knocks", knocks,
         "seq", ++priv->knock_seq,
         "next_warning", (json_int_t)(period > 0? start_msectimer((uint64_t)period * 1000) : 0),
-        "accepted_node", accepted_node
+        "accepted_node", accepted_node,
+        "other_keys", other_keys,
+        "enrollment_said", enroll_refusal? priv->enrollments : (json_int_t)0
     ));
     if(in_table) {
         *in_table = TRUE;
@@ -5413,10 +5598,102 @@ PRIVATE const char *note_knocking_node(
         "node",         "%s", node_id,
         "hostname",     "%s", hostname? hostname : "",
         "peername",     "%s", peername? peername : "",
-        "spki_sha256",  "%s", spki,
+        "spki_sha256",  "%s", kept_spki,
+        "knocks",       "%lld", (long long)knocks,
         NULL
     );
     return refusal;
+}
+
+/***************************************************************************
+ *  The knock of a node in the store that is refused out of the knocking
+ *  table (a refused node, or any while max_knocking_nodes is 0): its agent
+ *  knocks again every few seconds, so its WARNING is said the first time
+ *  and once every knocking_warning_period (0: once), as the table's. Up to
+ *  7.31.29 it was one per knock. `knocks`: how many since the last said.
+ *  One entry per uuid with a record: as bounded as the store.
+ ***************************************************************************/
+PRIVATE BOOL refused_knock_due(hgobj gobj, const char *node_id, json_int_t *knocks)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t period = gobj_read_integer_attr(gobj, "knocking_warning_period");
+    json_t *jn = json_object_get(priv->refused_knocks, node_id);
+    if(!jn) {
+        jn = json_object();
+        json_object_set_new(priv->refused_knocks, node_id, jn);
+    }
+    *knocks = kw_get_int(gobj, jn, "knocks", 0, 0) + 1;
+    BOOL said = json_object_get(jn, "next_warning")? TRUE : FALSE;
+    if(said && !(period > 0 &&
+            test_msectimer((uint64_t)kw_get_int(gobj, jn, "next_warning", 0, 0)))) {
+        json_object_set_new(jn, "knocks", json_integer(*knocks));
+        return FALSE;
+    }
+    json_object_set_new(jn, "knocks", json_integer(0));
+    json_object_set_new(jn, "next_warning", json_integer(period > 0?
+        (json_int_t)start_msectimer((uint64_t)period * 1000) : 0));
+    return TRUE;
+}
+
+/***************************************************************************
+ *  A knock that leaves the knocking table (a full table:
+ *  note_knocking_node()) leaves its key behind, `evicted`: an enrollment
+ *  then refuses its uuid with another key, and accepts it with that key
+ *  (enroll_node()). Without it a flood of knocks between two knocks of a
+ *  node that waits wiped what the node knocked with, and another key took
+ *  its uuid in the next enrollment (up to 7.31.29). At most
+ *  `max_evicted_knocks`, a ring: the oldest is forgotten first, so a flood
+ *  costs a bounded memory, and closes no enrollment (a batch of nodes
+ *  larger than the knocking table is no attack). In memory only, as the
+ *  knocks: a restart forgets them both.
+ ***************************************************************************/
+PRIVATE void remember_evicted_knock(hgobj gobj, const char *node_id, json_t *knock)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_int_t max_evicted = gobj_read_integer_attr(gobj, "max_evicted_knocks");
+    if(max_evicted <= 0) {
+        return;
+    }
+    json_object_del(priv->evicted, node_id);
+    while((json_int_t)json_array_size(priv->evicted_ring) > max_evicted) {
+        size_t last = json_array_size(priv->evicted_ring) - 1;
+        const char *uuid = json_string_value(json_array_get(priv->evicted_ring, last));
+        json_t *jn = uuid? json_object_get(priv->evicted, uuid) : NULL;
+        if(jn && kw_get_int(gobj, jn, "slot", -1, 0) == (json_int_t)last) {
+            json_object_del(priv->evicted, uuid);
+        }
+        json_array_remove(priv->evicted_ring, last);
+    }
+    if(priv->evicted_next >= max_evicted) {
+        priv->evicted_next = 0;
+    }
+    json_int_t slot;
+    if((json_int_t)json_array_size(priv->evicted_ring) < max_evicted) {
+        slot = (json_int_t)json_array_size(priv->evicted_ring);
+        json_array_append_new(priv->evicted_ring, json_string(node_id));
+    } else {
+        slot = priv->evicted_next;
+        const char *uuid = json_string_value(json_array_get(priv->evicted_ring, (size_t)slot));
+        json_t *jn = uuid? json_object_get(priv->evicted, uuid) : NULL;
+        if(jn && kw_get_int(gobj, jn, "slot", -1, 0) == slot) {
+            json_object_del(priv->evicted, uuid);
+        }
+        json_array_set_new(priv->evicted_ring, (size_t)slot, json_string(node_id));
+    }
+    priv->evicted_next = (slot + 1) % max_evicted;
+    json_object_set_new(priv->evicted, node_id, json_pack("{s:s, s:b, s:s, s:I, s:I, s:I, s:b, s:I, s:I}",
+        "spki_sha256", kw_get_str(gobj, knock, "spki_sha256", "", 0),
+        "other_keys", kw_get_bool(gobj, knock, "other_keys", 0, 0),
+        "hostname", kw_get_str(gobj, knock, "hostname", "", 0),
+        "first_seen", kw_get_int(gobj, knock, "first_seen", 0, 0),
+        "knocks", kw_get_int(gobj, knock, "knocks", 0, 0),
+        "slot", slot,
+        "said", 0,
+        "next_warning", (json_int_t)0,
+        "enrollment_said", kw_get_int(gobj, knock, "enrollment_said", 0, 0)
+    ));
 }
 
 /***************************************************************************
@@ -5491,7 +5768,7 @@ PRIVATE const char *record_node_key(
         }
         if(refusal && enforce) {
             if(!empty_string(spki)) {
-                note_knocking_node(gobj, node_id, hostname, peername, spki, NULL);
+                note_knocking_node(gobj, node_id, hostname, peername, spki, NULL, NULL);
             }
             JSON_DECREF(update)
             return refusal;
