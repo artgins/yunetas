@@ -114,8 +114,21 @@
   `restart-yuneta` and `check-certs-validity.sh` run as `yuneta` with its
   own environment and no terminal (`setsid`, `setpriv --reset-env`). The
   fallback `restart-yuneta` of the hook runs in a transient unit
-  (`systemd-run --no-block --uid=yuneta`), so it is not killed when the unit
-  of certbot ends. Up to 7.31.29 root followed a name of `certs.list` (a
+  (`systemd-run -p Type=exec --uid=yuneta`), so it is not killed when the
+  unit of certbot ends, and the hook says when it does not start (on Red Hat
+  with SELinux, the `.rpm` labels `/yuneta/bin/restart-yuneta` `bin_t`).
+  Inside a systemd unit, `restart-yuneta` refuses to start the agent with
+  `--start` (the branch for a node without the agent's units), because that
+  agent would die with the unit. The files of a certificate change together:
+  when one write fails, the old `.crt`, `.chain` and `.key` stay as they
+  were, and the key moves into place first and the `.crt` last. Every line of
+  the script also goes to the journal, so the 15-minute sync of the agent
+  leaves a trace:
+
+  ```sh
+  journalctl -t copy-certs --since today
+  ```
+ Up to 7.31.29 root followed a name of `certs.list` (a
   file that `yuneta` writes) to any directory on the disk through `..`,
   wrote as root into the tree of `yuneta`, and ran these three files as
   root. Root still runs the web server and `copy-certs.sh` from `/yuneta`:

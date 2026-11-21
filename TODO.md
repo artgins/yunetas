@@ -663,6 +663,15 @@ be weighed again, not as settled.
 
 ## 6. Operations and deployment
 
+- **The cert-sync tick of the agent is synchronous.** `cert_sync_tick` runs
+  `cert_sync_copy_cmd` with `run_process2()`, which waits, so the event loop
+  of the agent stops for the whole run of `copy-certs.sh`: tens of ms per
+  tick on ARM, more if `sudo` or the disk is slow. Run the command
+  asynchronously (a `C_TASK`, or a child-process gobj that sends
+  `EV_STOPPED` with the exit code), take the snapshot after it ends, and keep
+  the results `reloaded` / `no-change` / `copy-script-failed`. Capture its
+  output and log it capped, as a fallback for a script without `logger`; the
+  agent's WARNING can then point to `journalctl -t copy-certs`.
 - **A package without sudo: root runs no file of `/yuneta`.** Today root runs
   `/yuneta/bin/yuneta-webserver` and nginx/openresty at boot
   (`yuneta-webserver.service` has no `User=`), their `-s reload` in the
