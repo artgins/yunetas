@@ -132,9 +132,11 @@
     - The patterns are bytes (`PCRE2_NEVER_UTF`, `PCRE2_NEVER_UCP`), with no
       `\C` and no callouts, and the memory of pcre2 goes through gbmem.
     - Worst cases measured (figures, not a proof): the `rkey` of a peer,
-      2.6 ms for the first append of a new key of 255 bytes, and a load
-      refused at 2.0 s; a local `rkey`, 146 ms per key, and a load refused at
-      2.12 s. Against 7.31.29, alternated, 10 rounds: a load of 3000 keys that
+      2.6 ms for the first append of a new key of 255 bytes, 9 ms (5.7 on
+      average) for the first key that a new list judges, and a load refused
+      at 2.0 s; a local `rkey`, 146 ms per key, and a load refused at
+      2.12 s. `open-list` says in its answer how many keys its `rkey` could
+      not judge. Against 7.31.29, alternated, 10 rounds: a load of 3000 keys that
       took 60.6 s is refused at 2 s, the first append of a costly new key goes
       from 158 ms to 2.5 ms, an append of a known costly key from 11.5 ms to
       3.9 µs, and an append with a cheap `rkey`, or none, does not change.
@@ -150,11 +152,20 @@
   (callbacks, gobj, matchers, the callback of a treedb) show as `<pointer>`,
   also at the end of a path, to a caller with `read`: up to 7.31.29 they
   were shown.
-- **`kw_collapse()` collapses a dict that it meets again on the walk, or 64
-  levels down.** Up to 7.31.29 the walk of a cycle did not end.
-- **On a follower, a callback that closes a feed no longer corrupts the
-  batch.** Up to 7.31.29 the next record read the freed feed, or the next
-  memory list missed its record.
+- **`kw_collapse()` collapses a dict or a list that it meets again on the
+  walk to the item, or 64 levels of containers down, and a list inside a
+  list gets `lists_limit`.** Up to 7.31.29 the walk of a cycle did not end,
+  and a list inside a list came whole, as the original container.
+- **On a follower, a callback that opens or closes a list no longer
+  corrupts the batch.** Up to 7.31.29 the next record read the freed feed
+  (also when another list's callback closed it), the next memory list missed
+  its record, and a list opened by a callback during a batch got only the
+  records after its open: it now gets the whole batch. Each record costs one
+  look at each memory list, and the later wake-ups of one append with
+  several disk feeds read no list.
+- **A list or an iterator opened on a new key of a follower, while its first
+  records are read, logs nothing.** Up to 7.31.29 it logged four ERRORs
+  ("path NOT FOUND").
 - **C_OTA: an image file that cannot be created or written is an ERROR**,
   and the download is dropped. Up to 7.31.29 the download wrote nothing, or
   part of it, and said nothing.
@@ -236,13 +247,19 @@
 
 - **`list-keys` takes exact keys, with no regex: `key`**, one key or a list of
   at most 10000, answered in the order asked, each key once, with the shape
-  and paging of an `rkey` answer. It cannot be combined with `rkey`. A GUI
-  that checks given keys uses it; `rkey` is for the utilities:
+  and paging of an `rkey` answer. It cannot be combined with `rkey`. A key
+  that reads as a number or as true/false is that key (`key=861234567890123`);
+  `key=null` is refused. A GUI that checks given keys uses it; `rkey` is for
+  the utilities:
 
   ```
   list-keys topic_name=tracks key='["dev1","dev7"]'
   ```
 
+- **`tranger2_list_keys_by_rkey(tranger, topic_name, rkey)`**: the keys of a
+  topic that match an `rkey`, judged as a live list judges them (the same
+  refused forms and limits, 2 s for all the keys, 64 KB of code for a local
+  caller). NULL with the cause in the last message when it is refused.
 - **Microsecond timers: `start_usectimer()`, `test_usectimer()` and
   `time_in_microseconds_monotonic()`** (`helpers.h`), on `CLOCK_MONOTONIC`
   like the `msectimer` pair.
@@ -257,7 +274,10 @@
 
 - **`tr2keys` takes `--key` and `--rkey`**, as `tr2list` does, so it no
   longer has to print every key of a topic. `--key` shows one key if the
-  topic has it, and `--rkey` the keys that match a PCRE2 regular expression.
+  topic has it (and wins over `--rkey`), and `--rkey` the keys that match a
+  PCRE2 regular expression, judged as `tr2list` judges it, with the new
+  `tranger2_list_keys_by_rkey()`; a refused `--rkey` prints the cause and
+  exits 1.
   With `--recursive` it prints only the topics that have a key that matches.
   Up to 7.31.29 both options were in the code but switched off, and
   `tr2keys` always printed every key:
@@ -307,8 +327,8 @@
 ### Fixed
 
 - **A `tr2list --rkey` that is refused lists nothing:** it prints the cause
-  and exits 1, also with `--follow`. Up to 7.31.29 `--follow` ignored the
-  refusal and went on following nothing.
+  and exits 1, also with `--follow` and `--recursive`. Up to 7.31.29 it did
+  not look at the answer, and `--follow` went on following nothing.
 - **`perf_timeranger2` says when a case gave up** (`complete: false`,
   `keys_not_judged`, `refused`), and `make_report.py` never draws such a run
   as faster.

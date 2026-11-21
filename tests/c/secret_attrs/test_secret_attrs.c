@@ -1014,9 +1014,9 @@ PRIVATE void check_stack_command_line_over_64k(void)
 /*
  *  The masked line full: after the first piece that does not fit, nothing
  *  more. A write-attr whose `attribute=` of a secret does not fit, and
- *  whose `value=` would: up to 7.31.29 (R97) the line showed " <...>
- *  value=<secret>" -- mask_secrets_inline() masks that value only next to
- *  its attribute.
+ *  whose `value=` would: a line that let a later piece in would show
+ *  " <...> value=<secret>" -- mask_secrets_inline() masks that value only
+ *  next to its attribute.
  */
 PRIVATE void check_masked_line_full(void)
 {
