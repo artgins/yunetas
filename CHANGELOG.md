@@ -12,8 +12,11 @@
   root's. Up to 7.31.29, agent22 wrote the script that root ran into
   `/yuneta/agent/install-package/`, a directory of `yuneta`, and root
   downloaded and wrote its result there. On a site that grants `sudo` only
-  for this command, `yuneta` became root. A site with no `sudo` can now
-  grant exactly this program (the line is in *Files outside `/yuneta`*).
+  for this command, `yuneta` became root by writing the script. A site with
+  no `sudo` can now grant exactly this program (the line is in *Files
+  outside `/yuneta`*). That grant is still equivalent to root: `yuneta`
+  chooses the URL and the sha256, so it can give a package of its own named
+  `yuneta-agent`, and the scripts of that package run as root.
   A node whose package has no such program is refused with a clear answer,
   and nothing is done. The 7.31.29 agent22 installs the new package with its
   own script, so the transition needs no manual step. (The command came in
