@@ -144,7 +144,8 @@
   ```sh
   journalctl -t copy-certs --since today
   ```
- Up to 7.31.29 root followed a name of `certs.list` (a
+
+  Up to 7.31.29 root followed a name of `certs.list` (a
   file that `yuneta` writes) to any directory on the disk through `..`,
   wrote as root into the tree of `yuneta`, and ran these three files as
   root. Root still runs the web server and `copy-certs.sh` from `/yuneta`:
