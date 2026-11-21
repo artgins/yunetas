@@ -125,6 +125,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -304,6 +305,36 @@ PRIVATE BOOL tool_prints(const char *bin, const char *path, const char *options,
         return FALSE;
     }
     return printed;
+}
+
+/*
+ *  The exit status of the tool on `path` with `options` (-1 if it did not
+ *  run), and in *printed whether it printed `text`, stdout or stderr
+ */
+PRIVATE int tool_status(const char *bin, const char *path, const char *options,
+    const char *text, BOOL *printed)
+{
+    *printed = FALSE;
+    if(access(bin, X_OK) != 0) {
+        printf("%sERROR%s --> tool not found at %s: %s (built by `yunetas build`)\n",
+            On_Red BWhite, Color_Off, bin, strerror(errno));
+        return -1;
+    }
+    char cmd[3*PATH_MAX];
+    snprintf(cmd, sizeof(cmd), "'%s' '%s' %s -l0 2>&1", bin, path, options);
+    FILE *f = popen(cmd, "r");
+    if(!f) {
+        printf("%sERROR%s --> popen(%s): %s\n", On_Red BWhite, Color_Off, cmd, strerror(errno));
+        return -1;
+    }
+    char line[1024];
+    while(fgets(line, sizeof(line), f)) {
+        if(strstr(line, text)) {
+            *printed = TRUE;
+        }
+    }
+    int status = pclose(f);
+    return (status >= 0 && WIFEXITED(status))? WEXITSTATUS(status) : -1;
 }
 
 PRIVATE int expect(const char *what, const char *got, const char *expected)
@@ -1658,6 +1689,35 @@ PRIVATE int do_test(void)
             }
         }
         rmrdir(path_database2);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A refused --rkey: tr2list says why and exits 1, a topic alone and
+     *  with -r over the database (up to the fix, -r exited 0)
+     */
+    set_expected_results("tr2list: a refused --rkey exits 1", NULL, NULL, NULL, 1);
+    {
+        char path_topic[PATH_MAX];
+        build_path(path_topic, sizeof(path_topic), path_database, TOPIC_T_MS, NULL);
+        const struct {
+            const char *path;
+            const char *options;
+        } refused[] = {
+            {path_topic,    "--rkey='a(*COMMIT)b'"},
+            {path_database, "-r --rkey='a(*COMMIT)b'"},
+        };
+        for(size_t i = 0; i < sizeof(refused)/sizeof(refused[0]); i++) {
+            BOOL printed = FALSE;
+            int status = tool_status(TR2LIST_BIN, refused[i].path, refused[i].options,
+                "(*COMMIT) is refused in an rkey", &printed);
+            if(status != 1 || !printed) {
+                printf("%sERROR%s --> tr2list %s %s: exit %d (1), the cause %s\n",
+                    On_Red BWhite, Color_Off, refused[i].path, refused[i].options, status,
+                    printed? "printed" : "NOT printed");
+                result += -1;
+            }
+        }
     }
     result += test_json(NULL);
 

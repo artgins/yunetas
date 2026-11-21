@@ -305,6 +305,7 @@ yev_loop_h yev_loop;
 int time2exit = 10;
 int total_counter = 0;
 int partial_counter = 0;
+int lists_refused = 0;  // topics whose list was refused: the exit code is 1
 json_t *match_cond = 0;
 
 int verbose = 0;
@@ -620,6 +621,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         char rt_id[64];
         snprintf(rt_id, sizeof(rt_id), "tr2list^%d", (int)getpid());
 
+        gobj_log_set_last_message("%s", "");   // the cause printed is this list's
         json_t *rt = tranger2_open_list(
             tranger,
             topic,
@@ -630,8 +632,10 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
             "tr2list"       // creator
         );
         if(!rt) {
+            const char *cause = gobj_log_last_message();
             fprintf(stderr, "Cannot follow %s/%s: %s\n",
-                database, topic, gobj_log_last_message());
+                database, topic, empty_string(cause)? "see the log" : cause);
+            lists_refused++;
             ret = -1;
         } else {
             fprintf(stderr,
@@ -657,6 +661,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         tranger2_close_iterator(tranger, rt);
 
     } else {
+        gobj_log_set_last_message("%s", "");   // the cause printed is this list's
         json_t *rt = tranger2_open_list(
             tranger,
             topic,
@@ -667,8 +672,10 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
             NULL    // creator
         );
         if(!rt) {
+            const char *cause = gobj_log_last_message();
             fprintf(stderr, "Cannot list %s/%s: %s\n",
-                database, topic, gobj_log_last_message());
+                database, topic, empty_string(cause)? "see the log" : cause);
+            lists_refused++;
             ret = -1;
         } else {
             tranger2_close_list(tranger, rt);
@@ -1260,6 +1267,9 @@ int main(int argc, char *argv[])
     }
 
     json_decref(match_cond);
+    if(lists_refused > 0) {
+        ret = -1;   // with -r too, where each topic is listed in a callback
+    }
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);

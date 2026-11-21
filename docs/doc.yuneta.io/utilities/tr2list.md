@@ -45,7 +45,9 @@ the keys chosen, which takes the time it takes. A pattern that does not
 compile, that has a form the judgement refuses (`(*COMMIT)`, `(*SKIP)`, `\G`,
 `(*NOTEMPTY_ATSTART)`, a newline other than LF, `(*UCP)`), or whose judgements
 pass 2 s, lists nothing. tr2list then prints the cause and exits 1. With
-`--follow` it prints `Cannot follow` in place of `Cannot list`:
+`--recursive`, it prints the cause for each topic, lists the other topics, and
+exits 1 at the end. With `--follow` it prints `Cannot follow` in place of
+`Cannot list`:
 
 ```bash
 tr2list /yuneta/store/.../topic --rkey='a(*COMMIT)b'
