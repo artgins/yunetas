@@ -613,11 +613,11 @@ Lite release: only the control center (`controlcenter`).
 - **`list-agents` filters by `uuid`, `version` and `hostname`**, each a
   regular expression (POSIX extended) matched against that field of the
   agent's card; an agent is listed when it matches every filter given
-  (`list-agents hostname=^yunovatios- version=^7.31.`). A filter that does not
+  (`list-agents hostname=^web- version=^7.31.`). A filter that does not
   compile is refused (-1), naming the parameter and the cause. Without
   filters the command answers as before.
 - **`list-nodes` takes the same three filters**, besides `state`
-  (`list-nodes state=accepted hostname=^orangepi-`). Each node now carries
+  (`list-nodes state=accepted hostname=^box-`). Each node now carries
   `version`, the version of its agent in session (empty while the node is
   away), and ycli shows it as a column; so `version=` lists only nodes that
   are connected.
@@ -887,8 +887,8 @@ differential test shows the same allocations; the last study is still
 - **controlcenter: a node whose key waits for `accept-node` is a WARNING**,
   not an INFO: *"A node knocking"* (with `enforce_node_keys`) and *"A node
   to accept"* (without it). Both ask an operator to act, and as an INFO
-  they were lost in the scroll while the node stayed out (a new node,
-  wattyzer2, looked like a uuid problem). Still once per node: an agent
+  they were lost in the scroll while the node stayed out (a new node
+  looked like a uuid problem). Still once per node: an agent
   that knocks again with the same key only moves `last_seen`.
 
 ### Packaging
@@ -939,8 +939,8 @@ performance study (same reason as 7.31.6).
   In 7.31.6 the outbounds of the IdPs shared the BFF's `crypto` dict. A dict
   attr is held by reference, and `C_TCP` writes the `ssl_server_name` of its
   url into the `crypto` it is given. So the second IdP was verified against
-  the name of the first: on app.wattyzer.com, auth.artgins.es was checked as
-  auth.artgins.com ("hostname mismatch"). A refresh of a session of the
+  the name of the first: on one BFF, the second IdP was checked against the
+  host name of the first ("hostname mismatch"). A refresh of a session of the
   second IdP answered `502`, and a login could not fail over to it. The first
   IdP was not affected. Each outbound now gets its own copy. New test
   `test33_idp_tls_names` (it fails on 7.31.6). The cause in `C_TCP` (it writes
