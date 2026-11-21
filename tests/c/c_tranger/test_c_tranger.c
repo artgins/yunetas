@@ -92,6 +92,7 @@
 #define TOPIC_NAME7 "topic_cmd7"    // a key flagged unlisted: add-record of a purged period
 #define TOPIC_NAME8 "topic_cmd8"    // a key a costly rkey regex cannot judge in its limits
 #define TOPIC_NAME9 "topic_cmd9"    // keys a costly (*NO_JIT) rkey takes ms to judge
+#define TOPIC_NAME10 "topic_cmd10"  // keys of 255 bytes, an rkey under the limits at every position
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -3702,6 +3703,14 @@ PRIVATE int do_test(void)
         json_array_extend(expected, roles);
         JSON_DECREF(roles)
         expect_refusal(expected, "rkey regex too costly, refused");    // list-keys (*NO_JIT)
+        expect_refusal(expected, "rkey regex too costly, refused");    // list-keys under the limits
+        json_array_append_new(expected, json_pack("{s:s, s:s}",       // the load of lstUnder, once
+            "msg", "rkey regex too costly for a key, the key is not given to the list",
+            "__priority__", "WARNING"));
+        roles = expect_role_warnings(2);   // open-list lstUnder, close-list
+        json_array_extend(expected, roles);
+        JSON_DECREF(roles)
+        expect_refusal(expected, "rkey regex too costly, refused");    // list-keys recursion loop
         set_expected_results("a costly rkey regex is refused", expected, NULL, NULL, 1);
 
         json_t *topic8 = tranger2_create_topic(
@@ -3813,6 +3822,91 @@ PRIVATE int do_test(void)
         took_ms = time_in_milliseconds_monotonic() - t0;
         check_bool("list-keys with a (*NO_JIT) rkey over 300 keys in a moment", took_ms < 1000, TRUE);
         check_int("and refused", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+
+        /*  An UNANCHORED rkey that stays under the frames of every position
+         *  and costs at all of them: (*NO_JIT)(?:[\s\S]?){13}(?!) took 51 ms
+         *  a key of 255 bytes at 10000 frames (R100), with no limit reached
+         *  and no word. Now a key costs RKEY_KEY_BUDGET_MS and one position
+         *  at most (rkey_judge(), the clock before each position): list-keys,
+         *  the load of a live list over 50 such keys, and the first append
+         *  of a new key, timed.  */
+        const char *under_limits = "(*NO_JIT)(?:[\\s\\S]?){13}(?!)";
+        json_t *topic10 = tranger2_create_topic(
+            tranger, TOPIC_NAME10, "id", "tm",
+            0,
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+            0
+        );
+        check_bool("topic of the keys of 255 bytes", topic10 != NULL, TRUE);
+        char key255[256];
+        for(int k = 0; k < 50; k++) {
+            memset(key255, 'a', 252);
+            snprintf(key255 + 252, sizeof(key255) - 252, "%03d", k);
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME10, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", key255, "tm", (json_int_t)BASE_T, "content", "x"));
+        }
+        t0 = time_in_milliseconds_monotonic();
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME10, "rkey", under_limits)), yuno);
+        took_ms = time_in_milliseconds_monotonic() - t0;
+        printf("     list-keys of 50 keys of 255 bytes, rkey under the limits: %d ms\n", (int)took_ms);
+        check_bool("list-keys with an rkey under the limits at every position: in a moment",
+            took_ms < 500, TRUE);
+        check_int("and refused (a key not judged in its time)", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+
+        t0 = time_in_milliseconds_monotonic();
+        r = gobj_command(yuno, "open-list",
+            as_peer(json_pack("{s:s, s:s, s:s}",
+                "list_id", "lstUnder", "topic_name", TOPIC_NAME10, "rkey", under_limits
+            )), yuno);
+        took_ms = time_in_milliseconds_monotonic() - t0;
+        printf("     load of a live list over 50 keys of 255 bytes: %d ms\n", (int)took_ms);
+        check_int("live open-list with an rkey under the limits", kw_get_int(0, r, "result", -999, 0), 0);
+        check_bool("its load in a moment", took_ms < 1000, TRUE);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "print-tranger",
+            as_peer(json_pack("{s:s, s:b, s:i, s:i}",
+                "path", "topics`" TOPIC_NAME10 "`lists", "expanded", 1, "lists_limit", 0, "dicts_limit", 0
+            )), yuno);
+        char *dump = json_dumps(json_object_get(r, "data"), JSON_COMPACT);
+        check_bool("print-tranger shows a live list", dump && strstr(dump, "lstUnder") != NULL, TRUE);
+        check_bool("print-tranger shows no address of the process",
+            dump && strstr(dump, "\"rkey_matcher\":\"<pointer>\"") != NULL &&
+            strstr(dump, "\"load_record_callback\":\"<pointer>\"") != NULL, TRUE);
+        if(dump) {
+            gbmem_free(dump);
+        }
+        JSON_DECREF(r)
+
+        memset(key255, 'b', 252);
+        snprintf(key255 + 252, sizeof(key255) - 252, "new");
+        t0 = time_in_milliseconds_monotonic();
+        {
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME10, BASE_T + 1, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", key255, "tm", (json_int_t)BASE_T, "content", "x"));
+        }
+        took_ms = time_in_milliseconds_monotonic() - t0;
+        printf("     first append of a new key of 255 bytes, the list open: %d ms\n", (int)took_ms);
+        check_bool("the first append of a new key in a moment", took_ms < 20, TRUE);
+        r = gobj_command(yuno, "close-list",
+            as_peer(json_pack("{s:s}", "list_id", "lstUnder")), yuno);
+        JSON_DECREF(r)
+
+        /*  A recursion loop pcre2 refuses at the match is a peer's pattern:
+         *  "too costly", a WARNING. Up to R100 an ERROR.  */
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}",
+                "topic_name", TOPIC_NAME9, "rkey", "(*NO_JIT)((?2)+)((?1))"
+            )), yuno);
+        check_int("list-keys with a recursion loop: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("as too costly",
+            strstr(kw_get_str(0, r, "comment", "", 0), "too costly") != NULL, TRUE);
         JSON_DECREF(r)
 
         global_result += test_json(NULL);

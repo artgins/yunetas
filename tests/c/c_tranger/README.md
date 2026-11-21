@@ -15,6 +15,9 @@ What it checks:
   iterator. A peer's `rkey` that is too costly to match (`^(a+)+$` against a
   key of 30 `a` and a `!`) is refused with a WARNING. A live list with that
   `rkey` loads 51 costly keys in less than 1 s, and `get-list-data` names them.
+  An unanchored `rkey` under the limits at every position, over keys of 255
+  bytes, is timed in `list-keys`, in the load of a live list and in the first
+  append of a new key. `print-tranger` shows no address of the process.
 - Handles: a handle of a topic that was closed is dropped, not
   dereferenced. A key deleted under an iterator. A keys watch that is not a
   client's feed. A `no_rt` list freed with its topic. A handle of one session

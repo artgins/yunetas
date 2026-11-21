@@ -5657,6 +5657,53 @@ PRIVATE json_t *cmd_remove_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  *  the contract C_YUI_JSON's EV_EXPAND_PATH relies on. Mirrors C_TRANGER's
  *  print-tranger; here priv->tranger is the tranger the treedb lives on.
  ***************************************************************************/
+/***************************************************************************
+ *  A copy of `jn` (not owned) with the integer value of every key that
+ *  holds an address in the tranger json (a callback, a gobj, a matcher, a
+ *  watcher, a loop) as "<pointer>". A field of a record with such a name
+ *  and another type is left as it is. The same as C_TRANGER's
+ *  print-tranger.
+ ***************************************************************************/
+PRIVATE json_t *mask_pointers(json_t *jn)
+{
+    static const char *pointer_keys[] = {
+        "gobj", "src_gobj", "ptr", "yev_loop", "user_data",
+        "load_record_callback", "key_deleted_callback", "key_deleted_user_data",
+        "rkey_matcher", "fs_event_master", "fs_event_client", "trq",
+        0
+    };
+    if(json_is_object(jn)) {
+        json_t *copy = json_object();
+        const char *key;
+        json_t *value;
+        json_object_foreach(jn, key, value) {
+            BOOL pointer = FALSE;
+            if(json_is_integer(value)) {
+                for(int i = 0; pointer_keys[i]; i++) {
+                    if(strcmp(key, pointer_keys[i]) == 0) {
+                        pointer = TRUE;
+                        break;
+                    }
+                }
+            }
+            json_object_set_new(copy, key,
+                pointer? json_string("<pointer>") : mask_pointers(value)
+            );
+        }
+        return copy;
+    }
+    if(json_is_array(jn)) {
+        json_t *copy = json_array();
+        size_t idx;
+        json_t *value;
+        json_array_foreach(jn, idx, value) {
+            json_array_append_new(copy, mask_pointers(value));
+        }
+        return copy;
+    }
+    return json_incref(jn);
+}
+
 PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     json_t *refused = refuse_without_authz(gobj, "read", kw, src);
@@ -5718,11 +5765,19 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
+    /*
+     *  No address of the process goes out (the live lists of the treedb
+     *  hold their callbacks as integers). Up to 7.31.29 a caller with
+     *  `read` got them.
+     */
+    json_t *shown = mask_pointers(value);
+    JSON_DECREF(value)
+
     return msg_iev_build_response(gobj,
         0,
         0,
         0,
-        value,
+        shown,
         kw  // owned
     );
 }

@@ -39,16 +39,20 @@ extern void jsonp_free(void *ptr); // json low level
  *              Constants
  ***************************************************************/
 /*
- *  The cost of a peer's rkey regex (c_tranger.c has the same, measured
- *  there), and the verdicts a list keeps (rkey_verdicts: about 64 bytes and
- *  the key, for each key)
+ *  The cost of a peer's rkey regex: see rkey_judge(). c_tranger.c has the
+ *  same values. The verdicts a list keeps (rkey_verdicts) cost about 100 to
+ *  140 bytes and the key, each.
  */
 #define RKEY_PATTERN_MAX        4096    /* bytes of the pattern */
-#define RKEY_COMPILED_MAX       65536   /* bytes of the compiled pattern */
-#define RKEY_MATCH_LIMIT        10000   /* steps of one match */
-#define RKEY_DEPTH_LIMIT        10000   /* backtracking depth of one match */
+#define RKEY_COMPILED_MAX       1024    /* bytes of the compiled pattern */
+#define RKEY_FIRST_LIMIT        8       /* frames a position, first search */
+#define RKEY_MATCH_LIMIT        1000    /* frames a position, position by position */
+#define RKEY_DEPTH_LIMIT        1000    /* backtracking depth of one match */
 #define RKEY_HEAP_LIMIT_KB      1024    /* heap of one match */
-#define RKEY_MEMO_MAX           65536   /* verdicts a list keeps; a key not judged is kept past it */
+#define RKEY_KEY_BUDGET_MS      2       /* the time of the judgement of one key */
+#define RKEY_LOAD_BUDGET_MS     2000    /* the time of the judgements of the load of a list */
+#define RKEY_MEMO_MAX           16384   /* verdicts a list keeps; a costly one is kept past it */
+#define RKEY_OUT_OF_TIME        (-10000) /* rkey_judge(): its time spent, the key not judged */
 
 PRIVATE const char *topic_fields[] = {
     "topic_name",
@@ -113,6 +117,8 @@ typedef struct {
     pcre2_code              *re;
     pcre2_match_data        *md;
     pcre2_match_context     *mc;
+    BOOL                    anchored;   /* the pattern matches at the start only */
+    json_t                  *verdicts;  /* rkey_verdicts of the list, borrowed */
 } rkey_matcher_t;
 
 #pragma pack(1)
@@ -542,6 +548,14 @@ PRIVATE void rkey_matcher_free(rkey_matcher_t *matcher);
 PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_cond);
 PRIVATE void rkey_disarm(json_t *list);
 PRIVATE BOOL list_wants_key(json_t *list, const char *key);
+PRIVATE BOOL rkey_too_costly(int ret);
+PRIVATE int rkey_judge(
+    rkey_matcher_t *matcher,
+    const char *key,
+    uint64_t key_deadline,
+    uint64_t total_deadline,
+    BOOL *costly
+);
 PRIVATE void rkey_handover(json_t *loader, json_t *list);
 
 PRIVATE json_t *get_cache_files(json_t *topic, const char *key);
@@ -12644,6 +12658,13 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
         }
     }
 
+    /*
+     *  The key is the same for the whole batch: the feed that fired is
+     *  asked once. (The mem lists are asked in the loop: a callback can
+     *  close one, and a verdict kept makes the question a lookup.)
+     */
+    BOOL fired_wants = (fired_disk && list_wants_key(fired_disk, key))? TRUE : FALSE;
+
     md_block_t blk;
     md_block_init(&blk, FALSE);
     for(json_int_t rowid=first_rowid; rowid<=to_rowid; rowid++) {
@@ -12704,7 +12725,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
          *      FEED the feed that fired
          *----------------------------*/
         int idx;
-        if(fired_disk && rowid >= from_disk_rowid && list_wants_key(fired_disk, key)) {
+        if(fired_wants && rowid >= from_disk_rowid) {
             tranger2_load_record_callback_t load_record_callback =
                 (tranger2_load_record_callback_t)(size_t)json_integer_value(
                     json_object_get(fired_disk, "load_record_callback")
@@ -19668,11 +19689,21 @@ PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey)
     }
     pcre2_set_max_pattern_length(compile_context, RKEY_PATTERN_MAX);
     pcre2_set_max_pattern_compiled_length(compile_context, RKEY_COMPILED_MAX);
+    pcre2_set_compile_extra_options(compile_context, PCRE2_EXTRA_NEVER_CALLOUT);
 
+    /*
+     *  As bytes (PCRE2_NEVER_UTF: a pattern cannot turn UTF on, so a key
+     *  that is not UTF-8 is never an error; a UTF-8 text in the pattern
+     *  still matches the same bytes in the key, and `.` is a byte), with
+     *  no \C and no callout: the options PCRE2 asks for a pattern from
+     *  outside
+     */
     int errornumber = 0;
     PCRE2_SIZE erroroffset = 0;
     matcher->re = pcre2_compile(
-        (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED, 0, &errornumber, &erroroffset, compile_context
+        (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED,
+        PCRE2_NEVER_UTF|PCRE2_NEVER_BACKSLASH_C,
+        &errornumber, &erroroffset, compile_context
     );
     pcre2_compile_context_free(compile_context);
     if(!matcher->re) {
@@ -19701,6 +19732,9 @@ PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey)
         return NULL;
     }
     pcre2_jit_compile(matcher->re, PCRE2_JIT_COMPLETE);
+    uint32_t all_options = 0;
+    pcre2_pattern_info(matcher->re, PCRE2_INFO_ALLOPTIONS, &all_options);
+    matcher->anchored = (all_options & PCRE2_ANCHORED)? TRUE : FALSE;
 
     matcher->md = pcre2_match_data_create_from_pattern(matcher->re, matcher->general);
     matcher->mc = pcre2_match_context_create(matcher->general);
@@ -19715,12 +19749,12 @@ PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey)
         return NULL;
     }
     /*
-     *  The pattern is a peer's, matched for each key of the topic at the
-     *  load and at each append of a key not judged yet: its cost is
-     *  bounded, as c_tranger's list-keys bounds it. Up to 7.31.29 pcre2's
-     *  defaults applied (ten million steps a match), on the writer's path.
+     *  The pattern is a peer's, judged for each key of the topic at the
+     *  load and at the first append of a key: its cost is bounded
+     *  (rkey_judge()). Up to 7.31.29 pcre2's defaults applied (ten million
+     *  frames a position), on the writer's path.
      */
-    pcre2_set_match_limit(matcher->mc, RKEY_MATCH_LIMIT);
+    pcre2_set_match_limit(matcher->mc, RKEY_FIRST_LIMIT);
     pcre2_set_depth_limit(matcher->mc, RKEY_DEPTH_LIMIT);
     pcre2_set_heap_limit(matcher->mc, RKEY_HEAP_LIMIT_KB);
     return matcher;
@@ -19745,8 +19779,9 @@ PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_co
     if(!matcher) {
         return -1;      // Error already logged
     }
+    matcher->verdicts = json_object();
     json_object_set_new(list, "rkey_matcher", json_integer((json_int_t)(uintptr_t)matcher));
-    json_object_set_new(list, "rkey_verdicts", json_object());
+    json_object_set_new(list, "rkey_verdicts", matcher->verdicts);
     return 0;
 }
 
@@ -19777,8 +19812,7 @@ PRIVATE void rkey_unjudged(json_t *list, const char *key, int ret)
     }
     json_array_append_new(unjudged, json_string(key));
 
-    BOOL limit = (ret == PCRE2_ERROR_MATCHLIMIT || ret == PCRE2_ERROR_DEPTHLIMIT ||
-        ret == PCRE2_ERROR_HEAPLIMIT || ret == PCRE2_ERROR_JIT_STACKLIMIT)? TRUE : FALSE;
+    BOOL limit = rkey_too_costly(ret);
     const char *said = limit? "rkey_limit_said" : "rkey_error_said";
     if(json_object_get(list, said)) {
         return;
@@ -19786,7 +19820,11 @@ PRIVATE void rkey_unjudged(json_t *list, const char *key, int ret)
     json_object_set_new(list, said, json_true());
 
     PCRE2_UCHAR err[256];
-    pcre2_get_error_message(ret, err, sizeof(err));
+    if(ret == RKEY_OUT_OF_TIME) {
+        snprintf((char *)err, sizeof(err), "the time of one key (RKEY_KEY_BUDGET_MS)");
+    } else {
+        pcre2_get_error_message(ret, err, sizeof(err));
+    }
     json_t *match_cond = json_object_get(list, "match_cond");
     if(limit) {
         gobj_log_warning(0, 0,
@@ -19818,6 +19856,93 @@ PRIVATE void rkey_unjudged(json_t *list, const char *key, int ret)
 }
 
 /***************************************************************************
+ *  A result of rkey_judge() that says the pattern costs too much (for the
+ *  key): its limits, the recursion loop pcre2 refuses ((?1) inside (?2)
+ *  inside (?1): a peer writes it), or its time. A WARNING, never an ERROR:
+ *  the pattern is a peer's.
+ ***************************************************************************/
+PRIVATE BOOL rkey_too_costly(int ret)
+{
+    return (ret == PCRE2_ERROR_MATCHLIMIT || ret == PCRE2_ERROR_DEPTHLIMIT ||
+        ret == PCRE2_ERROR_HEAPLIMIT || ret == PCRE2_ERROR_JIT_STACKLIMIT ||
+        ret == PCRE2_ERROR_RECURSELOOP || ret == RKEY_OUT_OF_TIME)? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  Judge `key` with the rkey of a list: 1 it matches, PCRE2_ERROR_NOMATCH
+ *  it does not, another < 0 not judged (a pcre2 error, a limit, or
+ *  RKEY_OUT_OF_TIME).
+ *
+ *  pcre2's match limit counts FRAMES (backtracking points), not the work
+ *  inside each, and it starts from zero at EACH start position. So a
+ *  pattern can stay under any limit at every position and still cost:
+ *  (*NO_JIT)(?:[\s\S]?){13}(?!) took 6.5 ms on a key of 36 bytes and 51 ms
+ *  on one of 255 at 10000 frames, and a heavier code inside each frame
+ *  ((?:[\s\S]?){12}(?:~? x100){75}(?!)|$, 16 KB compiled) 2.8 s and 24 s.
+ *  Inside a frame the work is bounded by the compiled code, so:
+ *    - the compiled code is RKEY_COMPILED_MAX at most, 1 KB: an alternation
+ *      of 10 uuids compiles to 916 bytes, ^[IJ]$ to 194, a uuid's shape
+ *      to 359;
+ *    - the key is judged first with RKEY_FIRST_LIMIT frames a position,
+ *      8 (^[IJ]$, sensor, (sensor|device)-[0-9]+, a uuid's shape need 1 to
+ *      4 on keys of 255 bytes);
+ *    - only when that limit is hit it is judged again position by position
+ *      (PCRE2_ANCHORED at each start), with RKEY_MATCH_LIMIT frames a
+ *      position, 1000 ((\w|-)+$ needs 529 on 255 bytes, .*afa6$ 257,
+ *      .*a.*b.*c.*d 25), asking the clock BEFORE EACH POSITION:
+ *      `key_deadline` (RKEY_KEY_BUDGET_MS) and `total_deadline` (0 none).
+ *      `*costly`: it took that road.
+ *  The worst measured, searching the patterns of that shape under 1 KB
+ *  compiled (with and without JIT) on keys of 36 and 255 bytes: a first
+ *  search 2.4 ms ((*NO_JIT)(?:[\s\S]?){9}(?:~? x5){40}(?!)|$), a whole
+ *  judgement 2.5 ms. So a key costs its first search and, when it goes on,
+ *  its budget and one position: the first append of a new key, once for
+ *  each list, and each key of a load, whose own budget
+ *  (RKEY_LOAD_BUDGET_MS) is asked before each key.
+ ***************************************************************************/
+PRIVATE int rkey_judge(
+    rkey_matcher_t *matcher,
+    const char *key,
+    uint64_t key_deadline,      // msectimer
+    uint64_t total_deadline,    // msectimer, 0 none
+    BOOL *costly
+)
+{
+    size_t len = strlen(key);
+    pcre2_set_match_limit(matcher->mc, RKEY_FIRST_LIMIT);
+    int ret = pcre2_match(
+        matcher->re, (PCRE2_SPTR)key, len, 0, 0, matcher->md, matcher->mc
+    );
+    if(ret >= 0) {
+        return 1;
+    }
+    if(ret != PCRE2_ERROR_MATCHLIMIT) {
+        return ret;     // no match, or not judged
+    }
+
+    *costly = TRUE;
+    pcre2_set_match_limit(matcher->mc, RKEY_MATCH_LIMIT);
+    for(size_t pos = 0; pos <= len; pos++) {
+        if(test_msectimer(key_deadline) || (total_deadline && test_msectimer(total_deadline))) {
+            ret = RKEY_OUT_OF_TIME;
+            break;
+        }
+        ret = pcre2_match(
+            matcher->re, (PCRE2_SPTR)key, len, pos, PCRE2_ANCHORED, matcher->md, matcher->mc
+        );
+        if(ret >= 0) {
+            ret = 1;
+            break;
+        }
+        if(ret != PCRE2_ERROR_NOMATCH || matcher->anchored) {
+            break;
+        }
+    }
+    pcre2_set_match_limit(matcher->mc, RKEY_FIRST_LIMIT);
+    return ret;
+}
+
+/***************************************************************************
  *  Does this list want the records of `key`?
  *
  *  A keyed list: only its key. A keyless list: every key, unless it armed an
@@ -19831,7 +19956,8 @@ PRIVATE void rkey_unjudged(json_t *list, const char *key, int ret)
  *  for every append (the follower, several times per record). Up to 7.31.29
  *  each append matched again, and a key the rkey could not judge paid its
  *  limit each time. RKEY_MEMO_MAX bounds the verdicts kept, but not those
- *  of the keys not judged, which are the costly ones.
+ *  of the costly keys (not judged, judged position by position, or that
+ *  took a millisecond): past it only a cheap key is judged again.
  ***************************************************************************/
 PRIVATE BOOL list_wants_key(json_t *list, const char *key)
 {
@@ -19850,21 +19976,28 @@ PRIVATE BOOL list_wants_key(json_t *list, const char *key)
         key = "";
     }
 
-    json_t *verdicts = json_object_get(list, "rkey_verdicts");
-    json_t *verdict = json_object_get(verdicts, key);
+    json_t *verdict = json_object_get(matcher->verdicts, key);
     if(verdict) {
         return json_is_true(verdict);
     }
 
-    int ret = pcre2_match(
-        matcher->re, (PCRE2_SPTR)key, PCRE2_ZERO_TERMINATED, 0, 0, matcher->md, matcher->mc
-    );
-    BOOL wants = (ret >= 0)? TRUE : FALSE;
+    /*
+     *  Costly: it went position by position, or it took a millisecond (the
+     *  first search has no clock). Its verdict is kept past RKEY_MEMO_MAX:
+     *  it would be paid again at every append.
+     */
+    BOOL costly = FALSE;
+    uint64_t slow = start_msectimer(1);
+    int ret = rkey_judge(matcher, key, start_msectimer(RKEY_KEY_BUDGET_MS), 0, &costly);
+    if(test_msectimer(slow)) {
+        costly = TRUE;
+    }
+    BOOL wants = (ret > 0)? TRUE : FALSE;
     if(ret < 0 && ret != PCRE2_ERROR_NOMATCH) {
         rkey_unjudged(list, key, ret);
-        json_object_set_new(verdicts, key, json_false());   // judged once: kept past the max
-    } else if(json_object_size(verdicts) < RKEY_MEMO_MAX) {
-        json_object_set_new(verdicts, key, json_boolean(wants));
+        json_object_set_new(matcher->verdicts, key, json_false());  // kept past the max
+    } else if(costly || json_object_size(matcher->verdicts) < RKEY_MEMO_MAX) {
+        json_object_set_new(matcher->verdicts, key, json_boolean(wants));
     }
     return wants;
 }
@@ -19883,8 +20016,12 @@ PRIVATE void rkey_handover(json_t *loader, json_t *list)
     }
     if(list) {
         json_t *verdicts = json_object_get(loader, "rkey_verdicts");
-        if(verdicts && json_object_get(list, "rkey_matcher")) {
+        rkey_matcher_t *matcher = (rkey_matcher_t *)(uintptr_t)json_integer_value(
+            json_object_get(list, "rkey_matcher")
+        );
+        if(verdicts && matcher) {
             json_object_set(list, "rkey_verdicts", verdicts);
+            matcher->verdicts = verdicts;   // the list holds it now
         }
         const char *keys[] = {"rkey_unjudged_keys", "rkey_limit_said", "rkey_error_said", 0};
         for(int i = 0; keys[i]; i++) {
@@ -20810,6 +20947,14 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
          */
         json_t *failed_keys = json_array();
         json_t *jn_keys = tranger2_list_keys(tranger, topic_name);
+        /*
+         *  The judgements of the load have RKEY_LOAD_BUDGET_MS, asked
+         *  before each key: spent, the list is refused, as list-keys is. Up
+         *  to R100 the load had no time, and a pattern under the limits at
+         *  every position cost tens of ms a key.
+         */
+        BOOL rkey_armed = json_object_get(loader, "rkey_matcher")? TRUE : FALSE;
+        uint64_t load_budget = rkey_armed? start_msectimer(RKEY_LOAD_BUDGET_MS) : 0;
         if(json_array_size(jn_keys)>0) {
             /*
              *  Load from disk
@@ -20819,6 +20964,28 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
                 const char *key_ = json_string_value(jn_key);
                 if(!key_) {
                     key_ = "";
+                }
+                if(rkey_armed && test_msectimer(load_budget)) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER,
+                        "msg",          "%s", "rkey regex too costly, refused",
+                        "topic_name",   "%s", topic_name,
+                        "list_id",      "%s", rt_id? rt_id : "",
+                        "rkey",         "%.256s", kw_get_str(gobj, match_cond, "rkey", "", 0),
+                        "limit",        "%s", "the time of the load (RKEY_LOAD_BUDGET_MS)",
+                        "keys_judged",  "%d", idx,
+                        NULL
+                    );
+                    gobj_log_set_last_message(
+                        "rkey regex too costly: it reached the time of the load (RKEY_LOAD_BUDGET_MS)"
+                    );
+                    JSON_DECREF(jn_keys)
+                    JSON_DECREF(failed_keys)
+                    rkey_handover(loader, NULL);
+                    JSON_DECREF(match_cond)
+                    JSON_DECREF(extra)
+                    return NULL;
                 }
                 if(!list_wants_key(loader, key_)) {
                     continue;   // this key is not in the list
