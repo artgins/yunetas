@@ -47,14 +47,18 @@
   the host name). When `systemctl` cannot list the installs that run, the
   install is refused with its message. The permissions `install-package`
   and `upgrade-agent` now say that they are equivalent to root.
-- **The filters of `list-agents` and `list-nodes` are PCRE2 patterns, run
-  with limits.** A pattern is at most 256 bytes, with compiled code of at
-  most 16 KB. PCRE2 counts its match limit at each start position of a
-  search, so each start position stops after 5000 steps (depth 5000, heap
-  1 MiB), and the filters of one command share a budget of 50 ms. A filter
-  that hits a limit, or a command that spends its budget, matches nothing
-  more, and the answer names the filters. The patterns are bytes, not UTF
-  (`PCRE2_NEVER_UTF`), with `\C` and callouts refused. Up to 7.31.29 (the filters came in 7.31.19) they were
+- **The filters of `list-agents` and `list-nodes` are PCRE2 patterns, with a
+  time bound that holds for any pattern.** A pattern is at most 256 bytes and
+  compiles to 1 KB of code at most. A search runs first with a low limit of
+  100 frames at each start position. If it hits that limit, it runs again one
+  start position at a time, with 5000 frames for each position. All the
+  searches of one command share 50 ms, which start at the first search and
+  are checked before each position. The worst cases measured are 6.1 ms for a
+  first search and 10.5 ms for one position, so the filters of one command
+  take at most 50 ms plus 10.5 ms. When the 50 ms are spent, the answer says
+  so and names no filter. A filter is blamed only when its own search hits its
+  own limit. The patterns are bytes, not UTF (`PCRE2_NEVER_UTF`), with `\C`
+  and callouts refused. Up to 7.31.29 (the filters came in 7.31.19) they were
   POSIX patterns of glibc's `regcomp()`, and any user with `list-agents`
   could stop the control center: `(a{32767}){32767}` or `a` followed by 24
   `+` took all its memory, and `(a??a??...)*` with 40 groups took days to
