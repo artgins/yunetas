@@ -634,7 +634,7 @@ Lite release: only the control center (`controlcenter`).
   nodes"*) whatever the cause: an operator whose console still pointed at a
   node that had gone away saw only that. The answer now names the node of the
   store, with its hostname, uuid and state and when it was last seen
-  (*"node 'artgins' (8b64c225-..., accepted) is not connected, last seen
+  (*"node 'web-01' (11111111-..., accepted) is not connected, last seen
   2026-11-18T23:36:02.0+0100"*), says that a refused node is refused, and
   says that a name that is no node is none (*"'x' names no node connected:
   neither the uuid of a node nor the hostname of an accepted one"*). The

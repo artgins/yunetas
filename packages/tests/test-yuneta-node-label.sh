@@ -100,9 +100,9 @@ run_label() {
 #
 reset
 set_dt "0000c0ffee000042" "Example Board Rev 1"
-add_nic end0 C0:74:2B:FA:50:94 0
+add_nic end0 02:00:00:00:50:94 0
 add_nic end1 02:00:00:00:50:95 0
-add_nic wlan0 40:d9:5a:3e:df:1e 0 wireless
+add_nic wlan0 02:00:00:00:77:01 0 wireless
 add_nic usb0 00:e0:4c:68:00:01 0 usb
 add_nic eth9 2a:00:00:00:00:09 1
 "$NODE_UUID" ensure >/dev/null 2>&1
