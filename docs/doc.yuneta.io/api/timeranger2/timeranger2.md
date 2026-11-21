@@ -3346,6 +3346,35 @@ Returns a JSON object representing the real-time memory stream. The caller does 
 
 This function is valid when the Yuno instance is the master writing real-time messages from [`tranger2_append_record()`](<#tranger2_append_record>).
 
+On a follower, a mem list gets the records that the `rt_disk` feeds of the
+topic read. A callback can close a feed or open a list while the follower
+serves a batch of records:
+
+- A feed or a list that a callback closes gets no more records of the batch.
+- A list that a callback opens gets the whole batch, after the lists that
+  were open. Its history load reads the cache of the key, and the cache
+  counts the batch only after the follower serves it.
+
+Example: the callback of a mem list opens a second list on the same topic, at
+the second record of a batch of two records. The second list gets the two
+records (`tests/c/timeranger2/test_rt_disk_multi_feed.c`). Up to 7.31.29 it
+got only the second record.
+
+```C
+PRIVATE int opening_callback(json_t *tranger, json_t *topic, const char *key,
+    json_t *list, json_int_t rowid, md2_record_ex_t *md_record, json_t *record)
+{
+    JSON_DECREF(record)
+    if(!list_z) {
+        list_z = tranger2_open_list(tranger, "devices",
+            json_pack("{s:I}", "load_record_callback", (json_int_t)(uintptr_t)z_callback),
+            NULL, "list_z", FALSE, ""
+        );
+    }
+    return 0;
+}
+```
+
 ---
 
 (tranger2_open_topic)=

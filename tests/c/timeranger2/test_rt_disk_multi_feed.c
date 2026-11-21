@@ -42,9 +42,17 @@
  *        same creator).
  *
  *      - a callback that closes a feed: the feed that fired is not fed
- *        again (up to R101 the next record of the batch read it FREED),
+ *        again (up to 7.31.29 the next record of the batch read it FREED),
  *        and a mem list closed in its callback does not make the next
- *        mem list miss the record (the array moved under the loop).
+ *        mem list miss the record (the array moved under the loop). A mem
+ *        list that closes the feed that fired stops it too.
+ *
+ *      - a list opened by a callback in the middle of a batch is fed the
+ *        whole batch (its load read the key's cache, which counts the
+ *        batch only after it), and a new key's empty cache logs nothing.
+ *
+ *      - many mem lists on a follower: a batch costs one look at each
+ *        list a record, not one search of the topic's lists (timed).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -70,6 +78,8 @@
 #define KEY_A       "0000000000000000001"
 #define KEY_B       "0000000000000000002"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
+#define MANY_LISTS      2000    /*  mem lists of the follower, timed  */
+#define MANY_RECORDS    300     /*  records of their batch            */
 
 /***************************************************************
  *              Data
@@ -152,6 +162,109 @@ PRIVATE int closing_callback(
     } else if(id && strcmp(id, "memY")==0) {
         count_mem_y++;
     }
+    return 0;
+}
+
+PRIVATE int count_fired_f = 0;      /*  feed "rtF": a mem list closes it               */
+PRIVATE int count_mem_w = 0;        /*  mem list "memW": closes rtF at its first record  */
+PRIVATE json_t *rt_f_handle = NULL;
+
+PRIVATE int close_fired_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    JSON_DECREF(record)
+    const char *id = json_string_value(json_object_get(list, "id"));
+    if(id && strcmp(id, "rtF")==0) {
+        count_fired_f++;
+    } else if(id && strcmp(id, "memW")==0) {
+        count_mem_w++;
+        if(rt_f_handle) {
+            tranger2_close_rt_disk(tranger, rt_f_handle);
+            rt_f_handle = NULL;
+        }
+    }
+    return 0;
+}
+
+#define KEY_OPEN    "0000000000000000005"   /*  the key whose batch opens memZ  */
+PRIVATE int count_mem_z = 0;        /*  records of KEY_OPEN given to memZ             */
+PRIVATE int open_at_rowid = 0;      /*  memV opens memZ at this rowid of KEY_OPEN     */
+PRIVATE json_t *mem_z_handle = NULL;
+
+PRIVATE int mem_z_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    JSON_DECREF(record)
+    if(key && strcmp(key, KEY_OPEN)==0) {
+        count_mem_z++;
+    }
+    return 0;
+}
+
+PRIVATE int opening_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    JSON_DECREF(record)
+    if(!mem_z_handle && key && strcmp(key, KEY_OPEN)==0 && rowid == open_at_rowid) {
+        json_t *match_cond = json_pack("{s:I}",
+            "load_record_callback", (json_int_t)(uintptr_t)mem_z_callback
+        );
+        mem_z_handle = tranger2_open_list(
+            tranger, TOPIC_NAME, match_cond, NULL, "memZ", FALSE, ""
+        );
+    }
+    return 0;
+}
+
+PRIVATE int empty_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE int count_trigger = 0;      /*  feed "rtT": the disk feed that wakes the follower  */
+
+PRIVATE int trigger_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    JSON_DECREF(record)
+    count_trigger++;
     return 0;
 }
 
@@ -599,6 +712,163 @@ PRIVATE int do_test(void)
     tranger2_close_rt_disk(tf, rt_all);
     tranger2_close_rt_disk(tf, rt_md);
     tranger2_close_rt_mem(tm, rt_mem_md);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A MEM list's callback that closes the FIRED feed, two records in one
+     *  batch: rtF is fed the first and not the second (up to 7.31.29 the
+     *  second record read rtF freed).
+     */
+    set_expected_results("multi_feed: a mem list closes the fired feed", NULL, NULL, NULL, 1);
+    rt_f_handle = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, close_fired_callback, "rtF", "", NULL
+    );
+    json_t *mem_w = tranger2_open_rt_mem(
+        tf, TOPIC_NAME, "", NULL, close_fired_callback, "memW", "", NULL
+    );
+    if(!rt_f_handle || !mem_w) {
+        result += -1;
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(append_one(tm, 4, BASE_T + 200)<0 || append_one(tm, 4, BASE_T + 201)<0) {
+        result += -1;
+    }
+    for(int i = 0; i < 50 && count_mem_w < 2; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(count_fired_f != 1 || count_mem_w != 2) {
+        printf("%sERROR%s --> a mem list closes the fired feed: rtF %d (1), memW %d (2)\n",
+            On_Red BWhite, Color_Off, count_fired_f, count_mem_w);
+        result += -1;
+    }
+    if(mem_w) {
+        tranger2_close_rt_mem(tf, mem_w);
+    }
+    if(rt_f_handle) {
+        tranger2_close_rt_disk(tf, rt_f_handle);
+        rt_f_handle = NULL;
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  A list opened by a callback, in the middle of a batch: memV opens
+     *  memZ (tranger2_open_list, real time) at the SECOND record of a batch
+     *  of two. memZ's load reads the cache of the key, which holds the key
+     *  as it was before the batch, so memZ is fed the whole batch after:
+     *  2 records. Up to 7.31.29 it was fed the records after it opened (1).
+     */
+    set_expected_results("multi_feed: a list opened by a callback gets the batch",
+        NULL, NULL, NULL, 1);
+    json_t *rt_t = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, trigger_callback, "rtT", "", NULL
+    );
+    json_t *mem_v = tranger2_open_rt_mem(
+        tf, TOPIC_NAME, "", NULL, opening_callback, "memV", "", NULL
+    );
+    if(!rt_t || !mem_v) {
+        result += -1;
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    open_at_rowid = 2;
+    count_trigger = 0;
+    if(append_one(tm, 5, BASE_T + 300)<0 || append_one(tm, 5, BASE_T + 301)<0) {
+        result += -1;
+    }
+    for(int i = 0; i < 50 && count_trigger < 2; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(!mem_z_handle || count_mem_z != 2) {
+        printf("%sERROR%s --> a list opened by a callback: memZ %s, %d records of the batch (2)\n",
+            On_Red BWhite, Color_Off, mem_z_handle? "open":"NOT open", count_mem_z);
+        result += -1;
+    }
+
+    /*  And one more record: memZ is fed it once, as a list of the batch  */
+    count_mem_z = 0;
+    count_trigger = 0;
+    if(append_one(tm, 5, BASE_T + 302)<0) {
+        result += -1;
+    }
+    for(int i = 0; i < 50 && count_trigger < 1; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(count_mem_z != 1) {
+        printf("%sERROR%s --> the list opened by a callback, next record: %d (1)\n",
+            On_Red BWhite, Color_Off, count_mem_z);
+        result += -1;
+    }
+    if(mem_z_handle) {
+        tranger2_close_list(tf, mem_z_handle);
+        mem_z_handle = NULL;
+    }
+    if(mem_v) {
+        tranger2_close_rt_mem(tf, mem_v);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  Many mem lists on a follower: each record costs one look at each
+     *  list, O(L). A search of the topic's lists for each list, O(L^2),
+     *  takes over a second here.
+     */
+    set_expected_results("multi_feed: many mem lists on a follower", NULL, NULL, NULL, 1);
+    json_t **many = GBMEM_MALLOC(sizeof(json_t *) * MANY_LISTS);
+    for(int n = 0; many && n < MANY_LISTS; n++) {
+        char id[NAME_MAX];
+        snprintf(id, sizeof(id), "memMany%d", n);
+        many[n] = tranger2_open_rt_mem(
+            tf, TOPIC_NAME, "", json_pack("{s:b}", "only_md", 1),
+            empty_callback, id, "", NULL
+        );
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    count_trigger = 0;
+    for(int r = 0; r < MANY_RECORDS; r++) {
+        if(append_one(tm, 6, BASE_T + 400 + (uint64_t)r)<0) {
+            result += -1;
+        }
+    }
+    uint64_t t_many = time_in_milliseconds_monotonic();
+    for(int i = 0; i < 500 && count_trigger < MANY_RECORDS; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    uint64_t ms_many = time_in_milliseconds_monotonic() - t_many;
+    if(count_trigger != MANY_RECORDS || ms_many > 400) {
+        printf("%sERROR%s --> %d mem lists, %d records: %d delivered (%d), %u ms (under 400)\n",
+            On_Red BWhite, Color_Off, MANY_LISTS, MANY_RECORDS, count_trigger, MANY_RECORDS,
+            (unsigned)ms_many);
+        result += -1;
+    }
+    for(int n = 0; many && n < MANY_LISTS; n++) {
+        if(many[n]) {
+            tranger2_close_rt_mem(tf, many[n]);
+        }
+    }
+    GBMEM_FREE(many);
+    if(rt_t) {
+        tranger2_close_rt_disk(tf, rt_t);
+    }
     for(int i = 0; i < 10; i++) {
         yev_loop_run_once(yev_loop);
     }

@@ -707,6 +707,14 @@ the next file, and the first record of every new file reached no feed at all.
 This was fixed on 2026-07-14. `tests/c/timeranger2/test_rt_disk_multi_feed.c`
 covers the rotation, the several-feeds-per-key fan-out and the re-created key.
 
+On a follower, the `rt_mem` lists get the records that the `rt_disk` feeds
+read, one batch at a time. A callback can close a feed or open a list in the
+middle of a batch. A feed or a list that a callback closes gets no more
+records of the batch. A list that a callback opens gets the whole batch, after
+the lists that were open: its history load read the cache of the key, and the
+cache counts the batch only after the batch. Up to 7.31.29 such a list got
+only the records after its open. Each record costs one look at each list.
+
 A feed opened with `only_md` receives the metadata of the record, but not its
 body. Its callback gets a `NULL` `jn_record`, exactly like the historical
 iterator. The realtime feeds honor `only_md` too (both the master `rt_mem`

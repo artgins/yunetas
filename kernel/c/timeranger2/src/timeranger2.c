@@ -559,6 +559,8 @@ PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_co
 PRIVATE void rkey_disarm(json_t *list);
 PRIVATE BOOL list_wants_key(json_t *list, const char *key);
 PRIVATE int list_judge_key(json_t *list, const char *key, uint64_t total_deadline);
+PRIVATE BOOL feed_closed(json_t *feed, uint64_t close_gen);
+PRIVATE json_t *lists_opened_since(json_t *topic, json_t **pknown, uint64_t close_gen);
 PRIVATE BOOL rkey_peer_caused(int ret);
 PRIVATE const char *rkey_refused_form(const char *rkey);
 PRIVATE int rkey_judge(
@@ -986,6 +988,7 @@ PRIVATE int scan_disks_key_for_new_file(
  *              Data
  ***************************************************************/
 PRIVATE uint64_t md_write_gen = 0;  // raised by every write of md2 rows: see md_block_t
+PRIVATE uint64_t feed_close_gen = 0; // raised by every close of a feed: see feed_closed()
 
 /***************************************************************************
  *  Startup TimeRanger database
@@ -8513,6 +8516,8 @@ PUBLIC int tranger2_close_rt_mem(
 
     int idx = json_array_find_idx(lists, mem);
     if(idx >=0 && idx < json_array_size(lists)) {
+        json_object_set_new(mem, "list_closed", json_true()); // for a batch that holds it
+        feed_close_gen++;
         json_array_remove(
             lists,
             idx
@@ -8990,6 +8995,8 @@ PUBLIC int tranger2_close_rt_disk(
 
     int idx = json_array_find_idx(disks, disk);
     if(idx >=0 && idx < json_array_size(disks)) {
+        json_object_set_new(disk, "list_closed", json_true()); // for a batch that holds it
+        feed_close_gen++;
         json_array_remove(
             disks,
             idx
@@ -12657,155 +12664,179 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
      *  honors only_md; the realtime feed must too.
      */
     BOOL fired_only_md = fired_disk? feed_wants_only_md(fired_disk) : FALSE;
-    BOOL need_body = (fired_disk && !fired_only_md)? TRUE : FALSE;
-    if(!master && !need_body) {
-        json_t *scan_lists = json_object_get(topic, "lists");
-        int i; json_t *l;
-        json_array_foreach(scan_lists, i, l) {
-            if(list_wants_key(l, key) && !feed_wants_only_md(l)) {
-                need_body = TRUE;
-                break;
-            }
-        }
-    }
 
     /*
      *  The key is the same for the whole batch: the feed that fired is
-     *  asked once. (The mem lists are asked in the loop: a callback can
-     *  close one, and a verdict kept makes the question a lookup.)
+     *  asked once. (The mem lists are asked in the loop: a verdict kept
+     *  makes the question a lookup.)
      */
     BOOL fired_wants = (fired_disk && list_wants_key(fired_disk, key))? TRUE : FALSE;
 
     /*
-     *  A callback can close a feed: the one that fired, or a mem list. Both
-     *  are held for the batch, and one closed is not fed again: up to R101
-     *  the next record read the feed that fired FREED, and a mem list closed
-     *  in its callback made the next list miss the record (the array moved
-     *  under the loop). The mem lists are the ones open at the start of the
-     *  batch: one opened by a callback loads the batch from disk itself.
+     *  The in-process mem lists of a follower are fed the records the cache
+     *  of the key has not counted yet. An append wakes the follower once per
+     *  disk feed of the key, and only the first wake-up has such records:
+     *  the others read no list.
+     */
+    BOOL feed_mem = (!master && to_rowid >= from_rowid)? TRUE : FALSE;
+
+    /*
+     *  A callback can close a feed (the one that fired, or a mem list) and
+     *  open a list.
+     *
+     *  - The feed that fired and the mem lists open at the start of the
+     *    batch are held for the batch, and the close marks them
+     *    (`list_closed`): one closed is not fed again, whoever closed it.
+     *    Up to 7.31.29 the next record read the feed that fired FREED, and a
+     *    mem list closed in its callback made the next list miss the record
+     *    (the array moved under the loop). The mark costs a record nothing
+     *    while no feed is closed (feed_closed()).
+     *  - A list opened during the batch has loaded the key from its cache,
+     *    which counts the batch only after it: it is fed the whole batch
+     *    after the lists of the batch, in one more pass, and so is one
+     *    opened in that pass. Up to 7.31.29 it was fed only the records
+     *    that came after it opened.
      */
     json_incref(fired_disk);
-    json_t *mem_lists = master? NULL : json_copy(json_object_get(topic, "lists"));
+    uint64_t close_gen = feed_close_gen;
+    json_t *known_lists = feed_mem? json_copy(json_object_get(topic, "lists")) : NULL;
+    json_t *mem_lists = json_incref(known_lists);
 
-    md_block_t blk;
-    md_block_init(&blk, FALSE);
-    for(json_int_t rowid=first_rowid; rowid<=to_rowid; rowid++) {
-        md2_record_ex_t md_record_ex;
-        if(read_md_blocked(
-            gobj,
-            tranger,
-            topic,
-            key,
-            file_id,
-            (uint64_t)rowid,
-            (uint64_t)to_rowid,
-            &blk,
-            &md_record_ex
-        )<0) {
-            // Error already logged; md_record_ex is uninitialized on failure, skip it
-            continue;
-        }
-        if(is_deleted_instance(&md_record_ex)) {
-            continue;
+    for(int pass = 0; ; pass++) {
+        BOOL need_body = (pass == 0 && fired_disk && !fired_only_md)? TRUE : FALSE;
+        if(!need_body) {
+            int i; json_t *l;
+            json_array_foreach(mem_lists, i, l) {
+                if(list_wants_key(l, key) && !feed_wants_only_md(l)) {
+                    need_body = TRUE;
+                    break;
+                }
+            }
         }
 
-        /*
-         *  What the consumer is given is the GLOBAL rowid of the key (the
-         *  master's rt_mem path hands it g_rowid): a file-relative one
-         *  restarts at 1 with every rotation, and a consumer that dedupes or
-         *  pages by it (the SPA's Live cards do) sees the new file's records
-         *  as records it already had.
-         */
-        json_int_t g_rowid = file_base + rowid;
-        md_record_ex.g_rowid = g_rowid;
-
-        json_t *record = NULL;
-        BOOL body_lost = FALSE;
-        if(need_body) {
-            record = read_record_content(
+        md_block_t blk;
+        md_block_init(&blk, FALSE);
+        for(json_int_t rowid=(pass == 0)? first_rowid : from_rowid; rowid<=to_rowid; rowid++) {
+            md2_record_ex_t md_record_ex;
+            if(read_md_blocked(
+                gobj,
                 tranger,
                 topic,
                 key,
                 file_id,
+                (uint64_t)rowid,
+                (uint64_t)to_rowid,
+                &blk,
                 &md_record_ex
-            );
-            if(!record) {
-                /*
-                 *  Error already logged. Not handed with a NULL body to a
-                 *  feed that wants the body: on the by-path fallback that is
-                 *  a record of a life already deleted (its delete comes
-                 *  next), and a consumer takes NULL for a record. A feed of
-                 *  metadata only is fed: up to 7.25.21 it lost the record too
-                 */
-                body_lost = TRUE;
-            } else {
-                json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
+            )<0) {
+                // Error already logged; md_record_ex is uninitialized on failure, skip it
+                continue;
             }
-        }
+            if(is_deleted_instance(&md_record_ex)) {
+                continue;
+            }
 
-        /*----------------------------*
-         *      FEED the feed that fired
-         *----------------------------*/
-        int idx;
-        if(fired_wants && rowid >= from_disk_rowid) {
-            tranger2_load_record_callback_t load_record_callback =
-                (tranger2_load_record_callback_t)(size_t)json_integer_value(
-                    json_object_get(fired_disk, "load_record_callback")
-                );
+            /*
+             *  What the consumer is given is the GLOBAL rowid of the key (the
+             *  master's rt_mem path hands it g_rowid): a file-relative one
+             *  restarts at 1 with every rotation, and a consumer that dedupes or
+             *  pages by it (the SPA's Live cards do) sees the new file's records
+             *  as records it already had.
+             */
+            json_int_t g_rowid = file_base + rowid;
+            md_record_ex.g_rowid = g_rowid;
 
-            if(load_record_callback && !(body_lost && !fired_only_md)) {
-                // Inform to the user list: record realtime from disk
-                load_record_callback(
+            json_t *record = NULL;
+            BOOL body_lost = FALSE;
+            if(need_body) {
+                record = read_record_content(
                     tranger,
                     topic,
                     key,
-                    fired_disk,
-                    g_rowid,
-                    &md_record_ex,
-                    fired_only_md? NULL : json_incref(record)
+                    file_id,
+                    &md_record_ex
                 );
-                if(json_array_find_idx(disks, fired_disk) < 0) {
-                    fired_wants = FALSE;    // closed by its callback
+                if(!record) {
+                    /*
+                     *  Error already logged. Not handed with a NULL body to a
+                     *  feed that wants the body: on the by-path fallback that is
+                     *  a record of a life already deleted (its delete comes
+                     *  next), and a consumer takes NULL for a record. A feed of
+                     *  metadata only is fed: up to 7.25.21 it lost the record too
+                     */
+                    body_lost = TRUE;
+                } else {
+                    json_object_set_new(record, "__md_tranger__", md2json(&md_record_ex));
                 }
             }
-        }
 
-        /*----------------------------*
-         *      FEED the in-process mem lists (a follower reads from disk):
-         *      once per record, whatever the number of disk feeds open.
-         *----------------------------*/
-        if(!master && rowid >= from_rowid) {
-            json_t *lists = json_object_get(topic, "lists");
-            json_t *list;
-            json_array_foreach(mem_lists, idx, list) {
-                if(json_array_find_idx(lists, list) < 0) {
-                    continue;   // closed by a callback
+            /*----------------------------*
+             *      FEED the feed that fired
+             *----------------------------*/
+            int idx;
+            if(pass == 0 && fired_wants && rowid >= from_disk_rowid && !feed_closed(fired_disk, close_gen)) {
+                tranger2_load_record_callback_t load_record_callback =
+                    (tranger2_load_record_callback_t)(size_t)json_integer_value(
+                        json_object_get(fired_disk, "load_record_callback")
+                    );
+
+                if(load_record_callback && !(body_lost && !fired_only_md)) {
+                    // Inform to the user list: record realtime from disk
+                    load_record_callback(
+                        tranger,
+                        topic,
+                        key,
+                        fired_disk,
+                        g_rowid,
+                        &md_record_ex,
+                        fired_only_md? NULL : json_incref(record)
+                    );
                 }
-                if(list_wants_key(list, key) && !(body_lost && !feed_wants_only_md(list))) {
-                    tranger2_load_record_callback_t load_record_callback =
-                        (tranger2_load_record_callback_t)(size_t)json_integer_value(
-                            json_object_get(list, "load_record_callback")
-                        );
+            }
 
-                    if(load_record_callback) {
-                        // Inform to the user list: record real time from memory
-                        load_record_callback(
-                            tranger,
-                            topic,
-                            key,
-                            list,
-                            g_rowid,
-                            &md_record_ex,
-                            feed_wants_only_md(list)? NULL : json_incref(record)
-                        );
+            /*----------------------------*
+             *      FEED the in-process mem lists (a follower reads from disk):
+             *      once per record, whatever the number of disk feeds open.
+             *----------------------------*/
+            if(feed_mem && rowid >= from_rowid) {
+                json_t *list;
+                json_array_foreach(mem_lists, idx, list) {
+                    if(list_wants_key(list, key) && !feed_closed(list, close_gen) &&
+                            !(body_lost && !feed_wants_only_md(list))) {
+                        tranger2_load_record_callback_t load_record_callback =
+                            (tranger2_load_record_callback_t)(size_t)json_integer_value(
+                                json_object_get(list, "load_record_callback")
+                            );
+
+                        if(load_record_callback) {
+                            // Inform to the user list: record real time from memory
+                            load_record_callback(
+                                tranger,
+                                topic,
+                                key,
+                                list,
+                                g_rowid,
+                                &md_record_ex,
+                                feed_wants_only_md(list)? NULL : json_incref(record)
+                            );
+                        }
                     }
                 }
             }
-        }
 
-        JSON_DECREF(record)
+            JSON_DECREF(record)
+        }
+        JSON_DECREF(mem_lists)
+
+        if(!feed_mem) {
+            break;
+        }
+        mem_lists = lists_opened_since(topic, &known_lists, close_gen);
+        if(!mem_lists) {
+            break;
+        }
     }
-    JSON_DECREF(mem_lists)
+    JSON_DECREF(known_lists)
     JSON_DECREF(fired_disk)
 
     return to_rowid - from_rowid + 1;
@@ -18885,6 +18916,15 @@ PRIVATE json_t *get_segments(
         );
         return jn_segments;
     }
+    if(json_object_size(cache_total) == 0) {
+        /*
+         *  A key with no row counted yet: on a follower, a new key whose
+         *  first records are being read (find_cache_cell() creates its
+         *  cache). Up to 7.31.29 a list or an iterator opened on it then
+         *  logged four errors.
+         */
+        return jn_segments;
+    }
 
     json_int_t total_from_t = kw_get_int(gobj, cache_total, "fr_t", 0, KW_REQUIRED);
     json_int_t total_to_t = kw_get_int(gobj, cache_total, "to_t", 0, KW_REQUIRED);
@@ -20246,6 +20286,56 @@ PRIVATE int json_array_find_idx(json_t *jn_list, json_t *item)
         }
     }
     return -1;
+}
+
+/***************************************************************************
+ *  A feed (rt_mem list or rt_disk) that a batch of the follower holds,
+ *  closed since the batch read `close_gen`: tranger2_close_rt_mem() and
+ *  tranger2_close_rt_disk() mark it (`list_closed`) and raise
+ *  feed_close_gen, so while nothing is closed no feed is looked at.
+ ***************************************************************************/
+PRIVATE BOOL feed_closed(json_t *feed, uint64_t close_gen)
+{
+    if(feed_close_gen == close_gen) {
+        return FALSE;
+    }
+    return json_is_true(json_object_get(feed, "list_closed"))? TRUE : FALSE;
+}
+
+/***************************************************************************
+ *  The mem lists of the topic opened since `*pknown` was taken from them
+ *  (a copy of the topic's lists), still open, in their order; NULL when
+ *  there are none. Then `*pknown` is taken again.
+ *
+ *  An open appends its list, and a close keeps the order of the others:
+ *  the lists of `*pknown` still open are the first ones of the topic's
+ *  lists, and the new ones come after them.
+ ***************************************************************************/
+PRIVATE json_t *lists_opened_since(json_t *topic, json_t **pknown, uint64_t close_gen)
+{
+    json_t *lists = json_object_get(topic, "lists");
+    size_t size = json_array_size(lists);
+    size_t still_open = json_array_size(*pknown);
+    if(feed_close_gen != close_gen) {
+        still_open = 0;
+        int idx; json_t *list;
+        json_array_foreach(*pknown, idx, list) {
+            if(!feed_closed(list, close_gen)) {
+                still_open++;
+            }
+        }
+    }
+    if(still_open >= size) {
+        return NULL;
+    }
+
+    json_t *opened = json_array();
+    for(size_t i = still_open; i < size; i++) {
+        json_array_append(opened, json_array_get(lists, i));
+    }
+    JSON_DECREF(*pknown)
+    *pknown = json_copy(lists);
+    return opened;
 }
 
 /***************************************************************************
