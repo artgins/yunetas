@@ -12,6 +12,9 @@ as a replica.
 | `topic_version_change` | The `topic_version` of those 10 topics raised. |
 | `tm_build_appends` | The appends of a topic of 1 key x 30 daily files x 20 000 rows. |
 | `tm_query_unmigrated` | A tm query of one minute (`from_tm` / `to_tm`) in the middle file of that topic: a filter on its 600 000 rows. The name is the one it had while the tm markers existed (7.25.5..7.25.22), kept so the reports chart one trend. `mark_tm_order` and `tm_query_migrated` went with the markers. |
+| `append_rt_no_rkey` | 200 000 appends over 100 keys with one keyless `rt_mem` list open, with no `rkey`. |
+| `append_rt_rkey` | The same with the `rkey` `^0+1$`: one key of the 100 goes to the list. |
+| `append_rt_rkey_costly` | 200 appends over 20 keys of 20 digits with the `rkey` `(*NO_JIT)^(0+)+$`, which reaches the limit of one match on 19 of them. |
 | `read_open_<role>` | The open and the close of an unfiltered iterator on a key of 10 000 rows (10 daily files x 1000 rows), mean of 2000. `<role>` is `master` or `replica`: the same store opened by the tranger that owns it and by one that follows it. |
 | `read_open_filtered_<role>` | The same with a filter (`from_rowid`/`to_rowid`, 100 rows in the middle of the key): the open builds the iterator's index. |
 | `read_page1_<role>` | `tranger2_iterator_get_page()` of 1 row of the unfiltered iterator, mean of 20 000: what one page costs beyond its rows. |
@@ -22,7 +25,7 @@ as a replica.
 
 ```bash
 $YUNETAS_OUTPUTS/bin/perf_timeranger2            # every phase, the reference sizes
-$YUNETAS_OUTPUTS/bin/perf_timeranger2 tm         # one phase: open, create, tm or read
+$YUNETAS_OUTPUTS/bin/perf_timeranger2 tm         # one phase: open, create, tm, read or rkey
 $YUNETAS_OUTPUTS/bin/perf_timeranger2 --small    # sizes / 10: what ctest runs
 ```
 

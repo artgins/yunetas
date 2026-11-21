@@ -17,6 +17,11 @@
  *                     minute in the middle file ("tm_query_unmigrated": the
  *                     name it had when the tm markers existed, 7.25.5 to
  *                     7.25.22, kept so the reports chart one trend)
+ *            rkey     the appends of RK_RECS records (RK_KEYS keys) with a
+ *                     keyless rt_mem list open: with no rkey, with a
+ *                     cheap rkey (^0+1$), and RK_COSTLY_RECS appends (over
+ *                     RK_COSTLY_KEYS keys of 20 digits) with a costly one,
+ *                     (*NO_JIT)^(0+)+$
  *            read     1 key x READ_FILES daily files x READ_RECS rows; then,
  *                     as a master and as a replica: the open (and close)
  *                     of an iterator, unfiltered and filtered (an index of
@@ -72,6 +77,10 @@ PRIVATE int TM_RECS = 20000;
 PRIVATE int READ_FILES = 10;
 PRIVATE int READ_RECS = 1000;
 PRIVATE int READ_OPS = 20000;
+PRIVATE int RK_RECS = 200000;
+PRIVATE int RK_KEYS = 100;
+PRIVATE int RK_COSTLY_RECS = 200;
+PRIVATE int RK_COSTLY_KEYS = 20;
 
 PRIVATE char path_root[PATH_MAX];
 PRIVATE char path_database[PATH_MAX];
@@ -431,6 +440,52 @@ PRIVATE int phase_read(void)
 }
 
 /***************************************************************************
+ *  The appends of `n` records with a keyless rt_mem list open, with its
+ *  `rkey` (NULL: none), keys of `digits` digits cycling over `keys`
+ ***************************************************************************/
+PRIVATE int rkey_appends(
+    json_t *tranger, const char *name, const char *rkey, int n, int keys, int digits
+)
+{
+    json_t *list = tranger2_open_rt_mem(
+        tranger, "rk", "",
+        rkey? json_pack("{s:s}", "rkey", rkey) : json_object(),
+        count_record, name, "", NULL
+    );
+    if(!list) {
+        return -1;  // Error already logged
+    }
+
+    double t0 = now_s();
+    for(int i = 0; i < n; i++) {
+        char key[32];
+        snprintf(key, sizeof(key), "%0*d", digits, i % keys);
+        if(append(tranger, "rk", key, TM0 + i) < 0) {
+            return -1;  // Error already logged
+        }
+    }
+    result_line(name, now_s() - t0, n, NULL);
+    tranger2_close_rt_mem(tranger, list);
+    return 0;
+}
+
+PRIVATE int phase_rkey(void)
+{
+    json_t *tranger = start_tranger(TRUE);
+    if(!create_topic(tranger, "rk", 1)) {
+        tranger2_shutdown(tranger);
+        return -1;  // Error already logged
+    }
+    int ret = 0;
+    ret += rkey_appends(tranger, "append_rt_no_rkey", NULL, RK_RECS, RK_KEYS, 10);
+    ret += rkey_appends(tranger, "append_rt_rkey", "^0+1$", RK_RECS, RK_KEYS, 10);
+    ret += rkey_appends(tranger, "append_rt_rkey_costly", "(*NO_JIT)^(0+)+$",
+        RK_COSTLY_RECS, RK_COSTLY_KEYS, 20);
+    tranger2_shutdown(tranger);
+    return ret < 0? -1 : 0;
+}
+
+/***************************************************************************
  *              Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -446,7 +501,7 @@ int main(int argc, char *argv[])
     gobj_start_up(argc, argv, NULL, NULL, NULL, NULL, NULL, NULL);
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
-    BOOL do_open = FALSE, do_create = FALSE, do_tm = FALSE, do_read = FALSE, any = FALSE;
+    BOOL do_open = FALSE, do_create = FALSE, do_tm = FALSE, do_read = FALSE, do_rkey = FALSE, any = FALSE;
     for(int i = 1; i < argc; i++) {
         if(strcmp(argv[i], "--small") == 0) {
             KEYS /= 10;
@@ -454,6 +509,7 @@ int main(int argc, char *argv[])
             REOPEN = 3;
             READ_RECS /= 10;
             READ_OPS /= 10;
+            RK_RECS /= 10;
         } else if(strcmp(argv[i], "open") == 0) {
             do_open = TRUE;
             any = TRUE;
@@ -466,14 +522,17 @@ int main(int argc, char *argv[])
         } else if(strcmp(argv[i], "read") == 0) {
             do_read = TRUE;
             any = TRUE;
+        } else if(strcmp(argv[i], "rkey") == 0) {
+            do_rkey = TRUE;
+            any = TRUE;
         } else {
-            printf("Usage: %s [--small] [open] [create] [tm] [read]\n", argv[0]);
+            printf("Usage: %s [--small] [open] [create] [tm] [read] [rkey]\n", argv[0]);
             gobj_end();
             return -1;
         }
     }
     if(!any) {
-        do_open = do_create = do_tm = do_read = TRUE;
+        do_open = do_create = do_tm = do_read = do_rkey = TRUE;
     }
 
     build_path(path_root, sizeof(path_root), getenv("HOME"), "tests_yuneta", NULL);
@@ -507,6 +566,9 @@ int main(int argc, char *argv[])
     }
     if(do_read && ret == 0) {
         ret = phase_read();
+    }
+    if(do_rkey && ret == 0) {
+        ret = phase_rkey();
     }
     rmrdir(path_database);
 
