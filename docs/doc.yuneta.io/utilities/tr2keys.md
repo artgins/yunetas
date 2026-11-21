@@ -31,10 +31,7 @@ tr2keys /yuneta/store/myapp/treedb_myapp/devices --rkey='a(*COMMIT)b'
 # Cannot list the keys of treedb_myapp/devices: Bad rkey regex 'a(*COMMIT)b': (*COMMIT) is refused in an rkey
 ```
 
-Up to 7.31.29 `tr2keys` compiled `--rkey` with no options and no limits. It
-accepted `(*COMMIT)`, `\G`, `(*UTF)` and `(*CRLF)`, a costly pattern took up to
-ten million steps at each position of each key, and the same `--rkey` listed
-other keys than `tr2list`.
+7.31.29 had no `--key` and no `--rkey`: `tr2keys` printed every key.
 
 ```bash
 # Does the topic have this key?

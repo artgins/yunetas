@@ -17,7 +17,7 @@ tr2keys <PATH> [options]
 | `--recursive` / `-r` | List every topic under `PATH`. |
 | `--list-databases` | List the databases under `PATH`. |
 
-Without `--key` or `--rkey`, `tr2keys` prints every key of the topic. With one of them, it prints only the keys that match, and with `--recursive` only the topics that have a key that matches. `--key` looks up the key. `--rkey` is judged by timeranger2 as `tr2list --rkey` is judged (`tranger2_list_keys_by_rkey()`), so the two tools choose the same keys. A pattern that the judgement refuses (it does not compile, it has a refused form such as `(*COMMIT)`, or its judgements pass 2 s) prints the cause for each topic, and `tr2keys` exits 1. Up to 7.31.29 `tr2keys` compiled `--rkey` with no options and no limits.
+Without `--key` or `--rkey`, `tr2keys` prints every key of the topic. With one of them, it prints only the keys that match, and with `--recursive` only the topics that have a key that matches. `--key` looks up the key. `--rkey` is judged by timeranger2 as `tr2list --rkey` is judged (`tranger2_list_keys_by_rkey()`), so the two tools choose the same keys. A pattern that the judgement refuses (it does not compile, it has a refused form such as `(*COMMIT)`, or its judgements pass 2 s) prints the cause for each topic, and `tr2keys` exits 1. 7.31.29 had no `--key` and no `--rkey`: `tr2keys` printed every key.
 
 ## Examples
 

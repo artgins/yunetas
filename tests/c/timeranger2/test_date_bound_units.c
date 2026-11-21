@@ -1729,9 +1729,10 @@ PRIVATE int do_test(void)
     /*
      *  tr2keys --rkey is judged by timeranger2 as tr2list's is
      *  (tranger2_list_keys_by_rkey()): the forms tr2list refuses are
-     *  refused, exit 1 with the cause, and the keys listed are the same.
-     *  Up to the fix tr2keys compiled with no options and no limits: it
-     *  listed with (*COMMIT) and (*UTF). --key is looked up as a key.
+     *  refused, exit 1 with the cause, and the keys listed are the same
+     *  (a tr2keys that compiles --rkey itself, with no options and no
+     *  limits, lists with (*COMMIT) and (*UTF)). --key is looked up as a
+     *  key.
      */
     set_expected_results(
         "tr2keys --rkey judges as tr2list",
