@@ -85,7 +85,7 @@ accept the running nodes first.
 list-nodes state=pending
 list-nodes state=knocking
 list-nodes state=other-key   # accepted nodes whose agent presents another key (a node reinstalled)
-list-nodes hostname=^orangepi- version=^7.31.   # uuid, version, hostname, os: regular expressions (PCRE2)
+list-nodes hostname=^box- version=^7.31.   # uuid, version, hostname, os: regular expressions (PCRE2)
 list-nodes hostname='^web|^db-[0-9]{2}$'        # any PCRE2 pattern of 256 bytes at most, run with limits
 accept-node node_id=<uuid> spki_sha256=<the key read on the node>
 delete-node node_id=<uuid>    # a node refused or pending, not connected: a machine that is gone
@@ -263,7 +263,7 @@ To talk to it with `ycommand`, use the commands in "Usage" above.
 
 `command-agent` answers AT ONCE, before the node does. The first answer comes
 from the control center itself: *"Command sent to 1 nodes"*. When no connected
-agent matches, the answer is -1 and tells why: *"node 'artgins' (8b64c225-…,
+agent matches, the answer is -1 and tells why: *"node 'web-01' (11111111-…,
 accepted) is not connected, last seen 2026-11-18T23:36:02.0+0100"*, or *"'x'
 names no node connected"* (since 7.31.19). The answer of the node comes later,
 as a second answer along the same route. A non-interactive `ycommand` exits

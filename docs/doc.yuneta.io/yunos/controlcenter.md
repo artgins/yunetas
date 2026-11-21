@@ -207,10 +207,10 @@ is refused first, so no single command takes a node out of service and forgets
 it. A uuid that only knocked (no record) is dropped from the table in memory:
 
 ```text
-delete-node node_id=8b64c225-981d-8596-bc2c-10e437f6d28f
-# -> 0 "controlcenter^artgins.com: node '8b64c225-...' ('artgins', refused) deleted"
-delete-node node_id=6bdfcb15-be19-8c04-b940-bd8d83e651fb
-# -> -1 "controlcenter^artgins.com: node '6bdfcb15-...' is accepted: refuse it first (refuse-node)"
+delete-node node_id=11111111-0000-4000-8000-000000000001
+# -> 0 "controlcenter^cc1: node '11111111-...' ('web-01', refused) deleted"
+delete-node node_id=22222222-0000-4000-8000-000000000002
+# -> -1 "controlcenter^cc1: node '22222222-...' is accepted: refuse it first (refuse-node)"
 ```
 
 Each control center (1996, 1997) keeps its own `nodes`: delete the node in
@@ -240,18 +240,18 @@ comment of `list-nodes` gives the command to run. Read the key on the node,
 compare its start, and accept it:
 
 ```text
-list-nodes uuid=^08741cd6
-# "08741cd6-..." "orangepi-em235" "accepted"  false ... "4cb19a9362cb4d6a7"
-# "08741cd6-..." "orangepi-em235" "other-key" false ... "a160f42c751463675"
-# comment: node '08741cd6-...' is accepted and its agent presents another key,
-#   'a160f42c75146367...': if the node was reinstalled, compare it with the key
+list-nodes uuid=^33333333
+# "33333333-..." "box-a" "accepted"  false ... "4c4c4c4c4c4c4c4c4"
+# "33333333-..." "box-a" "other-key" false ... "a1a1a1a1a1a1a1a1a"
+# comment: node '33333333-...' is accepted and its agent presents another key,
+#   'a1a1a1a1a1a1a1a1...': if the node was reinstalled, compare it with the key
 #   the node gives (yuneta-agent-cert key) and run accept-node
-#   node_id=08741cd6-... presented=a160f42c75146367
+#   node_id=33333333-... presented=a1a1a1a1a1a1a1a1
 
 # on the node
 /usr/libexec/yuneta/yuneta-agent-cert key
 
-accept-node node_id=08741cd6-f436-888f-bb5d-b43a86de1eb5 presented=a160f42c75146367
+accept-node node_id=33333333-0000-4000-8000-000000000003 presented=a1a1a1a1a1a1a1a1
 ```
 
 `presented=` pins the key that knocked only when it starts with the start
@@ -673,14 +673,14 @@ UTF-8 boundary, for the filters and for the rows of `list-agents`.
 `expand=1` shows the card whole.
 
 ```bash
-ycommand -c 'list-agents hostname=^yunovatios-'          # the yunovatios nodes
+ycommand -c 'list-agents hostname=^box-'                # the nodes whose hostname starts with box-
 ycommand -c 'list-agents version=^7\.31\. expand=1'       # the agents of 7.31, their cards whole
-ycommand -c 'list-agents uuid=^(6bdfcb15|b221635f)-'      # two nodes by the start of their uuid
+ycommand -c 'list-agents uuid=^(11111111|22222222)-'      # two nodes by the start of their uuid
 ycommand -c 'list-agents os=^Rocky'                       # the nodes on Rocky Linux
 ycommand -c 'list-agents hostname=^node-[0-9]{2}$'        # a bounded repetition
 ycommand -c 'list-agents hostname=^web|^db'               # an anchor in each alternative
-ycommand -c 'list-agents hostname=artgins('
-# -> -1 "controlcenter^cc1: hostname='artgins(' is no regular expression: missing closing parenthesis (at byte 8)"
+ycommand -c 'list-agents hostname=web-01('
+# -> -1 "controlcenter^cc1: hostname='web-01(' is no regular expression: missing closing parenthesis (at byte 7)"
 ycommand -c 'list-agents hostname=(a|aa)+[^a]'
 # -> 0, comment "controlcenter^cc1: hostname: too costly to match (match limit exceeded): ..."
 ```
@@ -693,9 +693,9 @@ it the first answer is the dispatch, the node's comes after (give `ycommand`
 a `-w`):
 
 ```bash
-ycommand -w 10 -c 'info-machine agent_id=orangepi-bfm2'
+ycommand -w 10 -c 'info-machine agent_id=box-b'
 # the same, by hand:
-ycommand -w 10 -c 'command-agent agent_id=orangepi-bfm2 agent_service=__yuno__ cmd2agent=info-machine'
+ycommand -w 10 -c 'command-agent agent_id=box-b agent_service=__yuno__ cmd2agent=info-machine'
 ```
 
 **3 — forward a command to one node** with `command-agent` (a `SDF_WILD_CMD`):
@@ -720,9 +720,9 @@ store that is away is named with its hostname, its uuid, its state and when it
 was last seen. A name that is no node says so. `stats-agent` answers the same:
 
 ```text
--1 "controlcenter^cc1: node 'artgins' (8b64c225-981d-8596-bc2c-10e437f6d28f, accepted) is not connected, last seen 2026-11-18T23:36:02.0+0100"
+-1 "controlcenter^cc1: node 'web-01' (11111111-0000-4000-8000-000000000001, accepted) is not connected, last seen 2026-11-18T23:36:02.0+0100"
 -1 "controlcenter^cc1: node 'board-x' (uuid-x) is refused"
--1 "controlcenter^cc1: 'artgns' names no node connected: neither the uuid of a node nor the hostname of an accepted one"
+-1 "controlcenter^cc1: 'web-1' names no node connected: neither the uuid of a node nor the hostname of an accepted one"
 ```
 
 When the agent's link is closing (the agent sent its Close, and the link is
@@ -1608,7 +1608,7 @@ never armed: all six read 0.
 | `stats-agent` | Fetch stats from a node |
 | `info-machine` | The machine of a node (`agent_id`: uuid or hostname): os, cpu, memory, disks, network interfaces, uptime, as its agent's yuno answers `info-machine` (permission `list-agents`, 7.31.23+) |
 | `drop-agent` | Drop every session of a node (`agent_id`: its uuid, or a hostname that one node has, or empty: every agent) |
-| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session, empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused`, `knocking` or `other-key`, or empty: all; an `other-key` row is the key that the agent of an accepted node presents instead of its own, and the comment says what to do with it). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^orangepi-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
+| `list-nodes` | The nodes and the keys of their agents, each with `connected`, `version` and `os` (of its agent in session, empty while it is away) and `key`: the accepted one, else the one presented (`state`: `pending`, `accepted`, `refused`, `knocking` or `other-key`, or empty: all; an `other-key` row is the key that the agent of an accepted node presents instead of its own, and the comment says what to do with it). `uuid`, `version`, `hostname`, `os`: regular expressions the node must match, all of them, as in `list-agents` (`list-nodes state=accepted hostname=^box-`). ycli shows a table: node uuid, hostname, state, connected, version, os, address, last seen, and the start of the key. The keys whole (64 characters) are in its form view: `*list-nodes state=knocking` |
 | `accept-node` | Pin a node's uuid to its key (`node_id`, and `spki_sha256`: the key the node gives, or `presented`: the start of it, at least 16 hex, to pin the key the node presented if it starts so. Permission `manage-nodes`) |
 | `refuse-node` | Refuse a node. Its sessions are dropped (`node_id`, permission `manage-nodes`) |
 | `delete-node` | Delete the record of a node refused or pending, with no agent connected (`node_id`, permission `manage-nodes`). An accepted node is refused first (7.31.22+) |
