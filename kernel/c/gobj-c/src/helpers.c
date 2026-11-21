@@ -10507,6 +10507,26 @@ PRIVATE void os_release_value(char *value)
 #endif
 
 /***************************************************************************
+ *  A value of the os info as the card of an agent carries it: OS_INFO_MAX
+ *  bytes at most, cut at a whole UTF-8 character
+ ***************************************************************************/
+#ifdef __linux__
+#define OS_INFO_MAX 64
+
+PRIVATE json_t *os_info_value(const char *value)
+{
+    size_t len = strlen(value);
+    if(len > OS_INFO_MAX) {
+        len = OS_INFO_MAX;
+        while(len > 0 && (((unsigned char)value[len]) & 0xC0) == 0x80) {
+            len--;  // value[len] continues a character: cut before it
+        }
+    }
+    return json_stringn(value, len);
+}
+#endif
+
+/***************************************************************************
  *  The operating system of this machine
  ***************************************************************************/
 PUBLIC json_t *get_os_info(void)
@@ -10547,15 +10567,15 @@ PUBLIC json_t *get_os_info(void)
                 continue;
             }
             os_release_value(eq + 1);
-            json_object_set_new(jn_os, key, json_string(eq + 1));
+            json_object_set_new(jn_os, key, os_info_value(eq + 1));
         }
         fclose(file);
     }
 
     struct utsname buf;
     if(uname(&buf) == 0) {
-        json_object_set_new(jn_os, "kernel", json_string(buf.release));
-        json_object_set_new(jn_os, "machine", json_string(buf.machine));
+        json_object_set_new(jn_os, "kernel", os_info_value(buf.release));
+        json_object_set_new(jn_os, "machine", os_info_value(buf.machine));
     }
 #elif defined(ESP_PLATFORM)
     json_object_set_new(jn_os, "id", json_string("esp-idf"));

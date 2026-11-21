@@ -482,3 +482,9 @@ at every place and in parts of 1 to 70 bytes gives the digest of the whole (the
 padding at 55, 56, 63, 64 and 65 bytes). A context initialized again starts from
 nothing. A buffer of 64 bytes is refused (two ERRORs in the output are
 expected), and a refused `sha256_final_hex()` does not spend the context.
+
+`test_os_info` covers `get_os_info()`. The test links with `--wrap=fopen` and
+gives it an `/etc/os-release` of its own. A `PRETTY_NAME` of 70 bytes, whose
+64th byte is inside a 2-byte character, comes back as its first 63 bytes. A
+`NAME` of 100 ASCII bytes comes back as 64. An `ID` and a `VERSION_ID` that fit
+come back whole. Up to 7.31.29 every value came back whole, whatever its length.

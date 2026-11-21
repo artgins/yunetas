@@ -1357,7 +1357,9 @@ PUBLIC const char *get_hostname(void);
 /*
  *  The operating system of this machine, a new json object (yours):
  *  {"id", "name", "version_id", "pretty_name"} of os-release(5), and
- *  {"kernel", "machine"} of uname(2); "" for what the machine does not say
+ *  {"kernel", "machine"} of uname(2); "" for what the machine does not say.
+ *  Each value 64 bytes at most, cut at a whole UTF-8 character (the card of
+ *  an agent carries them to its control center).
  */
 PUBLIC json_t *get_os_info(void);
 

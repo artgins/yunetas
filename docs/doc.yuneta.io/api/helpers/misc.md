@@ -49,7 +49,7 @@ json_t *get_os_info(void);
 
 **Returns**
 
-A new json object, yours to `json_decref()`. Every key is always there. A value the machine does not give is `""`.
+A new json object, yours to `json_decref()`. Every key is always there. A value the machine does not give is `""`. Each value has 64 bytes at most: a longer one is cut at a whole UTF-8 character (up to 7.31.29 it came whole, and the card of the agent carried it to its control center).
 
 | Key | From |
 |---|---|

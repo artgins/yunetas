@@ -67,6 +67,7 @@ set(SRCS
     test_spawn_copy
     test_replace_string
     test_sha256
+    test_os_info
 )
 
 ##############################################
@@ -106,6 +107,9 @@ target_link_options(test_rotatory PUBLIC LINKER:--wrap=statvfs,--wrap=fstatvfs,-
 
 # test_spawn_copy makes a pidfd_open() wait for the end of its process (see its header)
 target_link_options(test_spawn_copy PUBLIC LINKER:--wrap=syscall)
+
+# test_os_info gives get_os_info() an /etc/os-release of its own (see its header)
+target_link_options(test_os_info PUBLIC LINKER:--wrap=fopen)
 
 # test_date_text fakes the wall clock (approxidate() and the rest read now with time()) and counts tzset(), localtime_r() and gmtime_r() (see its header)
 target_link_options(test_date_text PUBLIC LINKER:--wrap=time,--wrap=tzset,--wrap=localtime_r,--wrap=gmtime_r)
