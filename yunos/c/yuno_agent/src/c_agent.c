@@ -1778,7 +1778,7 @@ PRIVATE int mt_pause(hgobj gobj)
     }
 
     /*---------------------------------------*
-     *      Close treedb airedb
+     *      Close treedb agentdb
      *---------------------------------------*/
     json_decref(gobj_command(priv->gobj_treedbs,
         "close-treedb",

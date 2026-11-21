@@ -1252,7 +1252,7 @@ PRIVATE int open_database(hgobj gobj)
     }
 
     /*
-     *  Use the same tranger as treedb_airedb, a "%Y" based.
+     *  Use the same tranger as the broker's treedb, a "%Y" based.
      */
     const char *msg2db_name_ = kw_get_str(gobj,
         jn_msg2db_schema_alarms,
