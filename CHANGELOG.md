@@ -18,6 +18,8 @@
   in front of it, was taken as the answer of the request of the BFF, and the
   final answer went to the next request on the same connection: a login got
   `auth_unexpected_error`, and the answers after it were one request late.
+  The dropped responses are counted, with one DEBUG line for each
+  connection.
 - **agent22 `install-package`: the part that runs as root is a program of
   the package**, `/usr/libexec/yuneta/install-package` (root:root 0755, in
   the `.deb` and the `.rpm`). agent22 writes only the URL and the sha256.
@@ -82,23 +84,33 @@
   a valid token wrote one record for each new uuid, with no log and no
   limit. There is still no limit: set `allow_nodes_without_key` to false to
   refuse an agent that presents no key.
-- **C_TRANGER and timeranger2 match an `rkey` regex within limits.** Each
-  start position of a match stops after 10000 steps, with 1 MB of heap, and
-  `list-keys`, `open-iterator` and the one-shot `open-list` have 2 s in
-  total, read before every key. A pattern longer than 4096 bytes, or one that
-  compiles to more than 64 KB, is refused, and the memory of pcre2 goes
-  through gbmem. A request that reaches a limit, or meets an error of pcre2,
-  is refused with "rkey regex too costly" (a WARNING from a peer). A live
-  list judges each key once, at the load and at the first append of that key,
-  with the same limits: a key that cannot be judged is not given to the list,
-  with one WARNING that names the list, and `get-list-data` says how many
-  keys were not judged. Up to 7.31.29 every match used the defaults of pcre2
-  (ten million steps at each position), a key that could not be judged was
-  left out as if it did not match, with no log, and a live list matched the
-  key of every append again: an append of a costly key took 10.8 ms, and
-  takes 17.5 µs now. With a cheap `rkey`, or none, an append does not change
-  (+0.3%, inside the noise). `perf_timeranger2` has a new phase, `rkey`, for
-  these appends.
+- **C_TRANGER and timeranger2 bound the time of an `rkey` regex.** A peer
+  with `read` permission could hold a yuno for seconds to minutes: the match
+  limit of pcre2 counts frames and starts again at each start position, so a
+  pattern that stays under it at every position cost up to 150 ms per key,
+  the load of a live list had no time budget, and the writer paid the same
+  on the first append of each new key. Now the compiled pattern is 1 KB at
+  most, and a key is judged first with 8 frames for each position, then, if
+  that is not enough, one position at a time with 1000 frames and the clock
+  read before each position, with 2 ms for each key. `list-keys`,
+  `open-iterator` and the one-shot `open-list` have 2 s in total, and the
+  load of a live list has 2 s too. A request that spends them, or that pcre2
+  cannot judge (a limit, an error, a recursion loop), is refused with "rkey
+  regex too costly" (a WARNING from a peer). A live list keeps the verdict of
+  each key, so a key is judged once, and a key that cannot be judged is not
+  given to the list, with one WARNING that names the list (`get-list-data`
+  says how many). The patterns are bytes (`PCRE2_NEVER_UTF`), with no `\C`
+  and no callouts, and the memory of pcre2 goes through gbmem. Measured
+  against 7.31.29, alternated: a load of 3000 keys that took 59 s is refused
+  at 2 s, the first append of a costly new key goes from 152 ms to 2 ms, an
+  append of a known costly key from 10.8 ms to 3.9 µs, and an append with a
+  cheap `rkey`, or none, does not change. `perf_timeranger2` has a new phase,
+  `rkey`, for these cases.
+- **`print-tranger` (C_TRANGER and C_NODE) no longer shows the addresses of
+  the process** (callbacks, gobj, matchers) to a caller with `read`: they
+  show as `<pointer>`.
+- **A failed write of an OTA image is an ERROR**, and the download is
+  dropped. Up to 7.31.29 it was ignored.
 - **A flood of knocks no longer lets another key enroll under a real uuid.**
   A uuid that the flood evicts from the knocking table now keeps the key
   that it knocked with, in a bounded ring (new attribute
