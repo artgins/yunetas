@@ -2828,6 +2828,9 @@ rkey                    (str) PCRE2 regex over keys ("" == ".*"), for a KEYLESS
                         matching it. Honored by BOTH halves: the disk load only
                         visits matching keys, and the realtime feed only
                         dispatches appends of matching keys.
+rkey_compiled_max       (int) bytes of compiled code the rkey may take: 65536
+                        (the default and the most), or less. C_TRANGER puts
+                        1024 here for a list a peer opens.
 
 from_rowid / to_rowid
 from_t   / to_t         t:  PERSISTENCE time (when the record was appended)
@@ -2837,7 +2840,8 @@ user_flag / not_user_flag / user_flag_mask_set / user_flag_mask_notset
 ```
 
 **The cost of an `rkey`** is bounded, because the pattern can be a peer's (the
-`open-list` of `C_TRANGER`). It compiles to 64 KB of code at most, and a key is
+`open-list` of `C_TRANGER`). It compiles to 64 KB of code at most (1 KB for a
+list of a peer: `rkey_compiled_max`), and a key is
 judged first with 8 frames at each start position, with no clock. When that is
 not enough, the key is judged position by position, 1000 frames each, and the
 clock is read before each position: the positions of one key have 2 ms. A key
@@ -2847,8 +2851,8 @@ each key is kept in the list, so a key is judged once (at the load, or at its
 first append). The load of a keyless list judges every key first, with 2 s for
 all of them, and then reads the history of the keys chosen: a list whose
 judgements pass 2 s is refused before a record is read, and its history takes
-the time it takes. The worst measured on one key of 255 bytes, with 64 KB of
-code, is 146 ms (its first search, which reads no clock), and a load is
+the time it takes. The worst measured on one key of 255 bytes is 146 ms with 64 KB of code
+(its first search, which reads no clock), and 2.6 ms with 1 KB. A load is
 refused at 2.12 s at worst. These are measured figures, not a bound. A pattern with `(*COMMIT)`, `(*SKIP)`, `\G`,
 `(*NOTEMPTY_ATSTART)`, a newline other than LF or `(*UCP)` is refused when the
 list opens. A refused list answers `NULL` with the cause in

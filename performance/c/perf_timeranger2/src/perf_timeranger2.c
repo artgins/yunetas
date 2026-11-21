@@ -5,7 +5,8 @@
  *          of topics, the cost of a tm query, and the read path of an
  *          iterator (open, pages) as a master and as a replica.
  *
- *          Usage:  perf_timeranger2 [--small] [--rkey=<pattern>] [phase ...]
+ *          Usage:  perf_timeranger2 [--small] [--rkey=<pattern>]
+ *                                   [--rkey-compiled-max=<bytes>] [phase ...]
  *
  *          Phases (all of them when none is given):
  *            open     build a topic of KEYS x FILES md2 files x RECS rows,
@@ -33,7 +34,8 @@
  *                     ("keys_not_judged", "refused", "complete": false):
  *                     its time is not a speed-up. --rkey=<pattern> puts
  *                     another pattern in place of RK_UNANCHORED (a study
- *                     of the worst case).
+ *                     of the worst case), and --rkey-compiled-max=1024
+ *                     the cap C_TRANGER gives a peer's list.
  *            read     1 key x READ_FILES daily files x READ_RECS rows; then,
  *                     as a master and as a replica: the open (and close)
  *                     of an iterator, unfiltered and filtered (an index of
@@ -57,6 +59,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <time.h>
 #include <sys/stat.h>
@@ -101,6 +104,7 @@ PRIVATE int RK_LOAD_KEYS = 3000;
  */
 #define RK_UNANCHORED "(*NO_JIT)(?:[\\s\\S]?){9}(?:~?~?~?~?~?){40}(?!)|$"
 PRIVATE const char *rk_unanchored = RK_UNANCHORED;
+PRIVATE int rk_compiled_max = 0;    // --rkey-compiled-max: the cap of a peer's list (0: the default)
 
 PRIVATE char path_root[PATH_MAX];
 PRIVATE char path_database[PATH_MAX];
@@ -545,8 +549,12 @@ PRIVATE int rkey_first_appends(json_t *tranger)
     if(!create_topic(tranger, name, 1)) {
         return -1;  // Error already logged
     }
+    json_t *match_cond = json_pack("{s:s}", "rkey", rk_unanchored);
+    if(rk_compiled_max > 0) {
+        json_object_set_new(match_cond, "rkey_compiled_max", json_integer(rk_compiled_max));
+    }
     json_t *list = tranger2_open_rt_mem(
-        tranger, name, "", json_pack("{s:s}", "rkey", rk_unanchored),
+        tranger, name, "", match_cond,
         count_record, name, "", NULL
     );
     if(!list) {
@@ -597,13 +605,15 @@ PRIVATE int rkey_load(json_t *tranger)
     }
     records_seen = 0;
     double t0 = now_s();
+    json_t *match_cond = json_pack("{s:s, s:I}",
+        "rkey", rk_unanchored,
+        "load_record_callback", (json_int_t)(uintptr_t)count_record
+    );
+    if(rk_compiled_max > 0) {
+        json_object_set_new(match_cond, "rkey_compiled_max", json_integer(rk_compiled_max));
+    }
     json_t *list = tranger2_open_list(
-        tranger, name,
-        json_pack("{s:s, s:I}",
-            "rkey", rk_unanchored,
-            "load_record_callback", (json_int_t)(uintptr_t)count_record
-        ),
-        json_object(), name, FALSE, ""
+        tranger, name, match_cond, json_object(), name, FALSE, ""
     );
     double seconds = now_s() - t0;
     int not_judged = 0;
@@ -686,8 +696,10 @@ int main(int argc, char *argv[])
             any = TRUE;
         } else if(strncmp(argv[i], "--rkey=", 7) == 0) {
             rk_unanchored = argv[i] + 7;
+        } else if(strncmp(argv[i], "--rkey-compiled-max=", 20) == 0) {
+            rk_compiled_max = atoi(argv[i] + 20);
         } else {
-            printf("Usage: %s [--small] [--rkey=<pattern>] [open] [create] [tm] [read] [rkey]\n", argv[0]);
+            printf("Usage: %s [--small] [--rkey=<pattern>] [--rkey-compiled-max=<bytes>] [open] [create] [tm] [read] [rkey]\n", argv[0]);
             gobj_end();
             return -1;
         }

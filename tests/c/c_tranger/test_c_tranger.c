@@ -4014,6 +4014,42 @@ PRIVATE int do_test(void)
         check_int("its keys: ab and b", json_array_size(kw_get_list(0, r, "data", 0, 0)), 2);
         JSON_DECREF(r)
 
+        /*  The compiled code of an rkey is 1 KB for a peer and 64 KB for
+         *  C code: a pattern of 2.2 KB is refused to a peer ("longer than
+         *  the limit", a WARNING), in list-keys and in a live list, and
+         *  taken from C  */
+        const char *code_2kb = "^b(?:~?~?~?~?~?~?~?~?){100}$";
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "rkey", code_2kb)), yuno);
+        check_int("a peer's rkey of 2 KB of code: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("as longer than the limit",
+            strstr(kw_get_str(0, r, "comment", "", 0), "longer than the limit") != NULL, TRUE);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "open-list",
+            as_peer(json_pack("{s:s, s:s, s:s}",
+                "list_id", "lstBig", "topic_name", TOPIC_NAME8, "rkey", code_2kb
+            )), yuno);
+        check_int("a peer's live list with it: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("as longer than the limit, too",
+            strstr(kw_get_str(0, r, "comment", "", 0), "longer than the limit") != NULL, TRUE);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys",
+            json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "rkey", code_2kb), yuno);
+        check_int("the same rkey from C code: answered", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("its key b", json_array_size(kw_get_list(0, r, "data", 0, 0)), 1);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "open-list",
+            json_pack("{s:s, s:s, s:s}",
+                "list_id", "lstBig", "topic_name", TOPIC_NAME8, "rkey", code_2kb
+            ), yuno);
+        check_int("a live list with it from C code: opened", kw_get_int(0, r, "result", -999, 0), 0);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "get-list-data", json_pack("{s:s}", "list_id", "lstBig"), yuno);
+        check_int("its record of b", json_array_size(kw_get_list(0, r, "data", 0, 0)), 1);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "close-list", json_pack("{s:s}", "list_id", "lstBig"), yuno);
+        JSON_DECREF(r)
+
         /*  list-keys by exact keys: one key, a list (those the topic has,
          *  in the order asked, once each), paged; refused with rkey, past
          *  10000 keys, with a key that is not a text or holds a NUL  */
@@ -4064,7 +4100,8 @@ PRIVATE int do_test(void)
 
         /*  The load of a live list has RKEY_LOAD_BUDGET_MS for its
          *  judgements: 200 keys of 255 bytes, each out of its own time
-         *  (its budget and one position of about 25 ms: 28 KB of code), are
+         *  (its budget and one position of about 25 ms: 28 KB of code, so
+         *  a LOCAL caller's: a peer's compiles to 1 KB at most), are
          *  refused at about 2 s, before any history is read, and the answer
          *  says why. The 300 keys of TOPIC_NAME9 are closed first: their
          *  files and these would pass the 1024 files of the suite.  */
@@ -4087,10 +4124,10 @@ PRIVATE int do_test(void)
         }
         uint64_t t0 = time_in_milliseconds_monotonic();
         r = gobj_command(yuno, "open-list",
-            as_peer(json_pack("{s:s, s:s, s:s}",
+            json_pack("{s:s, s:s, s:s}",
                 "list_id", "lstLoad", "topic_name", TOPIC_NAME11,
                 "rkey", "(*NO_JIT)(?:[\\s\\S]?){9}(?:~?~?~?~?~?~?~?~?){1280}(?!)"
-            )), yuno);
+            ), yuno);
         uint64_t took_ms = time_in_milliseconds_monotonic() - t0;
         printf("     the load of a live list over 200 keys out of their time: %d ms\n", (int)took_ms);
         check_int("the load of a live list out of its time: refused", kw_get_int(0, r, "result", -999, 0), -1);

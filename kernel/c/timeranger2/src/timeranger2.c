@@ -44,7 +44,7 @@ extern void jsonp_free(void *ptr); // json low level
  *  140 bytes and the key, each.
  */
 #define RKEY_PATTERN_MAX        4096    /* bytes of the pattern */
-#define RKEY_COMPILED_MAX       65536   /* bytes of the compiled pattern */
+#define RKEY_COMPILED_MAX       65536   /* bytes of the compiled pattern, the most */
 #define RKEY_FIRST_LIMIT        8       /* frames a position, first search */
 #define RKEY_MATCH_LIMIT        1000    /* frames a position, position by position */
 #define RKEY_DEPTH_LIMIT        1000    /* backtracking depth of one match */
@@ -553,7 +553,7 @@ PRIVATE json_int_t update_key_totals(
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 PRIVATE json_int_t get_topic_key_purged(json_t *topic, const char *key);
 
-PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey);
+PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey, size_t compiled_max);
 PRIVATE void rkey_matcher_free(rkey_matcher_t *matcher);
 PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_cond);
 PRIVATE void rkey_disarm(json_t *list);
@@ -19698,7 +19698,7 @@ PRIVATE void rkey_matcher_free(rkey_matcher_t *matcher)
  *  and the cost of each match bounded (RKEY_*). NULL, logged, when it does
  *  not compile: a WARNING, the pattern is a peer's.
  ***************************************************************************/
-PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey)
+PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey, size_t compiled_max)
 {
     const char *form = rkey_refused_form(rkey);
     if(form) {
@@ -19732,7 +19732,7 @@ PRIVATE rkey_matcher_t *rkey_compile(hgobj gobj, const char *rkey)
         return NULL;
     }
     pcre2_set_max_pattern_length(compile_context, RKEY_PATTERN_MAX);
-    pcre2_set_max_pattern_compiled_length(compile_context, RKEY_COMPILED_MAX);
+    pcre2_set_max_pattern_compiled_length(compile_context, compiled_max);
     pcre2_set_compile_extra_options(compile_context, PCRE2_EXTRA_NEVER_CALLOUT);
     pcre2_set_newline(compile_context, PCRE2_NEWLINE_LF);
 
@@ -19845,7 +19845,20 @@ PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_co
         return 0;   // a keyed list ignores rkey; no rkey is "every key"
     }
 
-    rkey_matcher_t *matcher = rkey_compile(gobj, rkey);
+    /*
+     *  The cap of the compiled code is the caller's, up to
+     *  RKEY_COMPILED_MAX: C_TRANGER puts 1 KB in the match_cond of a
+     *  peer's list (rkey_compiled_max), so a peer's key costs the R101
+     *  figures (2.5 ms worst measured), and a local caller (tr2list,
+     *  tr2keys, a yuno's own code) keeps 64 KB (146 ms)
+     */
+    json_int_t compiled_max = kw_get_int(
+        gobj, match_cond, "rkey_compiled_max", RKEY_COMPILED_MAX, KW_WILD_NUMBER
+    );
+    if(compiled_max <= 0 || compiled_max > RKEY_COMPILED_MAX) {
+        compiled_max = RKEY_COMPILED_MAX;
+    }
+    rkey_matcher_t *matcher = rkey_compile(gobj, rkey, (size_t)compiled_max);
     if(!matcher) {
         return -1;      // Error already logged
     }
@@ -19992,9 +20005,10 @@ PRIVATE const char *rkey_refused_form(const char *rkey)
  *  inside each, and it starts from zero at EACH start position. So a
  *  pattern can stay under any limit at every position and still cost, and
  *  inside a frame the work is bounded by the compiled code only:
- *    - the compiled code is RKEY_COMPILED_MAX at most, 64 KB (an
- *      alternation of 10 uuids compiles to 916 bytes, a uuid's shape to
- *      359);
+ *    - the compiled code is RKEY_COMPILED_MAX at most, 64 KB, or the
+ *      `rkey_compiled_max` of the match_cond: 1 KB for a peer's list
+ *      (C_TRANGER puts it there). An alternation of 10 uuids compiles to
+ *      916 bytes, a uuid's shape to 359;
  *    - the key is judged first with RKEY_FIRST_LIMIT frames a position,
  *      8 (^[IJ]$, sensor, (sensor|device)-[0-9]+, a uuid's shape need 1 to
  *      4 on keys of 255 bytes). This search has no clock;
@@ -20010,10 +20024,11 @@ PRIVATE const char *rkey_refused_form(const char *rkey)
  *  So a key costs its first search and, when it goes on, its budget and
  *  one position. These two have no bound of their own but the compiled
  *  code, and the figures are the worst MEASURED (README of
- *  perf_timeranger2): with 64 KB, 146 ms for the first search of a key of
- *  255 bytes ((*NO_JIT)(?:h?|i?|j?|k?|l?|m?|n?)(?:~? x8){2048}(?!)) and
- *  129 ms for one position (a back-reference x8 x2048 after a tree of
- *  optional items); with 1 KB (R101) 2.5 ms. The first append of a new
+ *  perf_timeranger2): with 64 KB (a local caller), 146 ms for the first
+ *  search of a key of 255 bytes
+ *  ((*NO_JIT)(?:h?|i?|j?|k?|l?|m?|n?)(?:~? x8){2048}(?!)) and 129 ms for
+ *  one position (a back-reference x8 x2048 after a tree of optional
+ *  items); with 1 KB (a peer's) 2.5 ms. The first append of a new
  *  key pays it once for each list, and the load of a list once for each
  *  key, under its own budget (RKEY_LOAD_BUDGET_MS) asked before each key:
  *  a load is refused at 2.12 s at worst.

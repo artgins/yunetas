@@ -30,6 +30,7 @@ $YUNETAS_OUTPUTS/bin/perf_timeranger2            # every phase, the reference si
 $YUNETAS_OUTPUTS/bin/perf_timeranger2 tm         # one phase: open, create, tm, read or rkey
 $YUNETAS_OUTPUTS/bin/perf_timeranger2 --small    # sizes / 10: what ctest runs
 $YUNETAS_OUTPUTS/bin/perf_timeranger2 '--rkey=(*NO_JIT)(?:a?|b?)(?:~?){30000}(?!)' rkey   # another pattern for the two unanchored cases
+$YUNETAS_OUTPUTS/bin/perf_timeranger2 --rkey-compiled-max=1024 rkey   # their lists with the cap of a peer's list
 ```
 
 `--rkey=<pattern>` puts another pattern in place of `RK_UNANCHORED`: a study of
@@ -73,12 +74,17 @@ on the development machine, idle:
 | The first append of a new key of 255 bytes, a live list open: its first search, 7 frames at each of 256 positions | `(*NO_JIT)(?:h?\|i?\|j?\|k?\|l?\|m?\|n?)(?:~?~?~?~?~?~?~?~?){2048}(?!)` over keys with none of those letters | 146 ms (143 to 146, 3 runs of 200 keys) |
 | The same, the key judged position by position: one position of 1000 frames | `(*NO_JIT)()(?:[\s\S]?){10}(?:[\s\S]?\|[\s\S]?)(?:\1\1\1\1\1\1\1\1){2048}(?!)\|$` | 129 ms (123 to 129) |
 | The load of a live list over 3000 keys, with either pattern | the same | refused at 2.00 to 2.12 s |
+| The first append of a new key of 255 bytes, a PEER's list (1 KB of code, `--rkey-compiled-max=1024`) | `(?:[\s\S]?){9}(?:~?~?~?~?~?~?~?~?){32}(?!)\|$` (the key out of its time) | 2.6 ms (2.51 to 2.57) |
+| The same, its first search | `(*NO_JIT)(?:h?\|i?\|j?\|k?\|l?\|m?\|n?)(?:~?~?~?~?~?~?~?~?){32}(?!)` | 2.4 ms (2.30 to 2.44) |
+| The load of a peer's live list over 3000 keys | the first of these two | refused at 2.0009 s |
 
-With 1 KB of code (R101) the worst measured was 2.5 ms a key. To measure a
-pattern of your own:
+A peer's `rkey` (a command of C_TRANGER with a peer's kw) compiles to 1 KB at
+most. A local one (tr2list, tr2keys, the code of a yuno) compiles to 64 KB. To measure
+a pattern of your own, as a local caller or as a peer:
 
 ```bash
 $YUNETAS_OUTPUTS/bin/perf_timeranger2 '--rkey=(*NO_JIT)(?:h?|i?|j?|k?|l?|m?|n?)(?:~?~?~?~?~?~?~?~?){2048}(?!)' rkey
+$YUNETAS_OUTPUTS/bin/perf_timeranger2 '--rkey=(?:[\s\S]?){9}(?:~?~?~?~?~?~?~?~?){32}(?!)|$' --rkey-compiled-max=1024 rkey
 ```
 
 The two unanchored cases then use it: `first_append_rt_rkey_unanchored`

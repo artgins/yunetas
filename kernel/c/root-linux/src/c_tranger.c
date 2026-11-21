@@ -182,7 +182,8 @@ first (-403 included).
  *  The cost of a peer's rkey regex (match_topic_keys())
  */
 #define RKEY_PATTERN_MAX        4096    /* bytes of the pattern */
-#define RKEY_COMPILED_MAX       65536   /* bytes of the compiled pattern */
+#define RKEY_COMPILED_MAX       65536   /* bytes of the compiled pattern, a local caller's */
+#define RKEY_PEER_COMPILED_MAX  1024    /* bytes of the compiled pattern, a peer's */
 #define RKEY_FIRST_LIMIT        8       /* frames a position, first search */
 #define RKEY_MATCH_LIMIT        1000    /* frames a position, position by position */
 #define RKEY_DEPTH_LIMIT        1000    /* backtracking depth of one match */
@@ -197,7 +198,11 @@ first (-403 included).
  *  it goes position by position RKEY_KEY_BUDGET_US and one position more;
  *  the clock is asked before each key and before each position of a key
  *  judged position by position. Worst measured with 64 KB of code: 146 ms
- *  a key of 255 bytes.
+ *  a key of 255 bytes; with 1 KB, 2.5 ms. So a peer's rkey (the kw of a
+ *  peer, command_is_external(), as for log_refusal()) compiles to
+ *  RKEY_PEER_COMPILED_MAX, and C_TRANGER's own code to RKEY_COMPILED_MAX.
+ *  A peer's live list gets the same cap: `rkey_compiled_max` in the
+ *  match_cond handed to timeranger2.
  */
 
 /***************************************************************************
@@ -3442,6 +3447,10 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         "backward", backward,
         "only_md", only_md
     );
+    if(command_is_external(kw)) {
+        /*  A peer's rkey compiles to 1 KB in the live list too  */
+        json_object_set_new(match_cond, "rkey_compiled_max", json_integer(RKEY_PEER_COMPILED_MAX));
+    }
     if(from_rowid) {
         json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
     }
@@ -4240,7 +4249,8 @@ PRIVATE json_t *match_topic_keys(
             return NULL;
         }
         pcre2_set_max_pattern_length(compile_context, RKEY_PATTERN_MAX);
-        pcre2_set_max_pattern_compiled_length(compile_context, RKEY_COMPILED_MAX);
+        pcre2_set_max_pattern_compiled_length(compile_context,
+            peer? RKEY_PEER_COMPILED_MAX : RKEY_COMPILED_MAX);
         pcre2_set_compile_extra_options(compile_context, PCRE2_EXTRA_NEVER_CALLOUT);
         pcre2_set_newline(compile_context, PCRE2_NEWLINE_LF);
 
