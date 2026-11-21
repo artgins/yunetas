@@ -4724,8 +4724,8 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
     }
 
     /*
-     *  A match stops at its limits (1000 steps): a pattern built to
-     *  backtrack, over a hostname of 63 bytes, takes some 30 us and is no
+     *  A match stops at its limits (5000 steps a position): a pattern built to
+     *  backtrack, over a hostname of 63 bytes, stops at the limit and is no
      *  match, and the answer says the filter was too costly (the filter
      *  matches nothing more in that command). A cheap filter beside it is
      *  not touched
@@ -4792,6 +4792,36 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
         ret += fail(gobj, "a cheap filter does not match the host a costly one gave up on", "");
     }
     close_session(lim);
+
+    /*
+     *  PCRE2 counts its match limit at each start position: a pattern held
+     *  under it at each one ((?:[\s\S]?){12}(?!)|$) costs some 6 ms a
+     *  search of 63 bytes and never hits it. 30 such hosts take some 180 ms:
+     *  the budget of the command (50 ms) stops it, and the answer says so
+     */
+    hgobj bud[30];
+    for(int i=0; i<30; i++) {
+        char name[NAME_MAX];
+        char uuid[NAME_MAX];
+        char host[64];
+        snprintf(name, sizeof(name), "la-bud-%d", i);
+        snprintf(uuid, sizeof(uuid), "uuid-la-bud-%d", i);
+        snprintf(host, sizeof(host), "bud-%02d-%.56s", i,
+            "abababababababababababababababababababababababababababababab");
+        bud[i] = open_session_card(gobj, name,
+            json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+                "id", uuid, "yuno_version", "7.31.29",
+                "__md_iev__", "ievent_gate_stack", "host", host
+            ), NULL, NULL);
+    }
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "hostname", json_string("(?:[\\s\\S]?){12}(?!)|$"));
+    ret += check_response(gobj, gobj_command(priv->cc, "list-agents", kw, client), 0,
+        "hostname: too costly to match (the 50 ms of the command spent)",
+        "a filter under the limit at each position stops at the budget of the command");
+    for(int i=0; i<30; i++) {
+        close_session(bud[i]);
+    }
     return ret;
 }
 

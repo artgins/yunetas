@@ -236,18 +236,28 @@
 #define NODE_FILTER_COMPILED_MAX    16384
 
 /*
- *  The limits of ONE match (pcre2_set_match_limit/depth_limit/heap_limit,
- *  the heap in KiB). Measured on 556 fields of 63 bytes (300 records and
- *  256 knocks): the patterns an operator writes need from 1 to 17
- *  (^yunovatios-, ^7\.31\., ^(6bdfcb15|b221635f)-, (a|b)*c), `.*a.*b.*c`
- *  needs 998 at most; a pattern built to backtrack ((a|aa)+[^a],
- *  ((a*|b*)...)*, (.*.*.*.*)*) stops at the limit in about 30 us, 17 ms for
- *  the 556 rows if each one hit it (the default limit, 10 M, took 110 ms
- *  per row). A filter that hits a limit matches nothing more in that
- *  command, and the answer says so  */
-#define NODE_FILTER_MATCH_LIMIT     1000
-#define NODE_FILTER_DEPTH_LIMIT     1000
+ *  The limits of the filters (pcre2_set_match_limit/depth_limit/heap_limit,
+ *  the heap in KiB), and the time of all of them in one command. PCRE2
+ *  counts its match limit at EACH start position of a search, from zero:
+ *  so one search of a field of L bytes takes up to (L+1) x the limit, and
+ *  a pattern held just under it at every position costs without ever
+ *  hitting it. Measured (10.49, the dev machine): (?:[\s\S]?){9}(?!)|$
+ *  stays under 1000 at each of the 65 positions of a 64-byte field, and
+ *  1712 searches (list-nodes: 300 records x 4 filters + 256 knocks x 2)
+ *  took 1.3 s with no limit hit; under 5000, {12}, one search takes 6 ms.
+ *  So the command has a budget, NODE_FILTER_BUDGET_MS, asked before each
+ *  search: spent, every filter matches nothing more and the answer says
+ *  it. The budget bounds the command to it plus one search (6 ms). The
+ *  limit of one position is then a margin, not the bound: the patterns
+ *  an operator writes need from 1 to 17 (^web-, ^7\.31\.,
+ *  ^(00000000|11111111)-, (a|b)*c) on 556 fields of 63 bytes, `.*a.*b.*c`
+ *  998 on hex fields, `.*a.*b.*c.*d` 4289 on a field of a, b, c, d; and the
+ *  filters of a command take about 1-3 ms for 556 rows, so 50 ms leaves
+ *  room for a machine ten times slower  */
+#define NODE_FILTER_MATCH_LIMIT     5000
+#define NODE_FILTER_DEPTH_LIMIT     5000
 #define NODE_FILTER_HEAP_LIMIT      1024
+#define NODE_FILTER_BUDGET_MS       50
 
 /*  The longest max_run of a scenario: a week, in seconds  */
 #define MAX_RUN_LIMIT   (7*24*3600)
@@ -276,6 +286,9 @@
 #define MARK_TWO_KEYS_EVICTED       0x01
 #define MARK_TOMBSTONE_OVERWRITTEN  0x02
 #define MARK_NO_TOMBSTONE_KEPT      0x04
+
+/*  The shortest window of those WARNINGs, in seconds  */
+#define MARK_SAID_WINDOW_MIN        60
 
 /*  An open with nothing else changed writes the last_seen of its node
  *  only when it is this old, in seconds: a link that comes and goes does
@@ -322,7 +335,9 @@ typedef struct {
     pcre2_code *re;                     // NULL: no filter on this field
     pcre2_match_data *match_data;
     pcre2_match_context *match_context; // the NODE_FILTER_*_LIMIT
+    uint64_t budget;                    // msectimer: NODE_FILTER_BUDGET_MS of the command (one for all)
     int failed;                         // the first pcre2_match() error (a limit): matches nothing more
+    BOOL budget_spent;                  // the command spent its budget: matches nothing more
 } node_filter_t;
 
 /***************************************************************************
@@ -712,7 +727,7 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
 SDATACM (DTP_SCHEMA,    "logout-user",      0,                  pm_logout_user, cmd_logout_user,"Logout user"),
-SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given (PCRE2, 256 bytes at most, run with a match limit: a filter too costly is said in the answer)"),
+SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given (PCRE2, 256 bytes at most, run with a match limit and 50 ms per command: a filter too costly is said in the answer)"),
 
 SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              pm_command_agent,cmd_command_agent,"Command to agent (agent id = UUID or HOSTNAME)"),
 
@@ -759,7 +774,7 @@ SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Mil
 SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
 SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); a new one evicts the one knocked least recently, one that came with two keys last while those are half the table at most"),
 SDATA (DTP_INTEGER,     "max_evicted_knocks",SDF_RD,        "1024",     "Uuids evicted from the knocking table (a full table) kept in memory with the key they knocked with: one that knocks again with another key is disputed, and an open enrollment refuses both keys; with its key alone it is accepted. A full ring overwrites the oldest, and that closes the open enrollment and opens none for mark_evicted_quarantine (a flood). 0: none kept, and every eviction does so"),
-SDATA (DTP_INTEGER,     "mark_evicted_quarantine",SDF_RD,   "3600",     "Seconds no enrollment opens after a flood of knocks evicted what keeps an enrollment from taking a uuid (a uuid of two keys, a live tombstone overwritten); the open one closes. 0: it closes, and another one can open at once"),
+SDATA (DTP_INTEGER,     "mark_evicted_quarantine",SDF_RD,   "3600",     "Seconds no enrollment opens after a flood of knocks evicted what keeps an enrollment from taking a uuid (a uuid of two keys, a live tombstone overwritten); the open one closes. 0: it closes, and another one can open at once. Each cause is a WARNING once in a window of this, or of knocking_warning_period when longer, 60 s at least"),
 SDATA (DTP_INTEGER,     "knocking_warning_period",SDF_RD,   "600",      "Seconds between the WARNINGs 'A node knocking' of a node that goes on knocking; 0: said once"),
 SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
@@ -3019,8 +3034,8 @@ PRIVATE void close_enrollment(hgobj gobj, const char *why)
  *  (remember_evicted_knock()). Its loss is not silent: an open enrollment
  *  closes, and none opens for `mark_evicted_quarantine`. A WARNING, once per
  *  cause in a window of the quarantine (or of knocking_warning_period, when
- *  longer): a mask, because remembering only the last cause said, two
- *  causes in turn gave a WARNING per call.
+ *  longer; MARK_SAID_WINDOW_MIN at least): a mask, because remembering
+ *  only the last cause said, two causes in turn gave a WARNING per call.
  ***************************************************************************/
 PRIVATE void mark_evicted(hgobj gobj, const char *node_id, int cause)
 {
@@ -3058,13 +3073,16 @@ PRIVATE void mark_evicted(hgobj gobj, const char *node_id, int cause)
     if(!priv->mark_said_until || test_msectimer(priv->mark_said_until)) {
         /*
          *  A new window: a quarantine, or knocking_warning_period when that
-         *  is longer (with a quarantine of 0 a flood would say each mark)
+         *  is longer, and MARK_SAID_WINDOW_MIN at least (with both at 0 a
+         *  flood would say each mark)
          */
         json_int_t period = gobj_read_integer_attr(gobj, "knocking_warning_period");
+        json_int_t window = period > quarantine? period : quarantine;
+        if(window < MARK_SAID_WINDOW_MIN) {
+            window = MARK_SAID_WINDOW_MIN;
+        }
         priv->mark_evicted_said = 0;
-        priv->mark_said_until = start_msectimer(
-            (uint64_t)(period > quarantine? period : quarantine) * 1000
-        );
+        priv->mark_said_until = start_msectimer((uint64_t)window * 1000);
     }
     BOOL said = (priv->mark_evicted_said & cause)? TRUE : FALSE;
     priv->mark_evicted_said |= cause;
@@ -5389,11 +5407,16 @@ PRIVATE void pcre2_gbmem_free(void *ptr, void *data)
  *  pattern. Up to 7.31.29 they were POSIX patterns of glibc's regcomp(),
  *  whose compilation can take all the memory ((a{32767}){32767}, a and 24
  *  `+`) or an exponential time with what no rule of shape closes
- *  ((a??a??...)*: 24 of them about 3 s, 40 for days): every R97/R98 rule
- *  against one shape left another. PCRE2 compiles in a bounded size
- *  (NODE_FILTER_COMPILED_MAX), and each match stops at its limits. A
- *  back-reference is let in: the match limit bounds it too. In the pattern,
- *  (*LIMIT_MATCH=n) and the like can only lower the limits.
+ *  ((a??a??...)*: 24 of them about 3 s, 40 for days): every rule against
+ *  one shape left another. PCRE2 compiles in a bounded size
+ *  (NODE_FILTER_COMPILED_MAX), each search stops at its limits, and all the
+ *  searches of a command at NODE_FILTER_BUDGET_MS. A back-reference is let
+ *  in: the limits bound it too. In the pattern, (*LIMIT_MATCH=n) and the
+ *  like can only lower the limits. Compiled as bytes (PCRE2_NEVER_UTF: a
+ *  pattern cannot turn UTF on, and an invalid sequence in a field is never
+ *  an error; a UTF-8 text in the pattern still matches the same bytes in
+ *  the field, and `.` is a byte), with no \C and no callout (the options
+ *  PCRE2 asks for a pattern from outside).
  ***************************************************************************/
 PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filters[NODE_FILTERS])
 {
@@ -5405,8 +5428,10 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
     };
 
     memset(filters, 0, sizeof(node_filter_t) * NODE_FILTERS);
+    uint64_t budget = start_msectimer(NODE_FILTER_BUDGET_MS);
     for(int i=0; i<NODE_FILTERS; i++) {
         filters[i].param = params[i];
+        filters[i].budget = budget;
         const char *pattern = kw_get_str(gobj, kw, params[i], "", 0);
         if(empty_string(pattern)) {
             continue;
@@ -5440,6 +5465,7 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
         }
         pcre2_set_max_pattern_length(compile_context, NODE_FILTER_PATTERN_MAX);
         pcre2_set_max_pattern_compiled_length(compile_context, NODE_FILTER_COMPILED_MAX);
+        pcre2_set_compile_extra_options(compile_context, PCRE2_EXTRA_NEVER_CALLOUT);
         pcre2_set_match_limit(filters[i].match_context, NODE_FILTER_MATCH_LIMIT);
         pcre2_set_depth_limit(filters[i].match_context, NODE_FILTER_DEPTH_LIMIT);
         pcre2_set_heap_limit(filters[i].match_context, NODE_FILTER_HEAP_LIMIT);
@@ -5447,7 +5473,8 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
         int errornumber = 0;
         PCRE2_SIZE erroroffset = 0;
         filters[i].re = pcre2_compile(
-            (PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, 0,
+            (PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED,
+            PCRE2_NEVER_UTF|PCRE2_NEVER_BACKSLASH_C,
             &errornumber, &erroroffset, compile_context
         );
         pcre2_compile_context_free(compile_context);
@@ -5480,7 +5507,8 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
 /***************************************************************************
  *  A node matches when every filter given matches its field. A match that
  *  fails (a limit) is no match, and its filter matches nothing more in
- *  this command: node_filters_failed() says it in the answer.
+ *  this command; so once the command spent NODE_FILTER_BUDGET_MS:
+ *  node_filters_failed() says it in the answer.
  ***************************************************************************/
 PRIVATE BOOL node_filters_match(
     node_filter_t filters[NODE_FILTERS],
@@ -5500,7 +5528,11 @@ PRIVATE BOOL node_filters_match(
         if(!filters[i].re) {
             continue;
         }
-        if(filters[i].failed) {
+        if(filters[i].failed || filters[i].budget_spent) {
+            return FALSE;
+        }
+        if(test_msectimer(filters[i].budget)) {
+            filters[i].budget_spent = TRUE;
             return FALSE;
         }
         int rc = pcre2_match(
@@ -5530,11 +5562,15 @@ PRIVATE BOOL node_filters_failed(
 {
     said[0] = 0;
     for(int i=0; i<NODE_FILTERS; i++) {
-        if(!filters[i].failed) {
+        if(!filters[i].failed && !filters[i].budget_spent) {
             continue;
         }
         PCRE2_UCHAR err[NAME_MAX];
-        pcre2_get_error_message(filters[i].failed, err, sizeof(err));
+        if(filters[i].failed) {
+            pcre2_get_error_message(filters[i].failed, err, sizeof(err));
+        } else {
+            snprintf((char *)err, sizeof(err), "the %d ms of the command spent", NODE_FILTER_BUDGET_MS);
+        }
         size_t len = strlen(said);
         snprintf(said + len, said_size - len, "%s%s: too costly to match (%s): it matched "
             "nothing from the first node that hit the limit; write a simpler one",

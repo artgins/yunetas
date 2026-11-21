@@ -482,6 +482,36 @@ PRIVATE const char *expected_msgs[] = {
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-2, by a token
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-lv, by a token
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-lim, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-0, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-1, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-2, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-3, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-4, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-5, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-6, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-7, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-8, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-9, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-10, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-11, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-12, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-13, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-14, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-15, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-16, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-17, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-18, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-19, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-20, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-21, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-22, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-23, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-24, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-25, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-26, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-27, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-28, by a token
+    "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-la-bud-29, by a token
     "stopping a scenario: its max_run is reached",          // 16
     "a step of a scenario run was not answered",            // 17: one step, said once
     "A node recorded pending: its agent presents no key (a session of a token)", // pending: uuid-mra1, by a token

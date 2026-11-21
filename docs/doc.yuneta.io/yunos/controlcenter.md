@@ -653,14 +653,25 @@ The control center runs in one thread, and any user with the permission
 - The pattern is 256 bytes at most, and its compiled code 16 KB at most.
   For example, `((a{100}){100}){100}` is refused ("regular expression is too
   large").
-- One match stops after 1000 steps (and at a depth of 1000, and at 1 MB).
-  The filters an operator writes take from 1 to 20 steps. `.*a.*b.*c` takes
-  up to about 1000 steps on a field of 63 bytes. A pattern made to backtrack,
-  such as `(a|aa)+[^a]`, stops at the limit in about 30 microseconds.
-- A filter that hits a limit matches nothing more in that command. The
-  command still answers (0), and its comment names the filter: "hostname:
-  too costly to match (match limit exceeded): it matched nothing from the
-  first node that hit the limit; write a simpler one".
+- PCRE2 counts its match limit at each start position of a search. So one
+  search of a field of 64 bytes takes up to 65 times the limit. Each start
+  position stops after 5000 steps (and at a depth of 5000, and at 1 MB), and
+  one search takes 6 ms at most. The filters an operator writes take from 1
+  to 20 steps. `.*a.*b.*c` takes up to about 1000 steps on a field of 63
+  bytes.
+- All the searches of one command take 50 ms at most. Then every filter
+  matches nothing more. The filters of a command on 300 records and 256
+  knocks take about 1 to 3 ms. A pattern made to stay just under the limit
+  at each start position, such as `(?:[\s\S]?){9}(?!)|$`, took 1.3 s for
+  that command before the budget. Now it stops at 50 ms.
+- A filter that hits a limit, or the budget, matches nothing more in that
+  command. The command still answers (0), and its comment names the filter:
+  "hostname: too costly to match (match limit exceeded): it matched nothing
+  from the first node that hit the limit; write a simpler one". For the
+  budget, the reason in parentheses is "the 50 ms of the command spent".
+- A filter is compiled as bytes, without UTF: a UTF-8 text in the pattern
+  matches the same bytes in the field, and `.` matches one byte. A pattern
+  cannot turn UTF on, and it cannot use `\C` or a callout.
 
 Up to 7.31.29 the filters were POSIX patterns of glibc's `regcomp()`. Some
 patterns took all the memory to compile (`(a{32767}){32767}`, `a` and 24

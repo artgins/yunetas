@@ -626,7 +626,10 @@ POSIX rules refused before PCRE2: a back-reference, a bounded repetition, many
 groups and `((||)...)*` with 30, which took days in glibc's `regcomp()`. A
 match stops at its limit: `(a|aa)+[^a]` over a hostname of 63 bytes is no
 match, the command answers 0 with the filter named in its comment ("too
-costly to match"), and a cheap filter still matches that host. A version and
+costly to match"), and a cheap filter still matches that host. A pattern
+held under the limit at each start position (`(?:[\s\S]?){12}(?!)|$`) over
+30 hosts of 63 bytes spends the budget of the command (50 ms): the answer
+says "the 50 ms of the command spent". A version and
 an os longer than 64 bytes are read cut at a UTF-8 boundary, and the agent is
 let in.
 
