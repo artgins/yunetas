@@ -208,9 +208,15 @@
   is kept with `cp -p`. The hook and the 15-minute sync of the agent never
   run the script at the same time: the lock is `/run/yuneta-copy-certs/lock`,
   in a directory of root with mode `0700`, the sync never waits for it (a
-  run that finds it taken copies nothing and exits 0, and the next sync
-  copies), and only the hook waits, with `copy-certs.sh --wait`. A node with
-  no certificate says so once, not at each tick. Every line of the script also goes to the journal,
+  run that finds it taken copies nothing and exits 75, which the agent
+  reports as `busy`, and the next sync copies), and only the hook waits,
+  with `copy-certs.sh --wait`. The agent does not count a busy sync as a
+  failure: `cert-sync-status` shows `busy_ticks`, the syncs in a row that
+  found the lock taken, the agent logs one WARNING at the third and one INFO
+  when the lock is free again, and `cert-sync-now` says the result of its
+  sync. A node with no certificate says so once, not at each tick. When
+  `logger` fails, a line of the script goes to
+  `/var/log/yuneta/copy-certs.log` with its time. Every line of the script also goes to the journal,
   so the sync of the agent leaves a trace:
 
   ```sh
