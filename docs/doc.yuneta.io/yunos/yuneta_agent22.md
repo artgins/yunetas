@@ -241,49 +241,101 @@ and then this one: ask install-package-status when this agent is back
 
 `install-package-status` gives four things:
 
-- `result`: what the script wrote. It is `done <rc>`, `download-failed <rc>`,
-  or `sha256-mismatch`. It is empty while the install runs.
+- `result`: the end of the last install. It is one of these lines:
+    - `done <rc>`: the package manager ran and ended with `<rc>`. `done 0`
+      is a success.
+    - `download-failed <rc>`: `curl` failed with the exit code `<rc>`. For
+      example, `63` is a file larger than 1 GiB, and `28` is a server that
+      sent less than 1 KB/s for 2 minutes.
+    - `sha256-mismatch`: the download does not have the sha256 given.
+    - `not-yuneta-agent <file>`: the download is a package, but not
+      `yuneta-agent`.
+    - `refused <why>`: the unit found no valid data, or no `curl`.
+
+  It is empty while the install runs.
 - `installed`: the version of `yuneta-agent` that the package database has.
 - `units`: the units `yuneta-install-package-*` that systemd knows.
 - `journal`: the end of the journal of those units, with the output of
   `apt-get` or `dnf`.
 
-The install has these steps:
+The root part of the install is a program of the package,
+`/usr/libexec/yuneta/install-package`. Root owns it, so `yuneta` cannot
+change it. The install has these steps:
 
-1. `agent22` writes a script, the URL, the sha256 and the name of the
-   package in `/yuneta/agent/install-package/`.
-2. It runs the script as root in a transient unit,
-   `yuneta-install-package-<UTC time>`, with `sudo -n systemd-run`.
-3. The script downloads the package with `curl`, `https` only (redirects
-   too).
-4. If the sha256 of the download is not the one given, the script deletes
+1. `agent22` writes the URL and the sha256 in
+   `/yuneta/agent/install-package/`. It writes only data.
+2. `agent22` runs `sudo -n /usr/libexec/yuneta/install-package start`.
+3. The program checks the data again. It refuses a file that is a link. It
+   copies the data to `/var/lib/yuneta/install-package/`, a directory of
+   root, and starts the transient unit `yuneta-install-package-<UTC time>`
+   with `systemd-run`. It tells `agent22` the name of the unit.
+4. The unit runs `/usr/libexec/yuneta/install-package run`. It downloads
+   the package into `/var/lib/yuneta/install-package/download.<random>/`
+   with `curl`, `https` only, also on each redirect. The download stops at
+   1 GiB, and also when the server sends less than 1 KB/s for 2 minutes.
+   After a transient error (a timeout, an HTTP 5xx), `curl` tries 3 more
+   times.
+5. If the sha256 of the download is not the one given, the unit deletes
    the download and stops. Nothing is installed.
-5. The script installs the package with `apt-get install -y` (and
-   `--force-confold`, so the configurations of the node stay) or
-   `dnf install -y`. Then it deletes the download.
-6. The postinst of the package restarts the main agent and then `agent22`.
+6. If the download is not the package `yuneta-agent` (`dpkg-deb -f` or
+   `rpm -qp`), the unit deletes it and stops.
+7. On Debian, the unit runs `apt-get update`. Then it installs the package
+   with `apt-get install -y` (and `--force-confold`, so the configurations
+   of the node stay). On Red Hat, it runs `dnf install -y`. Then it deletes
+   the download and writes `result` in `/var/lib/yuneta/install-package/`.
+8. The postinst of the package restarts the main agent and then `agent22`.
 
 Each step has a reason:
 
+- `yuneta` writes only data, and root checks it. Up to 7.31.29, `agent22`
+  wrote the script that root ran into `/yuneta`, which `yuneta` owns. Root
+  also downloaded the package there and wrote the result there. So `yuneta`
+  was able to put a link in place of a file that root wrote. Now root writes only
+  in its own directory. `yuneta` can read `result` there, but it cannot
+  create or replace a file there.
 - The install runs in its own unit, out of the cgroup of `agent22`. So the
   postinst can restart `agent22`, and the install goes on.
 - systemd expands `%` and `$` in the command line of a unit, and a URL can
   contain both. The option that stops it (`--expand-environment=no`) is in
   systemd 254 and later, and Rocky 9 has 252. So the URL goes in a file, and
-  the command line of the unit has only the fixed path of the script.
+  the command lines have only fixed words.
+- The download uses `curl` only. The `--https-only` option of `wget` applies
+  only to recursive downloads, so `wget` follows a redirect to `http`. A node
+  without `curl` is refused. `curl` is in the base system of every supported
+  distribution, and `install.sh` needs it too.
+- A `curl` older than 8.4 checks `--max-filesize` only against the size that
+  the server announces. So the unit also limits the size of the files that
+  `curl` writes (`ulimit -f`).
+- `apt-get update` comes first because an old index asks the mirror for a
+  version that the mirror no longer has, and a new dependency then fails. If
+  the update fails, the install goes on with the index of the node, as
+  `install.sh` does. A missing dependency then stops `apt-get install` with
+  an error.
 - `agent22` restarts during the install, and it forgets the install. So
   `install-package-status` reads the result from a file and from the journal.
 
-`install-package` refuses these cases:
+`install-package` refuses these cases. Nothing is written and nothing is
+started:
 
 - A node that builds from source. The preinst of the package refuses it
   too. Use [`upgrade-agent`](#agent22-upgrade-agent) there.
-- A URL that does not start with `https://`, has a blank or a quote, or does
-  not end in the name of a `.deb` or a `.rpm`.
-- A `.deb` on a node with no `apt-get`, or a `.rpm` on a node with no `dnf`.
+- A package with no `/usr/libexec/yuneta/install-package`, for example 7.31.29
+  or before. The answer says to upgrade the package by hand once. An
+  `agent22` of 7.31.29 or before has its own script, and it can install a
+  newer package. So this case comes only when `agent22` is newer than its
+  package.
+- A URL that does not start with `https://`, has a blank, a quote, a
+  backslash, or a control or non-ASCII character, or does not end in the
+  name of a `.deb` or a `.rpm`.
+- A `.deb` on a node with no `apt-get` and `dpkg-deb`, or a `.rpm` on a node
+  with no `dnf` and `rpm`.
+- A node with no `curl`.
 - A second install while one runs.
 
-The permission of both commands is `install-package`.
+The permission of both commands is `install-package`. It is equivalent to
+root: the package is the one of the URL and the sha256 that the operator
+gives, and the scripts of the package run as root. The permission
+`upgrade-agent` is equivalent to root too, where `yuneta` has `sudo`.
 
 ## Variant
 

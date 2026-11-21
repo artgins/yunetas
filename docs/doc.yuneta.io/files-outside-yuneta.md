@@ -55,6 +55,7 @@ license text.
 | `/usr/libexec/yuneta/yuneta-node-uuid` | file | file | Script, run as root. It makes the node uuid from the hardware. |
 | `/usr/libexec/yuneta/yuneta-agent-cert` | file | file | Script, run as root. It makes the certificate of the agent. |
 | `/usr/libexec/yuneta/yuneta-node-label` | file | file | Script, run by hand. It prints the label of the box. |
+| `/usr/libexec/yuneta/install-package` | file | file | Script, run as root by `install-package` of `yuneta_agent22`. It downloads, checks and installs a `yuneta-agent` package. |
 | `/usr/share/doc/yuneta-agent/copyright` | file | no | The license. The `.rpm` puts it in `/usr/share/licenses/yuneta-agent/LICENSE.txt`. |
 | `/usr/share/doc/yuneta-agent/THIRD-PARTY-NOTICES` | file | no | The licenses of the third-party code. The `.rpm` puts it in `/usr/share/licenses/yuneta-agent/`. |
 
@@ -122,8 +123,8 @@ rest of Yuneta works.
 | Feature | Command | Without `sudo` |
 |---|---|---|
 | Certificate sync of the agent, every 15 minutes | `cert_sync_copy_cmd`: `/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh` | The copy fails and the agent logs a WARNING at each sync. The certbot hook runs as root and copies the certificates. To stop the sync, set `cert_sync_enabled` to `0`. |
-| `install-package` of `yuneta_agent22` | `sudo -n systemd-run ... apt-get install` (or `dnf install`) | The node cannot install a package through the agent. Root must install it. |
-| `install-package-status` of `yuneta_agent22` | `sudo -n journalctl -u ...` | The answer shows the error of `sudo` in place of the journal. |
+| `install-package` of `yuneta_agent22` | `sudo -n /usr/libexec/yuneta/install-package start` | The node cannot install a package through the agent. Root must install it. |
+| `install-package-status` of `yuneta_agent22` | `sudo -n /usr/libexec/yuneta/install-package journal <lines>` | The answer shows the error of `sudo` in place of the journal. |
 | `upgrade-agent` of `yuneta_agent22` (source nodes only) | `sudo -n systemctl restart yuneta_agent.service` | The new binary is on disk, but the agent does not restart. |
 | `restart-yuneta`, and the restart action of `logcenter` | `sudo -n systemctl restart yuneta_agent.service` | The script refuses and says so. |
 
@@ -138,6 +139,19 @@ The package gives `sudo` to `yuneta` with the file `/etc/sudoers.d/90-yuneta`
 - ArtGins supplies a package made for that site.
 
 On such a site, the features of the table above fail as the table says.
+
+Such a site can give `sudo` for one feature only. For `install-package` and
+`install-package-status`, grant exactly the program and its two subcommands:
+
+```text
+# /etc/sudoers.d/91-yuneta-install-package (edit it with visudo -f)
+yuneta ALL=(root) NOPASSWD: /usr/libexec/yuneta/install-package start, /usr/libexec/yuneta/install-package journal *
+```
+
+The program checks every value that `yuneta` wrote, and it reads its own
+data only from a directory of root. Do not grant `systemd-run`: its options
+can run any command. This grant is still equivalent to root, because the
+operator chooses the package, and the scripts of the package run as root.
 
 (files-outside-yuneta-runtime)=
 ## Files that the software uses at run time
@@ -167,6 +181,11 @@ These files are written at run time:
 - `/var/crash/core.<binary>`: the core dump of a yuno that crashes.
 - `/var/log/yuneta/deploy-hook.log` and `copy-certs.log`: written by the
   certbot hook, as root.
+- `/var/lib/yuneta/install-package/`: written by
+  `/usr/libexec/yuneta/install-package`, as root. It holds the URL and the
+  sha256 of the last install, its `result`, and the download while the
+  install runs. Root owns the directory, mode `0755`, so `yuneta` can read
+  `result` but cannot change a file there.
 
 (files-outside-yuneta-rules)=
 ## Rules for a change

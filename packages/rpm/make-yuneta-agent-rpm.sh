@@ -1076,6 +1076,12 @@ install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-agent-cert" \
 # qrencode (Recommends).
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-label" \
     "${STAGE}/usr/libexec/yuneta/yuneta-node-label"
+# The root half of install-package of yuneta_agent22: it downloads, checks
+# and installs a yuneta-agent package in a transient unit (sudo -n). Here and
+# not written by agent22 into /yuneta, where yuneta could change what root
+# runs. Its header has the layout and the checks.
+install -m 0755 "${YUNETAS_BASE}/packages/templates/install-package" \
+    "${STAGE}/usr/libexec/yuneta/install-package"
 
 # --- The node's web server, as its own unit ---
 #
@@ -1821,6 +1827,7 @@ cp -a %{_staging}/. %{buildroot}/
 %attr(0755,root,root) /usr/libexec/yuneta/yuneta-node-uuid
 %attr(0755,root,root) /usr/libexec/yuneta/yuneta-agent-cert
 %attr(0755,root,root) /usr/libexec/yuneta/yuneta-node-label
+%attr(0755,root,root) /usr/libexec/yuneta/install-package
 # The agent's own pair, made on the node (yuneta-agent-cert): owned, never
 # shipped, so that an upgrade from a package that shipped it does not erase
 # the pair %post has just made (rpm erases the old package's files AFTER it)

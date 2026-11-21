@@ -8,5 +8,6 @@ Enable it only on hosts that a control center must reach.
 its systemd unit, with `upgrade-agent content64=<binary>`. The command runs
 only on a node that builds from source. On a package node,
 `install-package url=<https url> sha256=<hex>` installs the `yuneta-agent`
-package instead. The page
+package instead. Its root part is `/usr/libexec/yuneta/install-package`, a
+program of the package: `agent22` writes only the URL and the sha256. The page
 [`yuneta_agent22`](https://doc.yuneta.io/yuneta-agent22) gives the steps.

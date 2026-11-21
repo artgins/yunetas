@@ -539,6 +539,12 @@ install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-agent-cert" \
 # qrencode (Recommends).
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-label" \
     "${WORKDIR}/usr/libexec/yuneta/yuneta-node-label"
+# The root half of install-package of yuneta_agent22: it downloads, checks
+# and installs a yuneta-agent package in a transient unit (sudo -n). Here and
+# not written by agent22 into /yuneta, where yuneta could change what root
+# runs. Its header has the layout and the checks.
+install -m 0755 "${YUNETAS_BASE}/packages/templates/install-package" \
+    "${WORKDIR}/usr/libexec/yuneta/install-package"
 
 # --- The wrapper the unit calls ---
 #

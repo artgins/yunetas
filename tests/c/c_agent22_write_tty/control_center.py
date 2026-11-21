@@ -10,6 +10,10 @@
 #   FLOODPAD md / FLOODPAD hop open one with the request padded with 1 MB
 #   (flood_pad()): "FLOODPAD <where> OK" when agent22's memory stayed
 #   bounded, and the padding of its own was not in the frames of output.
+#   A line "SH <command>" runs <command> with sh, in the sandbox, between
+#   two commands (c_agent22_install_package changes the node with it). After
+#   each answer to a command, a line "COMMENT <line>: <comment>" prints its
+#   comment.
 #
 #   Usage: control_center.py <cert> <key> <port> <line>...
 #   Exit 0 when the link lived through every line, 2 when the agent closed
@@ -258,6 +262,11 @@ def main():
         if line.startswith("FLOODPAD "):
             flood_pad(s, line.split()[1])
             continue
+        if line.startswith("SH "):
+            import subprocess
+            rc = subprocess.call(["sh", "-c", line[3:]])
+            print("SH %r: exit %d" % (line[3:], rc))
+            continue
         send(s, "EV_MT_COMMAND", command(line))
         got = []
         end = time.time() + 2
@@ -275,6 +284,9 @@ def main():
             shown.append([g.get("event"), kw.get("result"),
                 (kw.get("data") or {}).get("name") if g.get("event") == "EV_TTY_CLOSE" else None])
         print("LINE %r: %s" % (line, json.dumps(shown)))
+        for g in got:
+            if g.get("event") == "EV_MT_COMMAND_ANSWER":
+                print("COMMENT %r: %s" % (line, (g.get("kw", {}) or {}).get("comment")))
     print("LINK ALIVE")
     s.close()
     return 0

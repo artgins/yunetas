@@ -73,6 +73,26 @@ hardware does not give. The units do not run it. On a node that builds from
 source, run it from the tree. `tests/test-yuneta-node-label.sh` tests it
 against a fake `/sys`.
 
+## install-package
+
+`templates/install-package` is the root part of `install-package` of
+`yuneta_agent22`. The packages install it as
+`/usr/libexec/yuneta/install-package`. `agent22` writes the URL and the
+sha256 in `/yuneta/agent/install-package/` and runs
+`sudo -n /usr/libexec/yuneta/install-package start`. The program checks the
+data, copies it to `/var/lib/yuneta/install-package/`, and starts a
+transient unit that downloads, checks and installs the package. Its header
+gives the layout, the checks and a `sudoers` line for a site whose `yuneta`
+has no `sudo`.
+
+`tests/test-install-package.sh` tests it as a normal user, in a fake root,
+with stubs for `curl`, `systemd-run`, `systemctl`, `apt-get`, `dpkg-deb`,
+`dnf`, `rpm` and `journalctl`:
+
+```bash
+packages/tests/test-install-package.sh
+```
+
 ## The certificate of the agent
 
 `templates/yuneta-agent-cert` makes the own pair of the agent

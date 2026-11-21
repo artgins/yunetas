@@ -1,0 +1,452 @@
+#!/bin/sh
+#
+#   install-package -- the root half of install-package of yuneta_agent22
+#
+#   `install-package url=<https url> sha256=<hex>` of yuneta_agent22 installs
+#   a yuneta-agent package (.deb or .rpm) on a package node. agent22 runs as
+#   yuneta; this program does the part that needs root. It is
+#   /usr/libexec/yuneta/install-package, root's, in the package: up to
+#   7.31.29 agent22 wrote the script that root ran into /yuneta, which
+#   yuneta owns, and root downloaded the package and wrote its result there.
+#
+#   The data, and who writes what:
+#
+#     /yuneta/agent/install-package/url, sha256
+#                 written by agent22 (yuneta). This program only READS them,
+#                 in `start`: it refuses a link, or anything that is not a
+#                 regular file, and checks every value again. It never shows
+#                 a value it refused.
+#     /var/lib/yuneta/install-package/          (root:root, 0755)
+#         url, sha256   the checked values, copied by `start`
+#         result        the end of the last install, one line (0644)
+#         download.XXXXXX/  the package while it is checked and installed
+#                       (removed at the end)
+#                 root's only: yuneta reads `result` and cannot create,
+#                 replace or remove anything here. This program refuses
+#                 the directory and its parent when they are links, are
+#                 not root's, or are writable by the group or by others.
+#
+#   Usage (as root, `sudo -n` from agent22):
+#
+#       install-package start
+#           Checks the data and the node, copies the data to
+#           /var/lib/yuneta/install-package and starts the transient unit
+#           yuneta-install-package-<UTC time> (systemd-run) that runs
+#           `install-package run`. The unit is out of the cgroup of
+#           agent22: the postinst restarts both agents and the install goes
+#           on. Prints "started <unit> <package file>" and exits 0, or
+#           "refused: <reason>" and exits 2. Nothing of the operator goes
+#           on the command line of systemd-run: systemd expands '%' and '$'
+#           there.
+#       install-package run
+#           The body of the unit: download, check, install. It reads only
+#           /var/lib/yuneta/install-package.
+#       install-package journal [lines]
+#           The end of the journal of the units (1-1000 lines, default 40),
+#           for install-package-status.
+#
+#   The steps of `run`:
+#
+#     1. Download with curl only, https on every redirect too, at most
+#        MAX_BYTES (1 GiB; a package is about 370 MB). curl stops a download
+#        under 1 KB/s for 2 minutes, and tries 3 more times. wget is not
+#        used: its --https-only applies only to its recursive mode, so it
+#        follows a redirect to http. A node without curl is refused at
+#        `start`.
+#     2. The sha256 of the download must be the one given.
+#     3. The package must be yuneta-agent (dpkg-deb -f / rpm -qp).
+#     4. apt: `apt-get update` first (a stale index asks the mirror for a
+#        version it no longer has, and a new dependency fails); when the
+#        update fails the install goes on with the index it has, as
+#        install.sh does: a mirror hiccup or a broken repository of another
+#        vendor must not block the upgrade, and a missing dependency still
+#        makes apt-get install fail loudly. Then `apt-get install -y`
+#        (--force-confold: the configurations of the node stay), or
+#        `dnf install -y`.
+#
+#   `result`: "done <rc>", "download-failed <rc>", "sha256-mismatch",
+#   "not-yuneta-agent <name>", "refused <why>". `start` removes it, so it is
+#   empty while an install runs.
+#
+#   A site whose yuneta has no `sudo` can grant exactly this program:
+#
+#       yuneta ALL=(root) NOPASSWD: /usr/libexec/yuneta/install-package start, /usr/libexec/yuneta/install-package journal *
+#
+#   That grant is equivalent to root all the same: the package is chosen by
+#   its url and sha256, and its scripts run as root.
+#
+#   For tests only: run by a user that is not root, with
+#   YUNETA_INSTALL_PACKAGE_TEST_ROOT set, every path is under that
+#   directory, the owner checked is that user, and
+#   YUNETA_INSTALL_PACKAGE_TEST_MAX_BYTES can lower MAX_BYTES. As root both
+#   variables are ignored.
+#
+#   Copyright (c) 2026, ArtGins.
+#
+set -u
+LC_ALL=C
+export LC_ALL
+umask 022
+
+PROGRAM="/usr/libexec/yuneta/install-package"
+UNIT_PREFIX="yuneta-install-package-"
+MAX_BYTES=1073741824
+
+if [ "$(id -u)" = "0" ]; then
+    ROOT=""
+    OWNER="0"
+    PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+    export PATH
+elif [ -n "${YUNETA_INSTALL_PACKAGE_TEST_ROOT:-}" ]; then
+    ROOT="$YUNETA_INSTALL_PACKAGE_TEST_ROOT"
+    OWNER="$(id -u)"
+    PROGRAM="$0"
+    MAX_BYTES="${YUNETA_INSTALL_PACKAGE_TEST_MAX_BYTES:-$MAX_BYTES}"
+else
+    echo "refused: run it as root (sudo -n $PROGRAM ...)"
+    exit 2
+fi
+DATA_DIR="${ROOT}/yuneta/agent/install-package"
+STATE_PARENT="${ROOT}/var/lib/yuneta"
+STATE_DIR="${STATE_PARENT}/install-package"
+
+#
+#   Output
+#
+say() {
+    echo "install-package: $*"
+}
+
+refuse() {
+    echo "refused: $*"
+    exit 2
+}
+
+#
+#   The checks of the data
+#
+valid_url() {
+    if [ "${#1}" -gt 2048 ]; then
+        return 1
+    fi
+    case "$1" in
+        https://?*)
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    case "$1" in
+        *[![:graph:]]*|*\'*|*\"*|*\`*|*\\*)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+name_of_url() {
+    local_name="${1##*/}"
+    if [ "${#local_name}" -lt 5 ] || [ "${#local_name}" -gt 255 ]; then
+        return 1
+    fi
+    case "$local_name" in
+        .*|*[!A-Za-z0-9._+~-]*)
+            return 1
+            ;;
+        *.deb|*.rpm)
+            printf '%s' "$local_name"
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+valid_sha256() {
+    if [ "${#1}" -ne 64 ]; then
+        return 1
+    fi
+    case "$1" in
+        *[!0-9a-f]*)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+#
+#   A file that agent22 (yuneta) wrote: a regular file, not a link, its
+#   value on stdout. Its content is not shown when it is refused.
+#
+read_data_file() {
+    data_file="${DATA_DIR}/$1"
+    if [ -L "$data_file" ] || [ ! -f "$data_file" ]; then
+        return 1
+    fi
+    head -c 4096 "$data_file"
+}
+
+#
+#   A directory root writes in: not a link, a directory of OWNER, and
+#   writable by nobody else
+#
+dir_is_ours() {
+    if [ -L "$1" ] || [ ! -d "$1" ]; then
+        return 1
+    fi
+    if [ "$(stat -c %u "$1" 2>/dev/null)" != "$OWNER" ]; then
+        return 1
+    fi
+    case "$(stat -c %A "$1" 2>/dev/null)" in
+        ?????w*|????????w*|"")
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+prepare_state_dir() {
+    if ! mkdir -p -m 0755 "$STATE_DIR"; then
+        refuse "cannot create $STATE_DIR"
+    fi
+    if ! dir_is_ours "$STATE_PARENT"; then
+        refuse "$STATE_PARENT must be a directory of root (uid $OWNER), not a link, writable by root only"
+    fi
+    if ! dir_is_ours "$STATE_DIR"; then
+        refuse "$STATE_DIR must be a directory of root (uid $OWNER), not a link, writable by root only"
+    fi
+}
+
+write_state_file() {    # name value
+    if ! printf '%s\n' "$2" > "${STATE_DIR}/.$1.tmp" ||
+            ! chmod 0644 "${STATE_DIR}/.$1.tmp" ||
+            ! mv -f "${STATE_DIR}/.$1.tmp" "${STATE_DIR}/$1"; then
+        rm -f "${STATE_DIR}/.$1.tmp"
+        return 1
+    fi
+    return 0
+}
+
+read_state_file() {
+    if [ -L "${STATE_DIR}/$1" ] || [ ! -f "${STATE_DIR}/$1" ]; then
+        return 1
+    fi
+    head -c 4096 "${STATE_DIR}/$1"
+}
+
+running_units() {
+    systemctl list-units "${UNIT_PREFIX}*" --state=active,activating \
+        --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' '
+}
+
+#
+#   install-package start
+#
+cmd_start() {
+    if [ "$#" -ne 0 ]; then
+        refuse "start takes no argument"
+    fi
+    if [ -L "$DATA_DIR" ] || [ ! -d "$DATA_DIR" ]; then
+        refuse "$DATA_DIR is not a directory (a link is refused)"
+    fi
+    if ! url="$(read_data_file url)"; then
+        refuse "$DATA_DIR/url is not a regular file (a link is refused)"
+    fi
+    if ! sha="$(read_data_file sha256)"; then
+        refuse "$DATA_DIR/sha256 is not a regular file (a link is refused)"
+    fi
+    if ! valid_url "$url"; then
+        refuse "the url of $DATA_DIR/url is not valid: https://, at most 2048 characters, no blank, quote, backslash or control character"
+    fi
+    if ! name="$(name_of_url "$url")"; then
+        refuse "the url of $DATA_DIR/url does not end in the name of a .deb or a .rpm ([A-Za-z0-9._+~-], 5-255 characters)"
+    fi
+    if ! valid_sha256 "$sha"; then
+        refuse "the sha256 of $DATA_DIR/sha256 is not 64 lower-case hex digits"
+    fi
+
+    case "$name" in
+        *.deb)
+            for tool in apt-get dpkg-deb; do
+                if ! command -v "$tool" >/dev/null 2>&1; then
+                    refuse "a .deb needs $tool, and this node has none"
+                fi
+            done
+            ;;
+        *.rpm)
+            for tool in dnf rpm; do
+                if ! command -v "$tool" >/dev/null 2>&1; then
+                    refuse "a .rpm needs $tool, and this node has none"
+                fi
+            done
+            ;;
+    esac
+    if ! command -v curl >/dev/null 2>&1; then
+        refuse "this node has no curl: install-package downloads with curl only (https on every redirect); install curl"
+    fi
+
+    running="$(running_units)"
+    if [ -n "$running" ]; then
+        refuse "another install-package runs: ${running% }: see install-package-status"
+    fi
+
+    prepare_state_dir
+    rm -rf "${STATE_DIR}"/download.* "${STATE_DIR}/result"
+    if ! write_state_file url "$url" || ! write_state_file sha256 "$sha"; then
+        refuse "cannot write the data of the install in $STATE_DIR"
+    fi
+
+    unit="${UNIT_PREFIX}$(date -u +%Y%m%d%H%M%S)"
+    if ! out="$(systemd-run --unit="$unit" \
+            --description="yuneta-agent package installed by yuneta_agent22" \
+            "$PROGRAM" run 2>&1)"; then
+        refuse "systemd-run of the unit $unit FAILED: $(printf '%s' "$out" | tail -n 1)"
+    fi
+    echo "started $unit $name"
+    exit 0
+}
+
+#
+#   install-package run
+#
+result() {
+    say "result: $1"
+    if ! write_state_file result "$1"; then
+        say "cannot write ${STATE_DIR}/result"
+    fi
+}
+
+cleanup() {
+    if [ -n "${DOWNLOAD_DIR:-}" ]; then
+        rm -rf "$DOWNLOAD_DIR"
+    fi
+}
+
+cmd_run() {
+    if [ "$#" -ne 0 ]; then
+        refuse "run takes no argument"
+    fi
+    if ! dir_is_ours "$STATE_PARENT" || ! dir_is_ours "$STATE_DIR"; then
+        say "$STATE_DIR is not a directory of root only: nothing is done"
+        exit 2
+    fi
+    url="$(read_state_file url)" || url=""
+    sha="$(read_state_file sha256)" || sha=""
+    if ! valid_url "$url" || ! name="$(name_of_url "$url")" || ! valid_sha256 "$sha"; then
+        result "refused bad-data"
+        exit 2
+    fi
+    if ! command -v curl >/dev/null 2>&1; then
+        result "refused no-curl"
+        exit 2
+    fi
+
+    DOWNLOAD_DIR=""
+    trap cleanup EXIT
+    trap 'exit 143' TERM INT HUP
+    if ! DOWNLOAD_DIR="$(mktemp -d "${STATE_DIR}/download.XXXXXX")"; then
+        result "refused no-download-dir"
+        exit 2
+    fi
+    file="${DOWNLOAD_DIR}/${name}"
+
+    say "download $url"
+    (
+        # Over MAX_BYTES a write fails (EFBIG) instead of killing curl: a
+        # curl older than 8.4 checks --max-filesize only against the
+        # Content-Length the server sends. ulimit -f counts 512-byte blocks.
+        trap '' XFSZ
+        ulimit -f $((MAX_BYTES / 512))
+        exec curl -fsSL --proto =https --proto-redir =https --retry 3 \
+            --connect-timeout 30 --speed-limit 1024 --speed-time 120 \
+            --max-filesize "$MAX_BYTES" -o "$file" "$url"
+    )
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        say "download FAILED rc=$rc"
+        result "download-failed $rc"
+        exit 11
+    fi
+
+    if ! echo "$sha  $file" | sha256sum -c --status; then
+        say "sha256 does NOT match: not installed"
+        result "sha256-mismatch"
+        exit 12
+    fi
+
+    case "$name" in
+        *.deb)
+            package="$(dpkg-deb -f "$file" Package 2>/dev/null)" || package=""
+            ;;
+        *.rpm)
+            package="$(rpm -qp --qf '%{NAME}' "$file" 2>/dev/null)" || package=""
+            ;;
+    esac
+    if [ "$package" != "yuneta-agent" ]; then
+        say "$name is not a yuneta-agent package ('$package'): not installed"
+        result "not-yuneta-agent $name"
+        exit 13
+    fi
+
+    # apt fetches a local file as its user _apt: let it read the download
+    chmod 0755 "$DOWNLOAD_DIR"
+    chmod 0644 "$file"
+
+    say "sha256 ok, installing $name"
+    case "$name" in
+        *.deb)
+            if ! DEBIAN_FRONTEND=noninteractive apt-get update; then
+                say "apt-get update FAILED: the install goes on with the index this node has"
+            fi
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confold "$file"
+            rc=$?
+            ;;
+        *.rpm)
+            dnf install -y "$file"
+            rc=$?
+            ;;
+    esac
+    say "done rc=$rc"
+    result "done $rc"
+    exit "$rc"
+}
+
+#
+#   install-package journal [lines]
+#
+cmd_journal() {
+    lines="${1:-40}"
+    if [ "$#" -gt 1 ]; then
+        refuse "journal takes one argument, the lines"
+    fi
+    case "$lines" in
+        ""|*[!0-9]*)
+            refuse "the lines must be a number from 1 to 1000"
+            ;;
+    esac
+    if [ "${#lines}" -gt 4 ] || [ "$lines" -lt 1 ] || [ "$lines" -gt 1000 ]; then
+        refuse "the lines must be a number from 1 to 1000"
+    fi
+    exec journalctl -u "${UNIT_PREFIX}*" -n "$lines" --no-pager -o short-iso
+}
+
+#
+#   Main
+#
+subcommand="${1:-}"
+if [ "$#" -gt 0 ]; then
+    shift
+fi
+case "$subcommand" in
+    start)
+        cmd_start "$@"
+        ;;
+    run)
+        cmd_run "$@"
+        ;;
+    journal)
+        cmd_journal "$@"
+        ;;
+    *)
+        refuse "usage: $PROGRAM start | run | journal [lines]"
+        ;;
+esac

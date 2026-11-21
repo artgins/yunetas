@@ -45,8 +45,17 @@
  */
 #define AGENT_DIR           "/yuneta/agent"
 #define AGENT_UPGRADE_DIR   "/yuneta/agent/upgrade"
+/*
+ *  install-package: agent22 writes the url and the sha256 in PACKAGE_DIR
+ *  (yuneta's); PACKAGE_PROGRAM (root's, in the package) checks them, copies
+ *  them to PACKAGE_STATE_DIR (root's) and installs from there, and writes
+ *  its `result` there. An agent22 of 7.31.29 or before wrote the script and
+ *  root wrote the result in PACKAGE_DIR: PACKAGE_LEGACY_SCRIPT and its result.
+ */
 #define PACKAGE_DIR         "/yuneta/agent/install-package"
-#define PACKAGE_SCRIPT      "install-package.sh"
+#define PACKAGE_PROGRAM     "/usr/libexec/yuneta/install-package"
+#define PACKAGE_STATE_DIR   "/var/lib/yuneta/install-package"
+#define PACKAGE_LEGACY_SCRIPT "install-package.sh"
 #define PACKAGE_UNIT_PREFIX "yuneta-install-package-"
 #define MAIN_AGENT          "yuneta_agent"
 #define MAIN_AGENT_UNIT     "yuneta_agent.service"
@@ -96,67 +105,6 @@ PRIVATE json_t *command_output_lines(const char *command);
  ***************************************************************************/
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 PRIVATE const char *pidfile = "/yuneta/realms/agent/yuneta_agent22.pid";
-
-/*
- *  The script of install-package, run as root in a transient systemd unit.
- *  It reads the url, the sha256 and the name of the package from the files
- *  beside it: systemd expands '%' and '$' in a command line, and the
- *  url could carry both (`--expand-environment=no` is systemd 254+).
- *  It writes its result in `result`: "done <rc>", "download-failed <rc>",
- *  "sha256-mismatch".
- */
-PRIVATE const char install_package_script[] = "\
-#!/bin/sh\n\
-#\n\
-#   install-package of yuneta_agent22: download, check, install\n\
-#\n\
-dir=\"$(dirname \"$0\")\"\n\
-url=\"$(cat \"$dir/url\")\"\n\
-sha=\"$(cat \"$dir/sha256\")\"\n\
-name=\"$(cat \"$dir/name\")\"\n\
-file=\"$dir/$name\"\n\
-\n\
-echo \"install-package: download $url\"\n\
-if command -v curl >/dev/null 2>&1; then\n\
-    curl -fsSL --proto =https --proto-redir =https --retry 3 -o \"$file\" \"$url\"\n\
-else\n\
-    wget -q --https-only -O \"$file\" \"$url\"\n\
-fi\n\
-rc=$?\n\
-if [ $rc -ne 0 ]; then\n\
-    echo \"install-package: download FAILED rc=$rc\"\n\
-    echo \"download-failed $rc\" > \"$dir/result\"\n\
-    rm -f \"$file\"\n\
-    exit 11\n\
-fi\n\
-\n\
-if ! echo \"$sha  $file\" | sha256sum -c --status; then\n\
-    echo \"install-package: sha256 does NOT match: not installed\"\n\
-    echo \"sha256-mismatch\" > \"$dir/result\"\n\
-    rm -f \"$file\"\n\
-    exit 12\n\
-fi\n\
-\n\
-echo \"install-package: sha256 ok, installing $name\"\n\
-case \"$name\" in\n\
-    *.deb)\n\
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confold \"$file\"\n\
-        rc=$?\n\
-        ;;\n\
-    *.rpm)\n\
-        dnf install -y \"$file\"\n\
-        rc=$?\n\
-        ;;\n\
-    *)\n\
-        echo \"install-package: neither a .deb nor a .rpm\"\n\
-        rc=13\n\
-        ;;\n\
-esac\n\
-rm -f \"$file\"\n\
-echo \"install-package: done rc=$rc\"\n\
-echo \"done $rc\" > \"$dir/result\"\n\
-exit $rc\n\
-";
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -221,7 +169,7 @@ SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    
 SDATACM2 (DTP_SCHEMA,    "list-consoles",   0,                  0,                  0,              cmd_list_consoles, "List consoles"),
 SDATACM2 (DTP_SCHEMA,    "open-console",    0,                  0,                  pm_open_console,cmd_open_console, "Open console"),
 SDATACM2 (DTP_SCHEMA,    "close-console",   0,                  0,                  pm_close_console,cmd_close_console,"Close console"),
-SDATACM2 (DTP_SCHEMA,    "install-package", 0,                  0,                  pm_install_package,cmd_install_package,"Download a yuneta-agent package (.deb or .rpm) from an https url, check its sha256 and install it, in a transient systemd unit: its postinst restarts the main agent and then this one. Only on a node that runs from a package. The answer comes at once: install-package-status says how it went"),
+SDATACM2 (DTP_SCHEMA,    "install-package", 0,                  0,                  pm_install_package,cmd_install_package,"Download a yuneta-agent package (.deb or .rpm) from an https url, check its sha256 and its name and install it, as root in a transient systemd unit started by " PACKAGE_PROGRAM " (in the package): its postinst restarts the main agent and then this one. Only on a node that runs from a package. The answer comes at once: install-package-status says how it went"),
 SDATACM2 (DTP_SCHEMA,    "install-package-status",0,            0,                  pm_install_package_status,cmd_install_package_status,"How the last install-package went: its result, its units, the end of its journal, and the version of yuneta-agent installed"),
 SDATACM2 (DTP_SCHEMA,    "upgrade-agent",   0,                  0,                  pm_upgrade_agent,cmd_upgrade_agent,"Replace the binary of the main agent (yuneta_agent) and restart it in its systemd unit. Only on a node that builds from source: on a package node the agent comes in the package"),
 
@@ -265,8 +213,8 @@ PRIVATE sdata_desc_t authz_table[] = {
 SDATAAUTHZ (DTP_SCHEMA, "open-console",     0,      0,      0,      "Permission to open console"),
 SDATAAUTHZ (DTP_SCHEMA, "close-console",    0,      0,      0,      "Permission to close console"),
 SDATAAUTHZ (DTP_SCHEMA, "list-consoles",    0,      0,      0,      "Permission to list consoles"),
-SDATAAUTHZ (DTP_SCHEMA, "install-package",  0,      0,      0,      "Permission to install a yuneta-agent package, and to see how it went"),
-SDATAAUTHZ (DTP_SCHEMA, "upgrade-agent",    0,      0,      0,      "Permission to replace the binary of the main agent and restart it"),
+SDATAAUTHZ (DTP_SCHEMA, "install-package",  0,      0,      0,      "Permission to install a yuneta-agent package, and to see how it went. Equivalent to root: the package is the one of the url and sha256 given, and its scripts run as root"),
+SDATAAUTHZ (DTP_SCHEMA, "upgrade-agent",    0,      0,      0,      "Permission to replace the binary of the main agent and restart it. Equivalent to root where yuneta has sudo (the default of the package): the main agent runs the binary given, as yuneta"),
 SDATA_END()
 };
 
@@ -1298,17 +1246,21 @@ PRIVATE json_t *cmd_upgrade_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj
  *  Install a yuneta-agent package from an https url: the way a package
  *  node changes its agent (on such a node what runs is what the package
  *  installed). It runs as root in a transient systemd unit
- *  (`yuneta-install-package-<time>`, by `sudo -n systemd-run`), out of
- *  this agent's cgroup: the postinst restarts the main agent and then
- *  this one, and the install goes on. So this answers at once, and
- *  install-package-status says how it went.
+ *  (`yuneta-install-package-<time>`), out of this agent's cgroup: the
+ *  postinst restarts the main agent and then this one, and the install
+ *  goes on. So this answers at once, and install-package-status says how
+ *  it went.
  *
- *  The unit runs install_package_script, which reads the url, the sha256
- *  and the name of the package from files in PACKAGE_DIR: nothing of the
- *  operator's goes through the command line of systemd (it expands '%'
- *  and '$' there). The package is installed only if its sha256 is the one
- *  given. Refused on a node that builds from source (the preinst refuses
- *  it too), and while another install runs.
+ *  agent22 writes only data: the url and the sha256, in PACKAGE_DIR. The
+ *  root part is PACKAGE_PROGRAM, root's, in the package (`sudo -n
+ *  PACKAGE_PROGRAM start`): it checks the data again, refuses a link,
+ *  copies the data to PACKAGE_STATE_DIR (root's) and starts the unit, which
+ *  downloads there, checks the sha256 and that the package is yuneta-agent,
+ *  and installs it. Nothing of the operator's goes through a command line
+ *  (systemd expands '%' and '$' there). Refused on a node that builds from
+ *  source (the preinst refuses it too), on a package with no
+ *  PACKAGE_PROGRAM (7.31.29 or before), and by the program while another
+ *  install runs, or when the node lacks curl or the installer.
  ***************************************************************************/
 PRIVATE json_t *cmd_install_package(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1351,8 +1303,9 @@ PRIVATE json_t *cmd_install_package(hgobj gobj, const char *cmd, json_t *kw, hgo
             gobj,
             -1,
             json_sprintf(
-                "%s: url must be https://, with no blank nor quote, its last part the "
-                "name of a .deb or a .rpm ([A-Za-z0-9._+~-]): '%s'",
+                "%s: url must be https://, with no blank, quote, backslash nor control or "
+                "non-ASCII character, its last part the name of a .deb or a .rpm "
+                "([A-Za-z0-9._+~-]): '%s'",
                 gobj_yuno_role_plus_name(), url
             ),
             0,
@@ -1385,42 +1338,34 @@ PRIVATE json_t *cmd_install_package(hgobj gobj, const char *cmd, json_t *kw, hgo
         );
     }
 
-    BOOL is_deb = (strlen(name) > 4 && strcmp(name + strlen(name) - 4, ".deb") == 0)? TRUE : FALSE;
-    const char *installer = is_deb? "/usr/bin/apt-get" : "/usr/bin/dnf";
-    if(access(installer, X_OK) != 0) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("%s: a %s needs %s, and this node has none",
-                gobj_yuno_role_plus_name(), is_deb? ".deb" : ".rpm", installer),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
     /*----------------------------------------*
-     *  Not while another install runs
+     *  The root part comes in the package
      *----------------------------------------*/
-    json_t *running = command_output_lines(
-        "systemctl list-units '" PACKAGE_UNIT_PREFIX "*' "
-        "--state=active,activating --no-legend --plain 2>/dev/null"
-    );
-    if(json_array_size(running) > 0) {
+    if(access(PACKAGE_PROGRAM, X_OK) != 0) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "install-package refused: the package of this node has no " PACKAGE_PROGRAM,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: another install-package runs: see install-package-status",
-                gobj_yuno_role_plus_name()),
+            json_sprintf(
+                "%s: the package of this node has no %s: nothing done. "
+                "Upgrade the package by hand once (install.sh, or apt-get/dnf install as root)",
+                gobj_yuno_role_plus_name(), PACKAGE_PROGRAM
+            ),
             0,
-            running, // owned
+            0,
             kw  // owned
         );
     }
-    JSON_DECREF(running)
 
     /*----------------------------------------*
-     *  The script and what it reads
+     *  The data the program reads
      *----------------------------------------*/
     if(!is_directory(PACKAGE_DIR) && mkrdir(PACKAGE_DIR, yuneta_xpermission()) < 0) {
         // Error already logged
@@ -1433,19 +1378,20 @@ PRIVATE json_t *cmd_install_package(hgobj gobj, const char *cmd, json_t *kw, hgo
             kw  // owned
         );
     }
-    char result_path[PATH_MAX];
-    if(build_path(result_path, sizeof(result_path), PACKAGE_DIR, "result", NULL)) {
-        unlink(result_path);    // the result of the install before, if any
+    const char *legacy[] = {PACKAGE_LEGACY_SCRIPT, "result", "name", NULL};
+    for(int i = 0; legacy[i]; i++) {
+        char legacy_path[PATH_MAX];
+        if(build_path(legacy_path, sizeof(legacy_path), PACKAGE_DIR, legacy[i], NULL)) {
+            unlink(legacy_path);    // what an agent22 of 7.31.29 or before left, if any
+        }
     }
-    if(write_small_file(gobj, PACKAGE_DIR, PACKAGE_SCRIPT, install_package_script, 0755) < 0 ||
-            write_small_file(gobj, PACKAGE_DIR, "url", url, 0644) < 0 ||
-            write_small_file(gobj, PACKAGE_DIR, "sha256", sha_lower, 0644) < 0 ||
-            write_small_file(gobj, PACKAGE_DIR, "name", name, 0644) < 0) {
+    if(write_small_file(gobj, PACKAGE_DIR, "url", url, 0644) < 0 ||
+            write_small_file(gobj, PACKAGE_DIR, "sha256", sha_lower, 0644) < 0) {
         // Error already logged
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: cannot write the files of the install in '%s'",
+            json_sprintf("%s: cannot write the data of the install in '%s'",
                 gobj_yuno_role_plus_name(), PACKAGE_DIR),
             0,
             0,
@@ -1454,42 +1400,44 @@ PRIVATE json_t *cmd_install_package(hgobj gobj, const char *cmd, json_t *kw, hgo
     }
 
     /*----------------------------------------*
-     *  Run it, out of this agent's cgroup
+     *  Start it: "started <unit> <file>"
      *----------------------------------------*/
-    char unit[NAME_MAX];
-    char unit_arg[NAME_MAX + 16];
-    time_t t = time(NULL);
-    struct tm tm;
-    gmtime_r(&t, &tm);
-    strftime(unit, sizeof(unit), PACKAGE_UNIT_PREFIX "%Y%m%d%H%M%S", &tm);
-    snprintf(unit_arg, sizeof(unit_arg), "--unit=%s", unit);
-
-    char *const argv[] = {
-        "sudo", "-n", "systemd-run", unit_arg,
-        "--description=yuneta-agent package installed by yuneta_agent22",
-        "/bin/sh", PACKAGE_DIR "/" PACKAGE_SCRIPT,
-        NULL
-    };
-    int status = run_process2("/usr/bin/sudo", argv);
-    if(status < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        gobj_log_error(gobj, 0,
+    json_t *output = command_output_lines("/usr/bin/sudo -n " PACKAGE_PROGRAM " start 2>&1");
+    char unit[NAME_MAX] = "";
+    size_t idx;
+    json_t *jn_line;
+    json_array_foreach(output, idx, jn_line) {
+        const char *line = json_string_value(jn_line);
+        if(line && strncmp(line, "started ", 8) == 0) {
+            const char *p = line + 8;
+            size_t len = strcspn(p, " ");
+            if(len > 0 && len < sizeof(unit)) {
+                memcpy(unit, p, len);
+                unit[len] = 0;
+            }
+        }
+    }
+    if(empty_string(unit)) {
+        size_t n = json_array_size(output);
+        const char *last = n > 0? json_string_value(json_array_get(output, n - 1)) : NULL;
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM,
-            "msg",          "%s", "sudo -n systemd-run FAILED: package not installed",
-            "unit",         "%s", unit,
-            "status",       "%d", status,
+            "msg",          "%s", "install-package not started: package not installed",
+            "output",       "%s", last? last : "",
             NULL
         );
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: systemd-run of the install FAILED (status %d)",
-                gobj_yuno_role_plus_name(), status),
+            json_sprintf("%s: install-package not started: %s",
+                gobj_yuno_role_plus_name(), last? last : "the program said nothing"),
             0,
-            0,
+            output, // owned
             kw  // owned
         );
     }
+    JSON_DECREF(output)
 
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -1516,11 +1464,14 @@ PRIVATE json_t *cmd_install_package(hgobj gobj, const char *cmd, json_t *kw, hgo
 }
 
 /***************************************************************************
- *  How the last install-package went: what its script wrote in `result`
- *  ("done <rc>", "download-failed <rc>", "sha256-mismatch", "" while it
- *  runs or when none ran), its units, the end of its journal (they read it
- *  from the journal: this agent was restarted by the install it started),
- *  and the version of yuneta-agent installed.
+ *  How the last install-package went: what the program wrote in `result`
+ *  ("done <rc>", "download-failed <rc>", "sha256-mismatch",
+ *  "not-yuneta-agent <file>", "refused <why>", "" while it runs or when
+ *  none ran), its units, the end of its journal (they read it from the
+ *  journal: this agent was restarted by the install it started), and the
+ *  version of yuneta-agent installed. The result of an install started by
+ *  an agent22 of 7.31.29 or before is in PACKAGE_DIR: it is read when
+ *  PACKAGE_STATE_DIR has none.
  ***************************************************************************/
 PRIVATE json_t *cmd_install_package_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1543,13 +1494,22 @@ PRIVATE json_t *cmd_install_package_status(hgobj gobj, const char *cmd, json_t *
     }
 
     char result[256] = "";
-    read_small_file(gobj, PACKAGE_DIR, "result", result, sizeof(result));
+    if(read_small_file(gobj, PACKAGE_STATE_DIR, "result", result, sizeof(result)) < 0) {
+        read_small_file(gobj, PACKAGE_DIR, "result", result, sizeof(result));
+    }
 
     char journal_cmd[256];
-    snprintf(journal_cmd, sizeof(journal_cmd),
-        "sudo -n journalctl -u '" PACKAGE_UNIT_PREFIX "*' -n %d --no-pager -o short-iso 2>&1",
-        lines
-    );
+    if(access(PACKAGE_PROGRAM, X_OK) == 0) {
+        snprintf(journal_cmd, sizeof(journal_cmd),
+            "/usr/bin/sudo -n " PACKAGE_PROGRAM " journal %d 2>&1",
+            lines
+        );
+    } else {
+        snprintf(journal_cmd, sizeof(journal_cmd),
+            "sudo -n journalctl -u '" PACKAGE_UNIT_PREFIX "*' -n %d --no-pager -o short-iso 2>&1",
+            lines
+        );
+    }
 
     json_t *installed = command_output_lines(
         "dpkg-query -W -f='${Version}\\n' yuneta-agent 2>/dev/null || rpm -q yuneta-agent 2>/dev/null"
@@ -1807,7 +1767,8 @@ PRIVATE int copy_running_main_agent(hgobj gobj, char *path, size_t path_size)
 
 /***************************************************************************
  *  The name of the package of `url`, in bf: its last part. NULL if the url
- *  is not https://, holds a blank, a quote or a control character, or its
+ *  is not https://, holds a blank, a quote, a backslash, a control or a
+ *  non-ASCII character (PACKAGE_PROGRAM refuses the same), or its
  *  last part is not the name of a .deb or a .rpm made of [A-Za-z0-9._+~-]
  *  (the script names the downloaded file so).
  ***************************************************************************/
@@ -1818,7 +1779,7 @@ PRIVATE const char *package_file_name(const char *url, char *bf, size_t bfsize)
         return NULL;
     }
     for(const char *c = url; *c; c++) {
-        if((unsigned char)*c <= ' ' || (unsigned char)*c == 0x7f ||
+        if((unsigned char)*c <= ' ' || (unsigned char)*c >= 0x7f ||
                 *c == '\'' || *c == '"' || *c == '`' || *c == '\\') {
             return NULL;
         }
