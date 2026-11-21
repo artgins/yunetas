@@ -18,7 +18,8 @@
                 {"id": "yuneta", "roles": ["roles^root^users"]}
             ]
         },
-        "agent.timerStBoot": 100
+        "agent.timerStBoot": 100,
+        "agent.cert_sync_copy_cmd": "exit $(cat /yuneta/store/fake-copy-rc)"
     },
     "environment": {
         "node_owner": "none"

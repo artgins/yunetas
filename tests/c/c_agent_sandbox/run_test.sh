@@ -11,7 +11,10 @@
 #   WARNINGs of the pids of cards not killed (3) and not recorded (1), and
 #   no "a command of the agent to a yuno failed" (trace-on/off-yuno), and
 #   two "yuno ALREADY living" (the second cards of the running yuno: none
-#   for its relaunch by the watcher).
+#   for its relaunch by the watcher), and of the certificate sync one
+#   WARNING of a lock taken at several ticks in a row, one INFO of the
+#   lock free again, and one "cert-sync copy command FAILED" (busy is not
+#   a failure).
 #
 #   Usage: run_test.sh <yuneta_agent binary> <logcenter binary> <emailsender binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
@@ -119,6 +122,21 @@ fi
 n=$(grep -ac "yuno ALREADY living" "$WORK/agent.log")
 if [ "$n" != "2" ]; then
     echo "TEST FAILED: $n x \"yuno ALREADY living\", expected 2 (the second cards of the running yuno)"
+    failed=1
+fi
+n=$(grep -ac "cert-sync: the copy command found its lock taken at several ticks in a row" "$WORK/agent.log")
+if [ "$n" != "1" ]; then
+    echo "TEST FAILED: $n warnings of a copy lock taken at several ticks in a row, expected 1 (said on the transition)"
+    failed=1
+fi
+n=$(grep -ac "cert-sync: the lock of the copy command is free again" "$WORK/agent.log")
+if [ "$n" != "1" ]; then
+    echo "TEST FAILED: $n infos of the copy lock free again, expected 1"
+    failed=1
+fi
+n=$(grep -ac "cert-sync copy command FAILED" "$WORK/agent.log")
+if [ "$n" != "1" ]; then
+    echo "TEST FAILED: $n warnings of a copy command that failed, expected 1 (busy is not a failure)"
     failed=1
 fi
 if [ $failed -ne 0 ]; then

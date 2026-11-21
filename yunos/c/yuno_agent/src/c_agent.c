@@ -53,6 +53,8 @@
 #define MAX_FAILED_YUNOS_NAMED  50  // the answer of kill-yuno names these, and counts the rest
 #define ANSWER_DROP_LOG_INTERVAL_MS (10*1000)   // one WARNING of each kind of answer dropped per interval
 #define ANSWER_NAME_SHOWN       129 // a requester's name of an answer, as a log shows it: masked, capped
+#define CERT_SYNC_EXIT_BUSY     75  // copy-certs.sh: another run holds its lock, nothing copied (EX_TEMPFAIL)
+#define CERT_SYNC_BUSY_WARN_TICKS 3 // ticks in a row with the lock taken before ONE WARNING (45 min at 900 s)
 
 
 /***************************************************************************
@@ -1141,7 +1143,7 @@ SDATA (DTP_STRING,      "cert_sync_store_dir",   SDF_RD,             "/yuneta/st
 SDATA (DTP_STRING,      "cert_sync_copy_cmd",    SDF_RD,             "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh", "Command to copy fresh letsencrypt certs into cert_sync_store_dir (runs root, with sh -c). Config only: up to 7.25.21 write-attr could set it, and persist it"),
 SDATA (DTP_INTEGER,     "cert_sync_last_check",  SDF_RSTATS,         "0",           "Unix ts of last cert-sync check"),
 SDATA (DTP_INTEGER,     "cert_sync_last_action", SDF_RSTATS,         "0",           "Unix ts of last time a cert change was applied"),
-SDATA (DTP_STRING,      "cert_sync_last_result", SDF_RSTATS,         "",            "Last cert-sync outcome: reloaded, reloaded (copy script reported error), no-change or copy-script-failed"),
+SDATA (DTP_STRING,      "cert_sync_last_result", SDF_RSTATS,         "",            "Last cert-sync outcome: reloaded, reloaded (copy script reported error), no-change, busy (another copy holds the lock of the copy script, nothing copied) or copy-script-failed"),
 SDATA (DTP_INTEGER,     "cert_sync_failures",    SDF_RSTATS,         "0",           "Cumulative cert-sync failures since startup"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
@@ -1229,6 +1231,7 @@ typedef struct _PRIVATE_DATA {
     BOOL cert_sync_enabled;
     int32_t cert_sync_interval_sec;
     json_t *cert_sync_state; // dict: filename -> "size:mtime", snapshot of store_dir
+    json_int_t cert_sync_busy_ticks; // ticks in a row whose copy found its lock taken
 } PRIVATE_DATA;
 
 
@@ -8705,7 +8708,9 @@ PRIVATE json_t *cmd_cert_sync_now(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0,
         json_sprintf("%s: cert-sync tick done: %s",
             gobj_yuno_role_plus_name(),
-            changed > 0 ? "reloaded" : "no change"),
+            gobj_read_bool_attr(gobj, "cert_sync_enabled")?
+                gobj_read_str_attr(gobj, "cert_sync_last_result"):
+                "nothing done, cert_sync_enabled is 0"),
         0,
         json_pack("{s:s, s:i, s:s}",
             "result",   gobj_read_str_attr(gobj, "cert_sync_last_result"),
@@ -8739,7 +8744,7 @@ PRIVATE json_t *cmd_cert_sync_status(hgobj gobj, const char *cmd, json_t *kw, hg
         fclose(f);
     }
 
-    json_t *data = json_pack("{s:b, s:i, s:s, s:s, s:i, s:i, s:s, s:i, s:i}",
+    json_t *data = json_pack("{s:b, s:I, s:s, s:s, s:I, s:I, s:s, s:I, s:I, s:I}",
         "enabled",           priv->cert_sync_enabled,
         "interval_sec",      (json_int_t)priv->cert_sync_interval_sec,
         "store_dir",         gobj_read_str_attr(gobj, "cert_sync_store_dir"),
@@ -8748,6 +8753,7 @@ PRIVATE json_t *cmd_cert_sync_status(hgobj gobj, const char *cmd, json_t *kw, hg
         "last_action",       gobj_read_integer_attr(gobj, "cert_sync_last_action"),
         "last_result",       gobj_read_str_attr(gobj, "cert_sync_last_result"),
         "failures",          gobj_read_integer_attr(gobj, "cert_sync_failures"),
+        "busy_ticks",        priv->cert_sync_busy_ticks,
         "deploy_hook_last_run", hook_last_run
     );
 
@@ -13989,12 +13995,18 @@ PRIVATE int cert_sync_tick(hgobj gobj)
      *    failed entirely (e.g. sudo denied) — we bump failures but still
      *    compare the snapshots, because the previous run may have copied
      *    successfully and the store could be out of sync with the yunos.
+     *    CERT_SYNC_EXIT_BUSY is not a failure: another run of the script
+     *    (the certbot hook) holds its lock and copies; this one copied
+     *    nothing, and the next tick copies.
      */
     BOOL copy_ok = TRUE;
+    BOOL busy = FALSE;
     if(!empty_string(copy_cmd)) {
         char *const argv[] = {"sh", "-c", (char *)copy_cmd, NULL};
         int rc = run_process2("/bin/sh", argv);    // not system(): see exec_startup_command()
-        if(rc != 0) {
+        if(rc > 0 && WIFEXITED(rc) && WEXITSTATUS(rc) == CERT_SYNC_EXIT_BUSY) {
+            busy = TRUE;
+        } else if(rc != 0) {
             copy_ok = FALSE;
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -14028,12 +14040,43 @@ PRIVATE int cert_sync_tick(hgobj gobj)
             "store_dir",    "%s", store_dir,
             NULL
         );
+    } else if(busy) {
+        gobj_write_str_attr(gobj, "cert_sync_last_result", "busy");
     } else if(!copy_ok) {
         gobj_write_str_attr(gobj, "cert_sync_last_result", "copy-script-failed");
         gobj_write_integer_attr(gobj, "cert_sync_failures",
             gobj_read_integer_attr(gobj, "cert_sync_failures") + 1);
     } else {
         gobj_write_str_attr(gobj, "cert_sync_last_result", "no-change");
+    }
+
+    /* A run of the script lasts seconds: a lock taken at several ticks in
+     * a row is held by something that does not end, and no certificate is
+     * copied meanwhile. Said once on the way in, and once on the way out.
+     */
+    if(busy) {
+        priv->cert_sync_busy_ticks++;
+        if(priv->cert_sync_busy_ticks == CERT_SYNC_BUSY_WARN_TICKS) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "cert-sync: the copy command found its lock taken at several ticks in a row, no certificate copied (journalctl -t copy-certs)",
+                "cmd",          "%s", copy_cmd,
+                "busy_ticks",   "%d", (int)priv->cert_sync_busy_ticks,
+                NULL
+            );
+        }
+    } else if(priv->cert_sync_busy_ticks > 0) {
+        if(priv->cert_sync_busy_ticks >= CERT_SYNC_BUSY_WARN_TICKS) {
+            gobj_log_info(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "cert-sync: the lock of the copy command is free again",
+                "cmd",          "%s", copy_cmd,
+                "busy_ticks",   "%d", (int)priv->cert_sync_busy_ticks,
+                NULL
+            );
+        }
+        priv->cert_sync_busy_ticks = 0;
     }
 
     JSON_DECREF(priv->cert_sync_state);

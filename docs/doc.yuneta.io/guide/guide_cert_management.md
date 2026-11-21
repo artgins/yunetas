@@ -97,8 +97,10 @@ certbot `deploy-hook` at
       with mode `0700`, so no other user can hold the lock. The agent
       waits for its sync to end, so the run of the sync never waits for
       the lock. If another run holds the lock, the run of the sync copies
-      nothing, says `Another copy-certs.sh holds ...` and exits with 0.
-      The agent then says `no-change`, and its next sync does the copy.
+      nothing, says `Another copy-certs.sh holds ...` and exits with 75.
+      The agent then says `busy`, not a failure, and its next sync does
+      the copy. If the lock is taken at three syncs in a row, the agent
+      logs one WARNING, and one INFO when the lock is free again.
       The hook runs the script with `--wait`: it waits up to 120 seconds
       for the other run, and then it copies. After 120 seconds it fails
       with exit 1. To run it by hand:
@@ -172,7 +174,11 @@ cert sync. Every `cert_sync_interval_sec` seconds (default **900**, min
    on the agent itself.
 4. Update the read-only stats attrs:
    `cert_sync_last_check`, `cert_sync_last_action`,
-   `cert_sync_last_result`, `cert_sync_failures`.
+   `cert_sync_last_result`, `cert_sync_failures`. `cert_sync_last_result`
+   is `reloaded`, `no-change`, `busy` (another run of `copy-certs.sh`
+   holds its lock, see layer 1) or `copy-script-failed`.
+   `cert-sync-status` also gives `busy_ticks`, the syncs in a row that
+   found the lock taken.
 
 ### Agent commands
 

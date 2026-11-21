@@ -1475,7 +1475,7 @@ dropping live connections.
 | `cert_sync_copy_cmd`    | `/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh` | Command run on every tick           |
 | `cert_sync_last_check`  | `0`                                              | Unix ts, updated on tick                 |
 | `cert_sync_last_action` | `0`                                              | Unix ts, updated when a change applies   |
-| `cert_sync_last_result` | `""`                                             | `reloaded`, `reloaded (copy script reported error)`, `no-change` or `copy-script-failed` |
+| `cert_sync_last_result` | `""`                                             | `reloaded`, `reloaded (copy script reported error)`, `no-change`, `busy` or `copy-script-failed` |
 | `cert_sync_failures`    | `0`                                              | Ticks whose copy command failed and changed nothing (`copy-script-failed`) |
 
 `cert_sync_store_dir` and `cert_sync_copy_cmd` are set in the agent's
@@ -1492,7 +1492,23 @@ command, and takes a snapshot again. Then it writes `cert_sync_last_result`:
 | `reloaded` | The certificates changed, and the agent sent `reload-certs` to every yuno. |
 | `reloaded (copy script reported error)` | The same, but the command exited with an error. |
 | `no-change` | The command exited with 0, and nothing changed. |
+| `busy` | The command exited with 75: another run of `copy-certs.sh` holds its lock, and this run copied nothing. This is not a failure. The next tick copies. |
 | `copy-script-failed` | The command exited with an error, and nothing changed. The agent adds 1 to `cert_sync_failures`. |
+
+A run of `copy-certs.sh` lasts a few seconds. If the lock is taken at
+three ticks in a row (45 minutes with the default interval), the agent
+logs one WARNING, `cert-sync: the copy command found its lock taken at
+several ticks in a row`. No certificate is copied while the lock is
+taken. When a tick finds the lock free again, the agent logs one INFO,
+`cert-sync: the lock of the copy command is free again`.
+`cert-sync-status` gives the number of busy ticks in a row as
+`busy_ticks`. To find the processes that have the lock open (the
+`<pid>` in `/proc/<pid>/fd/`), run as root:
+
+```bash
+find /proc/[0-9]*/fd -lname /run/yuneta-copy-certs/lock 2>/dev/null
+journalctl -t copy-certs --since today
+```
 
 For example, `cert-sync-status` shows the last value:
 
@@ -1554,8 +1570,8 @@ The sync runs the script with no option, and the agent waits for the
 script to end. So the script never waits for its lock in that run. If
 another run (the certbot hook, which passes `--wait`) holds the lock
 `/run/yuneta-copy-certs/lock`, the script copies nothing and exits with
-0. The sync then says `no-change`, and the next sync does the copy. The
-lock is in a directory of root with mode `0700`, so no other user can
+75. The sync then says `busy` (§6.2), and the next sync does the copy.
+The lock is in a directory of root with mode `0700`, so no other user can
 hold it.
 
 Up to 7.31.29 this page told deployers to write their own script. But the
@@ -1583,9 +1599,12 @@ existing connections alone.
 [`cmd_cert_sync_now`](https://github.com/artgins/yunetas/blob/7.31.29/yunos/c/yuno_agent/src/c_agent.c#L8700) ([`c_agent.c:8700`](https://github.com/artgins/yunetas/blob/7.31.29/yunos/c/yuno_agent/src/c_agent.c#L8700)) forces a tick immediately.
 [`cmd_cert_sync_status`](https://github.com/artgins/yunetas/blob/7.31.29/yunos/c/yuno_agent/src/c_agent.c#L8724) ([`c_agent.c:8724`](https://github.com/artgins/yunetas/blob/7.31.29/yunos/c/yuno_agent/src/c_agent.c#L8724)) returns the full state:
 `enabled`, `interval_sec`, `store_dir`, `copy_cmd`, `last_check`,
-`last_action`, `last_result`, `failures`, plus a
+`last_action`, `last_result`, `failures`, `busy_ticks` (the ticks in a
+row that found the lock of `copy-certs.sh` taken), plus a
 `deploy_hook_last_run` timestamp read from
-`/var/lib/yuneta/last-deploy-hook-run` if present.
+`/var/lib/yuneta/last-deploy-hook-run` if present. The comment of
+`cert-sync-now` gives the result of its tick, for example
+`cert-sync tick done: busy`.
 
 ### 6.6 How a yuno reads its cert paths
 

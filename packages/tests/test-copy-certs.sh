@@ -386,13 +386,13 @@ check "the lock: in a directory of its own under /run, 0700, of the user that ru
 check "the lock: no file in /run itself" "$(find "${ROOT}/run" -maxdepth 1 -type f | wc -l)" "0"
 
 #
-#   A lock held by another process (up to the round before, anybody could
-#   hold it: a file 0644 in /run, and flock gives LOCK_EX on a file opened
-#   to read; each run waited 120 s and failed, and the agent's tick, which
-#   runs the script synchronously, stopped the agent for those 120 s).
-#   The run of the agent's tick (no option) does not wait: it copies
-#   nothing, says so and exits 0, which the agent reads as no change. The
-#   run of the hook (--wait) waits for the lock, then copies
+#   A lock held by another process. Only root can hold it (a lock that
+#   others can read, others can hold: flock gives LOCK_EX on a file opened
+#   to read, and the agent's tick, which waits for the script, would stop
+#   the agent while it waits). The run of the agent's tick (no option) does
+#   not wait: it copies nothing, says so and exits 75, which the agent
+#   reads as busy. The run of the hook (--wait) waits for the lock, then
+#   copies
 #
 reset
 add_cert example.com "first"
@@ -415,7 +415,7 @@ chmod 0755 "${STUBS}/logger"
 out="$(YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger" cc)"
 rc=$?
 check "lock held, the tick's run: did not wait for it" "$( [ -e "${WORK}/released" ] && echo waited || echo "at once")" "at once"
-check "lock held, the tick's run: exit 0 (the agent reads no change)" "$rc" "0"
+check "lock held, the tick's run: exit 75 (the agent reads busy)" "$rc" "75"
 check "lock held, the tick's run: said" "$(echo "$out" | grep -c 'Another copy-certs.sh holds .*: this run copies nothing')" "1"
 check "lock held, the tick's run: said to the journal" "$(grep -c '^logger -t copy-certs -p user.notice -- Another copy-certs.sh holds' "$LOG")" "1"
 check "lock held, the tick's run: nothing copied" "$(cat "${CERTS}/example.com.crt")" "first fullchain"

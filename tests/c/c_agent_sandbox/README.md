@@ -118,6 +118,14 @@ has no `websockets`.
     processes with SIGSTOP as they appear), another session takes its
     channel, and the yuno goes on (SIGCONT): the play is answered to nobody
     (the agent checks the session that holds the channel).
+13. The certificate sync. In `agent.json`, `cert_sync_copy_cmd` is
+    `exit $(cat /yuneta/store/fake-copy-rc)`, so the test chooses the exit
+    code of the copy. With 75 (what `copy-certs.sh` exits with when
+    another run holds its lock), `cert-sync-now` says `busy` four times,
+    and `cert-sync-status` gives `busy_ticks` 4 and no failure. Then 0
+    gives `no-change` and `busy_ticks` 0, and 1 gives
+    `copy-script-failed` and one failure. A busy run used to exit 0, and
+    the agent said `no-change` for it.
 
 Two waits are the design's, not a clock: `kill-yuno` answers once the yuno
 left the agent, and its watcher ends right after it (its child ended with
@@ -136,8 +144,12 @@ At the end the agent is stopped in order (SIGINT) and its log must have no
 *"BAD gbuf_decref()"*, no *"system memory not free"* (the gbmem audit of
 `CONFIG_DEBUG_TRACK_MEMORY`), three WARNINGs *"identity card refused: its pid
 is not a process of that yuno, not killed"*, one *"identity card accepted:
-its pid is not a process of that yuno, not recorded"*, and two *"yuno
-ALREADY living, killing new yuno"* (the second cards of 4).
+its pid is not a process of that yuno, not recorded"*, two *"yuno
+ALREADY living, killing new yuno"* (the second cards of 4), and from 13 one
+WARNING *"cert-sync: the copy command found its lock taken at several ticks
+in a row"* (at the third busy tick, not at each), one INFO *"cert-sync: the
+lock of the copy command is free again"*, and one WARNING *"cert-sync copy
+command FAILED"* (the exit 1 only: a busy run is not a failure).
 
 ## Run
 

@@ -70,6 +70,16 @@
 #      with SIGSTOP) gets nothing, and neither does the session that takes
 #      its channel.
 #
+#  13. cert-sync: the copy command of agent.json exits with the code
+#      written in /yuneta/store/fake-copy-rc. 75 is what copy-certs.sh
+#      exits with when another run holds its lock: cert-sync-now says
+#      `busy`, not `copy-script-failed`, and counts no failure;
+#      cert-sync-status counts the busy ticks in a row. At the third busy
+#      tick in a row the agent logs ONE WARNING, and an INFO when the lock
+#      is free again (run_test.sh counts both). A copy command that fails
+#      (1) is still `copy-script-failed`, and counted. A busy run used to
+#      exit 0, and cert-sync-status said `no-change` for it.
+#
 #   kill-yuno answers when the yuno left the agent, and its watcher ends
 #   right after: until then a run-yuno is refused ("alive but not
 #   connected"), so a kill waits for both. trace-on-yuno answers once it
@@ -735,6 +745,37 @@ async def main():
 
     await refused_card("evil_role", -1, yuno_id="4243")
     check("a card of pid -1: this peer lives", True)
+
+    #   13. cert-sync: busy is not a failure, and a long one is said once
+    def copy_rc(rc):
+        os.makedirs("/yuneta/store", exist_ok=True)
+        with open("/yuneta/store/fake-copy-rc", "w") as f:
+            f.write("%d\n" % rc)
+
+    copy_rc(75)
+    for i in range(4):
+        r = await ask(ws, "cert-sync-now", {})
+        check("cert-sync-now, the lock of the copy taken (%d): busy: %s" % (i + 1, r.get("comment")),
+            r.get("result") == 0 and (r.get("data") or {}).get("result") == "busy")
+    r = await ask(ws, "cert-sync-status", {})
+    status = r.get("data") or {}
+    check("cert-sync-status: busy, 4 ticks in a row, no failure: %s" % status,
+        status.get("last_result") == "busy" and status.get("busy_ticks") == 4
+        and status.get("failures") == 0)
+    copy_rc(0)
+    r = await ask(ws, "cert-sync-now", {})
+    check("cert-sync-now, the lock free again: no-change: %s" % r.get("comment"),
+        (r.get("data") or {}).get("result") == "no-change")
+    r = await ask(ws, "cert-sync-status", {})
+    status = r.get("data") or {}
+    check("cert-sync-status: no busy tick now", status.get("busy_ticks") == 0)
+    copy_rc(1)
+    r = await ask(ws, "cert-sync-now", {})
+    check("cert-sync-now, the copy fails: copy-script-failed: %s" % r.get("comment"),
+        (r.get("data") or {}).get("result") == "copy-script-failed")
+    r = await ask(ws, "cert-sync-status", {})
+    status = r.get("data") or {}
+    check("cert-sync-status: one failure", status.get("failures") == 1)
 
     await ws.close()
 

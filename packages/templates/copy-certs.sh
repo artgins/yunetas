@@ -33,8 +33,9 @@
 # Exit 1, and nothing copied, when certs.list cannot be read by yuneta, or
 # when /yuneta/store/certs or private/ is a symbolic link; exit 1 too when
 # a copy failed (the others are done). A destination file that is a
-# symbolic link skips its certificate. Otherwise exit 0. A certificate
-# whose copy fails keeps its old files, whole.
+# symbolic link skips its certificate. Exit 75, and nothing copied, when
+# another run holds the lock (without --wait, below). Otherwise exit 0. A
+# certificate whose copy fails keeps its old files, whole.
 # "Copied <name>" is said only when something of <name> changed, and
 # check-certs-validity.sh (as yuneta) runs only then.
 #
@@ -44,12 +45,12 @@
 # of root with mode 0700, so no other user can open the lock and hold it.
 # The agent's cert-sync runs this with no option, and its tick waits for
 # the script, so that run never waits for the lock: when another run holds
-# it, the run copies nothing, says so and exits 0 (the agent reads "no
-# change"), and the next tick copies. --wait (the certbot hook) waits up to
-# 120 s for the lock, then fails (exit 1). On a node with no certificate,
-# "No certificates to copy" goes to the journal once (a mark
-# .no-certificates of yuneta in /yuneta/store/certs), not at each tick of
-# the agent.
+# it, the run copies nothing, says so and exits 75 (the agent reads
+# "busy", not a failure), and the next tick copies. --wait (the certbot
+# hook) waits up to 120 s for the lock, then fails (exit 1). On a node
+# with no certificate, "No certificates to copy" goes to the journal once
+# (a mark .no-certificates of yuneta in /yuneta/store/certs), not at each
+# tick of the agent.
 #
 # THE LIMIT: this script is in /yuneta, which yuneta owns, and root runs it
 # (see the page "Files outside /yuneta", the root features). Removing sudo
@@ -90,7 +91,7 @@ NO_CERTS_MARK="${DEST_BASE}/.no-certificates"
 LOCK_DIR="${ROOT}/run/yuneta-copy-certs"
 LOCK_FILE="${LOCK_DIR}/lock"
 LOCK_WAIT=120
-LOCK_BUSY=75
+LOCK_BUSY=75    # EX_TEMPFAIL; the agent's cert-sync reads it as "busy"
 
 WAIT=0
 for arg in "$@"; do
@@ -99,7 +100,7 @@ for arg in "$@"; do
             WAIT=1
             ;;
         *)
-            echo "Usage: copy-certs.sh [--wait]   (--wait: wait up to ${LOCK_WAIT} s for another run, as the certbot hook does; without it a run that finds the lock taken copies nothing and exits 0)" >&2
+            echo "Usage: copy-certs.sh [--wait]   (--wait: wait up to ${LOCK_WAIT} s for another run, as the certbot hook does; without it a run that finds the lock taken copies nothing and exits ${LOCK_BUSY})" >&2
             exit 1
             ;;
     esac
@@ -298,8 +299,9 @@ exit 11
 #   flock gives an exclusive lock on a file opened only to read, so a lock
 #   that others can read is a lock that others can hold. The agent's
 #   cert-sync waits for this script, so its run (no option) never waits:
-#   with the lock taken it copies nothing and exits 0, and the next tick
-#   copies. --wait (the hook) waits LOCK_WAIT seconds, then fails, said.
+#   with the lock taken it copies nothing and exits LOCK_BUSY (the agent
+#   says "busy", and a WARNING when it lasts), and the next tick copies.
+#   --wait (the hook) waits LOCK_WAIT seconds, then fails, said.
 #
 if [ -L "$LOCK_DIR" ] || ! install -d -m 0700 -- "$LOCK_DIR"; then
     say err "FAILED to make the lock directory $LOCK_DIR (mode 0700, not a link): no certificate copied"
@@ -320,7 +322,7 @@ if [ "$lock_rc" -eq "$LOCK_BUSY" ] && [ "$WAIT" -ne 0 ]; then
     exit 1
 elif [ "$lock_rc" -eq "$LOCK_BUSY" ]; then
     say notice "Another copy-certs.sh holds $LOCK_FILE (the certbot hook, or a run by hand): this run copies nothing, and the next tick of the agent's cert-sync copies"
-    exit 0
+    exit "$LOCK_BUSY"
 elif [ "$lock_rc" -ne 0 ]; then
     say err "FAILED to take the lock $LOCK_FILE (flock rc=$lock_rc): no certificate copied"
     exit 1
