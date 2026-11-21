@@ -180,9 +180,9 @@ check "certs.list: nothing else written" "$(ls "$CERTS" | grep -vc -e '^example.
 check "certs.list: read by the owner" "$(as_me_count "cat ${CERTS}/certs.list")" "1"
 
 #
-#   A certs.list that the owner cannot read: exit 1 and nothing copied (up
-#   to the round before, the cat failed inside a process substitution and
-#   the script said nothing and exited 0)
+#   A certs.list that the owner cannot read: exit 1 and nothing copied (a
+#   cat that fails inside a process substitution would say nothing, and the
+#   script would exit 0)
 #
 reset
 add_cert example.com "first"
@@ -262,8 +262,7 @@ rm -f "${STUBS}/mv"
 #
 #   An old file that cannot be hard-linked (fs.protected_hardlinks=1 and a
 #   file of root's, left there by hand): kept as a copy (cp -p), said, and
-#   the certificate copied. Up to the round before, the run failed (exit
-#   2) at each tick
+#   the certificate copied, not a run that fails (exit 2) at each tick
 #
 REAL_CP="$(command -v cp)"
 reset
@@ -304,8 +303,7 @@ check "no hard link, a move that fails: no temporary or .old file left" "$(find 
 #
 #   An old file that can be neither linked nor copied, after the key was
 #   moved, and the key cannot be put back: rc 3, "may not match", never
-#   "nothing changed" (up to the round before, the failure of the link
-#   ignored the result of the undo, and said exit 2 and both)
+#   "nothing changed" (the result of the undo decides, as when a move fails)
 #
 reset
 add_cert example.com "first"

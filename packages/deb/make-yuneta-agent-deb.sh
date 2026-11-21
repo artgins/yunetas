@@ -1642,8 +1642,8 @@ fi
 # die with it when this script ends, its yunos with it. Elsewhere it is
 # fine: logcenter runs under the agent, whose process (SysV, or the unit of
 # a node with units, KillMode=process) does not take the new agent down.
-# Up to the round before, any INVOCATION_ID refused it -- and logcenter
-# inherits the agent's.
+# The cgroup decides, not INVOCATION_ID: logcenter inherits the agent's,
+# and an INVOCATION_ID that refused would refuse logcenter too.
 CGROUP_FILE="/proc/self/cgroup"
 if grep -qE '/yuneta-restart-[0-9]+\.service$' "$CGROUP_FILE" 2>/dev/null; then
     echo "restart-yuneta: no unit file of yuneta_agent here, and this runs in the transient unit of the certbot hook, where an agent started with --start would die with the unit: not started. Restart the agent by hand" >&2
