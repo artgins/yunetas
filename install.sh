@@ -247,8 +247,17 @@ fi
 export YUNETAS_FORCE_OVER_SOURCE
 
 # ----- Download & install the package ---------------------------------------
-TMP=$(mktemp -d)
+#
+# The package is about 370 MB. /tmp is a tmpfs on Debian 13, so a download
+# there is held in RAM, and a board of 2 GB runs short of memory. /var/tmp is
+# on disk. A signal ends the script through its EXIT trap, which removes the
+# download.
+TMP=$(mktemp -d /var/tmp/yuneta-install.XXXXXX) || {
+    echo "ERROR: cannot create a directory in /var/tmp for the download." >&2
+    exit 1
+}
 trap 'rm -rf "$TMP"' EXIT
+trap 'exit 130' INT TERM HUP
 PKG="${TMP}/$(basename "$ASSET_URL")"
 
 echo "[i] Downloading $(basename "$PKG")"
