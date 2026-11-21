@@ -240,6 +240,9 @@
 - **gui_treedb 1.3.7 checks the saved views of a topic with exact keys**
   (`list-keys key=`), not with an `rkey` alternation of the saved keys. It
   needs a backend on 7.32.0: deploy it after every backend it talks to.
+  gui_treedb 1.3.8 also drops first the answer of a topic the user has left:
+  up to 1.3.7 (and in 7.31.0) a failed key count or saved-view check of such
+  a topic showed its error over the topic shown now.
 
 ### Changed
 
