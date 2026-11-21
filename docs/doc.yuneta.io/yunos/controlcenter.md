@@ -650,25 +650,36 @@ is not a regular expression is refused (-1), and the answer says which.
 The control center runs in one thread, and any user with the permission
 `list-agents` writes the filters. So each filter runs with limits:
 
-- The pattern is 256 bytes at most, and its compiled code 16 KB at most.
-  For example, `((a{100}){100}){100}` is refused ("regular expression is too
-  large").
-- PCRE2 counts its match limit at each start position of a search. So one
-  search of a field of 64 bytes takes up to 65 times the limit. Each start
-  position stops after 5000 steps (and at a depth of 5000, and at 1 MB), and
-  one search takes 6 ms at most. The filters an operator writes take from 1
-  to 20 steps. `.*a.*b.*c` takes up to about 1000 steps on a field of 63
-  bytes.
-- All the searches of one command take 50 ms at most. Then every filter
-  matches nothing more. The filters of a command on 300 records and 256
-  knocks take about 1 to 3 ms. A pattern made to stay just under the limit
-  at each start position, such as `(?:[\s\S]?){9}(?!)|$`, took 1.3 s for
-  that command before the budget. Now it stops at 50 ms.
-- A filter that hits a limit, or the budget, matches nothing more in that
-  command. The command still answers (0), and its comment names the filter:
-  "hostname: too costly to match (match limit exceeded): it matched nothing
-  from the first node that hit the limit; write a simpler one". For the
-  budget, the reason in parentheses is "the 50 ms of the command spent".
+- The pattern is 256 bytes at most, and its compiled code 1 KB at most. The
+  filters an operator writes compile to a few hundred bytes. For example,
+  `((a{100}){100}){100}` is refused ("regular expression is too large").
+- A search runs first with a low limit of 100 frames at each start position.
+  (A frame is a point where PCRE2 can go back and try again.) The filters an
+  operator writes need 1 to 20 frames.
+- If a search hits that limit, the control center runs it again one start
+  position at a time, with 5000 frames for each position. `.*a.*b.*c` needs
+  up to about 1000 frames on a field of 63 bytes. Before each position, the
+  control center looks at the time of the command.
+- All the searches of one command take 50 ms. The time starts at the first
+  search, so the time to read the store does not count. When the 50 ms are
+  spent, no more nodes are judged, and the answer says so: "the filters
+  spent the 50 ms of the command: N nodes not judged, not listed". This text
+  names no filter, because a long table can spend the time with cheap
+  filters.
+- The worst cases measured, with the worst patterns found under 256 bytes and
+  1 KB of code, on fields of 64 bytes: a first search 6.1 ms, one position
+  10.5 ms. So the filters of a command take 50 ms plus 10.5 ms at most, and
+  54 to 57 ms were measured end to end. The filters of a command on 300
+  records and 256 knocks usually take 1 to 3 ms (`.*a.*b.*c` 8 ms).
+- Before this limit on the code, a pattern of 229 bytes with 16 KB of code
+  kept every position under the limit, and one search took 2.9 s on a uuid.
+  PCRE2 counts frames, not the work inside a frame. With 1 KB of code, the
+  work inside a frame is small.
+- A filter that hits its own limit (5000 frames at one position, a depth of
+  5000, or 1 MB) matches nothing more in that command. The command still
+  answers (0), and its comment names the filter: "hostname: too costly to
+  match (match limit exceeded): it matched nothing from the first node that
+  hit the limit; write a simpler one".
 - A filter is compiled as bytes, without UTF: a UTF-8 text in the pattern
   matches the same bytes in the field, and `.` matches one byte. A pattern
   cannot turn UTF on, and it cannot use `\C` or a callout.

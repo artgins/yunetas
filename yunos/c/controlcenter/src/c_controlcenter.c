@@ -229,31 +229,42 @@
 
 /*
  *  The filters of list-agents/list-nodes are PCRE2 patterns run with limits
- *  (compile_node_filters()). The longest pattern, and its compiled code:
- *  the patterns an operator writes compile to under 1 KB, and PCRE2's own
- *  cap (64 KB, "regular expression is too large") compiles in 0.2 ms  */
+ *  (compile_node_filters(), node_filter_search()), and the costs below were
+ *  measured with PCRE2 10.49 on the dev machine.
+ *
+ *  What bounds a search. PCRE2's match limit counts FRAMES (backtracking
+ *  points), not the work done inside one, and it starts from zero at EACH
+ *  start position. So a pattern can keep every position under any limit
+ *  and still cost: (?:[\s\S]?){12}(?:~?~?...x100){75}(?!)|$ (229 bytes,
+ *  16 KB compiled) stays under 5000 frames a position and took 2.9 s on a
+ *  uuid, 5.4 s on 64 bytes, in ONE search. Inside a frame the work is
+ *  bounded by the compiled code (each item once) and by the field (a
+ *  repeat only moves forward), so:
+ *    - the compiled code is NODE_FILTER_COMPILED_MAX at most, 1 KB: what an
+ *      operator writes compiles to a few hundred bytes (^web- 182,
+ *      ^(00000000|11111111)- 205);
+ *    - a search runs first with NODE_FILTER_FIRST_LIMIT frames a position,
+ *      100 (what an operator writes needs from 1 to 17);
+ *    - only when that limit is hit it runs again position by position
+ *      (PCRE2_ANCHORED at each start), with NODE_FILTER_MATCH_LIMIT frames
+ *      a position, 5000 (`.*a.*b.*c` needs 998 on hex fields,
+ *      `.*a.*b.*c.*d` 4289), asking the budget of the command BEFORE EACH
+ *      POSITION.
+ *  The worst measured, with the worst patterns found under 256 bytes and
+ *  1 KB compiled on 64-byte fields (8 runs each, the maximum): a first
+ *  search 6.1 ms (64 frames of a heavy code at each of the 65 positions:
+ *  (?:[\s\S]?){6}(?:~?x10){30}(?!)|$), one position 10.5 ms (some 4500
+ *  frames: (?:[\s\S]?){11}(?:[\s\S]?|[\s\S]?)(?:~?x8){36}(?!)|$; the
+ *  same at 16 KB took 97 ms). The budget of all the searches of a command
+ *  is NODE_FILTER_BUDGET_MS, 50, started at its first search, and asked
+ *  before every call of pcre2_match(): so a command spends in its filters
+ *  50 ms plus 10.5 ms at most, measured. The filters
+ *  of a command on 300 records and 256 knocks take 1-3 ms (`.*a.*b.*c`,
+ *  which goes position by position on most rows, 8 ms; `.*a.*b.*c.*d`
+ *  17 ms), so 50 ms leaves room for what an operator writes  */
 #define NODE_FILTER_PATTERN_MAX     256
-#define NODE_FILTER_COMPILED_MAX    16384
-
-/*
- *  The limits of the filters (pcre2_set_match_limit/depth_limit/heap_limit,
- *  the heap in KiB), and the time of all of them in one command. PCRE2
- *  counts its match limit at EACH start position of a search, from zero:
- *  so one search of a field of L bytes takes up to (L+1) x the limit, and
- *  a pattern held just under it at every position costs without ever
- *  hitting it. Measured (10.49, the dev machine): (?:[\s\S]?){9}(?!)|$
- *  stays under 1000 at each of the 65 positions of a 64-byte field, and
- *  1712 searches (list-nodes: 300 records x 4 filters + 256 knocks x 2)
- *  took 1.3 s with no limit hit; under 5000, {12}, one search takes 6 ms.
- *  So the command has a budget, NODE_FILTER_BUDGET_MS, asked before each
- *  search: spent, every filter matches nothing more and the answer says
- *  it. The budget bounds the command to it plus one search (6 ms). The
- *  limit of one position is then a margin, not the bound: the patterns
- *  an operator writes need from 1 to 17 (^web-, ^7\.31\.,
- *  ^(00000000|11111111)-, (a|b)*c) on 556 fields of 63 bytes, `.*a.*b.*c`
- *  998 on hex fields, `.*a.*b.*c.*d` 4289 on a field of a, b, c, d; and the
- *  filters of a command take about 1-3 ms for 556 rows, so 50 ms leaves
- *  room for a machine ten times slower  */
+#define NODE_FILTER_COMPILED_MAX    1024
+#define NODE_FILTER_FIRST_LIMIT     100
 #define NODE_FILTER_MATCH_LIMIT     5000
 #define NODE_FILTER_DEPTH_LIMIT     5000
 #define NODE_FILTER_HEAP_LIMIT      1024
@@ -335,9 +346,11 @@ typedef struct {
     pcre2_code *re;                     // NULL: no filter on this field
     pcre2_match_data *match_data;
     pcre2_match_context *match_context; // the NODE_FILTER_*_LIMIT
-    uint64_t budget;                    // msectimer: NODE_FILTER_BUDGET_MS of the command (one for all)
-    int failed;                         // the first pcre2_match() error (a limit): matches nothing more
-    BOOL budget_spent;                  // the command spent its budget: matches nothing more
+    int failed;                         // the first pcre2_match() error (its limit): matches nothing more
+    /*  Of the command, in filters[0]: the budget of all its searches  */
+    uint64_t budget;                    // msectimer: NODE_FILTER_BUDGET_MS from the first search (0: none yet)
+    BOOL budget_spent;                  // spent: no node is judged any more
+    int not_judged;                     // nodes not judged once it was spent
 } node_filter_t;
 
 /***************************************************************************
@@ -444,6 +457,7 @@ PRIVATE BOOL node_filters_match(
     const char *os
 );
 PRIVATE void free_node_filters(node_filter_t filters[NODE_FILTERS]);
+PRIVATE int node_filter_search(node_filter_t *filter, const char *field, uint64_t budget, BOOL *spent);
 PRIVATE BOOL node_filters_failed(
     node_filter_t filters[NODE_FILTERS],
     char *said,
@@ -5410,7 +5424,7 @@ PRIVATE void pcre2_gbmem_free(void *ptr, void *data)
  *  ((a??a??...)*: 24 of them about 3 s, 40 for days): every rule against
  *  one shape left another. PCRE2 compiles in a bounded size
  *  (NODE_FILTER_COMPILED_MAX), each search stops at its limits, and all the
- *  searches of a command at NODE_FILTER_BUDGET_MS. A back-reference is let
+ *  searches of a command at NODE_FILTER_BUDGET_MS (node_filter_search()). A back-reference is let
  *  in: the limits bound it too. In the pattern, (*LIMIT_MATCH=n) and the
  *  like can only lower the limits. Compiled as bytes (PCRE2_NEVER_UTF: a
  *  pattern cannot turn UTF on, and an invalid sequence in a field is never
@@ -5428,10 +5442,8 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
     };
 
     memset(filters, 0, sizeof(node_filter_t) * NODE_FILTERS);
-    uint64_t budget = start_msectimer(NODE_FILTER_BUDGET_MS);
     for(int i=0; i<NODE_FILTERS; i++) {
         filters[i].param = params[i];
-        filters[i].budget = budget;
         const char *pattern = kw_get_str(gobj, kw, params[i], "", 0);
         if(empty_string(pattern)) {
             continue;
@@ -5466,7 +5478,7 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
         pcre2_set_max_pattern_length(compile_context, NODE_FILTER_PATTERN_MAX);
         pcre2_set_max_pattern_compiled_length(compile_context, NODE_FILTER_COMPILED_MAX);
         pcre2_set_compile_extra_options(compile_context, PCRE2_EXTRA_NEVER_CALLOUT);
-        pcre2_set_match_limit(filters[i].match_context, NODE_FILTER_MATCH_LIMIT);
+        pcre2_set_match_limit(filters[i].match_context, NODE_FILTER_FIRST_LIMIT);
         pcre2_set_depth_limit(filters[i].match_context, NODE_FILTER_DEPTH_LIMIT);
         pcre2_set_heap_limit(filters[i].match_context, NODE_FILTER_HEAP_LIMIT);
 
@@ -5505,10 +5517,49 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
 }
 
 /***************************************************************************
- *  A node matches when every filter given matches its field. A match that
- *  fails (a limit) is no match, and its filter matches nothing more in
- *  this command; so once the command spent NODE_FILTER_BUDGET_MS:
- *  node_filters_failed() says it in the answer.
+ *  One search of a filter in `field`: as pcre2_match() answers (a match,
+ *  PCRE2_ERROR_NOMATCH, or an error: a limit of this filter), or
+ *  PCRE2_ERROR_NOMATCH with `*spent` when the budget of the command ran out
+ *  before it ended. First with NODE_FILTER_FIRST_LIMIT frames a position;
+ *  when that is hit, again position by position (anchored at each start,
+ *  as the search tries them), NODE_FILTER_MATCH_LIMIT frames each, the
+ *  budget asked before each one: no single call of pcre2_match() runs
+ *  longer than one position (see NODE_FILTER_* for the figures).
+ ***************************************************************************/
+PRIVATE int node_filter_search(node_filter_t *filter, const char *field, uint64_t budget, BOOL *spent)
+{
+    size_t len = strlen(field);
+    pcre2_set_match_limit(filter->match_context, NODE_FILTER_FIRST_LIMIT);
+    int rc = pcre2_match(
+        filter->re, (PCRE2_SPTR)field, len, 0, 0, filter->match_data, filter->match_context
+    );
+    if(rc != PCRE2_ERROR_MATCHLIMIT) {
+        return rc;
+    }
+    pcre2_set_match_limit(filter->match_context, NODE_FILTER_MATCH_LIMIT);
+    for(size_t pos = 0; pos <= len; pos++) {
+        if(test_msectimer(budget)) {
+            *spent = TRUE;
+            return PCRE2_ERROR_NOMATCH;
+        }
+        rc = pcre2_match(
+            filter->re, (PCRE2_SPTR)field, len, pos, PCRE2_ANCHORED,
+            filter->match_data, filter->match_context
+        );
+        if(rc != PCRE2_ERROR_NOMATCH) {
+            return rc;      // a match, or this filter's own limit
+        }
+    }
+    return PCRE2_ERROR_NOMATCH;
+}
+
+/***************************************************************************
+ *  A node matches when every filter given matches its field. A search that
+ *  fails (its limit) is no match, and its filter matches nothing more in
+ *  this command. The budget of the command starts at its first search
+ *  (what the command did before, reading its store, is not the filters'):
+ *  once it is spent no node is judged any more. node_filters_failed() says
+ *  both in the answer.
  ***************************************************************************/
 PRIVATE BOOL node_filters_match(
     node_filter_t filters[NODE_FILTERS],
@@ -5524,21 +5575,33 @@ PRIVATE BOOL node_filters_match(
         [NODE_FILTER_HOSTNAME]  = hostname,
         [NODE_FILTER_OS]        = os,
     };
+    node_filter_t *command = &filters[0];
+    if(command->budget_spent) {
+        command->not_judged++;
+        return FALSE;
+    }
     for(int i=0; i<NODE_FILTERS; i++) {
         if(!filters[i].re) {
             continue;
         }
-        if(filters[i].failed || filters[i].budget_spent) {
+        if(filters[i].failed) {
             return FALSE;
         }
-        if(test_msectimer(filters[i].budget)) {
-            filters[i].budget_spent = TRUE;
+        if(!command->budget) {
+            command->budget = start_msectimer(NODE_FILTER_BUDGET_MS);
+        }
+        if(test_msectimer(command->budget)) {
+            command->budget_spent = TRUE;
+            command->not_judged++;
             return FALSE;
         }
-        int rc = pcre2_match(
-            filters[i].re, (PCRE2_SPTR)fields[i], PCRE2_ZERO_TERMINATED, 0, 0,
-            filters[i].match_data, filters[i].match_context
-        );
+        BOOL spent = FALSE;
+        int rc = node_filter_search(&filters[i], fields[i], command->budget, &spent);
+        if(spent) {
+            command->budget_spent = TRUE;
+            command->not_judged++;
+            return FALSE;
+        }
         if(rc == PCRE2_ERROR_NOMATCH) {
             return FALSE;
         }
@@ -5551,8 +5614,10 @@ PRIVATE BOOL node_filters_match(
 }
 
 /***************************************************************************
- *  The filters that failed in this command (a limit), said for its answer
- *  in `said`: TRUE if any.
+ *  What failed in this command, said for its answer in `said`: each filter
+ *  that hit its own limit (named: it is too costly), and the budget of the
+ *  command once spent (no filter named: a long table can spend it with
+ *  cheap ones). TRUE if any.
  ***************************************************************************/
 PRIVATE BOOL node_filters_failed(
     node_filter_t filters[NODE_FILTERS],
@@ -5562,19 +5627,21 @@ PRIVATE BOOL node_filters_failed(
 {
     said[0] = 0;
     for(int i=0; i<NODE_FILTERS; i++) {
-        if(!filters[i].failed && !filters[i].budget_spent) {
+        if(!filters[i].failed) {
             continue;
         }
         PCRE2_UCHAR err[NAME_MAX];
-        if(filters[i].failed) {
-            pcre2_get_error_message(filters[i].failed, err, sizeof(err));
-        } else {
-            snprintf((char *)err, sizeof(err), "the %d ms of the command spent", NODE_FILTER_BUDGET_MS);
-        }
+        pcre2_get_error_message(filters[i].failed, err, sizeof(err));
         size_t len = strlen(said);
         snprintf(said + len, said_size - len, "%s%s: too costly to match (%s): it matched "
             "nothing from the first node that hit the limit; write a simpler one",
             len? "; " : "", filters[i].param, (char *)err);
+    }
+    if(filters[0].budget_spent) {
+        size_t len = strlen(said);
+        snprintf(said + len, said_size - len, "%sthe filters spent the %d ms of the command: "
+            "%d nodes not judged, not listed",
+            len? "; " : "", NODE_FILTER_BUDGET_MS, filters[0].not_judged);
     }
     return !empty_string(said);
 }

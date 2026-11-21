@@ -4794,10 +4794,15 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
     close_session(lim);
 
     /*
-     *  PCRE2 counts its match limit at each start position: a pattern held
-     *  under it at each one ((?:[\s\S]?){12}(?!)|$) costs some 6 ms a
-     *  search of 63 bytes and never hits it. 30 such hosts take some 180 ms:
-     *  the budget of the command (50 ms) stops it, and the answer says so
+     *  PCRE2's match limit counts frames, not the work inside one, and
+     *  starts again at each start position. The cloud's pattern of 229
+     *  bytes keeps every position under the limit and took 2.9 s a search:
+     *  its 16 KB of code is refused now (1 KB at most). A pattern built the
+     *  same way under 1 KB, over 30 hosts of 63 bytes (some 350 ms a search
+     *  before), stops at the budget of the command: the answer says the
+     *  budget was spent and blames no filter, and the command ends in
+     *  50 ms plus one position (10.5 ms measured, 54-57 ms end to end;
+     *  200 ms checked here, for a slow machine)
      */
     hgobj bud[30];
     for(int i=0; i<30; i++) {
@@ -4815,10 +4820,31 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
             ), NULL, NULL);
     }
     kw = client_kw(gobj_name(client));
-    json_object_set_new(kw, "hostname", json_string("(?:[\\s\\S]?){12}(?!)|$"));
-    ret += check_response(gobj, gobj_command(priv->cc, "list-agents", kw, client), 0,
-        "hostname: too costly to match (the 50 ms of the command spent)",
-        "a filter under the limit at each position stops at the budget of the command");
+    json_object_set_new(kw, "hostname", json_string(
+        "(?:[\\s\\S]?){12}(?:~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?"
+        "~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?"
+        "~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?~?){75}(?!)|$"));
+    ret += check_response(gobj, gobj_command(priv->cc, "list-agents", kw, client), -1,
+        "is no regular expression", "the 16 KB pattern whose positions each stay under the limit");
+    kw = client_kw(gobj_name(client));
+    json_object_set_new(kw, "hostname",
+        json_string("(?:[\\s\\S]?){12}(?:~?~?~?~?~?~?~?~?~?~?){30}(?!)|$"));
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    json_t *response = gobj_command(priv->cc, "list-agents", kw, client);
+    uint64_t elapsed = time_in_milliseconds_monotonic() - t0;
+    const char *comment = kw_get_str(gobj, response, "comment", "", 0);
+    if(kw_get_int(gobj, response, "result", -1, 0) != 0 ||
+            !strstr(comment, "the filters spent the 50 ms of the command") ||
+            strstr(comment, "hostname: too costly")) {
+        ret += fail(gobj, "a pattern under the limit at each position: the budget is said, no filter blamed",
+            comment);
+    }
+    if(elapsed > 200) {
+        char detail[NAME_MAX];
+        snprintf(detail, sizeof(detail), "%llu ms", (unsigned long long)elapsed);
+        ret += fail(gobj, "the filters of a command run longer than the budget and one position", detail);
+    }
+    JSON_DECREF(response)
     for(int i=0; i<30; i++) {
         close_session(bud[i]);
     }
