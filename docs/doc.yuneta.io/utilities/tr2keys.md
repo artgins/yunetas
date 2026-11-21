@@ -17,7 +17,7 @@ tr2keys PATH [options]
 | `--recursive` / `-r` | List every topic under `PATH`. |
 | `--list-databases` | List the databases under `PATH`. |
 
-The topic and the database come from `PATH`. Without `--key` or `--rkey`,
+`tr2keys` takes the topic and the database from `PATH`. Without `--key` or `--rkey`,
 `tr2keys` prints every key of the topic. With one of them, it prints only the
 keys that match, and with `--recursive` only the topics that have a key that
 matches. A pattern that does not compile stops `tr2keys` before it opens a
