@@ -2262,55 +2262,8 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  The tranger json, bounded, its addresses masked: tranger2_view_json()
  ***************************************************************************/
-/***************************************************************************
- *  A copy of `jn` (not owned) with the integer value of every key that
- *  holds an address in the tranger json (a callback, a gobj, a matcher, a
- *  watcher, a loop) as "<pointer>". A field of a record with such a name
- *  and another type is left as it is.
- ***************************************************************************/
-PRIVATE json_t *mask_pointers(json_t *jn)
-{
-    static const char *pointer_keys[] = {
-        "gobj", "src_gobj", "ptr", "yev_loop", "user_data",
-        "load_record_callback", "key_deleted_callback", "key_deleted_user_data",
-        "rkey_matcher", "fs_event_master", "fs_event_client", "trq",
-        "__treedb_callback__", "__treedb_callback_user_data__",
-        0
-    };
-    if(json_is_object(jn)) {
-        json_t *copy = json_object();
-        const char *key;
-        json_t *value;
-        json_object_foreach(jn, key, value) {
-            BOOL pointer = FALSE;
-            if(json_is_integer(value)) {
-                for(int i = 0; pointer_keys[i]; i++) {
-                    if(strcmp(key, pointer_keys[i]) == 0) {
-                        pointer = TRUE;
-                        break;
-                    }
-                }
-            }
-            json_object_set_new(copy, key,
-                pointer? json_string("<pointer>") : mask_pointers(value)
-            );
-        }
-        return copy;
-    }
-    if(json_is_array(jn)) {
-        json_t *copy = json_array();
-        size_t idx;
-        json_t *value;
-        json_array_foreach(jn, idx, value) {
-            json_array_append_new(copy, mask_pointers(value));
-        }
-        return copy;
-    }
-    return json_incref(jn);
-}
-
 PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -2337,54 +2290,24 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *path = kw_get_str(gobj, kw, "path", "", 0);
 
     /*
-     *  No address of the process goes out: the live lists of every session
-     *  hold their callbacks, their gobj and their matcher as integers, and a
-     *  treedb its callback. The whole tranger is masked BEFORE the path is
-     *  walked, so a path that ends on one of them gets "<pointer>" too. Up
-     *  to 7.31.29 a caller with `read` got them all.
+     *  No address of the process goes out (up to 7.31.29 a caller with
+     *  `read` got them all), and only the part shown is copied: the path
+     *  is walked on the tranger itself (in R101 the whole tranger was
+     *  copied first, on every call). A path that is not there is said by
+     *  the answer only.
      */
-    json_t *masked = mask_pointers(priv->tranger);
-    json_t *value = masked;
-
-    if(!empty_string(path)) {
-        /*
-         *  A path of any length walked, and a path that is not there said by
-         *  the answer only (kw_find_path() with verbose FALSE logs nothing)
-         */
-        value = kw_find_path(gobj, value, path, FALSE);
-        if(!value) {
-            JSON_DECREF(masked)
-            return msg_iev_build_response(gobj,
-                -1,
-                json_sprintf("%s: path not found: '%.*s'",
-                    gobj_yuno_role_plus_name(), utf8_prefix_len(path, 64), path),
-                0,
-                0,
-                kw  // owned
-            );
-        }
+    json_t *shown = tranger2_view_json(priv->tranger, path, expanded, lists_limit, dicts_limit);
+    if(!shown) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("%s: path not found: '%.*s'",
+                gobj_yuno_role_plus_name(), utf8_prefix_len(path, 64), path),
+            0,
+            0,
+            kw  // owned
+        );
     }
 
-    if(!json_is_object(value) && !json_is_array(value)) {
-        value = json_incref(value); // a scalar has nothing to collapse: kw_collapse() logged an ERROR
-    } else if(expanded) {
-        if(!lists_limit && !dicts_limit) {
-            /*  The tranger is a json, not a kw: a record in it can hold a
-             *  "gbuffer" key, data that kw_incref() took for a pointer  */
-            json_incref(value); // All
-        } else {
-            value = kw_collapse(gobj, value, lists_limit, dicts_limit);
-        }
-    } else {
-        value = kw_collapse(gobj, value, 0, 0);
-    }
-
-    json_t *shown = value;  // owned, masked
-    JSON_DECREF(masked)
-
-    /*
-     *  Inform
-     */
     return msg_iev_build_response(gobj,
         0,
         0,

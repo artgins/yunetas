@@ -3539,6 +3539,70 @@ The buffer `bf` must be large enough to store the formatted filename. The functi
 
 ---
 
+(tranger2_view_json)=
+## [`tranger2_view_json()`](https://github.com/artgins/yunetas/blob/7.31.29/kernel/c/timeranger2/src/timeranger2.c#L21539)
+
+Returns the tranger json as the `print-tranger` command shows it (`C_TRANGER` and `C_NODE` call it): the value at `path`, collapsed, with every address of the process masked.
+
+```C
+json_t *tranger2_view_json( // return is yours
+    json_t *tranger,
+    const char *path,
+    BOOL expanded,
+    int lists_limit,
+    int dicts_limit
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | Pointer to the TimeRanger database instance. |
+| `path` | `const char *` | The value to show: segments joined by `` ` ``, a list indexed by number (as [`kw_find_path()`](<#kw_find_path>) walks it). `""` or `NULL` is the whole tranger. |
+| `expanded` | `BOOL` | `FALSE`: the keys of the value, each dict or list under them collapsed. `TRUE`: [`kw_collapse()`](<#kw_collapse>) with the two limits. |
+| `lists_limit` | `int` | With `expanded`, a list with more items is collapsed. `0` is no limit. |
+| `dicts_limit` | `int` | With `expanded`, a dict with more keys is collapsed. `0` is no limit. |
+
+**Returns**
+
+A new json, yours to decref, or `NULL` when the path names nothing (silent: the path is a peer's).
+
+A collapsed dict is `{"__collapsed__": {"path": "<its path>", "size": <keys>}}`, and a collapsed list is `[{"__collapsed__": {...}}]`. The path is relative to the value shown: ask again with the two paths joined to open it. An empty dict or list is shown as it is.
+
+**Example**
+
+```C
+/*
+ *  The topics of a tranger, one level: {"tracks": {"__collapsed__":
+ *  {"path": "tracks", "size": 14}}, ...}
+ */
+json_t *view = tranger2_view_json(tranger, "topics", FALSE, 0, 0);
+
+/*
+ *  One topic, its containers up to 100 items shown
+ */
+json_t *topic = tranger2_view_json(tranger, "topics`tracks", TRUE, 100, 100);
+
+/*
+ *  An address ends as "<pointer>", also at the end of a path
+ */
+json_t *loop = tranger2_view_json(tranger, "yev_loop", FALSE, 0, 0);  // "<pointer>"
+JSON_DECREF(view)
+JSON_DECREF(topic)
+JSON_DECREF(loop)
+```
+
+**Notes**
+
+The keys under which the tranger json holds an address are masked when they hold an integer: the callbacks, the gobj and the matcher of a list (`load_record_callback`, `rkey_matcher`, `gobj`, `src_gobj`, `ptr`, `user_data`, ...), the watchers, the loop, and the callback of a treedb (`__treedb_callback__`). A field of a record with one of those names and another type is shown as it is.
+
+The json of a treedb can hold itself: a node hangs, by two hooks, from its own child (the treedb refuses a cycle in one hook only). A dict met again on the walk, or 64 levels down, answers collapsed (see [`kw_collapse()`](<#kw_collapse>)). Up to 7.31.29 `print-tranger` of such a treedb did not end, and the yuno died.
+
+Only the part shown is copied: the path is walked on the tranger itself, and then collapsed and masked. In R101 the whole tranger was copied on every call, before the path was walked.
+
+---
+
 (tranger2_read_record_content)=
 ## [`tranger2_read_record_content()`](https://github.com/artgins/yunetas/blob/7.31.29/kernel/c/timeranger2/src/timeranger2.c#L20152)
 

@@ -1751,6 +1751,28 @@ PUBLIC void tranger2_print_record_filename(
 );
 
 /*
+   The tranger json as print-tranger shows it (C_TRANGER and C_NODE): the
+   value at `path` (segments joined by '`', a list indexed by number, ""
+   the whole tranger), with every address of the process (a callback, a
+   gobj, a matcher, a watcher, the loop) as "<pointer>". Not `expanded`:
+   the value's own keys, each dict or list under them collapsed
+   ({"__collapsed__": {"path", "size"}}, a list as [{...}]). `expanded`:
+   kw_collapse() with `lists_limit` and `dicts_limit` (0 and 0: all of it).
+   A dict that holds itself (a cycle of hooks) or 64 levels down answers
+   collapsed.
+   Only the part shown is copied: the path is walked on the tranger itself.
+   Return is yours. NULL when the path names nothing (silent: a peer's
+   path).
+*/
+PUBLIC json_t *tranger2_view_json( // return is yours
+    json_t *tranger,
+    const char *path,
+    BOOL expanded,
+    int lists_limit,
+    int dicts_limit
+);
+
+/*
    Set the tranger trace_level (stored on the handle; controls internal FS/dump
    tracing).
 */

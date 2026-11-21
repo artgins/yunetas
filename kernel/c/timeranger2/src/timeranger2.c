@@ -21408,6 +21408,171 @@ PUBLIC int tranger2_close_all_lists(
 }
 
 /***************************************************************************
+ *  The keys under which the tranger json holds an address of the process:
+ *  timeranger2's (the callbacks and watchers of a list, the loop, the
+ *  matcher of an rkey), tr_treedb's callback, and what C_TRANGER and
+ *  tr_queue keep in the `extra` of their lists. Only an integer under
+ *  them is an address: a field of a record with such a name and another
+ *  type is shown as it is.
+ ***************************************************************************/
+PRIVATE BOOL is_pointer_key(const char *key)
+{
+    static const char *pointer_keys[] = {
+        "gobj", "src_gobj", "ptr", "yev_loop", "user_data",
+        "load_record_callback", "key_deleted_callback", "key_deleted_user_data",
+        "rkey_matcher", "fs_event_master", "fs_event_client", "trq",
+        "__treedb_callback__", "__treedb_callback_user_data__",
+        0
+    };
+    for(int i = 0; pointer_keys[i]; i++) {
+        if(strcmp(key, pointer_keys[i]) == 0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  A copy of `jn` (not owned) with every address as "<pointer>". It walks
+ *  what kw_collapse() answered, whose lists inside a list are the
+ *  tranger's own: a container already on the walk, or VIEW_MAX_DEPTH
+ *  levels down, answers "<cut>".
+ ***************************************************************************/
+PRIVATE json_t *mask_pointers(json_t *jn, json_t **ancestors, int depth)
+{
+    if(!json_is_object(jn) && !json_is_array(jn)) {
+        return json_incref(jn);
+    }
+    if(depth >= VIEW_MAX_DEPTH) {
+        return json_string("<cut>");
+    }
+    for(int i = 0; i < depth; i++) {
+        if(ancestors[i] == jn) {
+            return json_string("<cut>");
+        }
+    }
+    ancestors[depth] = jn;
+
+    if(json_is_object(jn)) {
+        json_t *copy = json_object();
+        const char *key;
+        json_t *value;
+        json_object_foreach(jn, key, value) {
+            json_object_set_new(copy, key,
+                (json_is_integer(value) && is_pointer_key(key))?
+                    json_string("<pointer>") : mask_pointers(value, ancestors, depth + 1)
+            );
+        }
+        return copy;
+    }
+
+    json_t *copy = json_array();
+    size_t idx;
+    json_t *value;
+    json_array_foreach(jn, idx, value) {
+        json_array_append_new(copy, mask_pointers(value, ancestors, depth + 1));
+    }
+    return copy;
+}
+
+/***************************************************************************
+ *  Not expanded: the keys of `value`, each dict or list under them (not
+ *  empty) collapsed, as kw_collapse() collapses one.
+ ***************************************************************************/
+PRIVATE json_t *collapse_one_level(json_t *value)
+{
+    if(json_is_object(value)) {
+        json_t *view = json_object();
+        const char *key;
+        json_t *jn;
+        json_object_foreach(value, key, jn) {
+            size_t size = json_is_object(jn)? json_object_size(jn) :
+                json_is_array(jn)? json_array_size(jn) : 0;
+            if(size == 0) {
+                json_object_set(view, key, jn);
+            } else if(json_is_object(jn)) {
+                json_object_set_new(view, key, json_pack("{s:{s:s, s:I}}",
+                    "__collapsed__", "path", key, "size", (json_int_t)size));
+            } else {
+                json_object_set_new(view, key, json_pack("[{s:{s:s, s:I}}]",
+                    "__collapsed__", "path", key, "size", (json_int_t)size));
+            }
+        }
+        return view;
+    }
+
+    json_t *view = json_array();
+    size_t idx;
+    json_t *jn;
+    json_array_foreach(value, idx, jn) {
+        size_t size = json_is_object(jn)? json_object_size(jn) :
+            json_is_array(jn)? json_array_size(jn) : 0;
+        char path[40];
+        snprintf(path, sizeof(path), "%d", (int)idx);
+        if(size == 0) {
+            json_array_append(view, jn);
+        } else if(json_is_object(jn)) {
+            json_array_append_new(view, json_pack("{s:{s:s, s:I}}",
+                "__collapsed__", "path", path, "size", (json_int_t)size));
+        } else {
+            json_array_append_new(view, json_pack("[{s:{s:s, s:I}}]",
+                "__collapsed__", "path", path, "size", (json_int_t)size));
+        }
+    }
+    return view;
+}
+
+/***************************************************************************
+ *  What print-tranger shows (C_TRANGER and C_NODE): the path walked on
+ *  the tranger itself, the part shown collapsed, and only that part
+ *  copied with the addresses masked. In R101 the WHOLE tranger was copied
+ *  on every call, before the path was walked: every node of a treedb once
+ *  for each container that reaches it, on each click of the JSON viewer.
+ ***************************************************************************/
+PUBLIC json_t *tranger2_view_json(
+    json_t *tranger,
+    const char *path,
+    BOOL expanded,
+    int lists_limit,
+    int dicts_limit
+)
+{
+    hgobj gobj = (hgobj)(uintptr_t)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *value = tranger;
+    if(!empty_string(path)) {
+        value = kw_find_path(gobj, tranger, path, FALSE);   // a path not there: nothing logged
+        if(!value) {
+            return NULL;
+        }
+    }
+
+    if(!json_is_object(value) && !json_is_array(value)) {
+        /*
+         *  A scalar is masked by its own key, the last segment of the path:
+         *  path=yev_loop answers "<pointer>"
+         */
+        const char *last = path? strrchr(path, '`') : NULL;
+        last = last? last + 1 : (path? path : "");
+        if(json_is_integer(value) && is_pointer_key(last)) {
+            return json_string("<pointer>");
+        }
+        return json_incref(value);
+    }
+
+    json_t *collapsed = expanded?
+        kw_collapse(gobj, value, lists_limit, dicts_limit) :
+        collapse_one_level(value);
+    if(!collapsed) {
+        return NULL;    // Cannot happen, value is a dict or a list (logged)
+    }
+    json_t *ancestors[VIEW_MAX_DEPTH];
+    json_t *view = mask_pointers(collapsed, ancestors, 0);
+    JSON_DECREF(collapsed)
+    return view;
+}
+
+/***************************************************************************
  *  Print rowid, t, tm, key
  ***************************************************************************/
 PUBLIC void tranger2_print_md0_record(

@@ -189,6 +189,21 @@ Collapsed elements are replaced with a structure containing `__collapsed__` meta
 
 A **top-level array** is collapsed too: its object elements are recursed (each collapsed one level), and arrays or primitives are copied shallow. An element's path is its numeric index appended to the parent path, so [`kw_find_path()`](<#kw_find_path>) resolves it back — which is what lets a caller drill into an array subtree and have the path round-trip. This is the surface the `print-tranger path=` drill relies on.
 
+A dict that the walk meets again (a json that holds itself: a node of a treedb that hangs, by two hooks, from its own child) answers collapsed at its second visit, whatever its size, and so does a dict 64 levels down. The answer is then always a tree, and it can be dumped. Up to 7.31.29 the walk of such a json did not end: the process ran out of stack or of memory.
+
+```C
+json_t *a = json_object();
+json_t *b = json_object();
+json_object_set(a, "child", b);
+json_object_set(b, "parent", a);   // a holds itself, through b
+json_t *view = kw_collapse(gobj, a, 0, 0);
+// {"child": {"parent": {"__collapsed__": {"path": "child`parent", "size": 1}}}}
+JSON_DECREF(view)
+json_object_del(b, "parent");      // break the cycle before the decref
+JSON_DECREF(a)
+JSON_DECREF(b)
+```
+
 ---
 
 (kw_decref)=

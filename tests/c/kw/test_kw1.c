@@ -1244,6 +1244,42 @@ static int test_kw_collapse_toplevel_array(void)
 }
 
 /***************************************************************************
+ *  kw_collapse() of a json that holds itself (a node of a treedb that
+ *  hangs, by two hooks, from its own child): the dict met again answers
+ *  collapsed, and the answer is a tree. Up to 7.31.29 the walk did not
+ *  end (the stack or the memory of the process did).
+ ***************************************************************************/
+static int test_kw_collapse_cycle(void)
+{
+    int result = 0;
+
+    json_t *a = json_object();
+    json_t *b = json_object();
+    json_object_set(a, "child", b);
+    json_object_set(b, "parent", a);
+
+    json_t *collapsed = kw_collapse(0, a, 0, 0);
+    json_t *expected = json_pack("{s:{s:{s:{s:s, s:I}}}}",
+        "child",
+            "parent",
+                "__collapsed__",
+                    "path", "child`parent",
+                    "size", (json_int_t)1
+    );
+    if(!collapsed || !json_equal(collapsed, expected)) {
+        result += -1;
+        printf("FAIL kw_collapse of a json that holds itself\n");
+    }
+
+    json_object_del(b, "parent");   // the cycle broken, both can go
+    JSON_DECREF(a)
+    JSON_DECREF(b)
+    JSON_DECREF(collapsed)
+    JSON_DECREF(expected)
+    return result;
+}
+
+/***************************************************************************
  *  kw_collapse() on a primitive (neither dict nor array) must reject it,
  *  returning NULL and logging — not crash, not return a half-built tree.
  ***************************************************************************/
@@ -1304,6 +1340,7 @@ PRIVATE int do_test(void)
     result += test_reg_f004_kwid_compare_records_depth();
     result += test_kw_collapse_toplevel_array();
     result += test_kw_collapse_primitive_rejected();
+    result += test_kw_collapse_cycle();
 
     /*-------------------------------*
      *      Shutdown timeranger

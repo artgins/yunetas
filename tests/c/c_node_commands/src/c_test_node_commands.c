@@ -32,6 +32,7 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE int print_a_cycle_of_hooks(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -173,6 +174,44 @@ PRIVATE char schema_cmds_test[] = "\
                     'header': 'Name',                               \n\
                     'type': 'string',                               \n\
                     'flag': ['persistent']                          \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'topic_name': 'teams',                                  \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Id',                                 \n\
+                    'type': 'string',                               \n\
+                    'flag': ['persistent','required']               \n\
+                },                                                  \n\
+                'team_id': {                                        \n\
+                    'header': 'Team',                               \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'lead_id': {                                        \n\
+                    'header': 'Lead',                               \n\
+                    'type': 'string',                               \n\
+                    'flag': ['fkey']                                \n\
+                },                                                  \n\
+                'subteams': {                                       \n\
+                    'header': 'Subteams',                           \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'teams': 'team_id'                          \n\
+                    }                                               \n\
+                },                                                  \n\
+                'leads': {                                          \n\
+                    'header': 'Leads',                              \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'teams': 'lead_id'                          \n\
+                    }                                               \n\
                 }                                                   \n\
             }                                                       \n\
         }                                                           \n\
@@ -934,10 +973,29 @@ PRIVATE int run_tests(hgobj gobj)
         json_pack("{s:s}", "topic_name", "departments"), "[\"department_id\"]")
 
     /*
-     *  print-tranger: a subtree of the tranger, by its path
+     *  print-tranger: a subtree of the tranger, by its path. Not expanded
+     *  (the default) its keys, each dict under them collapsed: up to 7.31.29
+     *  the whole subtree came, against data.md ("Unexpanded containers
+     *  answer as [[size]]"), and with no path the whole tranger.
      */
     CHECK(expect_str, "print-tranger: topics", "print-tranger",
-        json_pack("{s:s}", "path", "topics"), "departments`topic_name", "departments")
+        json_pack("{s:s, s:b}", "path", "topics", "expanded", 1), "departments`topic_name", "departments")
+    CHECK(expect_str, "print-tranger: topics, not expanded: collapsed", "print-tranger",
+        json_pack("{s:s}", "path", "topics"), "departments`__collapsed__`path", "departments")
+    CHECK(expect_str, "print-tranger: no path, not expanded: one level", "print-tranger",
+        json_object(), "topics`__collapsed__`path", "topics")
+
+    /*
+     *  print-tranger shows no address of the process: the treedb's callback,
+     *  in a dict and at the end of a path. C_NODE and C_TRANGER mask with
+     *  one function, tranger2_view_json().
+     */
+    CHECK(expect_str, "print-tranger: the treedb callback, masked", "print-tranger",
+        json_pack("{s:s, s:b, s:i, s:i}", "path", "treedbs`" TREEDB, "expanded", 1,
+            "lists_limit", 1000, "dicts_limit", 1000),
+        "__treedb_callback__", "<pointer>")
+    CHECK(expect_str, "print-tranger: a path that ends on the callback, masked", "print-tranger",
+        json_pack("{s:s}", "path", "treedbs`" TREEDB "`__treedb_callback__"), "", "<pointer>")
 
     /*
      *  A kw that carries a gbuffer: the commands that keep a reference to
@@ -1054,12 +1112,55 @@ PRIVATE int run_tests(hgobj gobj)
         KW_DECREF(kw)
     }
 
+    result += print_a_cycle_of_hooks(gobj);
+
     if(result == 0) {
         gobj_log_info(gobj, 0,
             "msgset", "%s", MSGSET_INFO,
             "msg", "%s", "All c_node command tests PASSED",
             NULL
         );
+    }
+    return result;
+}
+
+/***************************************************************************
+ *  A cycle between two hooks: a.subteams holds b and b.leads holds a. The
+ *  treedb accepts it (it looks for a cycle in ONE hook), and the json of
+ *  the treedb holds itself. print-tranger, of any reader, recursed down
+ *  it until the stack of the yuno blew (SIGSEGV, up to 7.31.29). A dict
+ *  that holds itself, or 64 levels down, answers collapsed.
+ ***************************************************************************/
+PRIVATE int print_a_cycle_of_hooks(hgobj gobj)
+{
+    int result = 0;
+    CHECK(expect_str, "a cycle: team a", "create-node",
+        json_pack("{s:s, s:{s:s}}", "topic_name", "teams", "record", "id", "a"), "id", "a")
+    CHECK(expect_str, "a cycle: team b", "create-node",
+        json_pack("{s:s, s:{s:s}}", "topic_name", "teams", "record", "id", "b"), "id", "b")
+    CHECK(expect_str, "a cycle: b under a", "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "teams^a^subteams", "child_ref", "teams^b"),
+        "id", "b")
+    CHECK(expect_str, "a cycle: a under b, by the other hook", "link-nodes",
+        json_pack("{s:s, s:s}", "parent_ref", "teams^b^leads", "child_ref", "teams^a"),
+        "id", "a")
+
+    const char *paths[] = {"treedbs`" TREEDB "`teams", "treedbs", "", NULL};
+    for(int i = 0; paths[i]; i++) {
+        for(int limit = 0; limit <= 100; limit += 100) {
+            json_t *resp = ask(gobj, "print-tranger", json_pack("{s:s, s:b, s:i, s:i}",
+                "path", paths[i], "expanded", 1, "lists_limit", limit, "dicts_limit", limit));
+            char *dump = json_dumps(kw_get_dict_value(gobj, resp, "data", 0, 0), JSON_COMPACT);
+            if(kw_get_int(gobj, resp, "result", -1, 0) != 0 || !dump ||
+                    !strstr(dump, "__collapsed__")) {
+                result += fail(gobj, "print-tranger of a cycle of hooks: answered, the cycle collapsed",
+                    NULL);
+            }
+            if(dump) {
+                gbmem_free(dump);
+            }
+            JSON_DECREF(resp)
+        }
     }
     return result;
 }
