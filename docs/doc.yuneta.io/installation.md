@@ -113,6 +113,20 @@ curl -fsSL https://github.com/artgins/yunetas/releases/download/7.31.27/SHA256SU
 
 The output is `yuneta-agent-7.31.27-1-amd64.deb: OK` for a good package.
 
+The workflow `release-packages.yml` builds the packages once, when the
+release is published. A manual run of it on a published tag builds the
+packages again and replaces them, with other bytes, and each sha256 that was
+copied before stops matching. To add the
+line of a package uploaded by hand (a `-2`, a riscv64 `.deb`) to
+`SHA256SUMS`, run the workflow with `checksums_only=true`, which builds
+nothing:
+
+```bash
+gh workflow run release-packages.yml -f release_tag=7.31.29 -f checksums_only=true
+```
+
+`packages/README.md` gives the same steps by hand.
+
 The package puts almost all its files in `/yuneta`. The files that it puts in
 the system directories, the system files that it changes, and the features
 that need `sudo` are in [Files outside `/yuneta`](#files-outside-yuneta).

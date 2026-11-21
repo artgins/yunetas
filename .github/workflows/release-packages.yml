@@ -24,6 +24,14 @@ name: Release runtime packages (.deb + .rpm)
 #
 # Other architectures (armhf, arm32, riscv64, aarch64) can be added once
 # cross-compile or matching runners are wired up.
+#
+# A manual run (workflow_dispatch) on a tag that is already published
+# REBUILDS its packages and REPLACES them: other bytes, so every sha256 an
+# operator already copied for install-package stops matching. The jobs check
+# out the tag, so the revision is the RELEASE of that tree (-1), never a -2.
+# A package uploaded by hand (a -2 on the same tag, a riscv64 .deb), with its
+# <package>.sha256, gets its line in SHA256SUMS with checksums_only: true,
+# which skips the builds and runs only the checksums job.
 
 on:
   release:
@@ -34,6 +42,11 @@ on:
         description: "Existing release tag to attach the packages to (e.g. 7.3.1)"
         required: true
         type: string
+      checksums_only:
+        description: "Only rebuild SHA256SUMS from the .sha256 assets of the release: no package is built or replaced"
+        required: false
+        type: boolean
+        default: false
 
 # Both actions are pinned to their latest major because those are the first
 # lines that declare the Node 24 runtime. GitHub deprecated Node 20 on the
@@ -48,6 +61,7 @@ permissions:
 jobs:
   deb:
     name: AMD64 .deb (Debian 13)
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.checksums_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
@@ -194,6 +208,7 @@ jobs:
 
   rpm:
     name: x86_64 .rpm (Rocky 9)
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.checksums_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
@@ -323,6 +338,9 @@ jobs:
   checksums:
     name: SHA256SUMS of the packages
     needs: [deb, rpm]
+    # After both builds, or alone with checksums_only (the builds skipped);
+    # never after a build that failed or was cancelled
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

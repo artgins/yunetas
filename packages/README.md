@@ -30,6 +30,37 @@ possible: some sites install the package as root and do not let `yuneta` use
 `sudo`. When a change adds, moves or removes a file outside `/yuneta`, update
 the page in the same commit.
 
+## Release packages and SHA256SUMS
+
+The workflow `.github/workflows/release-packages.yml` builds the AMD64
+`.deb` and the x86_64 `.rpm` when a GitHub release is published. It uploads
+each package with its `<package>.sha256`. A last job joins every `.sha256`
+of the release into `SHA256SUMS`. `install.sh` and the operators of
+`install-package` read the sha256 of a package there.
+
+A manual run of the workflow (`workflow_dispatch`) on a tag that is already
+published builds the packages again and replaces them. The new packages
+have other bytes, so each sha256 that an operator copied before does not
+match any more. The run builds the revision of the `RELEASE` file of the
+tag (`-1`), never a `-2`.
+
+A package that you upload by hand, for example a `-2` on the same tag or a
+riscv64 `.deb`, needs its line in `SHA256SUMS`. Upload the package with its
+`.sha256` (made with `sha256sum` in the directory of the package, so that
+the line has no directory), then make `SHA256SUMS` again. Do not rebuild
+the other packages. Use one of these two ways:
+
+```bash
+# 1. The workflow, with the builds skipped
+gh workflow run release-packages.yml -f release_tag=7.31.29 -f checksums_only=true
+
+# 2. By hand
+mkdir sums && cd sums
+gh release download 7.31.29 --pattern '*.sha256'
+cat *.sha256 | sort -k2 > SHA256SUMS
+gh release upload 7.31.29 --clobber SHA256SUMS
+```
+
 ## The two packagers
 
 Both packagers stage the same `/yuneta` runtime payload. The payload has the
