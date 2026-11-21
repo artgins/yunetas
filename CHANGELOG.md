@@ -4,6 +4,15 @@
 
 ### Security
 
+- **C_AUTH_BFF no longer gives one browser the session of another.** When
+  the OIDC discovery of an IdP timed out with its request already sent, the
+  BFF kept the keep-alive connection open, and from then on each request
+  took the answer of the request before it: a refresh of one user could
+  answer the next browser with the tokens of that user. It happened when an
+  IdP answered a discovery later than `idp_timeout_ms` (30 s) and then
+  answered in order, with one IdP or with `issuers`. The BFF now drops the
+  connection when a discovery times out, as it already did for a login.
+  This existed in 7.31.0.
 - **agent22 `install-package`: the part that runs as root is a program of
   the package**, `/usr/libexec/yuneta/install-package` (root:root 0755, in
   the `.deb` and the `.rpm`). agent22 writes only the URL and the sha256.
@@ -33,21 +42,43 @@
   the host name). When `systemctl` cannot list the installs that run, the
   install is refused with its message. The permissions `install-package`
   and `upgrade-agent` now say that they are equivalent to root.
-- **The filters of `list-agents` and `list-nodes` refuse the shapes that
-  make `regcomp()` explode**: a `{` that is not escaped, more than 4 `+`, an
-  anchor that is not the first `^` or the last `$`, and a word boundary
-  (`\b \B \< \> \` \'`), also inside brackets. glibc copies what a
-  bounded repetition repeats, and compiles `X+` as `X X*`: `(a{1000}){1000}`
-  took 211 MB, `a` with 20 `+` took 718 MB, and `(a{32767}){32767}` or `a`
-  with 24 `+` took all the memory of the control center. An anchor inside
-  10 nested loops took 8 s. Write `\{`, `\+`, `\^` or `\$` for the
-  characters, and `XX*` for `X+`. Up to 7.31.29 (the filters came in
-  7.31.19), any user with `list-agents` could do this.
-- **The control center refuses an agent card whose `yuno_version` or
-  `os.pretty_name` is not a string or is longer than 64**, as it does for
-  the host. An absent field is accepted. The filters match these texts, and
-  a filter made to miss over 300 texts of 151 bytes took 84 s and 2 GB. Up
-  to 7.31.29 these texts had no limit.
+- **The filters of `list-agents` and `list-nodes` are PCRE2 patterns, run
+  with limits.** A pattern is at most 256 bytes, with compiled code of at
+  most 16 KB, and a match stops after 1000 steps (depth 1000, heap 1 MiB). A
+  filter that hits a limit matches nothing more in that command, and the
+  answer names it. Up to 7.31.29 (the filters came in 7.31.19) they were
+  POSIX patterns of glibc's `regcomp()`, and any user with `list-agents`
+  could stop the control center: `(a{32767}){32767}` or `a` followed by 24
+  `+` took all its memory, and `(a??a??...)*` with 40 groups took days to
+  compile, while the control center answered no agent. Back-references,
+  bounded repetitions and anchors anywhere now work. For example:
+
+  ```
+  list-agents hostname='^(node|box)-[0-9]{2}$'
+  ```
+
+- **The agent card: `yuno_version` and `os.pretty_name` are at most 64
+  bytes.** The agent (`get_os_info()`) cuts each value of os-release and
+  uname to 64 bytes at a whole UTF-8 character, and the control center reads
+  a longer one cut the same way (`expand=1` still shows the card whole). A
+  value that is present and is not a string is refused. The filters match
+  these texts: up to 7.31.29 they had no limit, and a filter made to miss
+  over 300 texts of 151 bytes took 84 s and 2 GB.
+- **The control center logs every `pending` record that a session
+  writes**, with the uuid, the user and the address: an INFO without a key,
+  the existing WARNING with one. Up to 7.31.29 (since 7.30.11) a session with
+  a valid token wrote one record for each new uuid, with no log and no
+  limit. There is still no limit: set `allow_nodes_without_key` to false to
+  refuse an agent that presents no key.
+- **C_TRANGER matches a peer's `rkey` regex within limits** (100000 steps,
+  depth 10000 and 4 MB for each key, 2 s for the whole request), in
+  `list-keys`, `open-iterator` and the one-shot `open-list`. A request that
+  reaches a limit is refused with "rkey regex too costly" (a WARNING from a
+  peer). Up to 7.31.29 it used the default limits of pcre2 (ten million
+  steps for each key, up to 100000 keys) and left out a key it could not
+  judge, as if it did not match. A live list of timeranger2 gets the same
+  limits for each match: a key that reaches one is not given to the list,
+  with one WARNING for each list.
 - **A flood of knocks no longer lets another key enroll under a real uuid.**
   A uuid that the flood evicts from the knocking table now keeps the key
   that it knocked with, in a bounded ring (new attribute
@@ -58,7 +89,8 @@
   read on the node>`, or forget the uuid with `delete-node`. An evicted uuid
   is not taken back into the table. When the ring is full and an eviction
   overwrites a live entry, that is a flood: the open enrollment closes, no
-  enrollment opens for an hour, and one WARNING says it
+  enrollment opens for `mark_evicted_quarantine` seconds (new attribute,
+  3600 by default), and each cause gives one WARNING for each window
   (`max_evicted_knocks` 0 does the same at every eviction). A batch of
   nodes larger than the table still enrolls. The ring is in memory, like the
   knocks. Up to 7.31.29 (the enrollment came in 7.31.15), the flood erased
@@ -221,6 +253,10 @@
 
 ### Docs
 
+- **`YUNO_AUTH.md` §6.2: cert-sync runs its command with `/bin/sh -c`**
+  (`run_process2()`, not `system()`), and the values of
+  `cert_sync_last_result` are the real ones: `reloaded`, `reloaded (copy
+  script reported error)`, `no-change` and `copy-script-failed`.
 - **The entry of llhttp 9.4.4 (7.31.1) is corrected.** It said that the
   change of llhttp reached every yuno that parses HTTP. It reaches none:
   the changed code runs only with `LENIENT_HEADER_VALUE_RELAXED`, which
