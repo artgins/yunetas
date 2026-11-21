@@ -413,9 +413,14 @@ connects again and subscribes `g/1` and `g/6`: `g/6` gets `0x97` (its WARNING
 falls in the 10 s of the first, and is not written). C (3.1.1, clean
 session) subscribes two share groups of `sh/x` and publishes to it: it gets
 the message twice, once per group. Its UNSUBSCRIBE of one group leaves one
-group (`shared-subs`), and its close leaves none. Red on 7.31.29: the 20
-SUBSCRIBEs wrote the session 20 times (`i_rowid` 22, not 2), and `f/6` and
-`g/6` were granted.
+group (`shared-subs`), and its close leaves none. Then A unsubscribes `f/2`:
+its session holds 4 filters, and `f/6` is granted. D (3.1.1, clean session 0)
+has a session above the limit: the test sets the limit of its first
+connection to 10, and D subscribes `h/1` to `h/7`. On its next connection
+(limit 5) the session holds 7: `h/8` gets `0x80`, and `h/1`, a filter that it
+holds, is granted. After the UNSUBSCRIBEs of `h/2`, `h/3` and `h/4` the session
+holds 4, and `h/8` is granted. Red on 7.31.29: the 20 SUBSCRIBEs wrote the
+session 20 times (`i_rowid` 22, not 2), and `f/6` and `g/6` were granted.
 
 `test_mqtt_broker_takeover` (`main_broker_takeover.c` +
 `c_broker_takeover.c`) runs the broker on port 18120 with `timeout_close`

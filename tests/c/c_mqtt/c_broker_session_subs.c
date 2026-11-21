@@ -30,6 +30,18 @@
  *              7. UNSUBSCRIBE $share/g3/sh/x: one group left
  *                 (`shared-subs`). DISCONNECT: the close of its temporary
  *                 session removes the other: no group left.
+ *              A again, its session full (5):
+ *              8. UNSUBSCRIBE f/2: the session holds 4, and SUBSCRIBE f/6
+ *                 is granted.
+ *              D, MQTT 3.1.1, clean session 0, a session ABOVE the limit
+ *              (one grown before 7.31.30, or kept after the limit went
+ *              down): its first connection has the limit at 10.
+ *              9. SUBSCRIBE h/1 .. h/7: granted, the session holds 7. A new
+ *                 connection keeps it (limit 5): SUBSCRIBE h/8 is refused
+ *                 (0x80, its WARNING not said: 10 s), SUBSCRIBE h/1, a filter
+ *                 it holds, is granted, and the session still holds 7.
+ *             10. UNSUBSCRIBE h/2, h/3, h/4: the session holds 4, under the
+ *                 limit, and SUBSCRIBE h/8 is granted: it holds 5.
  *
  *          Up to 7.31.29 step 2 wrote the session 20 times (about 30 KB
  *          each with 100 filters of 250 bytes), and the limit counted only
@@ -113,6 +125,7 @@ typedef struct _PRIVATE_DATA {
     client_t a;
     client_t b;
     client_t c;
+    client_t d;
 } PRIVATE_DATA;
 
 
@@ -136,6 +149,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->a.fd = -1;
     priv->b.fd = -1;
     priv->c.fd = -1;
+    priv->d.fd = -1;
 }
 
 /***************************************************************************
@@ -287,6 +301,46 @@ PRIVATE json_int_t session_rowid(hgobj gobj, const char *client_id)
     json_int_t rowid = kw_get_int(gobj, session, "__md_treedb__`i_rowid", -1, KW_REQUIRED);
     JSON_DECREF(session)
     return rowid;
+}
+
+/***************************************************************************
+ *  How many filters the record of a session holds
+ ***************************************************************************/
+PRIVATE int session_filters(hgobj gobj, const char *client_id)
+{
+    json_t *session = gobj_get_node(
+        gobj_find_service(TREEDB_SERVICE, TRUE),
+        "sessions",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
+    if(!session) {
+        case_failed(gobj, "TEST: session not found");
+        return -1;
+    }
+    int n = (int)json_array_size(json_object_get(session, "subscriptions"));
+    JSON_DECREF(session)
+    return n;
+}
+
+/***************************************************************************
+ *  The limit of filters of the connection of a client: its C_PROT_MQTT2
+ ***************************************************************************/
+PRIVATE void set_connection_limit(hgobj gobj, const char *client_id, int limit)
+{
+    json_t *jn_filter = json_pack("{s:s, s:s}",
+        "__gclass_name__", "C_PROT_MQTT2",
+        "client_id", client_id
+    );
+    json_t *dl = gobj_match_children_tree(gobj_find_service("__input_side__", TRUE), jn_filter);
+    if(json_array_size(dl) != 1) {
+        case_failed(gobj, "TEST: the connection of a client not found");
+    } else {
+        hgobj prot = (hgobj)(uintptr_t)json_integer_value(json_array_get(dl, 0));
+        gobj_write_integer_attr(prot, "max_subscriptions_per_client", limit);
+    }
+    gobj_free_iter(dl);
 }
 
 /***************************************************************************
@@ -564,6 +618,10 @@ PRIVATE void close_clients(hgobj gobj)
         close(priv->c.fd);
         priv->c.fd = -1;
     }
+    if(priv->d.fd >= 0) {
+        close(priv->d.fd);
+        priv->d.fd = -1;
+    }
 }
 
 /***************************************************************************
@@ -583,7 +641,7 @@ PRIVATE void next_step(hgobj gobj)
 PRIVATE void run_step(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    client_t *a = &priv->a, *b = &priv->b, *c = &priv->c;
+    client_t *a = &priv->a, *b = &priv->b, *c = &priv->c, *d = &priv->d;
 
     switch(priv->step) {
         case 0:
@@ -717,6 +775,101 @@ PRIVATE void run_step(hgobj gobj)
             break;
         case 15:
             if(shared_groups(gobj) == 0) {
+                client_unsubscribe(gobj, a, 2, "f/2");
+                next_step(gobj);
+            }
+            break;
+        case 16:
+            if(a->unsuback == 1) {
+                check(gobj, session_filters(gobj, "ss_a") == 4,
+                    "TEST: an UNSUBSCRIBE did not lower the filters of the session",
+                    session_filters(gobj, "ss_a"), 4
+                );
+                const char *f[] = {"f/6"};
+                client_subscribe(gobj, a, 3, f, 1, 1);
+                next_step(gobj);
+            }
+            break;
+        case 17:
+            if(a->suback == 2) {
+                const uint8_t want[] = {1};
+                check_codes(gobj, a, want, 1);
+                check(gobj, session_filters(gobj, "ss_a") == 5, "TEST: A's session filters",
+                    session_filters(gobj, "ss_a"), 5
+                );
+                client_connect(gobj, d, 4, "ss_d", FALSE, -1);
+                next_step(gobj);
+            }
+            break;
+        case 18:
+            if(d->connack == 1) {
+                set_connection_limit(gobj, "ss_d", 10);
+                const char *f[] = {"h/1", "h/2", "h/3", "h/4", "h/5", "h/6", "h/7"};
+                client_subscribe(gobj, d, 1, f, 7, 1);
+                next_step(gobj);
+            }
+            break;
+        case 19:
+            if(d->suback == 1) {
+                const uint8_t want[] = {1, 1, 1, 1, 1, 1, 1};
+                check_codes(gobj, d, want, 7);
+                client_disconnect(gobj, d);
+                client_connect(gobj, d, 4, "ss_d", FALSE, -1);
+                next_step(gobj);
+            }
+            break;
+        case 20:
+            if(d->connack == 1) {
+                check(gobj, d->connack_sp == 1, "TEST: D's session not present", d->connack_sp, 1);
+                check(gobj, session_filters(gobj, "ss_d") == 7, "TEST: D's session restored",
+                    session_filters(gobj, "ss_d"), 7
+                );
+                const char *f[] = {"h/8"};
+                client_subscribe(gobj, d, 1, f, 1, 1);
+                next_step(gobj);
+            }
+            break;
+        case 21:
+            if(d->suback == 1) {
+                const uint8_t want[] = {0x80};
+                check_codes(gobj, d, want, 1);
+                const char *f[] = {"h/1"};
+                client_subscribe(gobj, d, 2, f, 1, 1);
+                next_step(gobj);
+            }
+            break;
+        case 22:
+            if(d->suback == 2) {
+                const uint8_t want[] = {1};
+                check_codes(gobj, d, want, 1);
+                check(gobj, session_filters(gobj, "ss_d") == 7,
+                    "TEST: a filter held, subscribed again above the limit",
+                    session_filters(gobj, "ss_d"), 7
+                );
+                client_unsubscribe(gobj, d, 3, "h/2");
+                client_unsubscribe(gobj, d, 4, "h/3");
+                client_unsubscribe(gobj, d, 5, "h/4");
+                next_step(gobj);
+            }
+            break;
+        case 23:
+            if(d->unsuback == 3) {
+                check(gobj, session_filters(gobj, "ss_d") == 4,
+                    "TEST: UNSUBSCRIBEs of filters of the restored session",
+                    session_filters(gobj, "ss_d"), 4
+                );
+                const char *f[] = {"h/8"};
+                client_subscribe(gobj, d, 6, f, 1, 1);
+                next_step(gobj);
+            }
+            break;
+        case 24:
+            if(d->suback == 3) {
+                const uint8_t want[] = {1};
+                check_codes(gobj, d, want, 1);
+                check(gobj, session_filters(gobj, "ss_d") == 5, "TEST: D's session filters",
+                    session_filters(gobj, "ss_d"), 5
+                );
                 next_step(gobj);
             }
             break;
@@ -745,8 +898,9 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     client_read(gobj, &priv->a);
     client_read(gobj, &priv->b);
     client_read(gobj, &priv->c);
+    client_read(gobj, &priv->d);
 
-    if(priv->step == 16) {
+    if(priv->step == 25) {
         clear_timeout(priv->timer);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
