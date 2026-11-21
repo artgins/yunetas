@@ -4309,10 +4309,7 @@ PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *  json_pack() frees the `o` values when it fails (a hostname that is
      *  not utf-8): what the comment needs is read before
      */
-    char pretty_name[256];
-    snprintf(pretty_name, sizeof(pretty_name), "%s",
-        kw_get_str(gobj, jn_os, "pretty_name", "", 0)
-    );
+    char *pretty_name = gbmem_strdup(kw_get_str(gobj, jn_os, "pretty_name", "", 0));
 
     json_t *jn_data = json_pack("{s:s, s:s, s:o, s:o, s:o, s:o, s:o, s:o}",
         "hostname",     get_hostname(),
@@ -4341,6 +4338,7 @@ PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             0,
             0
         );
+        GBMEM_FREE(pretty_name)
         JSON_DECREF(kw)
         return kw_response;
     }
@@ -4351,11 +4349,12 @@ PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_sprintf("%s: %s, %s",
             gobj_yuno_role_plus_name(),
             get_hostname(),
-            pretty_name
+            pretty_name? pretty_name : ""
         ),
         0,
         jn_data
     );
+    GBMEM_FREE(pretty_name)
     JSON_DECREF(kw)
     return kw_response;
 }
@@ -5194,7 +5193,7 @@ PRIVATE json_t *get_network_interfaces(hgobj gobj)
     }
 
     json_t *jn_list = json_array();
-    json_t *jn_by_name = json_object();     // the entries of jn_list by name, borrowed
+    json_t *jn_by_name = json_object();     // the entries of jn_list by name (a second reference)
     for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
         if(!ifa->ifa_name) {
             continue;
