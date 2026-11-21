@@ -1,6 +1,57 @@
 # **Changelog**
 
-## Unreleased
+## v7.32.0 (2026-11-22)
+
+The work since 7.31.0, reviewed: the fixes of eight review rounds over
+7.31.1-7.31.29, closed with a verification with no high and no medium
+finding. A full release: the kernel changes, and every yuno links it.
+
+- **Security, first:** C_AUTH_BFF could give one browser the session of
+  another (a discovery that timed out left its keep-alive connection to the
+  IdP open), and this existed in 7.31.0. Deploy `auth_bff` on every node
+  that runs it.
+- **Deploy notes:**
+    - A node whose bond slaves hold its lowest on-board MAC gets a new node
+      uuid at the first agent start (see *Changed*): run
+      `ls /sys/class/net/*/bonding_slave` on each server first, and accept
+      such a node again.
+    - gui_treedb 1.3.8 needs every backend it talks to on 7.32.0
+      (`list-keys key=`): deploy it after them.
+    - The `.rpm` requires `util-linux`.
+- **Performance**, against 7.31.1 (the last release with a study): 10
+  rounds alternated, each binary pinned to one CPU, with 7.31.2 to 7.31.29
+  inside the study. 61 of the 66 figures are inside their noise. The TCP
+  echo is 4.2% faster and the TLS echo 2.2%: no code on their path changed,
+  so this is code placement and is not claimed. The MQTT QoS 0 round trip
+  is 3.8% faster, 1% of it from 7.32.0 (`C_PROT_MQTT2` asks the broker about
+  a PUBLISH only when `enable_acl` is on). Two figures are slower in two
+  runs of 10 rounds, and both were located by tag and by commit:
+    - A treedb link or unlink takes 0.1 us more of 4.6 us (+2.4%). The lite
+      releases made it 2.1% faster; the commits of 7.32.0 move it from +2.0%
+      to +5.6% against 7.31.29, and no single commit holds it. Its source is
+      the same as in 7.31.1: `append_content()` of timeranger2 has other
+      machine code, because it inlines `list_wants_key()`, which now calls
+      `list_judge_key()`.
+    - A BFF login takes 1.7 us more of 82 us (-2.2% logins per second), and
+      no release holds it: 7.31.6 is 1.5% faster, 7.31.24 0.8% slower and
+      7.31.29 1.4% slower. The BFF commits of 7.32.0 measure +0.1% against
+      7.31.29.
+
+  Neither loss is new work per operation, and the external libraries change
+  neither (7.31.1 built with linux-ext-libs 1.31 measures the same). The new
+  `rkey` phase of `perf_timeranger2`: an append with a live list and no
+  `rkey` 2.91 us, with a cheap `rkey` 2.45 us, an append of a known key with
+  a costly `rkey` 3.84 us, the first append of a new key with an unanchored
+  costly `rkey` 2.39 ms (every key given up at its budget), and the load of a
+  list of 3000 keys refused at 2.00 s. The stripped yunos are 41 to 84 KB
+  larger (0.4% to 0.8%). These benchmarks do not include the price of the
+  check of the closed lists on a follower (see *Fixed*). Report:
+  [`performance/reports/7.32.0.html`](performance/reports/7.32.0.html)
+  ([raw figures](performance/reports/7.32.0.json)).
+- **Test suite**, on the dev machine only (`ulimit -Sn 1024`), after a clean
+  SDK rebuild: 474 of 474.
+- **External libraries**: every one of `linux-ext-libs` checked against its
+  upstream before the release; none has a newer version (OpenSSL on 3.6).
 
 ### Security
 
@@ -255,7 +306,8 @@
   and paging of an `rkey` answer. It cannot be combined with `rkey`. A key
   that reads as an integer or as true/false is that key
   (`key=861234567890123`), a number with decimals is written in quotes
-  (`key='"1.5"'`), and `key=null` is refused. A GUI that checks given keys uses it; `rkey` is for
+  (`key='"1.5"'`), and `key=null` is refused. A GUI that checks given keys
+  uses it; `rkey` is for
   the utilities:
 
   ```
