@@ -2267,6 +2267,7 @@ PRIVATE json_t *mask_pointers(json_t *jn)
         "gobj", "src_gobj", "ptr", "yev_loop", "user_data",
         "load_record_callback", "key_deleted_callback", "key_deleted_user_data",
         "rkey_matcher", "fs_event_master", "fs_event_client", "trq",
+        "__treedb_callback__", "__treedb_callback_user_data__",
         0
     };
     if(json_is_object(jn)) {
@@ -2326,7 +2327,15 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     int dicts_limit = (int)kw_get_int(gobj, kw, "dicts_limit", 100, KW_WILD_NUMBER);
     const char *path = kw_get_str(gobj, kw, "path", "", 0);
 
-    json_t *value = priv->tranger;
+    /*
+     *  No address of the process goes out: the live lists of every session
+     *  hold their callbacks, their gobj and their matcher as integers, and a
+     *  treedb its callback. The whole tranger is masked BEFORE the path is
+     *  walked, so a path that ends on one of them gets "<pointer>" too. Up
+     *  to 7.31.29 a caller with `read` got them all.
+     */
+    json_t *masked = mask_pointers(priv->tranger);
+    json_t *value = masked;
 
     if(!empty_string(path)) {
         /*
@@ -2335,6 +2344,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
          */
         value = kw_find_path(gobj, value, path, FALSE);
         if(!value) {
+            JSON_DECREF(masked)
             return msg_iev_build_response(gobj,
                 -1,
                 json_sprintf("%s: path not found: '%.*s'",
@@ -2360,13 +2370,8 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
         value = kw_collapse(gobj, value, 0, 0);
     }
 
-    /*
-     *  No address of the process goes out: the live lists of every session
-     *  hold their callbacks, their gobj and their matcher as integers. Up to
-     *  7.31.29 a caller with `read` got them all.
-     */
-    json_t *shown = mask_pointers(value);
-    JSON_DECREF(value)
+    json_t *shown = value;  // owned, masked
+    JSON_DECREF(masked)
 
     /*
      *  Inform

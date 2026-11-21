@@ -3883,6 +3883,13 @@ PRIVATE int do_test(void)
         }
         JSON_DECREF(r)
 
+        r = gobj_command(yuno, "print-tranger",
+            as_peer(json_pack("{s:s}", "path", "yev_loop")), yuno);
+        json_t *jn_scalar = json_object_get(r, "data");
+        check_bool("print-tranger: a path that ends on a pointer shows <pointer>",
+            json_is_string(jn_scalar) && strcmp(json_string_value(jn_scalar), "<pointer>") == 0, TRUE);
+        JSON_DECREF(r)
+
         memset(key255, 'b', 252);
         snprintf(key255 + 252, sizeof(key255) - 252, "new");
         t0 = time_in_milliseconds_monotonic();

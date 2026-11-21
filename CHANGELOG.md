@@ -107,8 +107,9 @@
   cheap `rkey`, or none, does not change. `perf_timeranger2` has a new phase,
   `rkey`, for these cases.
 - **`print-tranger` (C_TRANGER and C_NODE) no longer shows the addresses of
-  the process** (callbacks, gobj, matchers) to a caller with `read`: they
-  show as `<pointer>`.
+  the process** (callbacks, gobj, matchers, the callback of a treedb) to a
+  caller with `read`: they show as `<pointer>`, also when the `path` ends on
+  one.
 - **A failed write of an OTA image is an ERROR**, and the download is
   dropped. Up to 7.31.29 it was ignored.
 - **A flood of knocks no longer lets another key enroll under a real uuid.**
