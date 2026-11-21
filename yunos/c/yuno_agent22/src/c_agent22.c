@@ -1303,7 +1303,7 @@ PRIVATE json_t *cmd_install_package(hgobj gobj, const char *cmd, json_t *kw, hgo
             gobj,
             -1,
             json_sprintf(
-                "%s: url must be https://, with no blank, quote, backslash nor control or "
+                "%s: url must be https://, with no blank, quote, backslash, []{} nor control or "
                 "non-ASCII character, its last part the name of a .deb or a .rpm "
                 "([A-Za-z0-9._+~-]): '%s'",
                 gobj_yuno_role_plus_name(), url
@@ -1768,7 +1768,8 @@ PRIVATE int copy_running_main_agent(hgobj gobj, char *path, size_t path_size)
 /***************************************************************************
  *  The name of the package of `url`, in bf: its last part. NULL if the url
  *  is not https://, holds a blank, a quote, a backslash, a control or a
- *  non-ASCII character (PACKAGE_PROGRAM refuses the same), or its
+ *  non-ASCII character, or one of `[]{}` (curl reads them as a glob, one
+ *  transfer per match; PACKAGE_PROGRAM refuses the same), or its
  *  last part is not the name of a .deb or a .rpm made of [A-Za-z0-9._+~-]
  *  (the script names the downloaded file so).
  ***************************************************************************/
@@ -1780,7 +1781,8 @@ PRIVATE const char *package_file_name(const char *url, char *bf, size_t bfsize)
     }
     for(const char *c = url; *c; c++) {
         if((unsigned char)*c <= ' ' || (unsigned char)*c >= 0x7f ||
-                *c == '\'' || *c == '"' || *c == '`' || *c == '\\') {
+                *c == '\'' || *c == '"' || *c == '`' || *c == '\\' ||
+                *c == '[' || *c == ']' || *c == '{' || *c == '}') {
             return NULL;
         }
     }

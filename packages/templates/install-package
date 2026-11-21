@@ -52,7 +52,10 @@
 #        under 1 KB/s for 2 minutes, and tries 3 more times. wget is not
 #        used: its --https-only applies only to its recursive mode, so it
 #        follows a redirect to http. A node without curl is refused at
-#        `start`.
+#        `start`. curl runs with --globoff, and a url with [ ] { } is
+#        refused anyway: curl reads them as a glob, one transfer per match
+#        (https://h/[1-1000000000]/x.deb), and the bounds would be per
+#        transfer.
 #     2. The sha256 of the download must be the one given.
 #     3. The package must be yuneta-agent (dpkg-deb -f / rpm -qp).
 #     4. apt: `apt-get update` first (a stale index asks the mirror for a
@@ -137,7 +140,7 @@ valid_url() {
             ;;
     esac
     case "$1" in
-        *[![:graph:]]*|*\'*|*\"*|*\`*|*\\*)
+        *[![:graph:]]*|*\'*|*\"*|*\`*|*\\*|*[][{}]*)
             return 1
             ;;
     esac
@@ -233,10 +236,6 @@ read_state_file() {
     head -c 4096 "${STATE_DIR}/$1"
 }
 
-running_units() {
-    systemctl list-units "${UNIT_PREFIX}*" --state=active,activating \
-        --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' '
-}
 
 #
 #   install-package start
@@ -284,9 +283,14 @@ cmd_start() {
         refuse "this node has no curl: install-package downloads with curl only (https on every redirect); install curl"
     fi
 
-    running="$(running_units)"
+    # fails closed: when systemctl cannot tell, no install starts
+    if ! units_out="$(systemctl list-units "${UNIT_PREFIX}*" --state=active,activating \
+            --no-legend --plain 2>&1)"; then
+        refuse "systemctl list-units FAILED, so it cannot tell whether another install-package runs: $(printf '%s' "$units_out" | tail -n 1)"
+    fi
+    running="$(printf '%s\n' "$units_out" | awk 'NF {printf "%s%s", sep, $1; sep = " "}')"
     if [ -n "$running" ]; then
-        refuse "another install-package runs: ${running% }: see install-package-status"
+        refuse "another install-package runs: ${running}: see install-package-status"
     fi
 
     prepare_state_dir
@@ -356,7 +360,7 @@ cmd_run() {
         # Content-Length the server sends. ulimit -f counts 512-byte blocks.
         trap '' XFSZ
         ulimit -f $((MAX_BYTES / 512))
-        exec curl -fsSL --proto =https --proto-redir =https --retry 3 \
+        exec curl -fsSL --globoff --proto =https --proto-redir =https --retry 3 \
             --connect-timeout 30 --speed-limit 1024 --speed-time 120 \
             --max-filesize "$MAX_BYTES" -o "$file" "$url"
     )
@@ -373,12 +377,19 @@ cmd_run() {
         exit 12
     fi
 
+    # what the tool says on stderr goes to the journal of the unit
     case "$name" in
         *.deb)
-            package="$(dpkg-deb -f "$file" Package 2>/dev/null)" || package=""
+            if ! package="$(dpkg-deb -f "$file" Package)"; then
+                say "dpkg-deb cannot read $name (its error is above)"
+                package=""
+            fi
             ;;
         *.rpm)
-            package="$(rpm -qp --qf '%{NAME}' "$file" 2>/dev/null)" || package=""
+            if ! package="$(rpm -qp --qf '%{NAME}' "$file")"; then
+                say "rpm -qp cannot read $name (its error is above)"
+                package=""
+            fi
             ;;
     esac
     if [ "$package" != "yuneta-agent" ]; then

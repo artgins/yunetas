@@ -28,7 +28,8 @@ and to read the files.
    command line. The URL and the sha256 are in
    `/var/lib/yuneta/install-package`, mode `0755`, owned by root. `agent22`
    writes only `url` and `sha256` in `/yuneta/agent/install-package`.
-3. `agent22` refuses an `http://` URL.
+3. `agent22` refuses an `http://` URL, and a URL with a `curl` pattern
+   (`https://example.com/[1-1000000000]/<file>`).
 4. `install-package-status` reads `result` from
    `/var/lib/yuneta/install-package`. When that file is not there, it reads
    the `result` that an older `agent22` left in

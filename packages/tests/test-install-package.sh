@@ -160,6 +160,10 @@ for bad in "http://example.com/yuneta-agent-1-amd64.deb" \
         "https://example.com/yuneta-agent-1-amd64.tar" \
         "https://example.com/.hidden.deb" \
         "https://example.com/a%24b.deb" \
+        "https://example.com/[1-1000000000]/yuneta-agent-1-amd64.deb" \
+        "https://example.com/{a,b}/yuneta-agent-1-amd64.deb" \
+        "https://example.com/a]b/yuneta-agent-1-amd64.deb" \
+        "https://example.com/a}b/yuneta-agent-1-amd64.deb" \
         "https://example.com/" \
         "https://$(head -c 2040 /dev/zero | tr '\0' 'a')/yuneta-agent-1-amd64.deb"; do
     reset
@@ -198,6 +202,12 @@ check "another install runs: names it" \
     "$(ip start | grep -c 'another install-package runs: yuneta-install-package-20261121000000.service')" "1"
 
 reset
+stub systemctl 'echo "Failed to connect to bus: No such file or directory" >&2; exit 1'
+start_refused "systemctl fails: fail closed"
+check "systemctl fails: says why" \
+    "$(ip start | grep -c 'systemctl list-units FAILED, so it cannot tell whether another install-package runs: Failed to connect to bus')" "1"
+
+reset
 mkdir -p -m 0775 "$STATE"
 chmod 0775 "$STATE"
 start_refused "state dir writable by the group"
@@ -232,7 +242,7 @@ check "run: apt-get install of the download, keeping the configurations" \
     "$(grep -c '^apt-get install -y -o Dpkg::Options::=--force-confold .*/download\.[A-Za-z0-9]*/yuneta-agent-7.31.29-1-amd64.deb$' "$LOG")" "1"
 check "run: the download dir is removed" "$(ls -d "${STATE}"/download.* 2>/dev/null | wc -l)" "0"
 curl_line="$(grep '^curl ' "$LOG")"
-for opt in "--proto =https" "--proto-redir =https" "--retry 3" "--connect-timeout 30" \
+for opt in "--globoff" "--proto =https" "--proto-redir =https" "--retry 3" "--connect-timeout 30" \
         "--speed-limit 1024" "--speed-time 120" "--max-filesize 1073741824"; do
     check "run: curl $opt" "$(printf '%s\n' "$curl_line" | grep -c -- " $opt ")" "1"
 done
@@ -263,6 +273,14 @@ stub dpkg-deb 'echo openssh-server'
 ip run >/dev/null
 check "run, another package: result" "$(cat "${STATE}/result")" "not-yuneta-agent yuneta-agent-7.31.29-1-amd64.deb"
 check "run, another package: nothing installed" "$(calls apt-get)" "0"
+
+run_ok_setup
+stub dpkg-deb 'echo "dpkg-deb: error: not a Debian format archive" >&2; exit 2'
+out="$(ip run)"
+check "run, dpkg-deb fails: result" "$(cat "${STATE}/result")" "not-yuneta-agent yuneta-agent-7.31.29-1-amd64.deb"
+check "run, dpkg-deb fails: its error is in the output" "$(echo "$out" | grep -c 'not a Debian format archive')" "1"
+check "run, dpkg-deb fails: says it" "$(echo "$out" | grep -c 'dpkg-deb cannot read')" "1"
+check "run, dpkg-deb fails: nothing installed" "$(calls apt-get)" "0"
 
 run_ok_setup
 stub curl 'exit 22'

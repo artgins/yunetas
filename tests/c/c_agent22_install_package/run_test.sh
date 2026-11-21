@@ -22,7 +22,8 @@
 #        "/usr/libexec/yuneta/install-package run" with no url on its
 #        command line; the url and the sha256 are in
 #        /var/lib/yuneta/install-package, root's; agent22 wrote no script.
-#     3. An http url is refused by agent22.
+#     3. An http url, and one with a curl glob ([], {}), are refused by
+#        agent22.
 #     4. install-package-status reads the result of root's directory, and
 #        the one an agent22 of 7.31.29 left in /yuneta/agent/install-package
 #        when root's has none.
@@ -161,6 +162,7 @@ timeout 120 unshare -rmn --pid --fork --mount-proc bash -c "
         'SH sed \"s/^/STATE URL /\" /var/lib/yuneta/install-package/url' \
         'SH stat -c \"STATE MODE %a %u\" /var/lib/yuneta/install-package' \
         'install-package url=http://example.com/$PKG sha256=$SHA' \
+        'install-package url=https://example.com/[1-1000000000]/$PKG sha256=$SHA' \
         'install-package-status' \
         'SH echo \"done 0\" > /var/lib/yuneta/install-package/result' \
         'install-package-status' \
@@ -227,6 +229,10 @@ grep -qx "STATE MODE 755 0" "$WORK/cc.out" || fail "/var/lib/yuneta/install-pack
 #   3. an http url
 answers "install-package url=http://example.com/$PKG sha256=$SHA" 1 | grep -q '"EV_MT_COMMAND_ANSWER", -1' ||
     fail "an http url was not refused"
+answers "install-package url=https://example.com/\[1-1000000000\]/$PKG sha256=$SHA" 1 | grep -q '"EV_MT_COMMAND_ANSWER", -1' ||
+    fail "a url with a curl glob ([1-1000000000]) was not refused"
+comments "install-package url=https://example.com/\[1-1000000000\]/$PKG sha256=$SHA" 1 | grep -q 'url must be https://' ||
+    fail "a url with a curl glob was not refused by agent22 itself"
 #   4. install-package-status
 comments "$L_STATUS" 1 | grep -q 'install-package: no result (running, or none ran)' ||
     fail "install-package-status while it runs: not 'no result'"
