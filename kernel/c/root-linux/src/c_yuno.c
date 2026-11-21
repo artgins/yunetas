@@ -4305,6 +4305,15 @@ PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *jn_disks = get_mounted_disks(gobj);
     json_t *jn_ifs = get_network_interfaces(gobj);
 
+    /*
+     *  json_pack() frees the `o` values when it fails (a hostname that is
+     *  not utf-8): what the comment needs is read before
+     */
+    char pretty_name[256];
+    snprintf(pretty_name, sizeof(pretty_name), "%s",
+        kw_get_str(gobj, jn_os, "pretty_name", "", 0)
+    );
+
     json_t *jn_data = json_pack("{s:s, s:s, s:o, s:o, s:o, s:o, s:o, s:o}",
         "hostname",     get_hostname(),
         "node_uuid",    node_uuid(),
@@ -4315,6 +4324,26 @@ PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         "ifs",          jn_ifs? jn_ifs : json_null(),
         "uptime",       jn_uptime
     );
+    if(!jn_data) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM,
+            "msg",          "%s", "info-machine: cannot build the answer",
+            "hint",         "%s", "a hostname or node_uuid that is not utf-8?",
+            NULL
+        );
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,
+            json_sprintf("%s: cannot build the answer of info-machine (a hostname or node_uuid that is not utf-8?)",
+                gobj_yuno_role_plus_name()
+            ),
+            0,
+            0
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
 
     json_t *kw_response = build_command_response(
         gobj,
@@ -4322,7 +4351,7 @@ PRIVATE json_t *cmd_info_machine(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_sprintf("%s: %s, %s",
             gobj_yuno_role_plus_name(),
             get_hostname(),
-            kw_get_str(gobj, jn_os, "pretty_name", "", 0)
+            pretty_name
         ),
         0,
         jn_data
@@ -5165,21 +5194,13 @@ PRIVATE json_t *get_network_interfaces(hgobj gobj)
     }
 
     json_t *jn_list = json_array();
+    json_t *jn_by_name = json_object();     // the entries of jn_list by name, borrowed
     for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
         if(!ifa->ifa_name) {
             continue;
         }
 
-        json_t *jn_iface = NULL;
-        size_t index;
-        json_t *value;
-        json_array_foreach(jn_list, index, value) {
-            const char *name = json_string_value(json_object_get(value, "name"));
-            if(name && strcmp(name, ifa->ifa_name) == 0) {
-                jn_iface = value;
-                break;
-            }
-        }
+        json_t *jn_iface = json_object_get(jn_by_name, ifa->ifa_name);
         if(!jn_iface) {
             jn_iface = json_object();
             json_object_set_new(jn_iface, "name", json_string(ifa->ifa_name));
@@ -5190,6 +5211,7 @@ PRIVATE json_t *get_network_interfaces(hgobj gobj)
             json_object_set_new(jn_iface, "mac", json_string(""));
             json_object_set_new(jn_iface, "addresses", json_array());
             json_array_append_new(jn_list, jn_iface);
+            json_object_set(jn_by_name, ifa->ifa_name, jn_iface);  // a name not utf-8: none, as before
         }
 
         if(!ifa->ifa_addr) {
@@ -5252,6 +5274,7 @@ PRIVATE json_t *get_network_interfaces(hgobj gobj)
         json_array_append_new(json_object_get(jn_iface, "addresses"), jn_addr);
     }
 
+    JSON_DECREF(jn_by_name)
     freeifaddrs(ifaddr);
     return jn_list;
 }
