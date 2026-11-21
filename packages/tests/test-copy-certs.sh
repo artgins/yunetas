@@ -478,6 +478,27 @@ chmod 0000 "${CERTS}/certs.list"
 YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger" cc >/dev/null
 chmod 0644 "${CERTS}/certs.list"
 check "journal: the FAILED" "$(grep -c '^logger -t copy-certs -p user.err -- FAILED: .* cannot read' "$LOG")" "1"
+check "journal: with logger working, nothing in copy-certs.log" "$( [ -e "${ROOT}/var/log/yuneta/copy-certs.log" ] && echo written || echo no)" "no"
+
+#
+#   A logger that fails (no journal): the tick's output is /dev/null, so the
+#   line goes to /var/log/yuneta/copy-certs.log with its time; the hook's
+#   output is that file already, so the line is there once, not twice
+#
+printf '#!/bin/sh\necho "logger: socket /dev/log: No such file or directory" >&2\nexit 1\n' > "${STUBS}/logger-down"
+chmod 0755 "${STUBS}/logger-down"
+SAY_LOG="${ROOT}/var/log/yuneta/copy-certs.log"
+rm -rf "${ROOT}/var/log/yuneta"
+YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger-down" cc >/dev/null
+check "logger fails, the tick: the line kept in copy-certs.log, with its time" \
+    "$(grep -cE "^\[[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}[+-][0-9]{4}\] warning: Skip '../x': .* \(logger failed: not in the journal\)\$" "$SAY_LOG")" "1"
+check "logger fails, the tick: no line of logger itself" "$(grep -c 'socket /dev/log' "$SAY_LOG")" "0"
+mkdir -p "${SAY_LOG%/*}"
+: > "$SAY_LOG"
+env YUNETA_COPY_CERTS_TEST_ROOT="$ROOT" YUNETA_COPY_CERTS_TEST_SETPRIV="${STUBS}/setpriv" \
+    YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger-down" "$COPY" --wait >> "$SAY_LOG" 2>&1
+check "logger fails, the hook (output to copy-certs.log): the line once" "$(grep -c "Skip '../x'" "$SAY_LOG")" "1"
+check "logger fails, the hook: not marked as a fallback" "$(grep -c 'logger failed' "$SAY_LOG")" "0"
 
 #
 #   A pem that resolves out of /etc/letsencrypt: skipped

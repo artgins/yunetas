@@ -65,6 +65,10 @@ certbot `deploy-hook` at
       ```bash
       journalctl -t copy-certs --since today
       ```
+      If `logger` fails (for example, the node has no journal), the script
+      appends the line, with its time, to `/var/log/yuneta/copy-certs.log`.
+      It does not do this when its output already goes to that file (the
+      hook), so a line is never there twice.
     - If `yuneta` cannot read `certs.list`, the script copies nothing and
       exits with 1. The hook then logs `copy-certs.sh FAILED`, and the
       agent's sync says `copy-script-failed`.

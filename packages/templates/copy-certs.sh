@@ -20,6 +20,8 @@
 # What it says goes to its output and to the journal (logger -t
 # copy-certs): the agent's cert-sync runs it with its output on /dev/null,
 # so `journalctl -t copy-certs` is where a Skip or a FAILED of the tick is.
+# When logger fails, the line goes to /var/log/yuneta/copy-certs.log with
+# its time, unless the output goes there already (the certbot hook).
 #
 # The names: the lines of /yuneta/store/certs/certs.list (read by yuneta;
 # blanks around a line are trimmed, a line may hold several names
@@ -92,6 +94,7 @@ LOCK_DIR="${ROOT}/run/yuneta-copy-certs"
 LOCK_FILE="${LOCK_DIR}/lock"
 LOCK_WAIT=120
 LOCK_BUSY=75    # EX_TEMPFAIL; the agent's cert-sync reads it as "busy"
+SAY_LOG="${ROOT}/var/log/yuneta/copy-certs.log"
 
 WAIT=0
 for arg in "$@"; do
@@ -109,15 +112,27 @@ done
 #
 #   What the script says goes to its output AND to the journal (logger -t
 #   copy-certs): from the agent's cert-sync its output is /dev/null, and
-#   from the hook it is /var/log/yuneta/copy-certs.log
+#   from the hook it is /var/log/yuneta/copy-certs.log. When logger fails
+#   (no journal), the line goes to that log, with its time, so the tick
+#   does not lose it; not when the output is that log already (the hook),
+#   so no line is there twice. If even that log cannot be written, no
+#   channel is left to say it in
 #
 say() {    # priority message
+    local fd=2
     if [ "$1" = "info" ]; then
-        echo "$2"
-    else
-        echo "$2" >&2
+        fd=1
     fi
-    "$LOGGER" -t copy-certs -p "user.$1" -- "$2" 2>/dev/null || true
+    echo "$2" >&"$fd"
+    if "$LOGGER" -t copy-certs -p "user.$1" -- "$2" 2>/dev/null; then
+        return 0
+    fi
+    if [ "/proc/self/fd/${fd}" -ef "$SAY_LOG" ]; then
+        return 0
+    fi
+    mkdir -p -- "${SAY_LOG%/*}" 2>/dev/null || true
+    printf '[%s] %s: %s (logger failed: not in the journal)\n' \
+        "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$1" "$2" >> "$SAY_LOG" 2>/dev/null || true
 }
 
 #
