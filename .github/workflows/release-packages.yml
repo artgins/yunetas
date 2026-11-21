@@ -2,7 +2,8 @@ name: Release runtime packages (.deb + .rpm)
 
 # Builds the AMD64 .deb and the x86_64 .rpm when a GitHub Release is
 # published, and uploads both as release assets, each with its
-# `<package>.sha256`. A last job joins those two lines into `SHA256SUMS`, the
+# `<package>.sha256`. A last job joins the lines of every `.sha256` of the
+# release into `SHA256SUMS`, the
 # file an operator reads the sha256 from: agent22's install-package installs a
 # package only when its sha256 is the one given, and without this file the
 # only way to get it was to download the 370 MB package first.
@@ -350,10 +351,17 @@ jobs:
             --pattern '*.deb.sha256' --pattern '*.rpm.sha256' --dir sums
           cat sums/*.sha256 | sort -k2 > SHA256SUMS
           cat SHA256SUMS
-          # Both packages, or no file: a SHA256SUMS that lacks one would
-          # look complete to whoever reads it.
-          test "$(grep -c '\.deb$' SHA256SUMS)" = "1"
-          test "$(grep -c '\.rpm$' SHA256SUMS)" = "1"
+          # Every package of the release, each with its line: a repackage
+          # (RELEASE -2 on the same tag) adds its packages beside those of
+          # -1, and install.sh takes the highest revision and looks for ITS
+          # line, so the file lists all of them (up to 7.31.29 it had to
+          # hold exactly one of each, and a repackage left SHA256SUMS with
+          # the -1 line only). At least one of each, or no file: a
+          # SHA256SUMS that lacks one would look complete to whoever reads
+          # it.
+          test "$(grep -c '\.deb$' SHA256SUMS)" -ge 1
+          test "$(grep -c '\.rpm$' SHA256SUMS)" -ge 1
+          test "$(awk '{print $2}' SHA256SUMS | sort | uniq -d | wc -l)" = "0"
 
       - name: Upload SHA256SUMS to GitHub Release
         uses: softprops/action-gh-release@v3
