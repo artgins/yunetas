@@ -4,35 +4,42 @@
  *          Driver for test32_idp_failover: the failover of a BFF between
  *          the IdPs of `issuers` (main_test32). One plain socket per BFF,
  *          one request at a time. Each step says what the IdPs A and B
- *          must have received (their /token requests) and the logins its
- *          BFF passed to the next IdP (its `idp_failovers`).
+ *          must have received (their /token requests), the logins its
+ *          BFF passed to the next IdP (its `idp_failovers`), and how long
+ *          its answer may take, when that is what it checks.
+ *
+ *          bff2, issuers [C, B], C never reachable:
+ *             1. a login at the start, while the discovery of C is in
+ *                flight: that discovery waits idp_failover_connect_ms
+ *                (500), not idp_connect_timeout_ms (3000), and the login
+ *                passes to B, 200 within 2 s (up to 7.31.29: in 3 s and
+ *                more). The discovery failed and put C down.
  *
  *          bff1, issuers [A, B]:
- *             1. a login: A takes it;
- *             2. a refresh of a session of A: to A;
- *             3. a refresh of a session of B: to B, discovered now;
- *             4. A answers 502 (a proxy whose Keycloak is down): the login
+ *             2. a login: A takes it;
+ *             3. a refresh of a session of A: to A;
+ *             4. a refresh of a session of B: to B, discovered now;
+ *             5. A answers 502 (a proxy whose Keycloak is down): the login
  *                passes to B, 200;
- *             5. a login while A is down: straight to B, A not asked;
- *             6. a refresh of a session of A while A answers 502: to A all
+ *             6. a login while A is down: straight to B, A not asked;
+ *             7. a refresh of a session of A while A answers 502: to A all
  *                the same, 502 auth_service_unavailable, never to B;
- *             7. A answers again, and idp_down_retry_ms has passed: the
+ *             8. A answers again, and idp_down_retry_ms has passed: the
  *                login goes to A again;
- *             8. a refresh whose token is not a JWT: to the first, A (a
+ *             9. a refresh whose token is not a JWT: to the first, A (a
  *                WARNING, once);
- *             9. A drops the connection of the login it took: 502
+ *            10. A drops the connection of the login it took: 502
  *                auth_service_unavailable, the login is not sent to B (it
  *                may have reached Keycloak);
- *            10. A cannot be reached (its listener is stopped): the login
+ *            11. A cannot be reached (its listener is stopped): the login
  *                passes to B after idp_failover_connect_ms, 200;
- *            11. A is back (its connection opens again) and answers 401:
+ *            12. A is back (its connection opens again) and answers 401:
  *                401 invalid_credentials, the answer of A, B not asked.
  *
- *          bff2, issuers [C, B], C never reachable (its discovery at the
- *          start failed and put it down):
- *            12. a login, idp_down_retry_ms long past: C is tried again,
+ *          bff2 again, C down since step 1:
+ *            13. a login, idp_down_retry_ms long past: C is tried again,
  *                its discovery cannot connect, the login passes to B;
- *            13. a login at once: C is down, straight to B.
+ *            14. a login at once: C is down, straight to B.
  *
  *          The logs are asserted by the test harness via
  *          set_expected_results in main_test32, with their priority.
@@ -90,25 +97,27 @@ typedef struct {
     int             a_tokens;       /* /token requests the step adds at A */
     int             b_tokens;       /* /token requests the step adds at B */
     int             failovers;      /* idp_failovers the step adds at its BFF */
+    int             max_ms;         /* the answer comes within it; 0: not checked */
 } step_t;
 
 /***************************************************************************
  *              Data
  ***************************************************************************/
 PRIVATE const step_t steps[] = {
-    /* 1 */ {1, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 1, 0, 0},
-    /* 2 */ {1, "/auth/refresh", RT_OF_A,       200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 1, 0, 0},
-    /* 3 */ {1, "/auth/refresh", RT_OF_B,       200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 0},
-    /* 4 */ {1, "/auth/login",   NULL,          502, FALSE, ACT_NONE,    0,    200, "\"success\":true", 1, 1, 1},
-    /* 5 */ {1, "/auth/login",   NULL,          502, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 0},
-    /* 6 */ {1, "/auth/refresh", RT_OF_A,       502, FALSE, ACT_NONE,    0,    502, "auth_service_unavailable", 1, 0, 0},
-    /* 7 */ {1, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    1200, 200, "\"success\":true", 1, 0, 0},
-    /* 8 */ {1, "/auth/refresh", "refresh_token=OLDRT123", 200, FALSE, ACT_NONE, 0, 200, "\"success\":true", 1, 0, 0},
-    /* 9 */ {1, "/auth/login",   NULL,          200, TRUE,  ACT_NONE,    0,    502, "auth_service_unavailable", 1, 0, 0},
-    /* 10 */{1, "/auth/login",   NULL,          200, FALSE, ACT_STOP_A,  300,  200, "\"success\":true", 0, 1, 1},
-    /* 11 */{1, "/auth/login",   NULL,          401, FALSE, ACT_START_A, 3000, 401, "invalid_credentials", 1, 0, 0},
-    /* 12 */{2, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 1},
-    /* 13 */{2, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 0},
+    /* 1 */ {2, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 0, 2000},
+    /* 2 */ {1, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 1, 0, 0, 0},
+    /* 3 */ {1, "/auth/refresh", RT_OF_A,       200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 1, 0, 0, 0},
+    /* 4 */ {1, "/auth/refresh", RT_OF_B,       200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 0, 0},
+    /* 5 */ {1, "/auth/login",   NULL,          502, FALSE, ACT_NONE,    0,    200, "\"success\":true", 1, 1, 1, 0},
+    /* 6 */ {1, "/auth/login",   NULL,          502, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 0, 0},
+    /* 7 */ {1, "/auth/refresh", RT_OF_A,       502, FALSE, ACT_NONE,    0,    502, "auth_service_unavailable", 1, 0, 0, 0},
+    /* 8 */ {1, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    1200, 200, "\"success\":true", 1, 0, 0, 0},
+    /* 9 */ {1, "/auth/refresh", "refresh_token=OLDRT123", 200, FALSE, ACT_NONE, 0, 200, "\"success\":true", 1, 0, 0, 0},
+    /* 10 */{1, "/auth/login",   NULL,          200, TRUE,  ACT_NONE,    0,    502, "auth_service_unavailable", 1, 0, 0, 0},
+    /* 11 */{1, "/auth/login",   NULL,          200, FALSE, ACT_STOP_A,  300,  200, "\"success\":true", 0, 1, 1, 0},
+    /* 12 */{1, "/auth/login",   NULL,          401, FALSE, ACT_START_A, 3000, 401, "invalid_credentials", 1, 0, 0, 0},
+    /* 13 */{2, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 1, 0},
+    /* 14 */{2, "/auth/login",   NULL,          200, FALSE, ACT_NONE,    0,    200, "\"success\":true", 0, 1, 0, 0},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
 
@@ -126,7 +135,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type----------name-------------flag----default-description*/
 SDATA (DTP_INTEGER,   "poll_ms",       SDF_RD, "50",   "Time between two looks at the socket for the answer of a step"),
 SDATA (DTP_INTEGER,   "max_polls",     SDF_RD, "200",  "Looks at the socket before an answer is given up"),
-SDATA (DTP_INTEGER,   "start_wait_ms", SDF_RD, "1500", "Time before the first step: the discovery of C at the start of bff2 has failed"),
+SDATA (DTP_INTEGER,   "start_wait_ms", SDF_RD, "100",  "Time before the first step: the discovery of C at the start of bff2 is in flight"),
 SDATA (DTP_STRING,    "bff1_port",     SDF_RD, "",     "Port of bff1 on the loopback"),
 SDATA (DTP_STRING,    "bff2_port",     SDF_RD, "",     "Port of bff2 on the loopback"),
 SDATA (DTP_POINTER,   "user_data",     0,      0,      "user data"),
@@ -159,6 +168,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t  a_tokens;       /* the /token requests of A when the step was posted */
     json_int_t  b_tokens;       /* the /token requests of B when the step was posted */
     json_int_t  failovers;      /* the idp_failovers of the BFF when the step was posted */
+    uint64_t    answer_deadline;    /* msectimer: max_ms of the step in flight, from its post */
     size_t      got;            /* bytes of the answer in flight */
     char        answer[16*1024];
 } PRIVATE_DATA;
@@ -385,6 +395,7 @@ PRIVATE int post_step(hgobj gobj)
     if(fd < 0) {
         return -1;  // Error already logged
     }
+    priv->answer_deadline = start_msectimer(st->max_ms);
 
     const char *body = strcmp(st->url, "/auth/login") == 0? LOGIN_BODY : "{}";
     char cookie_line[512] = "";
@@ -484,6 +495,17 @@ PRIVATE void check_step(hgobj gobj)
         read_token_requests(gobj, "__idp_b_side__") - priv->b_tokens);
     check_count(gobj, "idp_failovers of its BFF", st->failovers,
         read_failovers(gobj, st->bff) - priv->failovers);
+
+    if(st->max_ms > 0 && test_msectimer(priv->answer_deadline)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", TEST_NAME ": an answer came later than the step allows",
+            "step",         "%d", priv->step + 1,
+            "max_ms",       "%d", st->max_ms,
+            NULL
+        );
+    }
 
     char status_line[32];
     snprintf(status_line, sizeof(status_line), "HTTP/1.1 %d ", st->status);

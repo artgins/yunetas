@@ -164,9 +164,11 @@
  *
  *    Each IdP has its own outbound connection ("<bff>-idp", "-idp2"...),
  *    and is discovered the first time a request needs it (only the first
- *    one at mt_start). An IdP that fails a login is DOWN: the logins skip
- *    it for idp_down_retry_ms, and the next one after that tries it again
- *    -- no timer, no polling. One that could not be reached is up again
+ *    one at mt_start, which waits idp_failover_connect_ms to connect, as
+ *    a login does: the requests that come meanwhile wait for it). An IdP
+ *    that fails a login is DOWN: the logins skip it for
+ *    idp_down_retry_ms, and the next one after that tries it again -- no
+ *    timer, no polling. One that could not be reached is up again
  *    as soon as its connection opens; any answer of its own (not a 5xx)
  *    puts it up too. Its transitions are a WARNING and an INFO, with more
  *    than one IdP only. view-status lists the IdPs and their state, and
@@ -910,10 +912,13 @@ PRIVATE int mt_start(hgobj gobj)
      *  A failure here is NOT terminal: see start_oidc_discovery.
      *
      *  With `issuers`, only the first is discovered now: the others are
-     *  the first time a request needs them.
+     *  the first time a request needs them. What waits for it is most
+     *  likely a login, and another IdP can take one: it waits
+     *  idp_failover_connect_ms (up to 7.31.29 idp_connect_timeout_ms, and
+     *  so did every login that came in the meantime).
      */
     priv->cur = &priv->idps[0];
-    priv->can_fail_over = FALSE;
+    priv->can_fail_over = (priv->n_idps > 1)? TRUE : FALSE;
     start_oidc_discovery(gobj);
     return 0;
 }

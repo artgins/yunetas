@@ -259,7 +259,7 @@ Logout clears both with `Max-Age=0`, with a refresh_token cookie (whatever the I
 | `idp_timeout_ms`       | default `30000`     | Bounds the IdP **round-trip once connected** (`C_TASK`'s `exec_timeout`). On expiry the browser gets 504. |
 | `idp_connect_timeout_ms` | default `30000`   | Bounds the **wait to connect** to the IdP. See §2.6.  |
 | `idp_logout_timeout_ms` | default `10000`    | Bounds the **whole of a logout**. See §2.6.           |
-| `idp_failover_connect_ms` | default `4000`   | With `issuers`: the wait to connect before a login goes to the next IdP. See §2.7. |
+| `idp_failover_connect_ms` | default `4000`   | With `issuers`: the wait to connect before a login goes to the next IdP. The discovery of the first IdP at the start also uses it. See §2.7. |
 | `idp_failover_response_ms` | default `5000`  | With `issuers`: the wait for the answer before a login goes to the next IdP, when that IdP is up. See §2.7. |
 | `idp_down_retry_ms`    | default `60000`     | With `issuers`: the time the logins skip an IdP that failed one. See §2.7. |
 

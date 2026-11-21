@@ -11,6 +11,11 @@
  *            C    (IDP_C_PORT) an IdP that cannot be reached: a listener
  *                              whose accept queue is full (as in test22)
  *
+ *          bff2 waits idp_connect_timeout_ms 3000 and idp_failover_connect_ms
+ *          500: the discovery of C at its start is for a login that B can
+ *          take, so it waits 500 (up to 7.31.29 it waited 3000, and so did
+ *          the login that came in the meantime).
+ *
  *          A login goes to the first IdP that is up and passes to the next
  *          one when its IdP cannot be reached, fails its discovery or
  *          answers 502/503/504; a refresh goes to the IdP of its session,
@@ -404,7 +409,7 @@ PRIVATE char variable_config[]= "\
                                 'allowed_redirect_uri': '',         \n\
                                 'crypto': {},                       \n\
                                 'idp_timeout_ms': 2000,             \n\
-                                'idp_connect_timeout_ms': 500,      \n\
+                                'idp_connect_timeout_ms': 3000,     \n\
                                 'idp_failover_connect_ms': 500,     \n\
                                 'idp_down_retry_ms': 1000           \n\
                             },                                      \n\
@@ -541,31 +546,31 @@ static int register_yuno_and_more(void)
     #define EXPECT_CAUSE(prio, text, cause) \
         json_array_append_new(jn_expected, json_pack("{s:s, s:s, s:s}", \
             "msg", (text), "__priority__", (prio), "cause", (cause)))
-    /*  The start: the discovery of C (bff2) cannot connect, C is down  */
+    /*  1: the discovery of C at the start of bff2 cannot connect, C is down  */
     EXPECT_CAUSE("ERROR", "👤BFF OIDC discovery: IdP did not answer in time",
-        "idp_connect_timeout_ms: the IdP could not be reached");
+        "idp_failover_connect_ms: the IdP could not be reached");
     EXPECT_CAUSE("WARNING", "👤BFF IdP down, the logins go to the next IdP",
         "the OIDC discovery failed");
-    /*  4: A answers 502, the login passes to B  */
+    /*  5: A answers 502, the login passes to B  */
     EXPECT_WARNING("👤BFF IdP failed a login, it goes to the next IdP");
     EXPECT_CAUSE("WARNING", "👤BFF IdP down, the logins go to the next IdP",
         "a login answered 502/503/504");
-    /*  6: a refresh of a session of A while A answers 502: as with one IdP  */
+    /*  7: a refresh of a session of A while A answers 502: as with one IdP  */
     EXPECT_ERROR("👤BFF IdP rejected the request");
     EXPECT_ERROR("👤BFF server error");
-    /*  8: a refresh_token that is not a JWT goes to the first (said once)  */
+    /*  9: a refresh_token that is not a JWT goes to the first (said once)  */
     EXPECT_WARNING("👤BFF a refresh_token of no issuer of 'issuers' (or not a JWT): "
         "it goes to the first; said once");
-    /*  9: a login A took and dropped is not sent to B  */
+    /*  10: a login A took and dropped is not sent to B  */
     EXPECT_ERROR("👤BFF server error");
-    /*  10: A cannot be reached, the login passes to B  */
+    /*  11: A cannot be reached, the login passes to B  */
     EXPECT_CAUSE("ERROR", "👤BFF IdP outbound watchdog fired",
         "idp_failover_connect_ms: the IdP could not be reached");
     EXPECT_CAUSE("WARNING", "👤BFF IdP down, the logins go to the next IdP",
         "idp_failover_connect_ms: the IdP could not be reached");
-    /*  11: A is back and answers 401: its answer, B not asked  */
+    /*  12: A is back and answers 401: its answer, B not asked  */
     EXPECT_WARNING("👤BFF request rejected");
-    /*  12: C tried again (bff2), its discovery cannot connect: no second "down"  */
+    /*  13: C tried again (bff2), its discovery cannot connect: no second "down"  */
     EXPECT_CAUSE("ERROR", "👤BFF OIDC discovery: IdP did not answer in time",
         "idp_failover_connect_ms: the IdP could not be reached");
     set_expected_results(
