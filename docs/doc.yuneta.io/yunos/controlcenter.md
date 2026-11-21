@@ -676,9 +676,11 @@ The control center runs in one thread, and any user with the permission
   search, and 5000 for one position. The first search does not look at the
   time. The time of a frame is measured, not proven. The worst cases
   measured used the worst patterns found under 256 bytes and 1 KB of code,
-  on fields of 64 bytes, 8 runs each. They are about 3 µs for a frame,
-  18 ms for a first search and 14 ms for one position. So the filters of a
-  command take 50 ms plus 18 ms in the worst case measured.
+  on fields of 64 bytes. Each figure is the median of 5 rounds of 8 runs,
+  on one core of the dev machine. They are about 2 µs for a frame, 14 ms
+  for a first search and 10 ms for one position. So the filters of a
+  command take 50 ms plus 14 ms in the worst case measured. Single runs
+  took up to twice that when the other cores of the machine were busy.
 - On 556 rows of 63 hex bytes, an ordinary filter takes 0.3 ms at most,
   `.*a.*b.*c` 1 ms and `.*a.*b.*c.*d` 2 ms. Before the control center
   skipped the positions where no match can start, these two took 5 ms and
@@ -694,14 +696,18 @@ The control center runs in one thread, and any user with the permission
   hit the limit; write a simpler one".
 - A filter is compiled as bytes, without UTF: a UTF-8 text in the pattern
   matches the same bytes in the field, and `.` matches one byte. A pattern
-  cannot turn UTF on, and it cannot use `\C` or a callout.
+  cannot turn UTF on, and it cannot use `\C` or a callout. It cannot use
+  Unicode properties either: `(*UCP)` does not compile ("using UCP is
+  disabled by the application"), and `\w`, `\d` and `\b` read ASCII only.
+  Under `(*UCP)`, each `\b` reads the Unicode tables, and a first search
+  took 23 ms.
 - Some forms are refused (-1), and the answer names the form, for example
   "hostname='(web)-\1' is refused: a filter cannot use a back-reference".
   The refused forms are these:
     - A back-reference: `\1`, `\k<name>`, or a condition on a group
       (`(?(1)...)`). A back-reference reads the field again without a frame,
       so the work inside one frame grows with the field. With
-      back-references, one position took 42 ms.
+      back-references, one position took 23 ms.
     - `\G`, `(*COMMIT)`, `(*SKIP)` and `(*NOTEMPTY_ATSTART)`. With them,
       the search one position at a time gives another answer than one
       search.
@@ -737,6 +743,8 @@ ycommand -c 'list-agents hostname=(a|aa)+[^a]'
 # -> 0, comment "controlcenter^cc1: hostname: too costly to match (match limit exceeded): ..."
 ycommand -c 'list-agents hostname=(web)-\1'
 # -> -1 "controlcenter^cc1: hostname='(web)-\1' is refused: a filter cannot use a back-reference"
+ycommand -c 'list-agents hostname=(*UCP)\bweb'
+# -> -1 "controlcenter^cc1: hostname='(*UCP)\bweb' is no regular expression: using UCP is disabled by the application (at byte 6)"
 ```
 
 What a node IS (its os, cpu, memory, disks, network interfaces, uptime) is

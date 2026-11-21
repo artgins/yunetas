@@ -619,11 +619,17 @@ still reported and fails the test.
 The filters of `list-agents` and `list-nodes` (PCRE2 patterns of `uuid`,
 `version`, `hostname`, `os`) are checked after case 34. A node must match
 all of them. The control center refuses a pattern that does not compile, one
-longer than 256 bytes, and one whose code is over 16 KB
-(`((a{100}){100}){100}`, `(a|b|c|d|e|f|g|h){1000}`). It accepts what the
-POSIX rules refused before PCRE2: a back-reference, a bounded repetition, many
-`+`, an anchor anywhere, a word boundary. It accepts `(a??...)*` with 40
-groups and `((||)...)*` with 30, which took days in glibc's `regcomp()`. A
+longer than 256 bytes, and one whose code is over 1 KB
+(`((a{100}){100}){100}`, `(a|b|c|d|e|f|g|h){1000}`). It refuses `(*UCP)`, a
+back-reference (`(la)-\1`, `(?<h>la)-\k<h>`), `\G`, `(*COMMIT)`, `(*SKIP)`,
+`(*NOTEMPTY_ATSTART)` and a newline other than LF (`(*CRLF)`), and the answer
+names the form. It accepts a bounded repetition, many `+`, an anchor anywhere,
+a word boundary and `(*PRUNE)`. It accepts `(a??...)*` with 40 groups and
+`((||)...)*` with 30, which took days in glibc's `regcomp()` up to 7.31.29.
+Five accepted patterns go one position at a time and are tried only where a
+match can start, with the answers of one search. An anchored filter and a
+filter that starts with `.*`, on a host of 63 bytes, are tried at the first
+position only, so they do not spend the 50 ms of the command. A
 match stops at its limit: `(a|aa)+[^a]` over a hostname of 63 bytes is no
 match, the command answers 0 with the filter named in its comment ("too
 costly to match"), and a cheap filter still matches that host. The

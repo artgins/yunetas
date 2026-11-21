@@ -4632,10 +4632,10 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
 
     /*
      *  The filters are PCRE2 patterns: what glibc's regcomp() could not
-     *  compile in a bounded time or memory, and the R97/R98 rules refused by
-     *  shape, now works (a bounded repetition, many +, an anchor anywhere, a
-     *  word boundary). What is still refused: a pattern longer than 256
-     *  bytes, one whose code is over 1 KB, and the forms below
+     *  compile in a bounded time or memory (up to 7.31.29) now works (a
+     *  bounded repetition, many +, an anchor anywhere, a word boundary).
+     *  What is refused: a pattern longer than 256 bytes, one whose code is
+     *  over 1 KB, and the forms below
      */
     char longer[300];
     memset(longer, 'a', sizeof(longer) - 1);
@@ -4654,11 +4654,12 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
 
     /*
      *  Refused, and named in the answer: what makes the search position by
-     *  position answer otherwise than one search, and a back-reference (the
-     *  work inside one frame grows with the field). Up to R101 all were let
-     *  in, and the first one listed both agents: the first search hits its
-     *  limit, and position by position \G is true at each start, so `\Ga`
-     *  matched the `a` of `la-`
+     *  position answer otherwise than one search, a back-reference (the work
+     *  inside one frame grows with the field), and (*UCP) (fields are bytes,
+     *  and under it each \b reads the Unicode tables). Let in, the first one
+     *  would list both agents: the first search hits its limit, and position
+     *  by position \G is true at each start, so `\Ga` matches the `a` of
+     *  `la-`
      */
     const struct {
         const char *pattern;
@@ -4672,6 +4673,7 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
         {"(*CRLF)^la-",                 "is refused: a filter cannot use a newline other than LF"},
         {"(la)-\\1",                    "is refused: a filter cannot use a back-reference"},
         {"(?<h>la)-\\k<h>",             "is refused: a filter cannot use a back-reference"},
+        {"(*UCP)\\bla-",                "is no regular expression: using UCP is disabled"},
     };
     for(size_t i=0; i<ARRAY_SIZE(refused); i++) {
         kw = client_kw(gobj_name(client));
@@ -4836,8 +4838,8 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
      *  line (`.*` at its head), are tried at the first position only when
      *  they go position by position, as one search tries them. Each of these
      *  needs some 2000 frames at the first position of a host of 63 bytes,
-     *  more than the first limit; up to R101 they were tried at all 64
-     *  positions (some 90 ms), and spent the budget of the command
+     *  more than the first limit. Tried at all 64 positions, they would
+     *  take some 90 ms and spend the budget of the command
      */
     char cut_host[64];
     snprintf(cut_host, sizeof(cut_host), "cut-%.59s",
@@ -4867,13 +4869,13 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
 
     /*
      *  PCRE2's match limit counts frames, not the work inside one, and
-     *  starts again at each start position. The cloud's pattern of 229
+     *  starts again at each start position. A pattern of 229
      *  bytes keeps every position under the limit and took 2.9 s a search:
      *  its 16 KB of code is refused now (1 KB at most). A pattern built the
      *  same way under 1 KB, over 30 hosts of 63 bytes (some 350 ms a search
      *  before), stops at the budget of the command: the answer says the
      *  budget was spent and blames no filter, and the command ends in
-     *  50 ms plus its longest call of pcre2_match() (18 ms the worst
+     *  50 ms plus its longest call of pcre2_match() (14 ms the worst
      *  measured; 54-57 ms end to end; 200 ms checked here, for a slow
      *  machine)
      */

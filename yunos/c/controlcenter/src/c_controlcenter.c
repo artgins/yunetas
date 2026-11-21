@@ -257,14 +257,17 @@
  *  search, which asks no clock, and 5000 for one position. What a frame
  *  costs is measured, not proven. The worst measured, with the worst
  *  patterns found under 256 bytes and 1 KB of code, on fields of 64 bytes
- *  (8 runs each, the maximum), is some 560 \B under (*UCP), on Latin-1
- *  letters, after a tree of empty alternatives: about 3 us a frame, a first
- *  search 18 ms (90 frames at each position), one position 14 ms (4900
- *  frames). With back-references ((*UCP)(?i), 150 optional ones to 32
- *  bytes) one position took 42 ms: why they are refused. The budget of all
+ *  (pinned to one core, the median of 5 rounds of 8 runs; single runs took
+ *  up to twice that while the machine was busy), is a code filled with one
+ *  item after a tree of empty alternatives: a first search 14 ms (some 870
+ *  \b at 99 frames on each position), one position 10 ms (some 790 \B at
+ *  4900 frames), about 2 us a frame. Under (*UCP), refused, each \b reads
+ *  the Unicode tables: a first search took 23 ms. With back-references,
+ *  refused, (?i) and 150 optional ones to 32 bytes, one position took
+ *  23 ms (42 ms under (*UCP)). The budget of all
  *  the searches of a command is NODE_FILTER_BUDGET_MS, 50, started at its
  *  first search, and asked before every call of pcre2_match(): so a command
- *  spends in its filters 50 ms plus its longest call, 18 ms worst measured.
+ *  spends in its filters 50 ms plus its longest call, 14 ms worst measured.
  *  On 556 rows (300 records, 256 knocks) of 63 hex bytes an ordinary
  *  filter takes 0.3 ms at most, `.*a.*b.*c` 1 ms and `.*a.*b.*c.*d` 2 ms
  *  (5 and 16 ms while they were tried at every position, not only at the
@@ -5447,8 +5450,11 @@ PRIVATE void pcre2_gbmem_free(void *ptr, void *data)
  *  Compiled as bytes (PCRE2_NEVER_UTF: a
  *  pattern cannot turn UTF on, and an invalid sequence in a field is never
  *  an error; a UTF-8 text in the pattern still matches the same bytes in
- *  the field, and `.` is a byte), with no \C and no callout (the options
- *  PCRE2 asks for a pattern from outside), and LF as its newline.
+ *  the field, and `.` is a byte), with no Unicode properties
+ *  (PCRE2_NEVER_UCP: (*UCP) is refused, \w and \b are ASCII; under it
+ *  each \b reads the Unicode tables, the costliest item measured), no \C
+ *  and no callout (the options PCRE2 asks for a pattern from outside), and
+ *  LF as its newline.
  *  node_filter_refused_form() says what else is refused, and why.
  ***************************************************************************/
 PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filters[NODE_FILTERS])
@@ -5506,7 +5512,7 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
         PCRE2_SIZE erroroffset = 0;
         filters[i].re = pcre2_compile(
             (PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED,
-            PCRE2_NEVER_UTF|PCRE2_NEVER_BACKSLASH_C,
+            PCRE2_NEVER_UTF|PCRE2_NEVER_UCP|PCRE2_NEVER_BACKSLASH_C,
             &errornumber, &erroroffset, compile_context
         );
         pcre2_compile_context_free(compile_context);
@@ -5550,9 +5556,9 @@ PRIVATE json_t *compile_node_filters(hgobj gobj, json_t *kw, node_filter_t filte
  *
  *  A back-reference: the only item that reads the field, for as long as
  *  the text it refers to, without moving forward and without a frame, so
- *  with it the work inside one frame grows with the field: `(*UCP)(?i)` and
- *  150 optional back-references to 32 bytes took 42 ms at one position of
- *  64 bytes, 14 ms the worst measured without them (NODE_FILTER_*).
+ *  with it the work inside one frame grows with the field: `(?i)` and 150
+ *  optional back-references to 32 bytes took 23 ms at one position of 64
+ *  bytes, 10 ms the worst measured without them (NODE_FILTER_*).
  *
  *  And what makes a search position by position (node_filter_search())
  *  answer otherwise than one search, since it starts pcre2_match() again at
