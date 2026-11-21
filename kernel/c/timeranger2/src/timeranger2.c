@@ -12676,6 +12676,17 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
      */
     BOOL fired_wants = (fired_disk && list_wants_key(fired_disk, key))? TRUE : FALSE;
 
+    /*
+     *  A callback can close a feed: the one that fired, or a mem list. Both
+     *  are held for the batch, and one closed is not fed again: up to R101
+     *  the next record read the feed that fired FREED, and a mem list closed
+     *  in its callback made the next list miss the record (the array moved
+     *  under the loop). The mem lists are the ones open at the start of the
+     *  batch: one opened by a callback loads the batch from disk itself.
+     */
+    json_incref(fired_disk);
+    json_t *mem_lists = master? NULL : json_copy(json_object_get(topic, "lists"));
+
     md_block_t blk;
     md_block_init(&blk, FALSE);
     for(json_int_t rowid=first_rowid; rowid<=to_rowid; rowid++) {
@@ -12753,6 +12764,9 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                     &md_record_ex,
                     fired_only_md? NULL : json_incref(record)
                 );
+                if(json_array_find_idx(disks, fired_disk) < 0) {
+                    fired_wants = FALSE;    // closed by its callback
+                }
             }
         }
 
@@ -12763,7 +12777,10 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
         if(!master && rowid >= from_rowid) {
             json_t *lists = json_object_get(topic, "lists");
             json_t *list;
-            json_array_foreach(lists, idx, list) {
+            json_array_foreach(mem_lists, idx, list) {
+                if(json_array_find_idx(lists, list) < 0) {
+                    continue;   // closed by a callback
+                }
                 if(list_wants_key(list, key) && !(body_lost && !feed_wants_only_md(list))) {
                     tranger2_load_record_callback_t load_record_callback =
                         (tranger2_load_record_callback_t)(size_t)json_integer_value(
@@ -12788,6 +12805,8 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
 
         JSON_DECREF(record)
     }
+    JSON_DECREF(mem_lists)
+    JSON_DECREF(fired_disk)
 
     return to_rowid - from_rowid + 1;
 }

@@ -41,6 +41,11 @@
  *        refused whatever its creator (7.25.4 refused it only under the
  *        same creator).
  *
+ *      - a callback that closes a feed: the feed that fired is not fed
+ *        again (up to R101 the next record of the batch read it FREED),
+ *        and a mem list closed in its callback does not make the next
+ *        mem list miss the record (the array moved under the loop).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -119,6 +124,34 @@ PRIVATE int my_record_callback(
         }
     }
     JSON_DECREF(record)
+    return 0;
+}
+
+PRIVATE int count_close_fired = 0;  /*  feed "rtCLOSE": closes itself in its callback  */
+PRIVATE int count_mem_x = 0;        /*  mem list "memX" of the follower: closes itself  */
+PRIVATE int count_mem_y = 0;        /*  mem list "memY" of the follower, after memX     */
+
+PRIVATE int closing_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *record
+)
+{
+    JSON_DECREF(record)
+    const char *id = json_string_value(json_object_get(list, "id"));
+    if(id && strcmp(id, "rtCLOSE")==0) {
+        count_close_fired++;
+        tranger2_close_rt_disk(tranger, list);
+    } else if(id && strcmp(id, "memX")==0) {
+        count_mem_x++;
+        tranger2_close_rt_mem(tranger, list);
+    } else if(id && strcmp(id, "memY")==0) {
+        count_mem_y++;
+    }
     return 0;
 }
 
@@ -516,6 +549,48 @@ PRIVATE int do_test(void)
         printf("%sERROR%s --> a feed opened twice by its creator\n", On_Red BWhite, Color_Off);
         result += -1;
         tranger2_close_rt_disk(tf, rt_twice);
+    }
+    result += test_json(NULL);
+
+    /*
+     *  Callbacks that close feeds, two records of a new key in one batch:
+     *  rtCLOSE (the feed that fires) closes itself at the first, memX (a
+     *  mem list of the follower) too. rtCLOSE is fed once, memX once, and
+     *  memY, after memX, both records.
+     */
+    set_expected_results("multi_feed: callbacks that close their feed", NULL, NULL, NULL, 1);
+    json_t *rt_close = tranger2_open_rt_disk(
+        tf, TOPIC_NAME, "", NULL, closing_callback, "rtCLOSE", "", NULL
+    );
+    json_t *mem_x = tranger2_open_rt_mem(
+        tf, TOPIC_NAME, "", NULL, closing_callback, "memX", "", NULL
+    );
+    json_t *mem_y = tranger2_open_rt_mem(
+        tf, TOPIC_NAME, "", NULL, closing_callback, "memY", "", NULL
+    );
+    if(!rt_close || !mem_x || !mem_y) {
+        result += -1;
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    reset_counts();
+    if(append_one(tm, 3, BASE_T + 100)<0 || append_one(tm, 3, BASE_T + 101)<0) {
+        result += -1;
+    }
+    for(int i = 0; i < 50 && count_mem_y < 2; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    if(count_close_fired != 1 || count_mem_x != 1 || count_mem_y != 2) {
+        printf("%sERROR%s --> callbacks that close their feed: rtCLOSE %d (1), memX %d (1), memY %d (2)\n",
+            On_Red BWhite, Color_Off, count_close_fired, count_mem_x, count_mem_y);
+        result += -1;
+    }
+    if(mem_y) {
+        tranger2_close_rt_mem(tf, mem_y);
     }
     result += test_json(NULL);
 
