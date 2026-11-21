@@ -330,13 +330,13 @@ The `.deb` installs the following tree:
 │       ├── install-certbot.sh
 │       ├── install-yuneta-dev-deps.sh
 │       ├── check-certs-validity.sh
-│       ├── copy-certs.sh
 │       └── colas2.sh
 ├── gui/                                 <- web UI
 ├── realms/                              <- configuration realms
 ├── repos/                               <- repositories
 ├── store/
 │   ├── certs/                           <- SSL certificates
+│   │   ├── copy-certs.sh                <- run by the certbot deploy hook
 │   │   └── private/                     <- private keys (mode 0700)
 │   └── queues/gate_msgs2/              <- message queue persistence
 ├── share/                               <- shared resources

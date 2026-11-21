@@ -2260,6 +2260,15 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   EOF), and leave "since X" prose alone. Then clear the myst cache (a repin is
   a bulk edit); run `docs/doc.yuneta.io/deploy.sh` and curl-verify the live
   site. The release is not done until the live site reflects it.
+- **A package uploaded to a release by hand** (a `-2` on the same tag, a
+  riscv64 `.deb`) also needs its line in `SHA256SUMS`, or `install.sh` refuses
+  the release. Never re-run `release-packages.yml` plainly on a published
+  tag: it rebuilds and REPLACES the packages with other bytes, and every
+  sha256 an operator copied for `install-package` stops matching. Remake only
+  the sums: `gh workflow run release-packages.yml -f release_tag=<tag> -f
+  checksums_only=true` (or by hand: `gh release download <tag> --pattern
+  '*.sha256'`, `cat *.sha256 | sort -k2 > SHA256SUMS`, `gh release upload
+  <tag> --clobber SHA256SUMS`).
 - **GitHub release body from the CHANGELOG:** the section goes in as it is.
   Its bullets are at column 0 and its sub-bullets at 4 spaces, and GitHub nests
   them; stripping 4 spaces from every line (the old recipe) flattened every

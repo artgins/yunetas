@@ -663,6 +663,30 @@ be weighed again, not as settled.
 
 ## 6. Operations and deployment
 
+- **A package without sudo: root runs no file of `/yuneta`.** Today root runs
+  `/yuneta/bin/yuneta-webserver` and nginx/openresty at boot
+  (`yuneta-webserver.service` has no `User=`), their `-s reload` in the
+  certbot hook, and `/yuneta/store/certs/copy-certs.sh` (the hook, and the
+  agent's `cert_sync_copy_cmd` with `sudo`). All of them are in the tree that
+  `yuneta` owns, so removing `sudo` does not make `yuneta` a privilege
+  boundary (said in `files-outside-yuneta.md`, "Files of /yuneta that root
+  runs"). The designed fix (user, 2026-11-21: document and harden now, this
+  later):
+  1. `copy-certs` becomes a root-owned program of the package,
+     `/usr/libexec/yuneta/copy-certs`, built like `install-package`. It reads
+     `certs.list` as data, validates it, and writes as `yuneta`. The default
+     of `cert_sync_copy_cmd` in `c_agent.c` becomes
+     `/usr/bin/sudo -n /usr/libexec/yuneta/copy-certs`. Decide what happens to
+     `/yuneta/store/certs/copy-certs.sh`: remove it, or keep a wrapper and say
+     that a sudo grant on the wrapper is not safe.
+  2. `yuneta-webserver.service` gets `User=yuneta` and
+     `AmbientCapabilities=CAP_NET_BIND_SERVICE`. Check the nginx/openresty
+     `user` directive, the pid file and the log paths. The hook reloads with
+     `systemctl reload yuneta-webserver`.
+  3. Then `files-outside-yuneta.md` can say that a no-sudo site is a
+     privilege boundary, with the sudoers lines to grant.
+  The test is `packages/tests/test-copy-certs.sh`, extended to the program and
+  the unit.
 - **Per-command authz gate — production enablement.** **FUTURE** (user,
   2026-10-03: not now; do not raise it as pending until asked). NOT by
   flipping the default: a yuno with no C_AUTHZ (gates, db_history,
