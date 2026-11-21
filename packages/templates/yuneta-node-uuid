@@ -945,8 +945,9 @@ random_is_ours() {    # host_now container_now pidns_now
 
 #
 #   The machine uuid stored by 7.31.3-7.31.29, which skipped the interfaces
-#   in a bond: the DMI uuid is the recorded one, and the lowest MAC now is
-#   that of a bond slave, not the recorded one
+#   in a bond: the DMI uuid is the recorded one, the lowest MAC now is that
+#   of a bond slave, not the recorded one, and the recorded one is the
+#   lowest MAC of the other interfaces (or none), as 7.31.29 made it
 #
 lowest_mac_is_a_new_bond_slave() {
     local mac
@@ -958,6 +959,15 @@ lowest_mac_is_a_new_bond_slave() {
         return 1
     fi
     if [ "$(stored_field mac_id)" = "$(mac_id_now)" ]; then
+        return 1
+    fi
+    # what 7.31.29 made: the lowest MAC that is not of a bond slave, or
+    # none. Another stored MAC is a uuid of a later release, so a card of
+    # the bond was changed (other hardware), not the release
+    local plain stored
+    plain="$(hw_values ethernet-mac | grep -vxF -f <(hw_values bond-slave-mac) | head -n 1 || true)"
+    stored="$(stored_field mac_id)"
+    if [ -n "$stored" ] && { [ -z "$plain" ] || [ "$stored" != "$(derive_uuid ethernet-mac "$plain")" ]; }; then
         return 1
     fi
     return 0

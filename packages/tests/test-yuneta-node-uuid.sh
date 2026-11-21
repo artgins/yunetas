@@ -247,6 +247,23 @@ make_slave eno2 "0c:c4:7a:00:00:01"
 out="$("$SCRIPT" ensure 2>&1)"
 check "partial bond, a slave with the lowest MAC: new uuid" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:01)"
 check "partial bond, a slave with the lowest MAC: the warning names the bond" "$(echo "$out" | grep -c 'own MAC of an interface in a bond')" "1"
+#
+#   A node already on this release whose lowest MAC is a slave's: a card of
+#   the bond changed for one with a lower MAC is other hardware, and the
+#   warning says so (not the upgrade)
+#
+reset
+set_dmi "00000000-0000-0000-0000-45d44083cb04"
+add_nic eno1 "0c:c4:7a:00:00:05" 0
+add_bond_slave eno2 "0c:c4:7a:00:00:03" "0c:c4:7a:00:00:03"
+run ensure
+check "bond, this release: the slave's MAC" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:03)"
+echo "0c:c4:7a:00:00:02" > "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/eno2/bonding_slave/perm_hwaddr"
+out="$("$SCRIPT" ensure 2>&1)"
+check "bond, a slave card changed: new uuid" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:02)"
+check "bond, a slave card changed: says other hardware" "$(echo "$out" | grep -c 'OTHER hardware')" "1"
+check "bond, a slave card changed: not the upgrade" "$(echo "$out" | grep -c 'did not count')" "0"
+
 reset
 set_dmi "00000000-0000-0000-0000-45d44083cb04"
 add_nic eno1 "0c:c4:7a:00:00:01" 0
