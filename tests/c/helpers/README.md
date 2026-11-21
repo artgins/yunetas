@@ -485,6 +485,6 @@ expected), and a refused `sha256_final_hex()` does not spend the context.
 
 `test_os_info` covers `get_os_info()`. The test links with `--wrap=fopen` and
 gives it an `/etc/os-release` of its own. A `PRETTY_NAME` of 70 bytes, whose
-64th byte is inside a 2-byte character, comes back as its first 63 bytes. A
-`NAME` of 100 ASCII bytes comes back as 64. An `ID` and a `VERSION_ID` that fit
-come back whole. Up to 7.31.29 every value came back whole, whatever its length.
+64th byte is inside a 2-byte character, becomes its first 63 bytes. A `NAME` of
+100 ASCII bytes becomes 64 bytes. An `ID` and a `VERSION_ID` that fit stay
+whole. Up to 7.31.29 every value stayed whole, whatever its length.
