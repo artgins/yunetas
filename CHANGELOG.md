@@ -119,12 +119,23 @@
   append of a known costly key from 10.8 ms to 3.9 µs, and an append with a
   cheap `rkey`, or none, does not change. `perf_timeranger2` has a new phase,
   `rkey`, for these cases.
-- **`print-tranger` (C_TRANGER and C_NODE) no longer shows the addresses of
-  the process** (callbacks, gobj, matchers, the callback of a treedb) to a
-  caller with `read`: they show as `<pointer>`, also when the `path` ends on
-  one.
-- **A failed write of an OTA image is an ERROR**, and the download is
-  dropped. Up to 7.31.29 it was ignored.
+- **`print-tranger` (C_TRANGER and C_NODE) answers through one function,
+  `tranger2_view_json()`.** It walks the `path` on the tranger, collapses
+  with the limits, and copies only what it shows. Not expanded, it answers
+  one level, with each container under it collapsed, as documented: up to
+  7.31.29 it dumped everything. A cycle between two hooks of a treedb is
+  collapsed: up to 7.31.29 the yuno died. The addresses of the process
+  (callbacks, gobj, matchers, the callback of a treedb) show as `<pointer>`,
+  also at the end of a path, to a caller with `read`: up to 7.31.29 they
+  were shown.
+- **`kw_collapse()` collapses a dict that it meets again on the walk, or 64
+  levels down.** Up to 7.31.29 the walk of a cycle did not end.
+- **On a follower, a callback that closes a feed no longer corrupts the
+  batch.** Up to 7.31.29 the next record read the freed feed, or the next
+  memory list missed its record.
+- **C_OTA: an image file that cannot be created or written is an ERROR**,
+  and the download is dropped. Up to 7.31.29 the download wrote nothing, or
+  part of it, and said nothing.
 - **A flood of knocks no longer lets another key enroll under a real uuid.**
   A uuid that the flood evicts from the knocking table now keeps the key
   that it knocked with, in a bounded ring (new attribute
@@ -193,6 +204,24 @@
   so. The hook and the script are now one file each in `packages/templates`,
   for the `.deb` and the `.rpm`.
 
+### Added
+
+- **`list-keys` takes exact keys, with no regex: `key`**, one key or a list of
+  at most 10000, answered in the order asked, each key once, with the shape
+  and paging of an `rkey` answer. It cannot be combined with `rkey`. A GUI
+  that checks given keys uses it; `rkey` is for the utilities:
+
+  ```
+  list-keys topic_name=tracks key='["dev1","dev7"]'
+  ```
+
+- **Microsecond timers: `start_usectimer()`, `test_usectimer()` and
+  `time_in_microseconds_monotonic()`** (`helpers.h`), on `CLOCK_MONOTONIC`
+  like the `msectimer` pair.
+- **gui_treedb 1.3.7 checks the saved views of a topic with exact keys**
+  (`list-keys key=`), not with an `rkey` alternation of the saved keys. It
+  needs a backend on 7.32.0: deploy it after every backend it talks to.
+
 ### Changed
 
 - **`tr2keys` takes `--key` and `--rkey`**, as `tr2list` does, so it no
@@ -246,6 +275,12 @@
 
 ### Fixed
 
+- **A `tr2list --rkey` that is refused lists nothing:** it prints the cause
+  and exits 1, also with `--follow`. Up to 7.31.29 `--follow` ignored the
+  refusal and went on following nothing.
+- **`perf_timeranger2` says when a case gave up** (`complete: false`,
+  `keys_not_judged`, `refused`), and `make_report.py` never draws such a run
+  as faster.
 - **agent22 `install-package`: the download has limits.** It stops at
   1 GiB (also with a curl older than 8.4, through `ulimit -f`) and when the
   server sends less than 1 KB/s for 2 minutes. Up to 7.31.29 there was no
