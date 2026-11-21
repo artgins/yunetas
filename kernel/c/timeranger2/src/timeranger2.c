@@ -560,6 +560,7 @@ PRIVATE void rkey_disarm(json_t *list);
 PRIVATE BOOL list_wants_key(json_t *list, const char *key);
 PRIVATE int list_judge_key(json_t *list, const char *key, uint64_t total_deadline);
 PRIVATE BOOL feed_closed(json_t *feed, uint64_t close_gen);
+PRIVATE json_t *judge_keys_of_list(hgobj gobj, json_t *list, json_t *jn_keys);
 PRIVATE json_t *lists_opened_since(json_t *topic, json_t **pknown, uint64_t close_gen);
 PRIVATE BOOL rkey_peer_caused(int ret);
 PRIVATE const char *rkey_refused_form(const char *rkey);
@@ -20981,6 +20982,87 @@ PRIVATE json_t *read_record_content(
 }
 
 /***************************************************************************
+ *  The keys of `jn_keys` (not owned) that `list`, armed with its rkey
+ *  (rkey_arm()), wants: judged as the feed judges them (list_judge_key()),
+ *  the verdicts kept in the list. The judgements have RKEY_LOAD_BUDGET_MS
+ *  for all the keys, read before each key and before each position of a
+ *  costly one: spent, NULL, with a WARNING and the cause in the last
+ *  message. A key out of its own time is not chosen (rkey_unjudged()).
+ *  Return is yours.
+ ***************************************************************************/
+PRIVATE json_t *judge_keys_of_list(hgobj gobj, json_t *list, json_t *jn_keys)
+{
+    uint64_t load_budget = start_msectimer(RKEY_LOAD_BUDGET_MS);
+    json_t *chosen = json_array();
+    int idx; json_t *jn_key;
+    json_array_foreach(jn_keys, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        int wants = test_msectimer(load_budget)?
+            RKEY_OUT_OF_TIME : list_judge_key(list, key? key : "", load_budget);
+        if(wants == RKEY_OUT_OF_TIME) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "rkey regex too costly, refused",
+                "topic_name",   "%s", kw_get_str(gobj, list, "topic_name", "", 0),
+                "list_id",      "%s", kw_get_str(gobj, list, "id", "", 0),
+                "rkey",         "%.256s", kw_get_str(gobj, list, "match_cond`rkey", "", 0),
+                "limit",        "%s", "the time of the load (RKEY_LOAD_BUDGET_MS)",
+                "keys_judged",  "%d", idx,
+                "keys",         "%d", (int)json_array_size(jn_keys),
+                NULL
+            );
+            gobj_log_set_last_message(
+                "rkey regex too costly: it reached the time of the load (RKEY_LOAD_BUDGET_MS)"
+            );
+            JSON_DECREF(chosen)
+            return NULL;
+        }
+        if(wants > 0) {
+            json_array_append(chosen, jn_key);
+        }
+    }
+    return chosen;
+}
+
+/***************************************************************************
+ *  The keys of a topic that `rkey` matches, judged as tranger2_open_list()
+ *  judges those of a keyless list (see there). The caps are a local
+ *  caller's: RKEY_COMPILED_MAX of compiled code. An empty rkey: every key.
+ ***************************************************************************/
+PUBLIC json_t *tranger2_list_keys_by_rkey( // return is yours, NULL: refused
+    json_t *tranger,
+    const char *topic_name,
+    const char *rkey
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+
+    json_t *jn_keys = tranger2_list_keys(tranger, topic_name);
+    if(empty_string(rkey)) {
+        return jn_keys;
+    }
+
+    json_t *judge = json_pack("{s:s, s:s, s:s, s:{s:s}}",
+        "topic_name",   topic_name? topic_name : "",
+        "id",           "",
+        "creator",      "",
+        "match_cond",
+            "rkey", rkey
+    );
+    if(rkey_arm(gobj, judge, "", json_object_get(judge, "match_cond")) < 0) {
+        JSON_DECREF(judge)      // Error already logged, the cause in the last message
+        JSON_DECREF(jn_keys)
+        return NULL;
+    }
+    json_t *chosen = judge_keys_of_list(gobj, judge, jn_keys);
+    rkey_disarm(judge);
+    JSON_DECREF(judge)
+    JSON_DECREF(jn_keys)
+    return chosen;
+}
+
+/***************************************************************************
  *
     Open a list: load the matching records from disk (calling load_record_callback
     on each), and, when the requested range is open-ended, keep the list live by
@@ -21194,42 +21276,16 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
          *  reading of the history: a cheap rkey over a big topic loads.
          */
         if(json_object_get(loader, "rkey_matcher")) {
-            uint64_t load_budget = start_msectimer(RKEY_LOAD_BUDGET_MS);
-            json_t *chosen = json_array();
-            int idx; json_t *jn_key;
-            json_array_foreach(jn_keys, idx, jn_key) {
-                const char *key_ = json_string_value(jn_key);
-                int wants = test_msectimer(load_budget)?
-                    RKEY_OUT_OF_TIME : list_judge_key(loader, key_? key_ : "", load_budget);
-                if(wants == RKEY_OUT_OF_TIME) {
-                    gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER,
-                        "msg",          "%s", "rkey regex too costly, refused",
-                        "topic_name",   "%s", topic_name,
-                        "list_id",      "%s", rt_id? rt_id : "",
-                        "rkey",         "%.256s", kw_get_str(gobj, match_cond, "rkey", "", 0),
-                        "limit",        "%s", "the time of the load (RKEY_LOAD_BUDGET_MS)",
-                        "keys_judged",  "%d", idx,
-                        "keys",         "%d", (int)json_array_size(jn_keys),
-                        NULL
-                    );
-                    gobj_log_set_last_message(
-                        "rkey regex too costly: it reached the time of the load (RKEY_LOAD_BUDGET_MS)"
-                    );
-                    JSON_DECREF(chosen)
-                    JSON_DECREF(jn_keys)
-                    JSON_DECREF(failed_keys)
-                    rkey_handover(loader, NULL);
-                    JSON_DECREF(match_cond)
-                    JSON_DECREF(extra)
-                    return NULL;
-                }
-                if(wants > 0) {
-                    json_array_append(chosen, jn_key);
-                }
-            }
+            json_t *chosen = judge_keys_of_list(gobj, loader, jn_keys);
             JSON_DECREF(jn_keys)
+            if(!chosen) {
+                // Error already logged
+                JSON_DECREF(failed_keys)
+                rkey_handover(loader, NULL);
+                JSON_DECREF(match_cond)
+                JSON_DECREF(extra)
+                return NULL;
+            }
             jn_keys = chosen;
         }
 

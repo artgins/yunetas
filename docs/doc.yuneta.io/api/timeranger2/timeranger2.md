@@ -2393,6 +2393,64 @@ thousands of keys (allocates one string per key).
 
 ---
 
+(tranger2_list_keys_by_rkey)=
+## [`tranger2_list_keys_by_rkey()`](https://github.com/artgins/yunetas/blob/7.31.29/kernel/c/timeranger2/src/timeranger2.c#L2733)
+
+Returns a JSON array with the keys of a topic that a regular expression
+(PCRE2) matches. The keys are judged as
+[`tranger2_open_list()`](<#tranger2_open_list>) judges the keys of a keyless
+list with an `rkey`.
+
+```C
+json_t *tranger2_list_keys_by_rkey(
+    json_t *tranger,
+    const char *topic_name,
+    const char *rkey
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | A pointer to the TimeRanger database instance. |
+| `topic_name` | `const char *` | The name of the topic. |
+| `rkey` | `const char *` | The regular expression. An empty `rkey` selects every key. |
+
+**Returns**
+
+A JSON array of key-name strings, in the order of
+[`tranger2_list_keys()`](<#tranger2_list_keys>). The caller owns it. `NULL`
+when the `rkey` is refused: the cause is in `gobj_log_last_message()`.
+
+**Notes**
+
+The judgement is the same as for a list:
+
+- The same refused forms: `(*COMMIT)`, `(*SKIP)`, `\G`, `(*NOTEMPTY_ATSTART)`,
+  a newline other than LF, `(*UCP)` and `(*UTF)`.
+- The same limits for each key. A key that the `rkey` cannot judge in its own
+  time is not in the answer, and a WARNING says it.
+- 2 s for all the keys (`RKEY_LOAD_BUDGET_MS`). When the judgements pass it,
+  the answer is `NULL`.
+- The cap of compiled code is that of a local caller, 64 KB.
+
+[`tr2keys`](<#util-tr2keys>) `--rkey` uses it. Thus `tr2keys --rkey` and
+`tr2list --rkey` choose the same keys.
+
+```C
+gobj_log_set_last_message("%s", "");
+json_t *keys = tranger2_list_keys_by_rkey(tranger, "devices", "^dev-00");
+if(!keys) {
+    printf("refused: %s\n", gobj_log_last_message());
+} else {
+    print_json("keys", keys);   // ["dev-0001", "dev-0042"]
+    JSON_DECREF(keys)
+}
+```
+
+---
+
 (tranger2_list_topic_desc_cols)=
 ## [`tranger2_list_topic_desc_cols()`](https://github.com/artgins/yunetas/blob/7.31.29/kernel/c/timeranger2/src/timeranger2.c#L3523)
 

@@ -425,6 +425,24 @@ PUBLIC json_t *tranger2_list_keys(// return is yours, WARNING fn slow for thousa
 );
 
 /*
+   The keys of a topic that `rkey` (PCRE2) matches, judged as
+   tranger2_open_list() judges the keys of a keyless list with an `rkey`:
+   the same refused forms, the same limits for each key, RKEY_LOAD_BUDGET_MS
+   (2 s) for all of them, and a local caller's cap of compiled code (64 KB).
+   A key its rkey cannot judge in its own time is not in the answer (a
+   WARNING says it). An empty rkey: every key, as tranger2_list_keys().
+   Return is yours. NULL when the rkey is refused (malformed, a refused
+   form, or its judgements pass 2 s): the cause is in
+   gobj_log_last_message(). tr2keys --rkey uses it, so tr2keys and tr2list
+   --rkey choose the same keys.
+*/
+PUBLIC json_t *tranger2_list_keys_by_rkey( // return is yours, NULL: refused
+    json_t *tranger,
+    const char *topic_name,
+    const char *rkey
+);
+
+/*
    Get the topic size (total record count across all keys), summed from the
    in-memory cache counters (not a live disk count). Returns 0 if the topic is
    not found (ambiguous with a genuinely empty topic). Slow for thousands of keys

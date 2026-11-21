@@ -12,7 +12,7 @@ tr2keys PATH [options]
 
 | Option | What it does |
 |--------|--------------|
-| `--key=KEY` | Show only this key, if the topic has it. |
+| `--key=KEY` | Show only this key, if the topic has it. It wins over `--rkey`. |
 | `--rkey=RKEY` | Show only the keys that match this regular expression (PCRE2). |
 | `--recursive` / `-r` | List every topic under `PATH`. |
 | `--list-databases` | List the databases under `PATH`. |
@@ -20,8 +20,21 @@ tr2keys PATH [options]
 `tr2keys` takes the topic and the database from `PATH`. Without `--key` or `--rkey`,
 `tr2keys` prints every key of the topic. With one of them, it prints only the
 keys that match, and with `--recursive` only the topics that have a key that
-matches. A pattern that does not compile stops `tr2keys` before it opens a
-topic, with the cause.
+matches. `--key` looks up the key. `--rkey` is judged as `tr2list --rkey` is
+judged ([`tranger2_list_keys_by_rkey()`](<#tranger2_list_keys_by_rkey>)), so
+the two tools choose the same keys. A pattern that the judgement refuses (it
+does not compile, it has a refused form, or its judgements pass 2 s) prints the
+cause for each topic, and `tr2keys` exits 1:
+
+```bash
+tr2keys /yuneta/store/myapp/treedb_myapp/devices --rkey='a(*COMMIT)b'
+# Cannot list the keys of treedb_myapp/devices: Bad rkey regex 'a(*COMMIT)b': (*COMMIT) is refused in an rkey
+```
+
+Up to 7.31.29 `tr2keys` compiled `--rkey` with no options and no limits. It
+accepted `(*COMMIT)`, `\G`, `(*UTF)` and `(*CRLF)`, a costly pattern took up to
+ten million steps at each position of each key, and the same `--rkey` listed
+other keys than `tr2list`.
 
 ```bash
 # Does the topic have this key?

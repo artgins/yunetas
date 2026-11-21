@@ -141,6 +141,8 @@
 #define TOPIC_TM_MS "topic_tm_ms"   // t in seconds, tm in ms
 #define DATABASE_GBUFFER "tr_tools_gbuffer_record"
 #define TOPIC_GBUFFER    "topic_gbuffer"
+#define DATABASE_RKEY    "tr_tools_rkey"
+#define TOPIC_RKEY       "topic_rkey"
 #define DAY1        946684800       // 2000-01-01
 #define DAY_SECS    86400
 
@@ -152,6 +154,9 @@
 #endif
 #ifndef TR2LIST_BIN
 #error "TR2LIST_BIN is not defined: CMakeLists.txt defines it"
+#endif
+#ifndef TR2KEYS_BIN
+#error "TR2KEYS_BIN is not defined: CMakeLists.txt defines it"
 #endif
 
 /***************************************************************
@@ -321,7 +326,7 @@ PRIVATE int tool_status(const char *bin, const char *path, const char *options,
         return -1;
     }
     char cmd[3*PATH_MAX];
-    snprintf(cmd, sizeof(cmd), "'%s' '%s' %s -l0 2>&1", bin, path, options);
+    snprintf(cmd, sizeof(cmd), "'%s' '%s' %s 2>&1", bin, path, options);
     FILE *f = popen(cmd, "r");
     if(!f) {
         printf("%sERROR%s --> popen(%s): %s\n", On_Red BWhite, Color_Off, cmd, strerror(errno));
@@ -329,7 +334,7 @@ PRIVATE int tool_status(const char *bin, const char *path, const char *options,
     }
     char line[1024];
     while(fgets(line, sizeof(line), f)) {
-        if(strstr(line, text)) {
+        if(!empty_string(text) && strstr(line, text)) {
             *printed = TRUE;
         }
     }
@@ -1704,8 +1709,8 @@ PRIVATE int do_test(void)
             const char *path;
             const char *options;
         } refused[] = {
-            {path_topic,    "--rkey='a(*COMMIT)b'"},
-            {path_database, "-r --rkey='a(*COMMIT)b'"},
+            {path_topic,    "-l0 --rkey='a(*COMMIT)b'"},
+            {path_database, "-l0 -r --rkey='a(*COMMIT)b'"},
         };
         for(size_t i = 0; i < sizeof(refused)/sizeof(refused[0]); i++) {
             BOOL printed = FALSE;
@@ -1718,6 +1723,85 @@ PRIVATE int do_test(void)
                 result += -1;
             }
         }
+    }
+    result += test_json(NULL);
+
+    /*
+     *  tr2keys --rkey is judged by timeranger2 as tr2list's is
+     *  (tranger2_list_keys_by_rkey()): the forms tr2list refuses are
+     *  refused, exit 1 with the cause, and the keys listed are the same.
+     *  Up to the fix tr2keys compiled with no options and no limits: it
+     *  listed with (*COMMIT) and (*UTF). --key is looked up as a key.
+     */
+    set_expected_results(
+        "tr2keys --rkey judges as tr2list",
+        json_pack("[{s:s},{s:s}]",
+            "msg", "Creating __timeranger2__.json",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    {
+        char path_database3[PATH_MAX];
+        char path_topic[PATH_MAX];
+        build_path(path_database3, sizeof(path_database3), path_root, DATABASE_RKEY, NULL);
+        build_path(path_topic, sizeof(path_topic), path_database3, TOPIC_RKEY, NULL);
+        rmrdir(path_database3);
+        json_t *tranger3 = tranger2_startup(0,
+            json_pack("{s:s, s:s, s:b, s:i}",
+                "path", path_root,
+                "database", DATABASE_RKEY,
+                "master", 1,
+                "on_critical_error", LOG_OPT_TRACE_STACK
+            ),
+            yev_loop
+        );
+        if(!tranger3 || !create_topic(tranger3, TOPIC_RKEY, sf_string_key)) {
+            result += -1;
+        } else {
+            const char *keys[] = {"dev-1", "dev-2", "other"};
+            for(size_t k = 0; k < sizeof(keys)/sizeof(keys[0]); k++) {
+                md2_record_ex_t md = {0};
+                tranger2_append_record(tranger3, TOPIC_RKEY, DAY1 + 3600, 0, &md,
+                    json_pack("{s:s, s:I, s:s}",
+                        "id", keys[k], "tm", (json_int_t)(DAY1 + 3600), "content", "x"
+                    )
+                );
+            }
+        }
+        if(tranger3) {
+            tranger2_shutdown(tranger3);
+            for(int i = 0; i < 10; i++) {
+                yev_loop_run_once(yev_loop);
+            }
+        }
+        const struct {
+            const char *bin;
+            const char *options;
+            const char *text;
+            int status;
+            BOOL printed;
+        } runs[] = {
+            {TR2KEYS_BIN, "--rkey='^dev-'",         "dev-2",                            0, TRUE},
+            {TR2KEYS_BIN, "--rkey='^dev-'",         "other",                            0, FALSE},
+            {TR2LIST_BIN, "-l0 --rkey='^dev-'",     "",                                 0, FALSE},
+            {TR2KEYS_BIN, "--rkey='a(*COMMIT)b'",   "(*COMMIT) is refused in an rkey",  1, TRUE},
+            {TR2KEYS_BIN, "--rkey='(*UTF)dev'",     "Bad rkey regex",                   1, TRUE},
+            {TR2KEYS_BIN, "--key=dev-1",            "dev-1",                            0, TRUE},
+            {TR2KEYS_BIN, "--key=nosuch",           "Keys",                             0, FALSE},
+        };
+        for(size_t i = 0; i < sizeof(runs)/sizeof(runs[0]); i++) {
+            BOOL printed = FALSE;
+            int status = tool_status(runs[i].bin, path_topic, runs[i].options, runs[i].text, &printed);
+            if(status != runs[i].status || printed != runs[i].printed) {
+                printf("%sERROR%s --> %s %s: exit %d (%d), '%s' %s (%s)\n",
+                    On_Red BWhite, Color_Off, runs[i].bin, runs[i].options,
+                    status, runs[i].status, runs[i].text,
+                    printed? "printed" : "not printed", runs[i].printed? "printed" : "not printed");
+                result += -1;
+            }
+        }
+        rmrdir(path_database3);
     }
     result += test_json(NULL);
 

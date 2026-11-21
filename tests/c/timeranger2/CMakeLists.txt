@@ -207,9 +207,9 @@ foreach(test ${SRCS})
     endif()
 
     if(test STREQUAL "test_date_bound_units")
-        # The test runs the tr2search and tr2list tools of THIS checkout, as
+        # The test runs the tr2search, tr2list and tr2keys tools of THIS checkout, as
         # test_tr2check runs its tr2check (see there)
-        foreach(tool tr2search tr2list)
+        foreach(tool tr2search tr2list tr2keys)
             string(TOUPPER "${tool}" TOOL)
             if(TARGET ${tool})
                 add_dependencies(${binary} ${tool})
