@@ -21,7 +21,7 @@ tr2list /yuneta/store/.../topic --follow                    # tail -f
 
 | Option | Purpose |
 |--------|---------|
-| `--key` / `--not-key` / `--rkey` | Match by key (exact / negated / regex) |
+| `--key` / `--not-key` / `--rkey` | Match by key (exact / negated / regex). A refused `--rkey` lists nothing: see below |
 | `--from-t` / `--to-t` | Record-time range |
 | `--from-tm` / `--to-tm` | Message-time range |
 | `--from-rowid` / `--to-rowid` | Rowid range (negative = from the end) |
@@ -36,6 +36,25 @@ tr2list /yuneta/store/.../topic --follow                    # tail -f
 | `--dry-run` / `-n` | Resolve and print the plan only |
 | `--list-databases` | List databases under the path |
 | `--verbose` / `-l` | Verbosity level |
+
+## A refused `--rkey`
+
+`--rkey` is judged as a peer's pattern is (see [`tranger2_open_list()`](<#tranger2_open_list>)):
+every key of the topic first, with 2 s for all of them, and then the history of
+the keys chosen, which takes the time it takes. A pattern that does not
+compile, that has a form the judgement refuses (`(*COMMIT)`, `(*SKIP)`, `\G`,
+`(*NOTEMPTY_ATSTART)`, a newline other than LF, `(*UCP)`), or whose judgements
+pass 2 s, lists nothing. tr2list then prints the cause and exits 1. With
+`--follow` it prints `Cannot follow` in place of `Cannot list`:
+
+```bash
+tr2list /yuneta/store/.../topic --rkey='a(*COMMIT)b'
+# Cannot list <database>/<topic>: Bad rkey regex 'a(*COMMIT)b': (*COMMIT) is refused in an rkey
+```
+
+Up to R101 the 2 s counted the reading too, and a cheap `--rkey` over a big
+topic printed a part of it before the refusal. With `--follow` the refusal was
+not seen, and tr2list followed nothing.
 
 ## Time bounds
 

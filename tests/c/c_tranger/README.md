@@ -17,7 +17,12 @@ What it checks:
   `rkey` loads 51 costly keys in less than 1 s, and `get-list-data` names them.
   An unanchored `rkey` under the limits at every position, over keys of 255
   bytes, is timed in `list-keys`, in the load of a live list and in the first
-  append of a new key. `print-tranger` shows no address of the process.
+  append of a new key (less the first append with no list open: the disk
+  work of a new key). The load of a live list out of its 2 s is refused, and
+  says why. What else a peer's `rkey` causes is a WARNING: a `\K` past the
+  end, `(*COMMIT)`, `(*SKIP)`, `\G`, `(*NOTEMPTY_ATSTART)`, `(*CRLF)`,
+  `(*UCP)`. `list-keys` by exact keys (`key`: one, or a list), and its
+  refusals. `print-tranger` shows no address of the process.
 - Handles: a handle of a topic that was closed is dropped, not
   dereferenced. A key deleted under an iterator. A keys watch that is not a
   client's feed. A `no_rt` list freed with its topic. A handle of one session

@@ -19,6 +19,11 @@
  *        key as the id, creator ""): an iterator the caller kept open on
  *        the key made the load's one "already exist", and the list of that
  *        key was refused. They have a creator of their own now.
+ *      - The time of the load of a list with an rkey (RKEY_LOAD_BUDGET_MS,
+ *        2 s) counts the JUDGEMENTS of the keys, not the reading of their
+ *        history: every key is judged first, then the keys chosen are
+ *        loaded. In R101 a cheap rkey over a history that took longer than
+ *        2 s to read was refused as "too costly".
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -27,6 +32,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <gobj.h>
 #include <kwid.h>
@@ -38,6 +44,8 @@
 #define APP         "test_open_list_history"
 #define DATABASE    "tr_open_list_history"
 #define TOPIC_NAME  "topic_history"
+#define TOPIC_SLOW  "topic_slow_history"
+#define SLOW_KEYS   21          // x 100 ms a record: past the 2 s of the load
 #define DAY1        946684800   // 2000-01-01
 
 /***************************************************************
@@ -45,6 +53,7 @@
  ***************************************************************/
 PRIVATE yev_loop_h yev_loop;
 PRIVATE int loaded = 0;
+PRIVATE int slow_ms = 0;    // the time on_record takes for each record
 
 /***************************************************************
  *              Helpers
@@ -60,6 +69,10 @@ PRIVATE int on_record(
 )
 {
     loaded++;
+    if(slow_ms > 0) {
+        struct timespec ts = {.tv_sec = 0, .tv_nsec = (long)slow_ms * 1000000L};
+        nanosleep(&ts, NULL);
+    }
     JSON_DECREF(record)
     return 0;
 }
@@ -238,6 +251,62 @@ PRIVATE int do_test(void)
     if(loaded != 6) {
         printf("%sERROR%s --> the realtime feed of a list with an unreadable key did not feed: %d records, expected 6\n",
             On_Red BWhite, Color_Off, loaded);
+        result += -1;
+    }
+    if(list) {
+        tranger2_close_list(tranger, list);
+    }
+    result += test_json(NULL);
+
+    /*-------------------------------------*
+     *  A keyless list with a cheap rkey over
+     *  a history that takes more than the 2 s
+     *  of the load to read (each record 100 ms
+     *  in the callback): loaded, every key.
+     *  In R101 refused, "rkey regex too
+     *  costly", after a part of the history
+     *  was handed.
+     *-------------------------------------*/
+    set_expected_results(
+        "open_list history: a cheap rkey over a slow history",
+        json_pack("[{s:s}]",
+            "msg", "Creating topic"
+        ),
+        NULL, NULL, 1
+    );
+    if(!tranger2_create_topic(
+        tranger, TOPIC_SLOW, "id", "tm", NULL, sf_string_key,
+        json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+        0
+    )) {
+        result += -1;
+    }
+    for(int k = 0; k < SLOW_KEYS; k++) {
+        char key[32];
+        snprintf(key, sizeof(key), "S%02d", k);
+        md2_record_ex_t md_slow = {0};
+        tranger2_append_record(tranger, TOPIC_SLOW, DAY1, 0, &md_slow,
+            json_pack("{s:s, s:I, s:s}", "id", key, "tm", (json_int_t)DAY1, "content", "x")
+        );
+    }
+    loaded = 0;
+    slow_ms = 100;
+    uint64_t t0 = time_in_milliseconds_monotonic();
+    list = tranger2_open_list(tranger, TOPIC_SLOW,
+        json_pack("{s:I, s:s, s:I}",
+            "to_rowid", (json_int_t)1000000,   // no realtime
+            "rkey", ".",
+            "load_record_callback", (json_int_t)(uintptr_t)on_record
+        ),
+        json_object(), "", FALSE, ""
+    );
+    uint64_t took_ms = time_in_milliseconds_monotonic() - t0;
+    slow_ms = 0;
+    printf("     the load of %d keys, 100 ms a record, rkey '.': %d ms, %d records\n",
+        SLOW_KEYS, (int)took_ms, loaded);
+    if(!list || loaded != SLOW_KEYS) {
+        printf("%sERROR%s --> a cheap rkey over a slow history: %s, %d records, expected %d\n",
+            On_Red BWhite, Color_Off, list? "opened": "REFUSED", loaded, SLOW_KEYS);
         result += -1;
     }
     if(list) {

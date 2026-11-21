@@ -93,6 +93,7 @@
 #define TOPIC_NAME8 "topic_cmd8"    // a key a costly rkey regex cannot judge in its limits
 #define TOPIC_NAME9 "topic_cmd9"    // keys a costly (*NO_JIT) rkey takes ms to judge
 #define TOPIC_NAME10 "topic_cmd10"  // keys of 255 bytes, an rkey under the limits at every position
+#define TOPIC_NAME11 "topic_cmd11"  // 200 keys of 255 bytes: the load of a live list out of its time
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -3824,14 +3825,16 @@ PRIVATE int do_test(void)
         check_int("and refused", kw_get_int(0, r, "result", -999, 0), -1);
         JSON_DECREF(r)
 
-        /*  An UNANCHORED rkey that stays under the frames of every position
-         *  and costs at all of them: (*NO_JIT)(?:[\s\S]?){13}(?!) took 51 ms
-         *  a key of 255 bytes at 10000 frames (R100), with no limit reached
-         *  and no word. Now a key costs RKEY_KEY_BUDGET_MS and one position
-         *  at most (rkey_judge(), the clock before each position): list-keys,
-         *  the load of a live list over 50 such keys, and the first append
-         *  of a new key, timed.  */
-        const char *under_limits = "(*NO_JIT)(?:[\\s\\S]?){13}(?!)";
+        /*  An UNANCHORED rkey that stays under the 1000 frames of every
+         *  position and costs at all of them, about 2 ms a position on 255
+         *  bytes: about 500 ms a key up to 7.31.29, with no limit reached and
+         *  no word. Now a key judged position by position costs its budget,
+         *  RKEY_KEY_BUDGET_US, and one position more (rkey_judge(), the
+         *  clock before each position), and it is not judged: list-keys, the
+         *  load of a live list over 50 such keys, and the first append of a
+         *  new key, timed. (R101's (?:[\s\S]?){13}(?!) was cut by the frames
+         *  of position 0, not by the clock.)  */
+        const char *under_limits = "(*NO_JIT)(?:[\\s\\S]?){9}(?:~?~?~?~?~?~?~?~?){32}(?!)";
         json_t *topic10 = tranger2_create_topic(
             tranger, TOPIC_NAME10, "id", "tm",
             0,
@@ -3857,6 +3860,22 @@ PRIVATE int do_test(void)
             took_ms < 500, TRUE);
         check_int("and refused (a key not judged in its time)", kw_get_int(0, r, "result", -999, 0), -1);
         JSON_DECREF(r)
+
+        /*  The time of the first append of a new key with no list open: the
+         *  disk work of a new key, the control of the first append below  */
+        uint64_t control_us = (uint64_t)-1;
+        for(int k = 0; k < 3; k++) {
+            memset(key255, 'c', 252);
+            snprintf(key255 + 252, sizeof(key255) - 252, "%03d", k);
+            uint64_t t0_us = time_in_microseconds_monotonic();
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME10, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", key255, "tm", (json_int_t)BASE_T, "content", "x"));
+            uint64_t took_us = time_in_microseconds_monotonic() - t0_us;
+            if(took_us < control_us) {
+                control_us = took_us;
+            }
+        }
 
         t0 = time_in_milliseconds_monotonic();
         r = gobj_command(yuno, "open-list",
@@ -3890,20 +3909,28 @@ PRIVATE int do_test(void)
             json_is_string(jn_scalar) && strcmp(json_string_value(jn_scalar), "<pointer>") == 0, TRUE);
         JSON_DECREF(r)
 
-        memset(key255, 'b', 252);
-        snprintf(key255 + 252, sizeof(key255) - 252, "new");
-        t0 = time_in_milliseconds_monotonic();
-        {
+        /*  The first append of a new key judges it for the list: the best of
+         *  three, less the best of the three with no list (the disk work of
+         *  a new key, which a loaded -j8 suite stretches). The judgement
+         *  costs RKEY_KEY_BUDGET_US and one position, about 4 ms; up to
+         *  7.31.29 about 500 ms.  */
+        uint64_t first_us = (uint64_t)-1;
+        for(int k = 0; k < 3; k++) {
+            memset(key255, 'b', 252);
+            snprintf(key255 + 252, sizeof(key255) - 252, "%03d", k);
+            uint64_t t0_us = time_in_microseconds_monotonic();
             md2_record_ex_t md = {0};
             tranger2_append_record(tranger, TOPIC_NAME10, BASE_T + 1, 0, &md,
                 json_pack("{s:s, s:I, s:s}", "id", key255, "tm", (json_int_t)BASE_T, "content", "x"));
+            uint64_t took_us = time_in_microseconds_monotonic() - t0_us;
+            if(took_us < first_us) {
+                first_us = took_us;
+            }
         }
-        took_ms = time_in_milliseconds_monotonic() - t0;
-        printf("     first append of a new key of 255 bytes, the list open: %d ms\n", (int)took_ms);
-        /*  The rkey part is bounded at ~2 ms; the rest is the disk work of a new
-         *  key, which a loaded -j8 suite stretched past 20 ms. Red was 52 ms
-         *  (R100 limits) and 152 ms (7.31.29). */
-        check_bool("the first append of a new key in a moment", took_ms < 40, TRUE);
+        json_int_t rkey_us = (json_int_t)first_us - (json_int_t)control_us;
+        printf("     first append of a new key of 255 bytes: %d us with the list open, %d us with none: the rkey %d us\n",
+            (int)first_us, (int)control_us, (int)rkey_us);
+        check_bool("the first append of a new key: its rkey in a moment", rkey_us < 20000, TRUE);
         r = gobj_command(yuno, "close-list",
             as_peer(json_pack("{s:s}", "list_id", "lstUnder")), yuno);
         JSON_DECREF(r)
@@ -3922,6 +3949,157 @@ PRIVATE int do_test(void)
         global_result += test_json(NULL);
         gobj_log_del_handler("test_capture_warn");
     }
+
+    /*-------------------------------------------------*
+     *      What a peer's rkey can cause is its own: refused with a
+     *      WARNING, never an ERROR (only ERRORs are captured here, and none
+     *      is expected). And list-keys by EXACT keys, with no regex.
+     *-------------------------------------------------*/
+    set_expected_results("rkey: what a peer causes, and exact keys", json_array(), NULL, NULL, 1);
+    {
+        /*  A \K that a lookaround sets past the end (-75): up to R101 an
+         *  ERROR with MSGSET_INTERNAL  */
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}",
+                "topic_name", TOPIC_NAME8, "rkey", "(?(DEFINE)(?<s>b\\K))a(?=(?&s))"
+            )), yuno);
+        check_int("list-keys with a \\K past the end, no key 'ab': answered",
+            kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("no key", json_array_size(kw_get_list(0, r, "data", 0, 0)), 0);
+        JSON_DECREF(r)
+        {
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME8, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", "ab", "tm", (json_int_t)BASE_T, "content", "x"));
+        }
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}",
+                "topic_name", TOPIC_NAME8, "rkey", "(?(DEFINE)(?<s>b\\K))a(?=(?&s))"
+            )), yuno);
+        check_int("list-keys with a \\K past the end, over a key 'ab': refused",
+            kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("as too costly, a WARNING",
+            strstr(kw_get_str(0, r, "comment", "", 0), "too costly") != NULL, TRUE);
+        JSON_DECREF(r)
+
+        /*  The forms the position by position judgement answers otherwise
+         *  than one search, refused at the compile, a newline other than
+         *  LF, and Unicode properties  */
+        const char *refused_forms[] = {
+            "a(*COMMIT)b", "aa(*SKIP)x|a", "(?:x|\\G)y", "(*NOTEMPTY_ATSTART)a?", "(*CRLF)a",
+            "\\c\\\\G",    // \c takes two bytes: then a \G
+            "(*UCP)\\Ba",  // a key is bytes: no Unicode properties
+            0
+        };
+        for(int i = 0; refused_forms[i]; i++) {
+            r = gobj_command(yuno, "list-keys",
+                as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "rkey", refused_forms[i])), yuno);
+            check_int(refused_forms[i], kw_get_int(0, r, "result", -999, 0), -1);
+            check_bool("as a bad rkey",
+                strstr(kw_get_str(0, r, "comment", "", 0), "Bad rkey regex") != NULL, TRUE);
+            JSON_DECREF(r)
+            r = gobj_command(yuno, "open-list",
+                as_peer(json_pack("{s:s, s:s, s:s}",
+                    "list_id", "lstForm", "topic_name", TOPIC_NAME8, "rkey", refused_forms[i]
+                )), yuno);
+            check_int("the live list too", kw_get_int(0, r, "result", -999, 0), -1);
+            check_bool("its answer says why (up to R101 \"see the log\")",
+                strstr(kw_get_str(0, r, "comment", "", 0), "Bad rkey regex") != NULL, TRUE);
+            JSON_DECREF(r)
+        }
+        /*  (*PRUNE) and (*THEN) give one search's verdict: accepted  */
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "rkey", "a(*PRUNE)b|^b$")), yuno);
+        check_int("an rkey with (*PRUNE): answered", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("its keys: ab and b", json_array_size(kw_get_list(0, r, "data", 0, 0)), 2);
+        JSON_DECREF(r)
+
+        /*  list-keys by exact keys: one key, a list (those the topic has,
+         *  in the order asked, once each), paged; refused with rkey, past
+         *  10000 keys, with a key that is not a text or holds a NUL  */
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "key", "b")), yuno);
+        check_int("list-keys key=b", kw_get_int(0, r, "result", -999, 0), 0);
+        json_t *keys_b = kw_get_list(0, r, "data", 0, 0);
+        check_int("its one key", json_array_size(keys_b), 1);
+        check_str("b", kw_get_str(0, json_array_get(keys_b, 0), "key", "", 0), "b");
+        check_int("with its records", kw_get_int(0, json_array_get(keys_b, 0), "records", -1, 0), 1);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:[s,s,s,s]}", "topic_name", TOPIC_NAME8,
+                "key", "nosuch", "ab", "b", "ab")), yuno);
+        check_int("list-keys key=[nosuch,ab,b,ab]", kw_get_int(0, r, "result", -999, 0), 0);
+        json_t *keys_l = kw_get_list(0, r, "data", 0, 0);
+        check_int("the keys the topic has, once", json_array_size(keys_l), 2);
+        check_str("in the order asked", kw_get_str(0, json_array_get(keys_l, 0), "key", "", 0), "ab");
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:[s,s], s:i}", "topic_name", TOPIC_NAME8,
+                "key", "ab", "b", "limit", 1)), yuno);
+        check_int("a page of exact keys: total_rows", kw_get_int(0, r, "data`total_rows", -1, 0), 2);
+        check_int("its pages", kw_get_int(0, r, "data`pages", -1, 0), 2);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s, s:s}", "topic_name", TOPIC_NAME8, "key", "b", "rkey", "b")), yuno);
+        check_int("key and rkey: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+        json_t *too_many = json_array();
+        for(int k = 0; k < 10001; k++) {
+            json_array_append_new(too_many, json_sprintf("k%d", k));
+        }
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:o}", "topic_name", TOPIC_NAME8, "key", too_many)), yuno);
+        check_int("10001 keys: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("it says why",
+            strstr(kw_get_str(0, r, "comment", "", 0), "too many keys") != NULL, TRUE);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:[s,i]}", "topic_name", TOPIC_NAME8, "key", "b", 5)), yuno);
+        check_int("a key that is not a text: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:[s%]}", "topic_name", TOPIC_NAME8, "key", "b\0x", (size_t)3)), yuno);
+        check_int("a key with a NUL: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        JSON_DECREF(r)
+
+        /*  The load of a live list has RKEY_LOAD_BUDGET_MS for its
+         *  judgements: 200 keys of 255 bytes, each out of its own time
+         *  (its budget and one position of about 25 ms: 28 KB of code), are
+         *  refused at about 2 s, before any history is read, and the answer
+         *  says why. The 300 keys of TOPIC_NAME9 are closed first: their
+         *  files and these would pass the 1024 files of the suite.  */
+        tranger2_close_topic(tranger, TOPIC_NAME9);
+        json_t *topic11 = tranger2_create_topic(
+            tranger, TOPIC_NAME11, "id", "tm",
+            0,
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+            0
+        );
+        check_bool("topic of the 200 keys", topic11 != NULL, TRUE);
+        char key11[256];
+        for(int k = 0; k < 200; k++) {
+            memset(key11, 'a', 252);
+            snprintf(key11 + 252, sizeof(key11) - 252, "%03d", k);
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME11, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", key11, "tm", (json_int_t)BASE_T, "content", "x"));
+        }
+        uint64_t t0 = time_in_milliseconds_monotonic();
+        r = gobj_command(yuno, "open-list",
+            as_peer(json_pack("{s:s, s:s, s:s}",
+                "list_id", "lstLoad", "topic_name", TOPIC_NAME11,
+                "rkey", "(*NO_JIT)(?:[\\s\\S]?){9}(?:~?~?~?~?~?~?~?~?){1280}(?!)"
+            )), yuno);
+        uint64_t took_ms = time_in_milliseconds_monotonic() - t0;
+        printf("     the load of a live list over 200 keys out of their time: %d ms\n", (int)took_ms);
+        check_int("the load of a live list out of its time: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("its answer says why",
+            strstr(kw_get_str(0, r, "comment", "", 0), "the time of the load") != NULL, TRUE);
+        check_bool("at about 2 s", took_ms >= 2000 && took_ms < 4000, TRUE);
+        JSON_DECREF(r)
+    }
+    global_result += test_json(NULL);
 
     /*-------------------------------------------------*
      *      A record on disk with a top-level "gbuffer" key (a store written

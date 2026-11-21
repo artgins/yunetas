@@ -595,6 +595,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
         exit(-1);
     }
     printf("Topic ===> '%s'\n", kw_get_str(0, jn_topic, "directory", "", KW_REQUIRED));
+    int ret = 0;
 
     /*
      *  The time bounds are TEXT: the tranger reads them at the open, in the
@@ -628,12 +629,18 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
             TRUE,           // rt_by_disk
             "tr2list"       // creator
         );
-        fprintf(stderr,
-            "Following %s/%s (rt_id=%s)... Ctrl+C to stop.\n",
-            database, topic, rt_id
-        );
-        yev_loop_run(yev_loop, -1);
-        tranger2_close_list(tranger, rt);
+        if(!rt) {
+            fprintf(stderr, "Cannot follow %s/%s: %s\n",
+                database, topic, gobj_log_last_message());
+            ret = -1;
+        } else {
+            fprintf(stderr,
+                "Following %s/%s (rt_id=%s)... Ctrl+C to stop.\n",
+                database, topic, rt_id
+            );
+            yev_loop_run(yev_loop, -1);
+            tranger2_close_list(tranger, rt);
+        }
 
     } else if(arguments.key) {
         json_t *rt = tranger2_open_iterator(
@@ -659,7 +666,13 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
             FALSE,  // rt_by_disk
             NULL    // creator
         );
-        tranger2_close_list(tranger, rt);
+        if(!rt) {
+            fprintf(stderr, "Cannot list %s/%s: %s\n",
+                database, topic, gobj_log_last_message());
+            ret = -1;
+        } else {
+            tranger2_close_list(tranger, rt);
+        }
     }
 
     JSON_DECREF(topic_cond)
@@ -670,7 +683,7 @@ PRIVATE int list_messages(const char *path, const char *database, const char *to
     tranger2_close_topic(tranger, topic);
     tranger2_shutdown(tranger);
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -1237,12 +1250,13 @@ int main(int argc, char *argv[])
         &yev_loop
     );
 
+    int ret = 0;
     if(arguments.list_databases) {
         list_databases(arguments.path);
     } else if(arguments.recursive) {
         list_recursive_topic_messages(arguments.path);
     } else {
-        list_topic_messages(arguments.path);
+        ret = list_topic_messages(arguments.path);
     }
 
     json_decref(match_cond);
@@ -1258,7 +1272,7 @@ int main(int argc, char *argv[])
 
     gobj_end();
 
-    return gobj_get_exit_code();
+    return ret < 0? 1 : gobj_get_exit_code();
 }
 
 /***************************************************************************

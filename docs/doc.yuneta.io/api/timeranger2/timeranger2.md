@@ -2836,6 +2836,34 @@ from_tm  / to_tm        tm: MESSAGE time (the record's tkey field)
 user_flag / not_user_flag / user_flag_mask_set / user_flag_mask_notset
 ```
 
+**The cost of an `rkey`** is bounded, because the pattern can be a peer's (the
+`open-list` of `C_TRANGER`). It compiles to 64 KB of code at most, and a key is
+judged first with 8 frames at each start position, with no clock. When that is
+not enough, the key is judged position by position, 1000 frames each, and the
+clock is read before each position: the positions of one key have 2 ms. A key
+that is not judged in its time is not given to the list: it is named in
+`rkey_unjudged_keys` of the list, with one WARNING per list. The verdict of
+each key is kept in the list, so a key is judged once (at the load, or at its
+first append). The load of a keyless list judges every key first, with 2 s for
+all of them, and then reads the history of the keys chosen: a list whose
+judgements pass 2 s is refused before a record is read, and its history takes
+the time it takes. The worst measured on one key of 255 bytes, with 64 KB of
+code, is 146 ms (its first search, which reads no clock), and a load is
+refused at 2.12 s at worst. These are measured figures, not a bound. A pattern with `(*COMMIT)`, `(*SKIP)`, `\G`,
+`(*NOTEMPTY_ATSTART)`, a newline other than LF or `(*UCP)` is refused when the
+list opens. A refused list answers `NULL` with the cause in
+[`gobj_log_last_message()`](<#gobj_log_last_message>):
+
+```C
+json_t *list = tranger2_open_list(tranger, "tracks",
+    json_pack("{s:s, s:I}", "rkey", "^dev-[0-9]+$",
+        "load_record_callback", (json_int_t)(uintptr_t)on_record),
+    json_object(), "rt1", FALSE, "me");
+if(!list) {
+    printf("refused: %s\n", gobj_log_last_message());   // e.g. "Bad rkey regex ..."
+}
+```
+
 `t` and `tm` are two **independent** axes and their ranges combine (AND). Both
 are expressed in the **topic's** own unit: seconds, or milliseconds when the
 topic sets `sf_t_ms` / `sf_tm_ms`.

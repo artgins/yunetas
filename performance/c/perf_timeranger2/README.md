@@ -52,3 +52,28 @@ creates marks its tm order, and `tm_query_unmigrated` is the query of a marked
 topic (~7 ms, the files out of range skipped). Linked against 7.25.4 it is the
 query of 7.25.4 (~13 ms, wrong when a file's tm went back). The figures are in
 `../README.md`.
+
+## The worst measured cost of an `rkey`
+
+The time of one judgement of a key has no bound of its own but the compiled
+code of the pattern (64 KB at most): a search reads no clock inside a start
+position, and the first search of a key reads none at all. So the cost is
+measured, with the worst patterns found. The figures of R102 (64 KB of code),
+on the development machine, idle:
+
+| What | Pattern | Worst measured |
+|---|---|---|
+| The first append of a new key of 255 bytes, a live list open: its first search, 7 frames at each of 256 positions | `(*NO_JIT)(?:h?\|i?\|j?\|k?\|l?\|m?\|n?)(?:~?~?~?~?~?~?~?~?){2048}(?!)` over keys with none of those letters | 146 ms (143 to 146, 3 runs of 200 keys) |
+| The same, the key judged position by position: one position of 1000 frames | `(*NO_JIT)()(?:[\s\S]?){10}(?:[\s\S]?\|[\s\S]?)(?:\1\1\1\1\1\1\1\1){2048}(?!)\|$` | 129 ms (123 to 129) |
+| The load of a live list over 3000 keys, with either pattern | the same | refused at 2.00 to 2.12 s |
+
+With 1 KB of code (R101) the worst measured was 2.5 ms a key. To measure a
+pattern of your own:
+
+```bash
+$YUNETAS_OUTPUTS/bin/perf_timeranger2 '--rkey=(*NO_JIT)(?:h?|i?|j?|k?|l?|m?|n?)(?:~?~?~?~?~?~?~?~?){2048}(?!)' rkey
+```
+
+The two unanchored cases then use it: `first_append_rt_rkey_unanchored`
+gives the time of the first append of a new key, and `load_rt_rkey_unanchored`
+the time of the load.

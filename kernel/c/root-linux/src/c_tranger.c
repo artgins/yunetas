@@ -182,19 +182,22 @@ first (-403 included).
  *  The cost of a peer's rkey regex (match_topic_keys())
  */
 #define RKEY_PATTERN_MAX        4096    /* bytes of the pattern */
-#define RKEY_COMPILED_MAX       1024    /* bytes of the compiled pattern */
+#define RKEY_COMPILED_MAX       65536   /* bytes of the compiled pattern */
 #define RKEY_FIRST_LIMIT        8       /* frames a position, first search */
 #define RKEY_MATCH_LIMIT        1000    /* frames a position, position by position */
 #define RKEY_DEPTH_LIMIT        1000    /* backtracking depth of one match */
 #define RKEY_HEAP_LIMIT_KB      1024    /* heap of one match */
-#define RKEY_KEY_BUDGET_MS      2       /* the time of the judgement of one key */
+#define RKEY_KEY_BUDGET_US      2000    /* the time of the positions of one key */
 #define RKEY_MATCH_BUDGET_MS    2000    /* the whole walk over the keys */
 #define RKEY_OUT_OF_TIME        (-10000) /* rkey_judge(): its time spent, the key not judged */
+#define KEYS_EXACT_MAX          10000   /* keys of one exact `key` list (list-keys) */
 /*
  *  The same values and the same judgement (rkey_judge()) as timeranger2's,
- *  where the measures are written: a key costs RKEY_KEY_BUDGET_MS and one
- *  position at most, the clock is asked before each key and before each
- *  position of a key judged position by position.
+ *  where the measures are written: a key costs its first search, and when
+ *  it goes position by position RKEY_KEY_BUDGET_US and one position more;
+ *  the clock is asked before each key and before each position of a key
+ *  judged position by position. Worst measured with 64 KB of code: 146 ms
+ *  a key of 255 bytes.
  */
 
 /***************************************************************************
@@ -210,6 +213,11 @@ PRIVATE json_t *match_topic_keys(
     const char *topic_name,
     const char *rkey,
     json_t **jn_comment
+);
+PRIVATE json_t *exact_topic_keys(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *jn_exact
 );
 PRIVATE int load_record_callback(
     json_t *tranger,
@@ -491,7 +499,8 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_list_keys[] = {
 /*-PM----type-----------name--------------------flag----default-description---------- */
 SDATAPM (DTP_STRING,    "topic_name",           0,          0,      "Topic name"),
-SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "Regex (PCRE2) the key must match (empty = every key)"),
+SDATAPM (DTP_JSON,      "key",                  0,          0,      "Exact keys: a key, or a list of keys (at most 10000). Answers those the topic has, in the order asked. Not with rkey"),
+SDATAPM (DTP_STRING,    "rkey",                 0,          0,      "Regex (PCRE2) the key must match (empty = every key). Not with key"),
 SDATAPM (DTP_STRING,    "order",                0,          0,      "Sort the matching keys: 'key' (default) or 'records'"),
 SDATAPM (DTP_BOOLEAN,   "desc",                 0,          0,      "Sort descending"),
 SDATAPM (DTP_INTEGER,   "from",                 0,          0,      "First matching key of the page (1-based; needs limit)"),
@@ -3654,6 +3663,12 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         "data", json_array(),
         "gobj", (json_int_t)(uintptr_t)gobj
     );
+    /*
+     *  The cause of a refusal goes to the peer, who cannot read the log:
+     *  timeranger2 says it in the last message (a bad rkey, a load out of
+     *  time). Up to R101 the answer said "(see the log)".
+     */
+    gobj_log_set_last_message("%s", "");
     json_t *list = tranger2_open_list(
         priv->tranger,
         topic_name,
@@ -3664,11 +3679,13 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         gobj_name(gobj) // creator
     );
     if(!list) {
+        const char *cause = gobj_log_last_message();
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: cannot open list '%s' on topic '%s' (see the log)",
-                gobj_yuno_role_plus_name(), list_id, topic_name),
+            json_sprintf("%s: cannot open list '%s' on topic '%s': %s",
+                gobj_yuno_role_plus_name(), list_id, topic_name,
+                empty_string(cause)? "see the log" : cause),
             0,
             0,
             kw  // owned
@@ -4120,6 +4137,105 @@ PRIVATE int sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
 }
 
 /***************************************************************************
+ *  Judge `key`: 1 it matches, PCRE2_ERROR_NOMATCH it does not, another < 0
+ *  not judged (a pcre2 error, a limit, or RKEY_OUT_OF_TIME). The judgement
+ *  of timeranger2 (rkey_judge() there, with the measures): first with
+ *  RKEY_FIRST_LIMIT frames a position, no clock; when that is hit, position
+ *  by position (anchored), with RKEY_MATCH_LIMIT frames a position, the
+ *  clock asked before each: RKEY_KEY_BUDGET_US from there, and
+ *  `total_deadline`. A startline pattern only at the start and after a \n.
+ ***************************************************************************/
+PRIVATE int rkey_judge(
+    pcre2_code *re,
+    pcre2_match_data *match_data,
+    pcre2_match_context *match_context,
+    BOOL anchored,              // the pattern matches at the start only
+    BOOL startline,             // only at the start or after a \n
+    const char *key,
+    uint64_t total_deadline     // msectimer, 0 none
+)
+{
+    size_t len = strlen(key);
+    pcre2_set_match_limit(match_context, RKEY_FIRST_LIMIT);
+    int ret = pcre2_match(re, (PCRE2_SPTR)key, len, 0, 0, match_data, match_context);
+    if(ret != PCRE2_ERROR_MATCHLIMIT) {
+        return (ret >= 0)? 1 : ret;     // a match, no match, or not judged
+    }
+
+    uint64_t key_deadline = start_usectimer(RKEY_KEY_BUDGET_US);
+    pcre2_set_match_limit(match_context, RKEY_MATCH_LIMIT);
+    for(size_t pos = 0; pos <= len; pos++) {
+        if(startline && pos > 0 && key[pos-1] != '\n') {
+            continue;
+        }
+        if(test_usectimer(key_deadline) || (total_deadline && test_msectimer(total_deadline))) {
+            ret = RKEY_OUT_OF_TIME;
+            break;
+        }
+        ret = pcre2_match(re, (PCRE2_SPTR)key, len, pos, PCRE2_ANCHORED, match_data, match_context);
+        if(ret >= 0) {
+            ret = 1;
+            break;
+        }
+        if(ret != PCRE2_ERROR_NOMATCH || anchored) {
+            break;
+        }
+    }
+    pcre2_set_match_limit(match_context, RKEY_FIRST_LIMIT);
+    return ret;
+}
+
+/***************************************************************************
+ *  A form of a pattern rkey_judge() would answer differently from one
+ *  search: (*COMMIT) and (*SKIP) act across start positions, \G is true at
+ *  every start, (*NOTEMPTY_ATSTART) locks out an empty match at every
+ *  start. Looked for in the text, wherever it is written. The same as
+ *  timeranger2's rkey_refused_form(). NULL: none.
+ ***************************************************************************/
+PRIVATE const char *rkey_refused_form(const char *rkey)
+{
+    static const struct {
+        const char *text;   // (*COMMIT:NAME) and (*SKIP:NAME) too
+        const char *said;
+    } verbs[] = {
+        {"(*COMMIT",            "(*COMMIT)"},
+        {"(*SKIP",              "(*SKIP)"},
+        {"(*NOTEMPTY_ATSTART)", "(*NOTEMPTY_ATSTART)"},
+        {0, 0}
+    };
+    for(int i = 0; verbs[i].text; i++) {
+        if(strstr(rkey, verbs[i].text)) {
+            return verbs[i].said;
+        }
+    }
+    for(const char *p = rkey; *p; p++) {
+        if(*p == '\\') {
+            p++;    // an escape takes the next byte, \c the next two
+            if(*p == 'G') {
+                return "\\G";
+            }
+            if(*p == 'c' && p[1]) {
+                p++;
+            }
+            if(!*p) {
+                break;
+            }
+        }
+    }
+    return NULL;
+}
+
+PRIVATE void *rkey_gbmem_malloc(PCRE2_SIZE size, void *data)
+{
+    return gbmem_malloc(size);
+}
+
+PRIVATE void rkey_gbmem_free(void *ptr, void *data)
+{
+    gbmem_free(ptr);
+}
+
+/***************************************************************************
  *  The keys of a topic that `rkey` matches (every key when it is empty), as
  *  a [{key, records}] list in the order the tranger lists them.
  *
@@ -4139,10 +4255,11 @@ PRIVATE int sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
  *
  *  The rkey is a peer's, so its cost is bounded: its compilation by a
  *  compile context (RKEY_PATTERN_MAX, RKEY_COMPILED_MAX), each key by
- *  rkey_judge() (frames a position, and RKEY_KEY_BUDGET_MS asked before
+ *  rkey_judge() (frames a position, and RKEY_KEY_BUDGET_US asked before
  *  each position when it goes position by position), and the whole walk by
  *  RKEY_MATCH_BUDGET_MS, asked before every key and every position. A limit
- *  reached, or an error of pcre2, refuses the request: an answer that skipped keys it could not judge would be a wrong
+ *  reached, or anything else the pattern causes, refuses the request with a
+ *  WARNING: an answer that skipped keys it could not judge would be a wrong
  *  answer. Up to 7.31.29 pcre2's defaults applied (ten million steps a
  *  key), and a pattern such as ^(a+)+$ held the yuno for minutes over the
  *  keys of a topic. The memory of pcre2 goes through gbmem (a general
@@ -4152,63 +4269,6 @@ PRIVATE int sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
  *  reason for the client in *jn_comment (owned by the caller). The failure
  *  is logged here.
  ***************************************************************************/
-/***************************************************************************
- *  Judge `key`: 1 it matches, PCRE2_ERROR_NOMATCH it does not, another < 0
- *  not judged (a pcre2 error, a limit, or RKEY_OUT_OF_TIME). The judgement of timeranger2
- *  (rkey_judge() there, with the measures): first with RKEY_FIRST_LIMIT
- *  frames a position; when that is hit, position by position (anchored),
- *  with RKEY_MATCH_LIMIT frames a position, the clock asked before each.
- ***************************************************************************/
-PRIVATE int rkey_judge(
-    pcre2_code *re,
-    pcre2_match_data *match_data,
-    pcre2_match_context *match_context,
-    const char *key,
-    uint64_t key_deadline,      // msectimer
-    uint64_t total_deadline     // msectimer, 0 none
-)
-{
-    size_t len = strlen(key);
-    pcre2_set_match_limit(match_context, RKEY_FIRST_LIMIT);
-    int ret = pcre2_match(re, (PCRE2_SPTR)key, len, 0, 0, match_data, match_context);
-    if(ret >= 0) {
-        return 1;
-    }
-    if(ret != PCRE2_ERROR_MATCHLIMIT) {
-        return ret;
-    }
-
-    uint32_t all_options = 0;
-    pcre2_pattern_info(re, PCRE2_INFO_ALLOPTIONS, &all_options);
-    pcre2_set_match_limit(match_context, RKEY_MATCH_LIMIT);
-    for(size_t pos = 0; pos <= len; pos++) {
-        if(test_msectimer(key_deadline) || (total_deadline && test_msectimer(total_deadline))) {
-            ret = RKEY_OUT_OF_TIME;
-            break;
-        }
-        ret = pcre2_match(re, (PCRE2_SPTR)key, len, pos, PCRE2_ANCHORED, match_data, match_context);
-        if(ret >= 0) {
-            ret = 1;
-            break;
-        }
-        if(ret != PCRE2_ERROR_NOMATCH || (all_options & PCRE2_ANCHORED)) {
-            break;
-        }
-    }
-    pcre2_set_match_limit(match_context, RKEY_FIRST_LIMIT);
-    return ret;
-}
-
-PRIVATE void *rkey_gbmem_malloc(PCRE2_SIZE size, void *data)
-{
-    return gbmem_malloc(size);
-}
-
-PRIVATE void rkey_gbmem_free(void *ptr, void *data)
-{
-    gbmem_free(ptr);
-}
-
 PRIVATE json_t *match_topic_keys(
     hgobj gobj,
     BOOL peer,      // the rkey is a peer's: a bad one is a WARNING (log_refusal())
@@ -4223,7 +4283,23 @@ PRIVATE json_t *match_topic_keys(
     pcre2_code *re = NULL;
     pcre2_match_data *match_data = NULL;
     pcre2_match_context *match_context = NULL;
+    BOOL anchored = FALSE;
+    BOOL startline = FALSE;
     if(!empty_string(rkey)) {
+        const char *form = rkey_refused_form(rkey);
+        if(form) {
+            log_refusal(gobj, peer,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Bad rkey regex",
+                "rkey",         "%.256s", rkey,
+                "error",        "%s", form,
+                NULL
+            );
+            *jn_comment = json_sprintf("%s: Bad rkey regex '%.256s': %s is refused in an rkey",
+                gobj_yuno_role_plus_name(), rkey, form);
+            return NULL;
+        }
         general = pcre2_general_context_create(rkey_gbmem_malloc, rkey_gbmem_free, NULL);
         pcre2_compile_context *compile_context = general?
             pcre2_compile_context_create(general) : NULL;
@@ -4243,16 +4319,19 @@ PRIVATE json_t *match_topic_keys(
         pcre2_set_max_pattern_length(compile_context, RKEY_PATTERN_MAX);
         pcre2_set_max_pattern_compiled_length(compile_context, RKEY_COMPILED_MAX);
         pcre2_set_compile_extra_options(compile_context, PCRE2_EXTRA_NEVER_CALLOUT);
+        pcre2_set_newline(compile_context, PCRE2_NEWLINE_LF);
 
         /*
          *  As bytes (PCRE2_NEVER_UTF: a key that is not UTF-8 is never an
-         *  error, and `.` is a byte), with no \C and no callout
+         *  error, and `.` is a byte), with no Unicode properties
+         *  (PCRE2_NEVER_UCP), no \C and no callout, and LF the only newline
+         *  (a pattern that sets another one is refused below)
          */
         int errornumber = 0;
         PCRE2_SIZE erroroffset = 0;
         re = pcre2_compile(
             (PCRE2_SPTR)rkey, PCRE2_ZERO_TERMINATED,
-            PCRE2_NEVER_UTF|PCRE2_NEVER_BACKSLASH_C,
+            PCRE2_NEVER_UTF|PCRE2_NEVER_UCP|PCRE2_NEVER_BACKSLASH_C,
             &errornumber, &erroroffset, compile_context
         );
         pcre2_compile_context_free(compile_context);
@@ -4270,6 +4349,29 @@ PRIVATE json_t *match_topic_keys(
             );
             *jn_comment = json_sprintf("%s: Bad rkey regex '%.256s' at %d: %s",
                 gobj_yuno_role_plus_name(), rkey, (int)erroroffset, (char *)err);
+            pcre2_general_context_free(general);
+            return NULL;
+        }
+        uint32_t newline = 0;
+        uint32_t all_options = 0;
+        uint32_t first_code_type = 0;
+        pcre2_pattern_info(re, PCRE2_INFO_NEWLINE, &newline);
+        pcre2_pattern_info(re, PCRE2_INFO_ALLOPTIONS, &all_options);
+        pcre2_pattern_info(re, PCRE2_INFO_FIRSTCODETYPE, &first_code_type);
+        anchored = (all_options & PCRE2_ANCHORED)? TRUE : FALSE;
+        startline = (first_code_type == 2)? TRUE : FALSE;
+        if(newline != PCRE2_NEWLINE_LF) {
+            log_refusal(gobj, peer,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "Bad rkey regex",
+                "rkey",         "%.256s", rkey,
+                "error",        "%s", "a newline other than LF",
+                NULL
+            );
+            *jn_comment = json_sprintf("%s: Bad rkey regex '%.256s': a newline other than LF",
+                gobj_yuno_role_plus_name(), rkey);
+            pcre2_code_free(re);
             pcre2_general_context_free(general);
             return NULL;
         }
@@ -4311,6 +4413,7 @@ PRIVATE json_t *match_topic_keys(
     json_t *jn_matched = json_array();
     uint64_t budget = re? start_msectimer(RKEY_MATCH_BUDGET_MS) : 0;
     const char *limit_reached = NULL;
+    PCRE2_UCHAR pattern_err[256] = "";
     int match_error = 0;
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {
@@ -4323,24 +4426,30 @@ PRIVATE json_t *match_topic_keys(
                 limit_reached = "the time of the whole match (RKEY_MATCH_BUDGET_MS)";
                 break;
             }
-            int m = rkey_judge(re, match_data, match_context, key,
-                start_msectimer(RKEY_KEY_BUDGET_MS), budget);
-            if(m == RKEY_OUT_OF_TIME) {
-                limit_reached = "the time of one key (RKEY_KEY_BUDGET_MS) or of the whole match";
-                break;
-            }
-            if(m == PCRE2_ERROR_MATCHLIMIT || m == PCRE2_ERROR_DEPTHLIMIT ||
-                    m == PCRE2_ERROR_HEAPLIMIT || m == PCRE2_ERROR_JIT_STACKLIMIT ||
-                    m == PCRE2_ERROR_RECURSELOOP) {
-                limit_reached = "a limit of one match (frames, depth, memory or a recursion loop)";
-                break;
-            }
-            if(m == 0 || m == PCRE2_ERROR_NOMATCH) {
+            int m = rkey_judge(re, match_data, match_context, anchored, startline, key, budget);
+            if(m > 0) {
+                // a match
+            } else if(m == PCRE2_ERROR_NOMATCH) {
                 continue;
-            }
-            if(m < 0) {
-                match_error = m;    // no memory, or pcre2's own: the key was not judged
+            } else if(m == RKEY_OUT_OF_TIME) {
+                limit_reached = "the time of one key (RKEY_KEY_BUDGET_US) or of the whole match";
+                break;
+            } else if(m == PCRE2_ERROR_MATCHLIMIT || m == PCRE2_ERROR_DEPTHLIMIT ||
+                    m == PCRE2_ERROR_HEAPLIMIT || m == PCRE2_ERROR_JIT_STACKLIMIT) {
+                limit_reached = "a limit of one match (frames, depth or memory)";
+                break;
+            } else if(m == PCRE2_ERROR_NOMEMORY || m == PCRE2_ERROR_INTERNAL) {
+                match_error = m;    // ours: the key was not judged
                 limit_reached = "an error of the regex engine";
+                break;
+            } else {
+                /*
+                 *  What else the peer's pattern caused (a recursion loop,
+                 *  -52; a \K a lookaround sets past the end, -75): "too
+                 *  costly", a WARNING. Up to R101 an ERROR for -75.
+                 */
+                pcre2_get_error_message(m, pattern_err, sizeof(pattern_err));
+                limit_reached = (const char *)pattern_err;
                 break;
             }
         }
@@ -4391,6 +4500,42 @@ PRIVATE json_t *match_topic_keys(
     }
 
     return jn_matched;
+}
+
+/***************************************************************************
+ *  The keys of `jn_exact` (a list of strings, checked by the caller) that
+ *  the topic has, as match_topic_keys() answers them: [{key, records}], in
+ *  the order asked, each key once. No regex: a key is looked up as a KEY.
+ ***************************************************************************/
+PRIVATE json_t *exact_topic_keys(
+    hgobj gobj,
+    const char *topic_name,
+    json_t *jn_exact    // not owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_found = json_array();
+    json_t *seen = json_object();
+    size_t idx; json_t *jn_key;
+    json_array_foreach(jn_exact, idx, jn_key) {
+        const char *key = json_string_value(jn_key);
+        if(empty_string(key) || json_object_get(seen, key)) {
+            continue;
+        }
+        json_object_set_new(seen, key, json_true());
+        json_t *range = tranger2_topic_key_range(priv->tranger, topic_name, key);
+        if(!range) {
+            continue;   // not in the topic
+        }
+        JSON_DECREF(range)
+        json_array_append_new(jn_found, json_pack("{s:s, s:I}",
+            "key", key,
+            "records", (json_int_t)tranger2_topic_key_size(priv->tranger, topic_name, key)
+        ));
+    }
+    JSON_DECREF(seen)
+    return jn_found;
 }
 
 PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -4454,7 +4599,80 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     json_int_t from = (json_int_t)kw_get_int(gobj, kw, "from", 0, KW_WILD_NUMBER);
     json_int_t limit = (json_int_t)kw_get_int(gobj, kw, "limit", 0, KW_WILD_NUMBER);
 
+    /*
+     *  `key`: the exact keys asked (a GUI that restores what it showed),
+     *  looked up as keys, no regex. One key or a list of them; an empty
+     *  text is no `key`.
+     */
+    json_t *jn_exact = NULL;    // owned
+    json_t *jn_key_param = json_object_get(kw, "key");
+    if(json_is_string(jn_key_param)) {
+        if(json_string_length(jn_key_param) > 0) {
+            jn_exact = json_pack("[O]", jn_key_param);
+        }
+    } else if(json_is_array(jn_key_param)) {
+        jn_exact = json_incref(jn_key_param);
+    } else if(!json_absent(jn_key_param)) {
+        log_refusal(gobj, command_is_external(kw),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "list-keys: key must be a key or a list of keys, refused",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("%s: key must be a key or a list of keys",
+                gobj_yuno_role_plus_name()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(jn_exact) {
+        const char *refused = NULL;
+        if(!empty_string(rkey)) {
+            refused = "key and rkey together: ask with one of them";
+        } else if(json_array_size(jn_exact) > KEYS_EXACT_MAX) {
+            refused = "too many keys in key (KEYS_EXACT_MAX, 10000)";
+        } else {
+            size_t idx; json_t *jn_k;
+            json_array_foreach(jn_exact, idx, jn_k) {
+                if(!json_is_string(jn_k)) {
+                    refused = "key must be a key or a list of keys";
+                    break;
+                }
+                if(strlen(json_string_value(jn_k)) != json_string_length(jn_k)) {
+                    refused = "a key with a NUL in it";
+                    break;
+                }
+            }
+        }
+        if(refused) {
+            log_refusal(gobj, command_is_external(kw),
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER,
+                "msg",          "%s", "list-keys: key refused",
+                "topic_name",   "%s", topic_name,
+                "error",        "%s", refused,
+                "keys",         "%d", (int)json_array_size(jn_exact),
+                NULL
+            );
+            JSON_DECREF(jn_exact)
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("%s: %s", gobj_yuno_role_plus_name(), refused),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+    }
+
     if(!empty_string(order) && strcmp(order, "key")!=0 && strcmp(order, "records")!=0) {
+        JSON_DECREF(jn_exact)
         return msg_iev_build_response(
             gobj,
             -1,
@@ -4473,7 +4691,13 @@ PRIVATE json_t *cmd_list_keys(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
 
     json_t *jn_comment = NULL;
-    json_t *jn_matched = match_topic_keys(gobj, command_is_external(kw), topic_name, rkey, &jn_comment);
+    json_t *jn_matched = NULL;
+    if(jn_exact) {
+        jn_matched = exact_topic_keys(gobj, topic_name, jn_exact);
+        JSON_DECREF(jn_exact)
+    } else {
+        jn_matched = match_topic_keys(gobj, command_is_external(kw), topic_name, rkey, &jn_comment);
+    }
     if(!jn_matched) {
         return msg_iev_build_response(
             gobj,
