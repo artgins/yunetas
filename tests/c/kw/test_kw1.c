@@ -1280,6 +1280,69 @@ static int test_kw_collapse_cycle(void)
 }
 
 /***************************************************************************
+ *  kw_collapse() of lists inside a list: each one is walked as a list is,
+ *  with lists_limit, and the answer holds no container of the original
+ *  (up to 7.31.29 a list inside a list was the original, whole and
+ *  shared). A list that holds itself answers collapsed.
+ ***************************************************************************/
+static int test_kw_collapse_lists_in_a_list(void)
+{
+    int result = 0;
+
+    json_t *original = json_pack("{s:[[i,i,i,i], [i], [{s:{s:i, s:i, s:i}}]]}",
+        "rows", 1, 2, 3, 4, 4, "x", "a", 1, "b", 2, "c", 3
+    );
+    json_t *collapsed = kw_collapse(0, original, 3, 2);  // lists: 3, dicts: 2
+    json_t *expected = json_pack(
+        "{s:[[{s:{s:s, s:I}}], [i], [{s:{s:{s:s, s:I}}}]]}",
+        "rows",
+            "__collapsed__", "path", "rows`0", "size", (json_int_t)4,
+            4,
+            "x", "__collapsed__", "path", "rows`2`0`x", "size", (json_int_t)3
+    );
+    if(!collapsed || !json_equal(collapsed, expected)) {
+        result += -1;
+        printf("FAIL kw_collapse of lists inside a list\n");
+        print_json("collapsed", collapsed);
+        print_json("expected", expected);
+    }
+    json_t *inner = json_array_get(json_object_get(collapsed, "rows"), 1);
+    if(inner == json_array_get(json_object_get(original, "rows"), 1)) {
+        result += -1;
+        printf("FAIL kw_collapse handed a list of the original\n");
+    }
+    JSON_DECREF(collapsed)
+    JSON_DECREF(expected)
+    JSON_DECREF(original)
+
+    /*  jansson refuses a list appended to itself: the cycle takes two  */
+    json_t *loop = json_array();
+    json_t *back = json_array();
+    json_array_append_new(loop, json_integer(1));
+    json_array_append(back, loop);
+    json_array_append(loop, back);                // loop holds back holds loop
+    json_t *top = json_pack("{s:O}", "loop", loop);
+    collapsed = kw_collapse(0, top, 0, 0);
+    expected = json_pack("{s:[i, [[{s:{s:s, s:I}}]]]}",
+        "loop", 1, "__collapsed__", "path", "loop`1`0", "size", (json_int_t)2
+    );
+    if(json_array_get(json_object_get(collapsed, "loop"), 1) == back) {
+        result += -1;   // the original, and its cycle: json_equal() would not end
+        printf("FAIL kw_collapse handed a list that holds itself\n");
+    } else if(!collapsed || !json_equal(collapsed, expected)) {
+        result += -1;
+        printf("FAIL kw_collapse of a list that holds itself\n");
+    }
+    json_array_remove(loop, 1);                   // the cycle broken, both can go
+    JSON_DECREF(loop)
+    JSON_DECREF(back)
+    JSON_DECREF(top)
+    JSON_DECREF(collapsed)
+    JSON_DECREF(expected)
+    return result;
+}
+
+/***************************************************************************
  *  kw_collapse() on a primitive (neither dict nor array) must reject it,
  *  returning NULL and logging — not crash, not return a half-built tree.
  ***************************************************************************/
@@ -1341,6 +1404,7 @@ PRIVATE int do_test(void)
     result += test_kw_collapse_toplevel_array();
     result += test_kw_collapse_primitive_rejected();
     result += test_kw_collapse_cycle();
+    result += test_kw_collapse_lists_in_a_list();
 
     /*-------------------------------*
      *      Shutdown timeranger

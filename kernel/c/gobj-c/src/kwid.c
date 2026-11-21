@@ -3263,17 +3263,18 @@ PUBLIC int kw_walk(
 
 
 /***************************************************************************
- *  The dicts kw_collapse() walks down: a dict deeper, or one that holds
- *  itself through its children (a cycle of references, which jansson
- *  allows: a treedb with a node hanging, by two hooks, from its own
- *  child), answers collapsed. Up to 7.31.29 the walk had no end there,
- *  and the stack of the process did.
+ *  The containers kw_collapse() walks down: a dict or a list deeper, or
+ *  one that holds itself through its children (a cycle of references,
+ *  which jansson allows: a treedb with a node hanging, by two hooks, from
+ *  its own child), answers collapsed. Up to 7.31.29 the walk had no end
+ *  there, and the stack of the process did.
  ***************************************************************************/
 #define KW_COLLAPSE_MAX_DEPTH   64
 
 /***************************************************************************
- *  TRUE when `kw` must answer collapsed whatever its size: a dict that is
- *  already on the walk (`ancestors[0..depth-1]`), or one level too deep.
+ *  TRUE when `kw` must answer collapsed whatever its size: a container
+ *  that is already on the walk (`ancestors[0..depth-1]`), or one level
+ *  too deep.
  ***************************************************************************/
 PRIVATE BOOL collapse_cut(json_t *kw, json_t **ancestors, int depth)
 {
@@ -3297,11 +3298,30 @@ PRIVATE json_t *collapsed_mark(const char *path, size_t size)
     );
 }
 
+PRIVATE json_t *collapsed_list_mark(const char *path, size_t size)
+{
+    return json_pack("[{s:{s:s, s:I}}]",
+        "__collapsed__",
+            "path", path,
+            "size", (json_int_t)size
+    );
+}
+
+PRIVATE json_t *collapse_list(
+    hgobj gobj,
+    json_t *kw,
+    char *path,
+    int collapse_lists_limit,
+    int collapse_dicts_limit,
+    json_t **ancestors,
+    int depth
+);
+
 /***************************************************************************
     Return a new json with all arrays or dicts greater than `limit`
         with [{"__collapsed__": {"path": path, "size": size}}]
         or   {{"__collapsed__": {"path": path, "size": size}}}
-    `ancestors[0..depth-1]`: the dicts above `kw` on the walk.
+    `ancestors[0..depth-1]`: the containers above `kw` on the walk.
  ***************************************************************************/
 PRIVATE json_t *collapse(
     hgobj gobj,
@@ -3344,50 +3364,20 @@ PRIVATE json_t *collapse(
             }
 
         } else if(json_is_array(jn_value)) {
-            if(collapse_lists_limit > 0 && json_array_size(jn_value)>collapse_lists_limit) {
+            if((collapse_lists_limit > 0 && json_array_size(jn_value)>collapse_lists_limit) ||
+                    collapse_cut(jn_value, ancestors, depth)) {
                 json_object_set_new(
                     new_kw,
                     key,
-                    json_pack("[{s:{s:s, s:I}}]",
-                        "__collapsed__",
-                            "path", new_path,
-                            "size", (json_int_t)json_array_size(jn_value)
-                    )
+                    collapsed_list_mark(new_path, json_array_size(jn_value))
                 );
             } else {
-                json_t *new_list = json_array();
-                json_object_set_new(new_kw, key, new_list);
-                int idx; json_t *v;
-                json_array_foreach(jn_value, idx, v) {
-                    char s_idx[40];
-                    snprintf(s_idx, sizeof(s_idx), "%d", idx);
-                    char *new_path2 = GBMEM_MALLOC(strlen(new_path)+strlen(s_idx)+2);
-                    strcpy(new_path2, new_path);
-                    if(strlen(new_path2)>0) {
-                        strcat(new_path2, delimiter);
-                    }
-                    strcat(new_path2, s_idx);
-
-                    if(json_is_object(v)) {
-                        if(collapse_cut(v, ancestors, depth)) {
-                            json_array_append_new(
-                                new_list,
-                                collapsed_mark(new_path2, json_object_size(v))
-                            );
-                        } else {
-                            json_array_append_new(
-                                new_list,
-                                collapse(gobj, v, new_path2, collapse_lists_limit, collapse_dicts_limit,
-                                    ancestors, depth)
-                            );
-                        }
-                    } else if(json_is_array(v)) {
-                        json_array_append(new_list, v); // ???
-                    } else {
-                        json_array_append(new_list, v);
-                    }
-                    GBMEM_FREE(new_path2);
-                }
+                json_object_set_new(
+                    new_kw,
+                    key,
+                    collapse_list(gobj, jn_value, new_path, collapse_lists_limit,
+                        collapse_dicts_limit, ancestors, depth)
+                );
             }
 
         } else {
@@ -3402,23 +3392,28 @@ PRIVATE json_t *collapse(
 
     return new_kw;
 }
+
 /***************************************************************************
- *  Collapse a top-level ARRAY, mirroring the array-value branch of
- *  collapse() (object elements are recursed, arrays/primitives copied
- *  shallow) so drilling into an array `path` returns its elements — each
- *  collapsed one level — instead of failing. Element paths are the numeric
- *  index appended to `path`, which kw_find_path resolves back (arrays are
- *  indexed by atoi), so the drill round-trips.
+ *  A list, walked as collapse() walks a dict: a dict in it is collapsed
+ *  (or cut, see collapse_cut()), a list in it is walked the same way with
+ *  `collapse_lists_limit`, and a scalar is copied. An element's path is
+ *  its numeric index appended to `path`, which kw_find_path() resolves
+ *  back (arrays are indexed by atoi), so a drill round-trips. Up to
+ *  7.31.29 a list in a list was handed as the original, whole and shared.
  ***************************************************************************/
-PRIVATE json_t *collapse_array(
+PRIVATE json_t *collapse_list(
     hgobj gobj,
     json_t *kw,         // not owned
     char *path,
     int collapse_lists_limit,
     int collapse_dicts_limit,
-    json_t **ancestors
+    json_t **ancestors,
+    int depth
 )
 {
+    ancestors[depth] = kw;
+    depth++;
+
     json_t *new_list = json_array();
     int idx; json_t *v;
     json_array_foreach(kw, idx, v) {
@@ -3432,13 +3427,26 @@ PRIVATE json_t *collapse_array(
         strcat(new_path, s_idx);
 
         if(json_is_object(v)) {
-            json_array_append_new(
-                new_list,
-                collapse(gobj, v, new_path, collapse_lists_limit, collapse_dicts_limit,
-                    ancestors, 0)
-            );
+            if(collapse_cut(v, ancestors, depth)) {
+                json_array_append_new(new_list, collapsed_mark(new_path, json_object_size(v)));
+            } else {
+                json_array_append_new(
+                    new_list,
+                    collapse(gobj, v, new_path, collapse_lists_limit, collapse_dicts_limit,
+                        ancestors, depth)
+                );
+            }
         } else if(json_is_array(v)) {
-            json_array_append(new_list, v);
+            if((collapse_lists_limit > 0 && json_array_size(v) > collapse_lists_limit) ||
+                    collapse_cut(v, ancestors, depth)) {
+                json_array_append_new(new_list, collapsed_list_mark(new_path, json_array_size(v)));
+            } else {
+                json_array_append_new(
+                    new_list,
+                    collapse_list(gobj, v, new_path, collapse_lists_limit, collapse_dicts_limit,
+                        ancestors, depth)
+                );
+            }
         } else {
             json_array_append(new_list, v);
         }
@@ -3469,7 +3477,8 @@ PUBLIC json_t *kw_collapse(
     *path = 0;
     json_t *new_kw;
     if(json_is_array(kw)) {
-        new_kw = collapse_array(gobj, kw, path, collapse_lists_limit, collapse_dicts_limit, ancestors);
+        new_kw = collapse_list(gobj, kw, path, collapse_lists_limit, collapse_dicts_limit,
+            ancestors, 0);
     } else {
         new_kw = collapse(gobj, kw, path, collapse_lists_limit, collapse_dicts_limit, ancestors, 0);
     }

@@ -58,8 +58,8 @@ extern void jsonp_free(void *ptr); // json low level
 /*
  *  The levels tranger2_view_json() masks down: past them, or at a container
  *  met again on the walk, "<cut>". Deeper than what kw_collapse() answers
- *  (64 levels of dicts), so only a list inside a list, which kw_collapse()
- *  hands as the tranger's own, can be cut
+ *  (64 levels of dicts and lists, and a container met again collapsed), so
+ *  nothing it answers is cut: a guard of the mask's own
  */
 #define VIEW_MAX_DEPTH          128
 
@@ -21557,9 +21557,9 @@ PRIVATE BOOL is_pointer_key(const char *key)
 
 /***************************************************************************
  *  A copy of `jn` (not owned) with every address as "<pointer>". It walks
- *  what kw_collapse() answered, whose lists inside a list are the
- *  tranger's own: a container already on the walk, or VIEW_MAX_DEPTH
- *  levels down, answers "<cut>".
+ *  what kw_collapse() or collapse_one_level() answered, a tree: a
+ *  container already on the walk, or VIEW_MAX_DEPTH levels down, answers
+ *  "<cut>", a guard of its own.
  ***************************************************************************/
 PRIVATE json_t *mask_pointers(json_t *jn, json_t **ancestors, int depth)
 {

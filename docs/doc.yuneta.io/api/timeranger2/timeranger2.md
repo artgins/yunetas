@@ -3630,7 +3630,7 @@ JSON_DECREF(loop)
 
 The keys under which the tranger json holds an address are masked when they hold an integer: the callbacks, the gobj and the matcher of a list (`load_record_callback`, `rkey_matcher`, `gobj`, `src_gobj`, `ptr`, `user_data`, ...), the watchers, the loop, and the callback of a treedb (`__treedb_callback__`). A field of a record with one of those names and another type is shown as it is.
 
-The json of a treedb can hold itself: a node hangs, by two hooks, from its own child (the treedb refuses a cycle in one hook only). A dict met again on the walk, or 64 levels down, answers collapsed (see [`kw_collapse()`](<#kw_collapse>)). Up to 7.31.29 `print-tranger` of such a treedb did not end, and the yuno died.
+The json of a treedb can hold itself: a node hangs, by two hooks, from its own child (the treedb refuses a cycle in one hook only). A dict or a list that is already above it on the walk, or 64 levels down, answers collapsed (see [`kw_collapse()`](<#kw_collapse>)). Up to 7.31.29 `print-tranger` of such a treedb did not end, and the yuno died.
 
 Only the part shown is copied: the path is walked on the tranger itself, and then collapsed and masked.
 

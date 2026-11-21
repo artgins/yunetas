@@ -187,9 +187,19 @@ A new JSON object with large lists and dictionaries collapsed. Returns `NULL` if
 
 Collapsed elements are replaced with a structure containing `__collapsed__` metadata, including their path and size.
 
-A **top-level array** is collapsed too: its object elements are recursed (each collapsed one level), and arrays or primitives are copied shallow. An element's path is its numeric index appended to the parent path, so [`kw_find_path()`](<#kw_find_path>) resolves it back — which is what lets a caller drill into an array subtree and have the path round-trip. This is the surface the `print-tranger path=` drill relies on.
+A list is walked as a dict is, also a **top-level array**. A dict in it is collapsed one level. A list in it is walked the same way, and it is collapsed when it has more items than `collapse_lists_limit`. A scalar is copied. The path of an item is its numeric index after the path of the list, so [`kw_find_path()`](<#kw_find_path>) finds it again. Thus a caller can drill into a list and use the paths of the answer. The `print-tranger path=` drill uses this.
 
-A dict that the walk meets again (a json that holds itself: a node of a treedb that hangs, by two hooks, from its own child) answers collapsed at its second visit, whatever its size, and so does a dict 64 levels down. The answer is then always a tree, and it can be dumped. Up to 7.31.29 the walk of such a json did not end: the process ran out of stack or of memory.
+```C
+json_t *kw = json_pack("{s:[[i,i,i,i], [i]]}", "rows", 1, 2, 3, 4, 5);
+json_t *view = kw_collapse(gobj, kw, 3, 0);
+// {"rows": [[{"__collapsed__": {"path": "rows`0", "size": 4}}], [5]]}
+JSON_DECREF(view)
+JSON_DECREF(kw)
+```
+
+Up to 7.31.29 a list in a list was the list of `kw` itself, whole: no limit applied to it.
+
+A container (a dict or a list) that is already above it on the walk answers collapsed, whatever its size. An example is a json that holds itself: a node of a treedb that hangs, by two hooks, from its own child. A container 64 levels down answers collapsed too. The check uses the containers on the walk to the item, not every container seen before. Thus a dict that two parents hold (the `id` index of a treedb and the hook of its parent) is shown under each parent. The answer is always a tree, it shares no container with `kw`, and it can be dumped. Up to 7.31.29 the walk of a json that holds itself did not end: the process ran out of stack or of memory.
 
 ```C
 json_t *a = json_object();

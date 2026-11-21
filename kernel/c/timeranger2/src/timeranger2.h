@@ -1758,8 +1758,8 @@ PUBLIC void tranger2_print_record_filename(
    the value's own keys, each dict or list under them collapsed
    ({"__collapsed__": {"path", "size"}}, a list as [{...}]). `expanded`:
    kw_collapse() with `lists_limit` and `dicts_limit` (0 and 0: all of it).
-   A dict that holds itself (a cycle of hooks) or 64 levels down answers
-   collapsed.
+   A dict or a list that holds itself (a cycle of hooks) or 64 levels down
+   answers collapsed.
    Only the part shown is copied: the path is walked on the tranger itself.
    Return is yours. NULL when the path names nothing (silent: a peer's
    path).
