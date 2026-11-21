@@ -1475,13 +1475,30 @@ dropping live connections.
 | `cert_sync_copy_cmd`    | `/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh` | Command run on every tick           |
 | `cert_sync_last_check`  | `0`                                              | Unix ts, updated on tick                 |
 | `cert_sync_last_action` | `0`                                              | Unix ts, updated when a change applies   |
-| `cert_sync_last_result` | `""`                                             | `ok` / `skipped` / `error`               |
-| `cert_sync_failures`    | `0`                                              | Cumulative failure counter               |
+| `cert_sync_last_result` | `""`                                             | `reloaded`, `reloaded (copy script reported error)`, `no-change` or `copy-script-failed` |
+| `cert_sync_failures`    | `0`                                              | Ticks whose copy command failed and changed nothing (`copy-script-failed`) |
 
 `cert_sync_store_dir` and `cert_sync_copy_cmd` are set in the agent's
-configuration only (`SDF_RD`): the command is run with `system()`, and up to
-7.25.21 `write-attr` was able to set it and persist it. `cert-sync-now` and
+configuration only (`SDF_RD`): the agent runs the command with `/bin/sh -c`
+(`run_process2()`, not `system()`), and up to 7.25.21 `write-attr` was able to
+set it and persist it. `cert-sync-now` and
 `cert-sync-status` need the authz of a command (`SDF_AUTHZ_X`).
+
+On each tick the agent takes a snapshot of `cert_sync_store_dir`, runs the
+command, and takes a snapshot again. Then it writes `cert_sync_last_result`:
+
+| Value | When |
+|---|---|
+| `reloaded` | The certificates changed, and the agent sent `reload-certs` to every yuno. |
+| `reloaded (copy script reported error)` | The same, but the command exited with an error. |
+| `no-change` | The command exited with 0, and nothing changed. |
+| `copy-script-failed` | The command exited with an error, and nothing changed. The agent adds 1 to `cert_sync_failures`. |
+
+For example, `cert-sync-status` shows the last value:
+
+```bash
+ycommand -c 'cert-sync-status'
+```
 
 ```json
 {

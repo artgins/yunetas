@@ -1141,7 +1141,7 @@ SDATA (DTP_STRING,      "cert_sync_store_dir",   SDF_RD,             "/yuneta/st
 SDATA (DTP_STRING,      "cert_sync_copy_cmd",    SDF_RD,             "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh", "Command to copy fresh letsencrypt certs into cert_sync_store_dir (runs root, with sh -c). Config only: up to 7.25.21 write-attr could set it, and persist it"),
 SDATA (DTP_INTEGER,     "cert_sync_last_check",  SDF_RSTATS,         "0",           "Unix ts of last cert-sync check"),
 SDATA (DTP_INTEGER,     "cert_sync_last_action", SDF_RSTATS,         "0",           "Unix ts of last time a cert change was applied"),
-SDATA (DTP_STRING,      "cert_sync_last_result", SDF_RSTATS,         "",            "Last cert-sync outcome (ok / skipped / error)"),
+SDATA (DTP_STRING,      "cert_sync_last_result", SDF_RSTATS,         "",            "Last cert-sync outcome: reloaded, reloaded (copy script reported error), no-change or copy-script-failed"),
 SDATA (DTP_INTEGER,     "cert_sync_failures",    SDF_RSTATS,         "0",           "Cumulative cert-sync failures since startup"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
