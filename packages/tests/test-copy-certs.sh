@@ -260,6 +260,90 @@ check "a move that fails, and its undo: the old key kept, and named" \
 rm -f "${STUBS}/mv"
 
 #
+#   An old file that cannot be hard-linked (fs.protected_hardlinks=1 and a
+#   file of root's, left there by hand): kept as a copy (cp -p), said, and
+#   the certificate copied. Up to the round before, the run failed (exit
+#   2) at each tick
+#
+REAL_CP="$(command -v cp)"
+reset
+add_cert example.com "first"
+cc >/dev/null
+for f in fullchain chain privkey; do
+    printf 'renewed %s\n' "$f" > "${LE}/archive/example.com/${f}1.pem"
+done
+printf '#!/bin/sh\necho "ln: failed to create hard link: Operation not permitted" >&2\nexit 1\n' > "${STUBS}/ln"
+chmod 0755 "${STUBS}/ln"
+out="$(PATH="${STUBS}:$PATH" cc)"
+rc=$?
+check "no hard link: exit 0" "$rc" "0"
+check "no hard link: all three new" \
+    "$(cat "${CERTS}/private/example.com.key") / $(cat "${CERTS}/example.com.chain") / $(cat "${CERTS}/example.com.crt")" \
+    "renewed privkey / renewed chain / renewed fullchain"
+check "no hard link: each old file kept as a copy, said" "$(echo "$out" | grep -c 'as a copy, not as a hard link (Operation not permitted)')" "3"
+check "no hard link: Copied said" "$(echo "$out" | grep -c '^Copied example.com')" "1"
+check "no hard link: no temporary or .old file left" "$(find "$CERTS" -name '*.??????' | wc -l)" "0"
+
+# ... and a later move that fails: the old set put back from the copies
+for f in fullchain chain privkey; do
+    printf 'third %s\n' "$f" > "${LE}/archive/example.com/${f}1.pem"
+done
+printf '#!/bin/sh\nfor a in "$@"; do\n    case "$a" in\n        *.crt)\n            exit 1\n            ;;\n    esac\ndone\nexec "%s" "$@"\n' "$REAL_MV" > "${STUBS}/mv"
+chmod 0755 "${STUBS}/mv"
+out="$(PATH="${STUBS}:$PATH" cc)"
+rc=$?
+check "no hard link, a move that fails: exit 1" "$rc" "1"
+check "no hard link, a move that fails: rc 2" "$(echo "$out" | grep -c 'FAILED to copy example.com (rc=2)')" "1"
+check "no hard link, a move that fails: put back" "$(echo "$out" | grep -c 'FAILED to move .*example.com.crt: the old files put back')" "1"
+check "no hard link, a move that fails: the old set whole" \
+    "$(cat "${CERTS}/private/example.com.key") / $(cat "${CERTS}/example.com.chain") / $(cat "${CERTS}/example.com.crt")" \
+    "renewed privkey / renewed chain / renewed fullchain"
+check "no hard link, a move that fails: the key mode kept" "$(stat -c %a "${CERTS}/private/example.com.key")" "600"
+check "no hard link, a move that fails: no temporary or .old file left" "$(find "$CERTS" -name '*.??????' | wc -l)" "0"
+
+#
+#   An old file that can be neither linked nor copied, after the key was
+#   moved, and the key cannot be put back: rc 3, "may not match", never
+#   "nothing changed" (up to the round before, the failure of the link
+#   ignored the result of the undo, and said exit 2 and both)
+#
+reset
+add_cert example.com "first"
+cc >/dev/null
+for f in fullchain chain privkey; do
+    printf 'renewed %s\n' "$f" > "${LE}/archive/example.com/${f}1.pem"
+done
+printf '#!/bin/sh\nfor a in "$@"; do\n    case "$a" in\n        *.chain*)\n            echo "%s: refused by the test" >&2\n            exit 1\n            ;;\n    esac\ndone\nexec "%s" "$@"\n' "ln" "$(command -v ln)" > "${STUBS}/ln"
+printf '#!/bin/sh\nfor a in "$@"; do\n    case "$a" in\n        *.chain*)\n            echo "%s: refused by the test" >&2\n            exit 1\n            ;;\n    esac\ndone\nexec "%s" "$@"\n' "cp" "$REAL_CP" > "${STUBS}/cp"
+printf '#!/bin/sh\nfor a in "$@"; do\n    case "$a" in\n        *.key.old.*)\n            exit 1\n            ;;\n    esac\ndone\nexec "%s" "$@"\n' "$REAL_MV" > "${STUBS}/mv"
+chmod 0755 "${STUBS}/ln" "${STUBS}/cp" "${STUBS}/mv"
+out="$(PATH="${STUBS}:$PATH" cc)"
+rc=$?
+check "no link and no copy, and its undo: exit 1" "$rc" "1"
+check "no link and no copy, and its undo: rc 3" "$(echo "$out" | grep -c 'FAILED to copy example.com (rc=3)')" "1"
+check "no link and no copy, and its undo: may not match" "$(echo "$out" | grep -c 'FAILED to keep the old .*example.com.chain, and to put the old files back: the files of this certificate may not match')" "1"
+check "no link and no copy, and its undo: never 'nothing changed'" "$(echo "$out" | grep -c 'nothing of this certificate changed')" "0"
+check "no link and no copy, and its undo: the old key kept, and named" \
+    "$(cat "$(echo "$out" | sed -n 's/.*it is kept in \([^ ]*\)$/\1/p')")" "first privkey"
+
+# ... and when the undo works: rc 2, nothing changed
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MV" > "${STUBS}/mv"
+reset
+add_cert example.com "first"
+cc >/dev/null
+for f in fullchain chain privkey; do
+    printf 'renewed %s\n' "$f" > "${LE}/archive/example.com/${f}1.pem"
+done
+out="$(PATH="${STUBS}:$PATH" cc)"
+check "no link and no copy: rc 2" "$(echo "$out" | grep -c 'FAILED to copy example.com (rc=2)')" "1"
+check "no link and no copy: the old files put back" "$(echo "$out" | grep -c 'FAILED to keep the old .*example.com.chain (no hard link, no copy): the files already moved put back, nothing of this certificate changed')" "1"
+check "no link and no copy: the old set whole" \
+    "$(cat "${CERTS}/private/example.com.key") / $(cat "${CERTS}/example.com.chain") / $(cat "${CERTS}/example.com.crt")" \
+    "first privkey / first chain / first fullchain"
+check "no link and no copy: no temporary or .old file left" "$(find "$CERTS" -name '*.??????' | wc -l)" "0"
+rm -f "${STUBS}/mv" "${STUBS}/ln" "${STUBS}/cp"
+
+#
 #   One run at a time: two runs at once that wait for the lock (--wait,
 #   the hook's) never interleave their parts. A slow setpriv writes down
 #   when each part of the owner begins and ends

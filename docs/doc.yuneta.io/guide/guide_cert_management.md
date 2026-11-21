@@ -77,7 +77,12 @@ certbot `deploy-hook` at
       their directories. Only when all of them are written does it move
       them into place, the key first and the `.crt` last. Before each move
       it keeps the old file as a hard link, and when a later move fails it
-      puts the moved files back. So a failure leaves the old set whole,
+      puts the moved files back. If it cannot link the old file, it keeps
+      a copy (`cp -p`) and says so. This occurs with
+      `fs.protected_hardlinks=1` and a file that root left there: `yuneta`
+      can link only its own files. If it can neither link nor read the old
+      file, the copy of that certificate fails. Give the file to `yuneta`
+      (`chown yuneta:yuneta <file>`). So a failure leaves the old set whole,
       never an old `.crt` with a new key, and the `.crt` (which the agent's
       sync watches) changes last. If the old files cannot be put back
       either, the script says that the set can be mixed, and it keeps

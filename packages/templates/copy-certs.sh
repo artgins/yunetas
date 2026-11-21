@@ -146,7 +146,9 @@ LE_REAL="$(readlink -f -- "$LE_DIR")"
 #   written are they moved into place, the key first and the crt last: the
 #   crt is what the agent's cert-sync watches, so when its change is seen
 #   the key is already the new one. Before each move the old file is kept
-#   as a hard link (<file>.old.XXXXXX); when a later move fails, the files
+#   as a hard link (<file>.old.XXXXXX), or as a copy (cp -p) when it cannot
+#   be linked (fs.protected_hardlinks and a file that is not the owner's,
+#   left there by root, said); when a later move fails, the files
 #   already moved are put back, so a failure leaves the old set whole
 #   instead of an old crt with a new key, and no temporary file stays. An
 #   unchanged file is not written (its mtime stays); its mode is set again
@@ -234,14 +236,27 @@ for i in 2 1 0; do
     fi
     if [ -e "${dests[i]}" ]; then
         o=""
-        if ! o="$(mktemp "${dests[i]}.old.XXXXXX")" || ! ln -f -- "${dests[i]}" "$o"; then
-            echo "FAILED to keep the old ${dests[i]}: nothing of this certificate changed" >&2
+        kept=0
+        if o="$(mktemp "${dests[i]}.old.XXXXXX")"; then
+            if why="$(ln -f -- "${dests[i]}" "$o" 2>&1)"; then
+                kept=1
+            elif cp -p -- "${dests[i]}" "$o"; then
+                kept=1
+                echo "Kept the old ${dests[i]} as a copy, not as a hard link (${why##*: })" >&2
+            fi
+        fi
+        if [ "$kept" -ne 1 ]; then
             if [ -n "$o" ]; then
                 rm -f -- "$o"
             fi
-            undo
+            if undo; then
+                echo "FAILED to keep the old ${dests[i]} (no hard link, no copy): the files already moved put back, nothing of this certificate changed" >&2
+                drop
+                exit 2
+            fi
+            echo "FAILED to keep the old ${dests[i]}, and to put the old files back: the files of this certificate may not match" >&2
             drop
-            exit 2
+            exit 3
         fi
         olds[i]="$o"
     fi
@@ -416,12 +431,17 @@ for CERT in "${CERT_NAMES[@]}"; do
     out="$(as_owner bash -c "$OWNER_PART" copy-certs "$D_CRT" "$D_CHAIN" "$D_KEY" 644 644 600 \
         3<"${REAL[0]}" 4<"${REAL[1]}" 5<"${REAL[2]}" \
         6<"${REAL[0]}" 7<"${REAL[1]}" 8<"${REAL[2]}" 2>&1)" || rc=$?
+    if [ "$rc" -ne 10 ] && [ "$rc" -ne 11 ]; then
+        FAILED=1
+        say err "FAILED to copy ${CERT} (rc=$rc): ${out:-no message}"
+        continue
+    fi
+    if [ -n "$out" ]; then
+        say notice "${CERT}: ${out}"
+    fi
     if [ "$rc" -eq 10 ]; then
         CHANGED=1
         say info "Copied ${CERT} -> ${DEST_BASE}/{${CERT}.crt, ${CERT}.chain, private/${CERT}.key}"
-    elif [ "$rc" -ne 11 ]; then
-        FAILED=1
-        say err "FAILED to copy ${CERT} (rc=$rc): ${out:-no message}"
     fi
 done
 
