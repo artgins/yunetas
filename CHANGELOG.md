@@ -55,17 +55,30 @@
   100 frames at each start position. If it hits that limit, it runs again one
   start position at a time, with 5000 frames for each position. All the
   searches of one command share 50 ms, which start at the first search and
-  are checked before each position. The worst cases measured are 6.1 ms for a
-  first search and 10.5 ms for one position, so the filters of one command
-  take at most 50 ms plus 10.5 ms. When the 50 ms are spent, the answer says
-  so and names no filter. A filter is blamed only when its own search hits its
-  own limit. The patterns are bytes, not UTF (`PCRE2_NEVER_UTF`), with `\C`
-  and callouts refused. Up to 7.31.29 (the filters came in 7.31.19) they were
-  POSIX patterns of glibc's `regcomp()`, and any user with `list-agents`
-  could stop the control center: `(a{32767}){32767}` or `a` followed by 24
-  `+` took all its memory, and `(a??a??...)*` with 40 groups took days to
-  compile, while the control center answered no agent. Back-references,
-  bounded repetitions and anchors anywhere now work. For example:
+  are checked before each position. The worst cases measured are 18 ms for a
+  first search and 14 ms for one position, so the filters of one command take
+  50 ms plus 18 ms in the worst case measured. These are measured figures,
+  not a proof: the limit is in frames (100 at each of 65 positions for a
+  first search, 5000 for one position). When the 50 ms are spent, the answer
+  says so and names no filter. A filter is blamed only when its own search
+  hits its own limit. A search one position at a time tries only the
+  positions where a match can start, as one search does (`.*a.*b.*c.*d` on
+  556 rows: 2 ms). The patterns are bytes, not UTF (`PCRE2_NEVER_UTF`), with
+  LF as the only newline, and a filter refuses, naming the form, a
+  back-reference (`\1`, `\k<name>`, `(?(1)...)`: one position took 42 ms),
+  `\G`, `(*COMMIT)`, `(*SKIP)`, `(*NOTEMPTY_ATSTART)`, `\C` and callouts:
+
+  ```
+  list-agents hostname='(web)-\1'
+  # -> -1 "hostname='(web)-\1' is refused: a filter cannot use a back-reference"
+  ```
+
+  Up to 7.31.29 (the filters came in 7.31.19) they were POSIX patterns of
+  glibc's `regcomp()`, and any user with `list-agents` could stop the control
+  center: `(a{32767}){32767}` or `a` followed by 24 `+` took all its memory,
+  and `(a??a??...)*` with 40 groups took days to compile, while the control
+  center answered no agent. Bounded repetitions and anchors anywhere now
+  work. For example:
 
   ```
   list-agents hostname='^(node|box)-[0-9]{2}$'
