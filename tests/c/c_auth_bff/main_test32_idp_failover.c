@@ -11,10 +11,16 @@
  *            C    (IDP_C_PORT) an IdP that cannot be reached: a listener
  *                              whose accept queue is full (as in test22)
  *
+ *            D    (IDP_D_PORT) a mock Keycloak that takes the discovery
+ *                              and never answers it (silent_discovery)
+ *            bff3 (BFF3_PORT)  issuers [D, B]
+ *
  *          bff2 waits idp_connect_timeout_ms 3000 and idp_failover_connect_ms
  *          500: the discovery of C at its start is for a login that B can
  *          take, so it waits 500 (up to 7.31.29 it waited 3000, and so did
- *          the login that came in the meantime).
+ *          the login that came in the meantime). bff3 waits idp_timeout_ms
+ *          4000 and idp_failover_response_ms 1500: connected, the discovery
+ *          of D at its start waits 1500 for the answer (up to 7.31.29 4000).
  *
  *          A login goes to the first IdP that is up and passes to the next
  *          one when its IdP cannot be reached, fails its discovery or
@@ -57,10 +63,13 @@
 #define IDP_B_PORT  "18945"
 #define IDP_C_PORT  "18946"
 #define BFF2_PORT   "18947"
+#define IDP_D_PORT  "18954"
+#define BFF3_PORT   "18955"
 
 #define IDP_A       "http://127.0.0.1:"IDP_A_PORT"/realms/test"
 #define IDP_B       "http://127.0.0.1:"IDP_B_PORT"/realms/test"
 #define IDP_C       "http://127.0.0.1:"IDP_C_PORT"/realms/test"
+#define IDP_D       "http://127.0.0.1:"IDP_D_PORT"/realms/test"
 
 /***************************************************************************
  *                      Default config
@@ -106,7 +115,8 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
                 'bff1_port': '"BFF1_PORT"',                         \n\
-                'bff2_port': '"BFF2_PORT"'                          \n\
+                'bff2_port': '"BFF2_PORT"',                         \n\
+                'bff3_port': '"BFF3_PORT"'                          \n\
             }                                                       \n\
         },                                                          \n\
         {                                                           \n\
@@ -301,6 +311,90 @@ PRIVATE char variable_config[]= "\
                             ]                                       \n\
                         }                                           \n\
                     ]                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'idpb-4',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'kw': {                                         \n\
+                    },                                              \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'idpb-4',                       \n\
+                            'gclass': 'C_MOCK_KEYCLOAK',            \n\
+                            'kw': {                                 \n\
+                                'issuer_claim': '"IDP_B"'           \n\
+                            },                                      \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'idpb-4',               \n\
+                                    'gclass': 'C_PROT_HTTP_SR',     \n\
+                                    'kw': {                         \n\
+                                    },                              \n\
+                                    'children': [                   \n\
+                                        {                           \n\
+                                            'name': 'idpb-4',       \n\
+                                            'gclass': 'C_TCP'       \n\
+                                        }                           \n\
+                                    ]                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__idp_d_side__',                               \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'persistent_channels': false                        \n\
+            },                                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'idpd_server',                          \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://0.0.0.0:"IDP_D_PORT"',        \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'idpd-1',                               \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'kw': {                                         \n\
+                    },                                              \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'idpd-1',                       \n\
+                            'gclass': 'C_MOCK_KEYCLOAK',            \n\
+                            'kw': {                                 \n\
+                                'issuer_claim': '"IDP_D"',          \n\
+                                'silent_discovery': true            \n\
+                            },                                      \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'idpd-1',               \n\
+                                    'gclass': 'C_PROT_HTTP_SR',     \n\
+                                    'kw': {                         \n\
+                                    },                              \n\
+                                    'children': [                   \n\
+                                        {                           \n\
+                                            'name': 'idpd-1',       \n\
+                                            'gclass': 'C_TCP'       \n\
+                                        }                           \n\
+                                    ]                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
         },                                                          \n\
@@ -431,6 +525,71 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             ]                                                       \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': '__bff3_side__',                                \n\
+            'gclass': 'C_IOGATE',                                   \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+                'persistent_channels': false                        \n\
+            },                                                      \n\
+            'children': [                                           \n\
+                {                                                   \n\
+                    'name': 'bff3_server',                          \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'kw': {                                         \n\
+                        'url': 'tcp://0.0.0.0:"BFF3_PORT"',         \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'bff3',                                 \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'kw': {                                         \n\
+                    },                                              \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'bff3',                         \n\
+                            'gclass': 'C_AUTH_BFF',                 \n\
+                            'kw': {                                 \n\
+                                'issuers': ['"IDP_D"/', '"IDP_B"/'],\n\
+                                'client_id':    'test-client',      \n\
+                                'client_secret': '',                \n\
+                                'cookie_domain': '',                \n\
+                                'allowed_origin': 'http://localhost',\n\
+                                'allowed_redirect_uri': '',         \n\
+                                'crypto': {},                       \n\
+                                'idp_timeout_ms': 4000,             \n\
+                                'idp_connect_timeout_ms': 3000,     \n\
+                                'idp_failover_connect_ms': 500,     \n\
+                                'idp_failover_response_ms': 1500,   \n\
+                                'idp_down_retry_ms': 60000          \n\
+                            },                                      \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'bff3',                 \n\
+                                    'gclass': 'C_PROT_HTTP_SR',     \n\
+                                    'kw': {                         \n\
+                                    },                              \n\
+                                    'children': [                   \n\
+                                        {                           \n\
+                                            'name': 'bff3',         \n\
+                                            'gclass': 'C_TCP'       \n\
+                                        }                           \n\
+                                    ]                               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                           \n\
+                    ]                                               \n\
+                }                                                   \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -551,26 +710,31 @@ static int register_yuno_and_more(void)
         "idp_failover_connect_ms: the IdP could not be reached");
     EXPECT_CAUSE("WARNING", "👤BFF IdP down, the logins go to the next IdP",
         "the OIDC discovery failed");
-    /*  5: A answers 502, the login passes to B  */
+    /*  2: the discovery of D at the start of bff3 has no answer, D is down  */
+    EXPECT_CAUSE("ERROR", "👤BFF OIDC discovery: IdP did not answer in time",
+        "idp_failover_response_ms: the IdP did not answer the discovery");
+    EXPECT_CAUSE("WARNING", "👤BFF IdP down, the logins go to the next IdP",
+        "the OIDC discovery failed");
+    /*  6: A answers 502, the login passes to B  */
     EXPECT_WARNING("👤BFF IdP failed a login, it goes to the next IdP");
     EXPECT_CAUSE("WARNING", "👤BFF IdP down, the logins go to the next IdP",
         "a login answered 502/503/504");
-    /*  7: a refresh of a session of A while A answers 502: as with one IdP  */
+    /*  8: a refresh of a session of A while A answers 502: as with one IdP  */
     EXPECT_ERROR("👤BFF IdP rejected the request");
     EXPECT_ERROR("👤BFF server error");
-    /*  9: a refresh_token that is not a JWT goes to the first (said once)  */
+    /*  10: a refresh_token that is not a JWT goes to the first (said once)  */
     EXPECT_WARNING("👤BFF a refresh_token of no issuer of 'issuers' (or not a JWT): "
         "it goes to the first; said once");
-    /*  10: a login A took and dropped is not sent to B  */
+    /*  11: a login A took and dropped is not sent to B  */
     EXPECT_ERROR("👤BFF server error");
-    /*  11: A cannot be reached, the login passes to B  */
+    /*  12: A cannot be reached, the login passes to B  */
     EXPECT_CAUSE("ERROR", "👤BFF IdP outbound watchdog fired",
         "idp_failover_connect_ms: the IdP could not be reached");
     EXPECT_CAUSE("WARNING", "👤BFF IdP down, the logins go to the next IdP",
         "idp_failover_connect_ms: the IdP could not be reached");
-    /*  12: A is back and answers 401: its answer, B not asked  */
+    /*  13: A is back and answers 401: its answer, B not asked  */
     EXPECT_WARNING("👤BFF request rejected");
-    /*  13: C tried again (bff2), its discovery cannot connect: no second "down"  */
+    /*  14: C tried again (bff2), its discovery cannot connect: no second "down"  */
     EXPECT_CAUSE("ERROR", "👤BFF OIDC discovery: IdP did not answer in time",
         "idp_failover_connect_ms: the IdP could not be reached");
     set_expected_results(

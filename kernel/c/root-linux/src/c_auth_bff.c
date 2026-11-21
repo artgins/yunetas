@@ -457,7 +457,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "issuer",               SDF_RD, "",     "OIDC issuer URL (e.g. https://auth.example.com/realms/foo/). Triggers discovery via /.well-known/openid-configuration. Ignored when `issuers` is set"),
 SDATA (DTP_LIST,        "issuers",              SDF_RD, "[]",   "OIDC issuer URLs of the same realm, in order of preference (at most 4): a login goes to the first that answers, and passes to the next when one cannot be reached, fails its discovery, answers 502/503/504 before Keycloak takes it, or does not answer within idp_failover_response_ms while the next is up; a refresh and a logout go to the issuer of the session (the `iss` of its refresh_token). Each one is discovered the first time a request needs it. Not with token_endpoint/end_session_endpoint"),
 SDATA (DTP_INTEGER,     "idp_failover_connect_ms",SDF_RD,           "4000", "With `issuers`: how long a login waits for an IdP to CONNECT before it passes to the next one (the last one it tries waits idp_connect_timeout_ms). Keep the sum under the time a SPA waits (15 s). 0 or less: idp_connect_timeout_ms"),
-SDATA (DTP_INTEGER,     "idp_failover_response_ms",SDF_RD,          "5000", "With `issuers`: how long a login waits for the ANSWER of an IdP, once sent, before it passes to the next one -- only when the next one is up, so a slow IdP is not left for a down one (that and the last IdP wait idp_timeout_ms). It is the IdP that dies with the connection to it open: nothing says it is gone. Keep idp_failover_connect_ms plus this under the time a SPA waits (15 s). 0 or less: idp_timeout_ms"),
+SDATA (DTP_INTEGER,     "idp_failover_response_ms",SDF_RD,          "5000", "With `issuers`: how long a login waits for the ANSWER of an IdP (to it, or to the OIDC discovery it waits for), once sent, before it passes to the next one -- only when the next one is up, so a slow IdP is not left for a down one (that and the last IdP wait idp_timeout_ms). It is the IdP that dies with the connection to it open: nothing says it is gone. Keep idp_failover_connect_ms plus this under the time a SPA waits (15 s). 0 or less: idp_timeout_ms"),
 SDATA (DTP_INTEGER,     "idp_down_retry_ms",    SDF_RD,             "60000","With `issuers`: an IdP that failed a login is skipped by the logins for this long; the next login after it tries it again. An IdP that could not be reached is back as soon as its connection opens"),
 SDATA (DTP_STRING,      "token_endpoint",       SDF_RD, "",     "Explicit OAuth2 token endpoint URL. Overrides discovery"),
 SDATA (DTP_STRING,      "end_session_endpoint", SDF_RD, "",     "Explicit OIDC end_session endpoint URL. Overrides discovery"),
@@ -853,6 +853,23 @@ PRIVATE BOOL start_oidc_discovery(hgobj gobj)
         json_int_t idp_timeout_ms = gobj_read_integer_attr(gobj, "idp_timeout_ms");
         if(idp_timeout_ms <= 0) {
             idp_timeout_ms = 30000;
+        }
+
+        /*
+         *  What waits for a discovery another IdP can take (a login, or
+         *  the start with `issuers`) waits less for its ANSWER too, as a
+         *  login does: an IdP that connects and stays silent. Up to 7.31.29
+         *  it waited idp_timeout_ms.
+         */
+        PENDING_AUTH *head = dl_first(&priv->dl_pending);
+        json_t *head_request = head? head->jn_request : NULL;
+        if(priv->can_fail_over &&
+                (!head_request || login_has_idp_up_to_go(gobj, head_request, priv->cur->idx))) {
+            json_int_t answer_ms = gobj_read_integer_attr(gobj, "idp_failover_response_ms");
+            if(answer_ms > 0 && answer_ms < idp_timeout_ms) {
+                idp_timeout_ms = answer_ms;
+                priv->answer_can_fail_over = TRUE;
+            }
         }
 
         json_t *kw_task = json_pack(
@@ -5030,7 +5047,9 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "idp_failover_connect_ms: the IdP could not be reached" :
             "idp_connect_timeout_ms: the IdP could not be reached") :
         (answer_can_fail_over?
-            "idp_failover_response_ms: the IdP did not answer a login" :
+            (src == priv->gobj_discovery_task?
+                "idp_failover_response_ms: the IdP did not answer the discovery" :
+                "idp_failover_response_ms: the IdP did not answer a login") :
             "idp_timeout_ms: the IdP did not answer");
     if(priv->logout_timed_out) {
         timeout_cause = "idp_logout_timeout_ms: the logout did not end in its time";
