@@ -2910,7 +2910,9 @@ first append). The load of a keyless list judges every key first, with 2 s for
 all of them, and then reads the history of the keys chosen: a list whose
 judgements pass 2 s is refused before a record is read, and its history takes
 the time it takes. The worst measured on one key of 255 bytes is 146 ms with 64 KB of code
-(its first search, which reads no clock), and 2.6 ms with 1 KB. A load is
+(its first search, which reads no clock). With 1 KB it is 2.6 ms, and 9.0 ms
+(5.7 ms on average) for the first key that a new list judges, whose matcher
+then grows the memory of its backtracking. A load is
 refused at 2.12 s at worst. These are measured figures, not a bound. A pattern with `(*COMMIT)`, `(*SKIP)`, `\G`,
 `(*NOTEMPTY_ATSTART)`, a newline other than LF or `(*UCP)` is refused when the
 list opens. A refused list answers `NULL` with the cause in

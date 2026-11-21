@@ -198,7 +198,8 @@ first (-403 included).
  *  it goes position by position RKEY_KEY_BUDGET_US and one position more;
  *  the clock is asked before each key and before each position of a key
  *  judged position by position. Worst measured with 64 KB of code: 146 ms
- *  a key of 255 bytes; with 1 KB, 2.5 ms. So a peer's rkey (the kw of a
+ *  a key of 255 bytes; with 1 KB, 2.6 ms, and 9 ms the first key a new
+ *  matcher judges (perf_timeranger2's README). So a peer's rkey (the kw of a
  *  peer, command_is_external(), as for log_refusal()) compiles to
  *  RKEY_PEER_COMPILED_MAX, and C_TRANGER's own code to RKEY_COMPILED_MAX.
  *  A peer's live list gets the same cap: `rkey_compiled_max` in the

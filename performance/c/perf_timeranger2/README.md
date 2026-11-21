@@ -76,7 +76,9 @@ development machine, idle:
 | The load of a live list over 3000 keys, with either pattern | the same | refused at 2.00 to 2.12 s |
 | The first append of a new key of 255 bytes, a PEER's list (1 KB of code, `--rkey-compiled-max=1024`) | `(?:[\s\S]?){9}(?:~?~?~?~?~?~?~?~?){32}(?!)\|$` (the key out of its time) | 2.6 ms (2.51 to 2.57) |
 | The same, its first search | `(*NO_JIT)(?:h?\|i?\|j?\|k?\|l?\|m?\|n?)(?:~?~?~?~?~?~?~?~?){32}(?!)` | 2.4 ms (2.30 to 2.44) |
-| The load of a peer's live list over 3000 keys | the first of these two | refused at 2.0009 s |
+| The same, with back-references (the first search, the 2 ms of the positions and one position more) | `(*NO_JIT)()(?:[\s\S]?){10}(?:[\s\S]?\|[\s\S]?)(?:\1\1\1\1\1\1\1\1){30}(?!)\|$` | 1.9 ms (1.88 to 1.89) |
+| The FIRST key that a new peer's list judges: its matcher grows the memory of its backtracking (up to 1 MB, `RKEY_HEAP_LIMIT_KB`) | the one before | 5.7 ms on average (5.3 to 5.7, 3 runs of 200 lists), 9.0 ms the longest key |
+| The load of a peer's live list over 3000 keys | the first of these | refused at 2.0009 s |
 
 A peer's `rkey` (a command of C_TRANGER with a peer's kw) compiles to 1 KB at
 most. A local one (tr2list, tr2keys, the code of a yuno) compiles to 64 KB. To measure
@@ -89,4 +91,7 @@ $YUNETAS_OUTPUTS/bin/perf_timeranger2 '--rkey=(?:[\s\S]?){9}(?:~?~?~?~?~?~?~?~?)
 
 The two unanchored cases then use it: `first_append_rt_rkey_unanchored`
 gives the time of the first append of a new key, and `load_rt_rkey_unanchored`
-the time of the load.
+the time of the load. The first case judges its 200 keys with ONE list, so
+only its first key pays the growth of the matcher's memory. The figure of the
+first key of a new list was measured with a list for each key, pinned to one
+CPU (`taskset -c 5`).

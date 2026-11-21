@@ -19889,9 +19889,9 @@ PRIVATE int rkey_arm(hgobj gobj, json_t *list, const char *key, json_t *match_co
     /*
      *  The cap of the compiled code is the caller's, up to
      *  RKEY_COMPILED_MAX: C_TRANGER puts 1 KB in the match_cond of a
-     *  peer's list (rkey_compiled_max), so a peer's key costs 2.5 ms
-     *  (worst measured), and a local caller (tr2list, tr2keys, a yuno's
-     *  own code) keeps 64 KB (146 ms)
+     *  peer's list (rkey_compiled_max), so a peer's key costs 2.6 ms, and
+     *  9 ms the first key of a new list (worst measured), and a local
+     *  caller (tr2list, tr2keys, a yuno's own code) keeps 64 KB (146 ms)
      */
     json_int_t compiled_max = kw_get_int(
         gobj, match_cond, "rkey_compiled_max", RKEY_COMPILED_MAX, KW_WILD_NUMBER
@@ -20069,7 +20069,9 @@ PRIVATE const char *rkey_refused_form(const char *rkey)
  *  search of a key of 255 bytes
  *  ((*NO_JIT)(?:h?|i?|j?|k?|l?|m?|n?)(?:~? x8){2048}(?!)) and 129 ms for
  *  one position (a back-reference x8 x2048 after a tree of optional
- *  items); with 1 KB (a peer's) 2.5 ms. The first append of a new
+ *  items); with 1 KB (a peer's) 2.6 ms, and 9 ms for the first key a
+ *  new matcher judges (it grows its heap frames, RKEY_HEAP_LIMIT_KB at
+ *  most; back-references included). The first append of a new
  *  key pays it once for each list, and the load of a list once for each
  *  key, under its own budget (RKEY_LOAD_BUDGET_MS) asked before each key:
  *  a load is refused at 2.12 s at worst.
