@@ -90,6 +90,7 @@
 #define TOPIC_NAME5 "topic_cmd5"    // one file a day: delete-key-files
 #define TOPIC_NAME6 "topic_cmd6"    // a file name mask that does not sort as time
 #define TOPIC_NAME7 "topic_cmd7"    // a key flagged unlisted: add-record of a purged period
+#define TOPIC_NAME8 "topic_cmd8"    // a key a costly rkey regex cannot judge in its limits
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
 
 /*  key "A" gets 5 records, key "B" gets 3 records  */
@@ -3678,6 +3679,55 @@ PRIVATE int do_test(void)
         check_int("its g_rowid follows the base", kw_get_int(0, r, "data`rowid", -1, 0), 7);
         JSON_DECREF(r)
         global_result += test_json(NULL);
+    }
+
+    /*-------------------------------------------------*
+     *      A peer's rkey regex is bounded: ^(a+)+$ against a key of 30 'a'
+     *      and a '!' backtracks 2^30 ways. Each match has a limit of
+     *      steps, depth and heap, and a limit reached refuses the request
+     *      (a WARNING from a peer). Up to 7.31.29 pcre2's defaults applied
+     *      (ten million steps a key) and the key was taken as no match: an
+     *      answer of 0 that had not judged it, after holding the yuno.
+     *-------------------------------------------------*/
+    {
+        gobj_log_add_handler("test_capture_warn", "testing", LOG_OPT_UP_WARNING, 0);
+        json_t *expected = json_array();
+        expect_refusal(expected, "rkey regex too costly, refused");
+        set_expected_results("a costly rkey regex is refused", expected, NULL, NULL, 1);
+
+        json_t *topic8 = tranger2_create_topic(
+            tranger, TOPIC_NAME8, "id", "tm",
+            0,
+            sf_string_key,
+            json_pack("{s:s, s:I, s:s}", "id", "", "tm", (json_int_t)0, "content", ""),
+            0
+        );
+        check_bool("topic of the costly key", topic8 != NULL, TRUE);
+        const char *keys8[] = {"b", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!"};
+        for(int k = 0; k < 2; k++) {
+            md2_record_ex_t md = {0};
+            tranger2_append_record(tranger, TOPIC_NAME8, BASE_T, 0, &md,
+                json_pack("{s:s, s:I, s:s}", "id", keys8[k], "tm", (json_int_t)BASE_T, "content", "x"));
+        }
+
+        uint64_t t0 = time_in_milliseconds_monotonic();
+        r = gobj_command(yuno, "list-keys",
+            as_peer(json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "rkey", "^(a+)+$")), yuno);
+        uint64_t took_ms = time_in_milliseconds_monotonic() - t0;
+        check_int("list-keys with a costly rkey: refused", kw_get_int(0, r, "result", -999, 0), -1);
+        check_bool("it says why",
+            strstr(kw_get_str(0, r, "comment", "", 0), "too costly") != NULL, TRUE);
+        check_bool("in a moment", took_ms < 1000, TRUE);
+        JSON_DECREF(r)
+
+        r = gobj_command(yuno, "list-keys",
+            json_pack("{s:s, s:s}", "topic_name", TOPIC_NAME8, "rkey", "^a+!$"), yuno);
+        check_int("list-keys with a cheap rkey on the same keys", kw_get_int(0, r, "result", -999, 0), 0);
+        check_int("its one key", json_array_size(kw_get_list(0, r, "data", 0, 0)), 1);
+        JSON_DECREF(r)
+
+        global_result += test_json(NULL);
+        gobj_log_del_handler("test_capture_warn");
     }
 
     /*-------------------------------------------------*

@@ -12,7 +12,8 @@ What it checks:
   `open-iterator` and `get-page` by `t` and by `tm` (two independent axes that
   combine), several keys in one iterator (`rkey`), a backward page that
   counts from the live end, and the frozen counts of a filtered multi-key
-  iterator.
+  iterator. A peer's `rkey` that is too costly to match (`^(a+)+$` against a
+  key of 30 `a` and a `!`) is refused with a WARNING.
 - Handles: a handle of a topic that was closed is dropped, not
   dereferenced. A key deleted under an iterator. A keys watch that is not a
   client's feed. A `no_rt` list freed with its topic. A handle of one session

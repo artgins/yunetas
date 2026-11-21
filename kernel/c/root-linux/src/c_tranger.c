@@ -178,6 +178,14 @@ first (-403 included).
         }                                                               \
     } while(0)
 
+/*
+ *  The cost of a peer's rkey regex (match_topic_keys())
+ */
+#define RKEY_MATCH_LIMIT        100000  /* steps of one match */
+#define RKEY_DEPTH_LIMIT        10000   /* backtracking depth of one match */
+#define RKEY_HEAP_LIMIT_KB      4096    /* heap of one match */
+#define RKEY_MATCH_BUDGET_MS    2000    /* the whole walk over the keys */
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -4083,8 +4091,17 @@ PRIVATE int sort_keys(json_t *jn_list, BOOL by_records, BOOL desc)
  *  outside the loop. (A JIT that is not there is not an error: pcre2_match
  *  falls back to the interpreter on its own.)
  *
- *  Returns NULL on a bad regex or no memory, with the reason for the client
- *  in *jn_comment (owned by the caller). The failure is logged here.
+ *  The rkey is a peer's, so its cost is bounded: each match by a match
+ *  context (RKEY_MATCH_LIMIT steps, RKEY_DEPTH_LIMIT, RKEY_HEAP_LIMIT_KB),
+ *  and the whole walk by RKEY_MATCH_BUDGET_MS. A limit reached refuses the
+ *  request: an answer that skipped keys it could not judge would be a wrong
+ *  answer. Up to 7.31.29 pcre2's defaults applied (ten million steps a
+ *  key), and a pattern such as ^(a+)+$ held the yuno for minutes over the
+ *  keys of a topic.
+ *
+ *  Returns NULL on a bad regex, a limit reached or no memory, with the
+ *  reason for the client in *jn_comment (owned by the caller). The failure
+ *  is logged here.
  ***************************************************************************/
 PRIVATE json_t *match_topic_keys(
     hgobj gobj,
@@ -4098,6 +4115,7 @@ PRIVATE json_t *match_topic_keys(
 
     pcre2_code *re = NULL;
     pcre2_match_data *match_data = NULL;
+    pcre2_match_context *match_context = NULL;
     if(!empty_string(rkey)) {
         int errornumber = 0;
         PCRE2_SIZE erroroffset = 0;
@@ -4124,7 +4142,14 @@ PRIVATE json_t *match_topic_keys(
         pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
 
         match_data = pcre2_match_data_create_from_pattern(re, NULL);
-        if(!match_data) {
+        match_context = pcre2_match_context_create(NULL);
+        if(!match_data || !match_context) {
+            if(match_data) {
+                pcre2_match_data_free(match_data);
+            }
+            if(match_context) {
+                pcre2_match_context_free(match_context);
+            }
             pcre2_code_free(re);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -4135,6 +4160,9 @@ PRIVATE json_t *match_topic_keys(
             *jn_comment = json_sprintf("%s: No memory for the rkey matcher", gobj_yuno_role_plus_name());
             return NULL;
         }
+        pcre2_set_match_limit(match_context, RKEY_MATCH_LIMIT);
+        pcre2_set_depth_limit(match_context, RKEY_DEPTH_LIMIT);
+        pcre2_set_heap_limit(match_context, RKEY_HEAP_LIMIT_KB);
     }
 
     /*
@@ -4146,6 +4174,8 @@ PRIVATE json_t *match_topic_keys(
      */
     json_t *jn_keys = tranger2_list_keys(priv->tranger, topic_name);
     json_t *jn_matched = json_array();
+    uint64_t budget = re? start_msectimer(RKEY_MATCH_BUDGET_MS) : 0;
+    const char *limit_reached = NULL;
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {
         const char *key = json_string_value(jn_key);
@@ -4153,11 +4183,20 @@ PRIVATE json_t *match_topic_keys(
             key = "";
         }
         if(re) {
+            if((idx & 0xFF) == 0xFF && test_msectimer(budget)) {
+                limit_reached = "the time of the whole match (RKEY_MATCH_BUDGET_MS)";
+                break;
+            }
             int m = pcre2_match(
-                re, (PCRE2_SPTR)key, PCRE2_ZERO_TERMINATED, 0, 0, match_data, NULL
+                re, (PCRE2_SPTR)key, PCRE2_ZERO_TERMINATED, 0, 0, match_data, match_context
             );
+            if(m == PCRE2_ERROR_MATCHLIMIT || m == PCRE2_ERROR_DEPTHLIMIT ||
+                    m == PCRE2_ERROR_HEAPLIMIT || m == PCRE2_ERROR_JIT_STACKLIMIT) {
+                limit_reached = "a limit of one match (steps, depth or memory)";
+                break;
+            }
             if(m < 0) {
-                continue;   // PCRE2_ERROR_NOMATCH (and any match error): not this key
+                continue;   // PCRE2_ERROR_NOMATCH (and any other match error): not this key
             }
         }
         json_array_append_new(jn_matched, json_pack("{s:s, s:I}",
@@ -4167,8 +4206,25 @@ PRIVATE json_t *match_topic_keys(
     }
     JSON_DECREF(jn_keys)
     if(re) {
+        pcre2_match_context_free(match_context);
         pcre2_match_data_free(match_data);
         pcre2_code_free(re);
+    }
+
+    if(limit_reached) {
+        log_refusal(gobj, peer,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER,
+            "msg",          "%s", "rkey regex too costly, refused",
+            "topic_name",   "%s", topic_name,
+            "rkey",         "%.256s", rkey,
+            "limit",        "%s", limit_reached,
+            NULL
+        );
+        *jn_comment = json_sprintf("%s: rkey regex too costly: it reached %s",
+            gobj_yuno_role_plus_name(), limit_reached);
+        JSON_DECREF(jn_matched)
+        return NULL;
     }
 
     return jn_matched;
