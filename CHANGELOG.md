@@ -1,5 +1,14 @@
 # **Changelog**
 
+## Unreleased
+
+### Docs
+
+- **The entry of llhttp 9.4.4 (7.31.1) is corrected.** It said that the
+  change of llhttp reached every yuno that parses HTTP. It reaches none:
+  the changed code runs only with `LENIENT_HEADER_VALUE_RELAXED`, which
+  `ghttp_parser.c` does not set. The performance page is corrected too.
+
 ## v7.31.29 (2026-11-21)
 
 Lite release: libjwt, the `.deb` conffiles and a new page of the docs. The
@@ -1045,14 +1054,14 @@ release: `gobj-c` changes, and every yuno links it.
   fix. The four vendored files were pristine 9.4.3, so 9.4.4 is a verbatim
   drop-in: `api.c` and `http.c` are byte-identical, `llhttp.h` changes only
   its version constant, and `llhttp.c` (the generated state machine) carries
-  one upstream change, nodejs/llhttp#882: in lenient header mode, after a
-  byte that only the lenient mode accepts, a header value goes back to the
+  one upstream change, nodejs/llhttp#882: in the relaxed header-value mode,
+  after a byte that only that mode accepts, a header value goes back to the
   ordinary (vectorized) scanner instead of finishing in a slower loop of its
   own. Same input accepted and refused, with upstream regression coverage
-  (nodejs/llhttp#898). It reaches every yuno that parses HTTP:
-  `ghttp_parser.c` turns `llhttp_set_lenient_headers()` on. Upstream
-  measured it with clang and calls gcc "layout-sensitive", so the effect on
-  our gcc build is for the next release's study to say. The reclassification
+  (nodejs/llhttp#898). No yuno runs the changed code: the relaxed mode needs
+  the flag `LENIENT_HEADER_VALUE_RELAXED` (0x400), and `ghttp_parser.c` sets
+  only `LENIENT_HEADERS` (0x1) and `LENIENT_DATA_AFTER_CLOSE`. (This entry
+  said up to 7.31.29 that the change reached every yuno that parses HTTP.) The reclassification
   of `QUERY` as a standard method (RFC 10008) changes no generated C
   (`HTTP_QUERY` is still 46). `THIRD-PARTY-NOTICES` and
   `LICENSE-llhttp.txt` name 9.4.4; the license is the same.

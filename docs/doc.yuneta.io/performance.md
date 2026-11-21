@@ -134,10 +134,11 @@ and reads every row of the key (a topic 7.25.22 did not mark took 402 ms).
 
 ## 7.31.1 against 7.31.0
 
-7.31.1 takes llhttp 9.4.4, the HTTP parser vendored in gobj-c: in the lenient
-header mode, which `ghttp_parser.c` sets, a header value goes back to the
-fast scanner after a byte that only that mode accepts (nodejs/llhttp#882). It
-is the only C change, and `llhttp.c.o` is the only object of the SDK with
+7.31.1 takes llhttp 9.4.4, the HTTP parser vendored in gobj-c: in the relaxed
+header-value mode, a header value goes back to the fast scanner after a byte
+that only that mode accepts (nodejs/llhttp#882). No yuno runs that code:
+`ghttp_parser.c` sets `LENIENT_HEADERS`, not `LENIENT_HEADER_VALUE_RELAXED`.
+It is the only C change, and `llhttp.c.o` is the only object of the SDK with
 other machine code. The stripped binaries keep the size of 7.31.0. Measured
 against 7.31.0, the last release with a study, before the tag (main at
 `3c53c9075`, and the release commit after it changes no `.c` file): 10 rounds,
