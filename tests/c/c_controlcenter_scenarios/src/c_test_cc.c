@@ -3870,6 +3870,9 @@ PRIVATE int test_card_checked(hgobj gobj, hgobj client)
     char long_host[HOST_NAME_MAX+2];
     memset(long_host, 'h', sizeof(long_host)-1);
     long_host[sizeof(long_host)-1] = 0;
+    char long_text[66];     // one more than the 64 of a version or an os
+    memset(long_text, 'v', sizeof(long_text)-1);
+    long_text[sizeof(long_text)-1] = 0;
 
     json_t *cards[] = {
         json_pack("{s:i, s:{s:[{s:s, s:s}]}}",
@@ -3887,9 +3890,19 @@ PRIVATE int test_card_checked(hgobj gobj, hgobj client)
         json_pack("{s:s, s:{s:[{s:s, s:s}]}}",
             "id", "uuid-longhost",
             "__md_iev__", "ievent_gate_stack", "dst_service", "controlcenter", "host", long_host),
+        json_pack("{s:s, s:s, s:{s:[{s:s, s:s}]}}",
+            "id", "uuid-longversion", "yuno_version", long_text,
+            "__md_iev__", "ievent_gate_stack", "dst_service", "controlcenter", "host", "h"),
+        json_pack("{s:s, s:{s:s}, s:{s:[{s:s, s:s}]}}",
+            "id", "uuid-longos", "os", "pretty_name", long_text,
+            "__md_iev__", "ievent_gate_stack", "dst_service", "controlcenter", "host", "h"),
+        json_pack("{s:s, s:i, s:{s:[{s:s, s:s}]}}",
+            "id", "uuid-intversion", "yuno_version", 7,
+            "__md_iev__", "ievent_gate_stack", "dst_service", "controlcenter", "host", "h"),
         0
     };
-    const char *ids[] = {"7", "uuid-hostint", "uuid`tick", long_id, "uuid-longhost", 0};
+    const char *ids[] = {"7", "uuid-hostint", "uuid`tick", long_id, "uuid-longhost",
+        "uuid-longversion", "uuid-longos", "uuid-intversion", 0};
     for(int i=0; cards[i]; i++) {
         char name[NAME_MAX];
         snprintf(name, sizeof(name), "card-%d", i);
@@ -4387,9 +4400,13 @@ PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
             "id", 7, "__md_iev__", "ievent_gate_stack", "host", "h7"),
         json_pack("{s:s, s:{s:[{s:i}]}}",
             "id", "uuid-p7", "__md_iev__", "ievent_gate_stack", "host", 7),
+        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+            "id", "uuid-p7", "yuno_version",
+            "7.31.29-0123456789012345678901234567890123456789012345678901234567",
+            "__md_iev__", "ievent_gate_stack", "host", "h7"),
         0
     };
-    hgobj bad[2] = {0, 0};
+    hgobj bad[3] = {0, 0, 0};
     for(int i=0; cards[i]; i++) {
         char name[NAME_MAX];
         snprintf(name, sizeof(name), "p7-%d", i);
@@ -4404,7 +4421,7 @@ PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
     JSON_DECREF(agents)
     hgobj other = open_keyed_session(gobj, "p7-other", "uuid-p7o", "h7", NULL);
     close_session(other);
-    for(int i=0; i<2; i++) {
+    for(int i=0; i<3; i++) {
         close_session(bad[i]);
     }
 
@@ -4595,6 +4612,53 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
         json_object_set_new(kw, "hostname", json_string(braces[i]));
         ret += check_response(gobj, gobj_command(priv->cc, i%2? "list-nodes" : "list-agents", kw, client),
             -1, "hostname: a bounded repetition ({n,m}) is refused", braces[i]);
+    }
+
+    /*
+     *  X+ is compiled as X X*: k of them copy 2^k times (a and 20 + take
+     *  718 MB), so 4 at most. An anchor or a word boundary inside nested
+     *  loops makes regcomp() exponential in time ((^(^...$)*$)*, 10 levels,
+     *  8 s): ^ only first (or opening a bracket) and $ only last, no word
+     *  boundary. Up to 7.31.29 they were compiled
+     */
+    const struct {
+        const char *pattern;
+        const char *refusal;
+    } refused[] = {
+        {"l+a+-+a+l+",      "hostname: more than 4 + are refused"},
+        {"((((la+)+)+)+)+", "hostname: more than 4 + are refused"},
+        {"[+][+][+][+][+]", "hostname: more than 4 + are refused"},
+        {"(^la-alpha)*",    "hostname: an anchor is refused but ^ first and $ last"},
+        {"^la-alpha|^la-b", "hostname: an anchor is refused but ^ first and $ last"},
+        {"(la-alpha$)*",    "hostname: an anchor is refused but ^ first and $ last"},
+        {"\\[^la",          "hostname: an anchor is refused but ^ first and $ last"},
+        {"(\\bla)*",        "hostname: a word boundary"},
+        {"\\<la",           "hostname: a word boundary"},
+        {"la\\'",           "hostname: a word boundary"},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(refused); i++) {
+        kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "hostname", json_string(refused[i].pattern));
+        ret += check_response(gobj, gobj_command(priv->cc, i%2? "list-nodes" : "list-agents", kw, client),
+            -1, refused[i].refusal, refused[i].pattern);
+    }
+    const struct {
+        const char *pattern;
+        int expected;
+    } accepted[] = {
+        {"^l+a+-+al+pha$",      1},     // 4 +, ^ first, $ last
+        {"^la-[^b]",            1},     // ^ that opens a bracket
+        {"^la-alpha\\$|beta",   1},     // an escaped $ is the character
+        {"\\+",                 0},
+    };
+    for(size_t i=0; i<ARRAY_SIZE(accepted); i++) {
+        int n = count_listed(gobj, client, "list-agents",
+            json_pack("{s:s}", "hostname", accepted[i].pattern), accepted[i].pattern);
+        if(n != accepted[i].expected) {
+            char detail[NAME_MAX];
+            snprintf(detail, sizeof(detail), "%d agents, expected %d", n, accepted[i].expected);
+            ret += fail(gobj, accepted[i].pattern, detail);
+        }
     }
     if(count_listed(gobj, client, "list-agents",
             json_pack("{s:s}", "hostname", "^la-\\{"),

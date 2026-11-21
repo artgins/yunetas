@@ -382,6 +382,9 @@ PRIVATE const char *expected_msgs[] = {
     "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: a backtick in the id
     "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: an id of 300
     "Agent not authenticated: its identity card is not valid||||WARNING",          // 25: a host too long
+    "Agent not authenticated: its identity card is not valid|||its yuno_version is longer than 64|WARNING", // 25
+    "Agent not authenticated: its identity card is not valid|||its os pretty_name is longer than 64|WARNING", // 25
+    "Agent not authenticated: its identity card is not valid|||its yuno_version is not a string|WARNING",  // 25
     "Agent not authenticated: its node key is not the one accepted|||The node is refused|WARNING", // 26 (its second knock is not said)
     "A node to accept: its agent presents a key never accepted (accept-node)",     // 28: R
     "Node key decided",                                                             // 28: accept R
@@ -416,6 +419,7 @@ PRIVATE const char *expected_msgs[] = {
     "Agent let in with a node key that is not the one accepted (enforce_node_keys is off)",  // 34: a token claims A
     "Agent refused: its identity card is not valid|||its id is not a string|WARNING",       // 34
     "Agent refused: its identity card is not valid|||its host is not a string|WARNING",     // 34
+    "Agent refused: its identity card is not valid|||its yuno_version is longer than 64|WARNING", // 34
     "Two agents with the same node uuid on other hosts: a copy of a node, give each its own uuid (yuneta-node-uuid)||||WARNING",   // 0: the copy, not the same host
     "Not in session||||WARNING",                            // 47: command-agent, the agent's link closing
     "Not in session||||WARNING",                            // 47: stats-agent

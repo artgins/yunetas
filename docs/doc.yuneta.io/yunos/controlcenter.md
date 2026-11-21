@@ -135,11 +135,19 @@ its node key is not the one accepted"*) and drops the agent's channel. The
 agent reconnects on its own schedule.
 
 The identity card of every session is checked when it opens, also of a
-session of a token and with `enforce_node_keys` off. When its `id` or its
-`host` is not a string, or is longer than a node uuid (63) or a host name
-(64), the control center refuses the session with a WARNING (*"Agent refused:
-its identity card is not valid"*, the reason in `refusal`) and drops it. For
-example, a card `{"id": 7, ...}` gives `refusal: its id is not a string`. In
+session of a token and with `enforce_node_keys` off. The control center
+refuses the session with a WARNING (*"Agent refused: its identity card is not
+valid"*, the reason in `refusal`) and drops it in these cases:
+
+- Its `id` or its `host` is not a string, or is longer than a node uuid (63)
+  or a host name (64).
+- Its `yuno_version` or the `pretty_name` of its `os` is not a string, or is
+  longer than 64. The filters of `list-agents` and `list-nodes` match these
+  texts, and a long text makes a filter slow: a pattern made to miss over 300
+  texts of 151 bytes took 84 s and 2 GB. Up to 7.31.29 these texts had no
+  limit.
+
+For example, a card `{"id": 7, ...}` gives `refusal: its id is not a string`. In
 7.30.15 such a session was let in, and every command that looked for an agent
 after it logged an ERROR with a stack.
 
@@ -630,7 +638,7 @@ as `grep -E` reads it) matched against one field of the agent's card:
 none). An
 agent is listed when it matches every filter given. A filter that is not a
 regular expression is refused (-1), and the answer says which. The control
-center runs in one thread, so it also refuses three kinds of filter:
+center runs in one thread, so it also refuses the filters that can stall it:
 
 - A filter with a back-reference (`\1`), because a match can take exponential
   time (7.31.20+).
@@ -639,7 +647,18 @@ center runs in one thread, so it also refuses three kinds of filter:
   bounded repetition (`{n,m}`) makes `regcomp()` copy what it repeats, and
   nested ones multiply: `(a{1000}){1000}` takes 200 MB, and
   `(a{32767}){32767}` takes all the memory. For the character `{`, write
-  `\{`. Up to 7.31.29 the control center compiled these filters.
+  `\{`.
+- A filter with more than 4 `+`. `regcomp()` compiles `X+` as `X X*`, so 20
+  of them make about a million copies: `a` and 20 `+` take 718 MB. Write `XX*`
+  for `X+`, and `\+` for the character `+`.
+- A filter with an anchor that is not the first `^` or the last `$`, or with a
+  word boundary (`\b`, `\B`, `\<`, `\>`, `` \` ``, `\'`). Inside nested loops
+  they make `regcomp()` slow: `(^(^...$)*$)*` with 10 levels, 50 bytes, takes
+  8 seconds. A `^` right after `[` negates the bracket, and is accepted. For
+  the characters, write `\^` and `\$`.
+
+These rules apply inside brackets too (`[{]`, `[+]`, `[$]`). Up to 7.31.29
+the control center compiled all these filters.
 
 ```bash
 ycommand -c 'list-agents hostname=^yunovatios-'          # the yunovatios nodes
@@ -651,6 +670,10 @@ ycommand -c 'list-agents hostname=artgins('
 ycommand -c 'list-agents hostname=^node-[0-9]{2}$'
 # -> -1 "controlcenter^cc1: hostname: a bounded repetition ({n,m}) is refused: write \{ for the character {"
 ycommand -c 'list-agents hostname=^node-[0-9][0-9]$'      # accepted: the same match, written out
+ycommand -c 'list-agents hostname=^web|^db'
+# -> -1 "controlcenter^cc1: hostname: an anchor is refused but ^ first and $ last: write \^ or \$ for the character"
+ycommand -c 'list-agents hostname=^(web|db)'              # accepted: one anchor, first
+ycommand -c 'list-agents hostname=^node-[^0-9]'           # accepted: a ^ that negates a bracket
 ycommand -c 'list-agents hostname=^lab\{1\}'               # accepted: the characters { and }
 ```
 

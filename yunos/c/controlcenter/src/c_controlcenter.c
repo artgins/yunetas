@@ -116,8 +116,9 @@
  *    - a node that presents no key and has none accepted (an agent of
  *      before 7.30.10) is let in while `allow_nodes_without_key`.
  *  A refused agent's channel is dropped and skipped by the commands that
- *  look for an agent, and its open writes nothing. A card whose id or host
- *  is not a string, or too long, is refused so too, enforce or not. Without `enforce_node_keys` nothing is refused: the
+ *  look for an agent, and its open writes nothing. A card whose id, host,
+ *  yuno_version or os pretty_name is not a string, or too long, is refused
+ *  so too, enforce or not. Without `enforce_node_keys` nothing is refused: the
  *  keys are recorded, so an operator can accept the nodes that run before
  *  it is switched on. `list-nodes`, `accept-node` (pins the key GIVEN, read
  *  on the node itself: never the one presented; one key for one node: a
@@ -222,6 +223,12 @@
 /*  The longest regular expression of a filter of list-agents/list-nodes  */
 #define NODE_FILTER_PATTERN_MAX 256
 
+/*  The most `+` in such a filter: glibc compiles X+ as X X*, so k of them
+ *  copy what they repeat 2^k times. Measured (regcomp): 20 take 718 MB and
+ *  0.46 s, 24 run out of 6 GB. 4 make 16 copies of 256 bytes at most: about
+ *  4 MB and 1 ms in the worst case measured  */
+#define NODE_FILTER_PLUS_MAX    4
+
 /*  The longest max_run of a scenario: a week, in seconds  */
 #define MAX_RUN_LIMIT   (7*24*3600)
 
@@ -232,6 +239,14 @@
 
 /*  The longest node uuid: what node_uuid() holds (its buffer of 64)  */
 #define NODE_ID_MAX     63
+
+/*  The longest yuno_version and os pretty name of an agent's card. A
+ *  filter of list-agents/list-nodes matches them, and regexec() keeps every
+ *  state it builds until regfree(): a pattern built to miss
+ *  (`.*a` and 62 `.`) over 300 fields of 101 bytes took 23 s and 790 MB,
+ *  of 151 bytes 84 s and 2 GB; over 556 fields of 63 bytes (the uuids of
+ *  the knocks) 9 s and 450 MB. So as long as a host name, no more  */
+#define CARD_TEXT_MAX   64
 
 /*  The longest open enrollment, in minutes, and the most nodes it accepts  */
 #define MAX_ENROLLMENT_MINUTES  60
@@ -343,6 +358,7 @@ PRIVATE BOOL key_accepted_for_another_node(
 );
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open);
 PRIVATE BOOL node_id_shaped(json_t *jn_id);
+PRIVATE const char *card_texts_refused(json_t *card);
 PRIVATE void drop_sessions_not_accepted(
     hgobj gobj,
     const char *node_id,
@@ -666,7 +682,7 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
 SDATACM (DTP_SCHEMA,    "logout-user",      0,                  pm_logout_user, cmd_logout_user,"Logout user"),
-SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given (POSIX extended; no back-reference, no {n,m}, 256 bytes at most)"),
+SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given (POSIX extended, 256 bytes at most; no back-reference, no {n,m}, no word boundary, 4 + at most, ^ only first and $ only last)"),
 
 SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              pm_command_agent,cmd_command_agent,"Command to agent (agent id = UUID or HOSTNAME)"),
 
@@ -1002,8 +1018,9 @@ PRIVATE void mt_destroy(hgobj gobj)
  *  agent of before with its token -- is C_AUTHZ's, as for any service.
  *  The card of an agent that presents a key is checked first, being a
  *  peer's not authenticated yet: an `id` that is no node uuid, or a `host`
- *  that is not a string or is longer than a host name, is refused (a
- *  WARNING), and nothing of it is kept.
+ *  that is not a string or is longer than a host name, or a `yuno_version`
+ *  or os `pretty_name` so (card_texts_refused()), is refused (a WARNING),
+ *  and nothing of it is kept.
  ***************************************************************************/
 PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 {
@@ -1033,6 +1050,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             bad_card = "its host is not a string";
         } else if(jn_host && json_string_length(jn_host) > HOST_NAME_MAX) {
             bad_card = "its host is longer than a host name";
+        } else {
+            bad_card = card_texts_refused(kw);
         }
         if(bad_card) {
             gobj_log_warning(gobj, 0,
@@ -5013,6 +5032,31 @@ PRIVATE BOOL node_id_shaped(json_t *jn_id)
 }
 
 /***************************************************************************
+ *  The texts of an agent's card that the filters match besides its id and
+ *  host: its `yuno_version` and the `pretty_name` of its `os`, each a
+ *  string of CARD_TEXT_MAX at most when present. NULL, or why not. Up to
+ *  7.31.29 their length had no bound.
+ ***************************************************************************/
+PRIVATE const char *card_texts_refused(json_t *card)
+{
+    json_t *jn_version = json_object_get(card, "yuno_version");
+    json_t *jn_os = json_object_get(json_object_get(card, "os"), "pretty_name");
+    if(jn_version && !json_is_string(jn_version)) {
+        return "its yuno_version is not a string";
+    }
+    if(jn_version && json_string_length(jn_version) > CARD_TEXT_MAX) {
+        return "its yuno_version is longer than 64";
+    }
+    if(jn_os && !json_is_string(jn_os)) {
+        return "its os pretty_name is not a string";
+    }
+    if(jn_os && json_string_length(jn_os) > CARD_TEXT_MAX) {
+        return "its os pretty_name is longer than 64";
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *  A decision about a node (decide_node()) holds for its sessions in
  *  course too: each session of `node_id` whose key is not the one accepted
  *  now -- every one, if the node is refused -- is dropped (an INFO), and
@@ -5214,34 +5258,67 @@ PRIVATE json_t *say_why_no_agent(hgobj gobj, const char *agent_id)
 
 /***************************************************************************
  *  A pattern a filter may run: NULL, or why not. The control center is one
- *  thread, and two things of glibc's ERE can stall it:
+ *  thread, and glibc's ERE has four ways to stall it, all measured with
+ *  regcomp() (the memory is libc's malloc, out of gbmem and its limits):
  *    - a back-reference (`\1`) makes a match exponential;
  *    - a bounded repetition (`{n,m}`) is COMPILED by copying what it
  *      repeats up to m times (RE_DUP_MAX: 32767), and nested ones
- *      multiply: `(a{1000}){1000}`, 15 bytes, takes 200 MB and 0.16 s in
- *      regcomp(), and `(a{32767}){32767}` grows until the memory runs out,
- *      with libc's malloc (out of gbmem and its limits). Up to 7.31.29
- *      both were let in.
- *  So a `\` followed by a digit, an unescaped `{`, and a pattern longer than
- *  NODE_FILTER_PATTERN_MAX are refused; what is left compiles to about one
- *  node per byte, and glibc matches it in polynomial time. Both are refused
- *  inside brackets too, where they are literal (`[{]`): one rule to read,
- *  and `\{` is the character `{` everywhere.
+ *      multiply: `(a{1000}){1000}`, 15 bytes, takes 200 MB and 0.16 s, and
+ *      `(a{32767}){32767}` grows until the memory runs out;
+ *    - `X+` is compiled as `X X*` (a copy of X), so k of them copy 2^k
+ *      times, chained (`a++++`) or nested (`((a+)+)+`): 20 take 718 MB,
+ *      24 run out of 6 GB. Up to NODE_FILTER_PLUS_MAX are let in;
+ *    - an anchor (`^`, `$`) or a word boundary (`\b`, `\B`, `\<`, `\>`,
+ *      `\``, `\'`) inside nested loops makes regcomp() exponential in TIME
+ *      (its closures of the empty transitions): `(^(^...$)*$)*` with 10
+ *      levels, 50 bytes, takes 8 s, with 12 more than 20 s; `(\b(\b...)*)*`
+ *      with 8 levels more than 20 s. So `^` is let in only as the first
+ *      character (or right after `[`, where it negates the bracket) and `$`
+ *      only as the last one, where no loop holds them, and the word
+ *      boundaries not at all.
+ *  `*` and `?` copy nothing (measured: 24 of them, chained or nested, cost
+ *  nothing). So a `\` followed by a digit or by a word boundary, an
+ *  unescaped `{`, more than NODE_FILTER_PLUS_MAX `+`, an anchor anywhere
+ *  else, and a pattern longer than NODE_FILTER_PATTERN_MAX are refused.
+ *  They are refused inside brackets too, where they are literal (`[{]`,
+ *  `[+]`, `[$]`): one rule to read, and an escaped character (`\{`, `\+`,
+ *  `\$`) is that character everywhere. Up to 7.31.29 all of them were let
+ *  in.
  ***************************************************************************/
 PRIVATE const char *why_pattern_refused(const char *pattern)
 {
     if(strnlen(pattern, NODE_FILTER_PATTERN_MAX + 1) > NODE_FILTER_PATTERN_MAX) {
         return "a regular expression longer than 256 bytes is refused";
     }
+    int pluses = 0;
+    BOOL after_bracket = FALSE;     // the character before is an unescaped '['
     for(const char *p = pattern; *p; p++) {
+        BOOL opens_bracket = after_bracket;
+        after_bracket = FALSE;
         if(*p == '{') {
             return "a bounded repetition ({n,m}) is refused: write \\{ for the character {";
+        }
+        if(*p == '+') {
+            if(++pluses > NODE_FILTER_PLUS_MAX) {
+                return "more than 4 + are refused: write XX* for X+, \\+ for the character +";
+            }
+            continue;
+        }
+        if((*p == '^' && p != pattern && !opens_bracket) || (*p == '$' && p[1])) {
+            return "an anchor is refused but ^ first and $ last: write \\^ or \\$ for the character";
+        }
+        if(*p == '[') {
+            after_bracket = TRUE;
+            continue;
         }
         if(*p != '\\') {
             continue;
         }
         if(isdigit((unsigned char)p[1])) {
             return "a back-reference (\\ and a digit) is refused";
+        }
+        if(p[1] && strchr("bB<>`'", p[1])) {
+            return "a word boundary (\\b \\B \\< \\> \\` \\') is refused";
         }
         if(p[1]) {
             p++;    // an escaped character, whatever it is
@@ -5845,7 +5922,9 @@ PRIVATE const char *record_node_key(
  *  and dropped, and FALSE is returned. A card whose `id` or `host` is not a
  *  string, or is longer than a node uuid or a host name, is refused so
  *  too, enforce_node_keys or not (a WARNING): a session of a token is let
- *  in with the card its peer wrote, and what names the nodes reads it. See
+ *  in with the card its peer wrote, and what names the nodes reads it. Its
+ *  `yuno_version` and os `pretty_name` too, of CARD_TEXT_MAX at most: the
+ *  filters of list-agents/list-nodes match them (card_texts_refused()). See
  *  NODE KEYS in the header.
  ***************************************************************************/
 PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
@@ -5882,6 +5961,8 @@ PRIVATE BOOL check_node_key(hgobj gobj, json_t *kw_open)
         bad_card = "its host is not a string";
     } else if(jn_host && json_string_length(jn_host) > HOST_NAME_MAX) {
         bad_card = "its host is longer than a host name";
+    } else {
+        bad_card = card_texts_refused(identity_card);
     }
     if(bad_card) {
         gobj_log_warning(gobj, 0,
