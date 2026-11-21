@@ -612,15 +612,23 @@ for [`C_IEVENT_SRV`](#gclass-c-ievent-srv) children in state `ST_SESSION` and re
 `identity_card`. A node is addressed by its **UUID** (`identity_card.id`) or
 its **hostname** (see [A node is reached by its uuid](#controlcenter-node-names)).
 
-`list-agents` takes four filters, each a regular expression (POSIX extended,
+`list-agents` takes four filters. Each filter is a regular expression (POSIX extended,
 as `grep -E` reads it) matched against one field of the agent's card:
 `uuid` (`identity_card.id`), `version` (`yuno_version`), `hostname` and `os`
 (the `pretty_name` of the os the agent says, 7.31.21+. An agent before says
 none). An
 agent is listed when it matches every filter given. A filter that is not a
-regular expression is refused (-1), and the answer says which. So is a filter
-with a back-reference (`\1`: a match can take exponential time, and the
-control center runs in one thread) or longer than 256 bytes (7.31.20+):
+regular expression is refused (-1), and the answer says which. The control
+center runs in one thread, so it also refuses three kinds of filter:
+
+- A filter with a back-reference (`\1`), because a match can take exponential
+  time (7.31.20+).
+- A filter longer than 256 bytes (7.31.20+).
+- A filter with a `{` that is not escaped, also inside brackets (`[{]`). A
+  bounded repetition (`{n,m}`) makes `regcomp()` copy what it repeats, and
+  nested ones multiply: `(a{1000}){1000}` takes 200 MB, and
+  `(a{32767}){32767}` takes all the memory. For the character `{`, write
+  `\{`. Up to 7.31.29 the control center compiled these filters.
 
 ```bash
 ycommand -c 'list-agents hostname=^yunovatios-'          # the yunovatios nodes
@@ -629,6 +637,10 @@ ycommand -c 'list-agents uuid=^(6bdfcb15|b221635f)-'      # two nodes by the sta
 ycommand -c 'list-agents os=^Rocky'                       # the nodes on Rocky Linux
 ycommand -c 'list-agents hostname=artgins('
 # -> -1 "controlcenter^cc1: hostname='artgins(' is no regular expression: Unmatched ( or \("
+ycommand -c 'list-agents hostname=^node-[0-9]{2}$'
+# -> -1 "controlcenter^cc1: hostname: a bounded repetition ({n,m}) is refused: write \{ for the character {"
+ycommand -c 'list-agents hostname=^node-[0-9][0-9]$'      # accepted: the same match, written out
+ycommand -c 'list-agents hostname=^lab\{1\}'               # accepted: the characters { and }
 ```
 
 What a node IS (its os, cpu, memory, disks, network interfaces, uptime) is

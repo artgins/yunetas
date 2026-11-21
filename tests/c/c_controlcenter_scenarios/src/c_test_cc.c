@@ -4288,13 +4288,23 @@ PRIVATE int test_key_login_first_and_cards(hgobj gobj, hgobj client)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
-    hgobj t = open_keyed_session(gobj, "p1-t", "uuid-na", "host-a2", NULL);
-    hgobj a = open_key_login(gobj, "p1-a", "uuid-na", "host-a2", KEY_C);
+    hgobj t = open_session_card(gobj, "p1-t",
+        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+            "id", "uuid-na", "yuno_version", "7.0.0-token",
+            "__md_iev__", "ievent_gate_stack", "host", "host-a2"
+        ), NULL, NULL);
+    hgobj a = open_session_card(gobj, "p1-a",
+        json_pack("{s:s, s:s, s:{s:[{s:s}]}}",
+            "id", "uuid-na", "yuno_version", "7.31.29-key",
+            "__md_iev__", "ievent_gate_stack", "host", "host-a2"
+        ), KEY_C, "agent:uuid-na");
     ret += check_response(gobj, to_agent(gobj, client, "command-agent", "uuid-na"),
         0, "sent to 1 nodes", "command-agent by an accepted node's uuid, a token claiming it too");
     if(frames_differ(frames_to(t), frames_to(a), 0, 1)) {
         ret += fail(gobj, "a token claiming an accepted node's uuid takes what goes to the node", "");
     }
+    ret += check_node_field(gobj, client, "uuid-na", "version", "7.31.29-key",
+        "list-nodes reads the session that logged in by the key, a token claiming its uuid first");
     close_session(t);
     close_session(a);
 
@@ -4497,6 +4507,25 @@ PRIVATE int test_list_agents_filtered(hgobj gobj, hgobj client)
             json_pack("{s:s}", "hostname", "^la-\\\\1"),
             "list-agents with an escaped backslash before a digit") != 0) {
         ret += fail(gobj, "an escaped backslash before a digit matches a hostname", "");
+    }
+
+    /*
+     *  A bounded repetition is refused: regcomp() copies what it repeats,
+     *  and nested ones grow without a bound ((a{32767}){32767}). Inside
+     *  brackets too, and after an escaped backslash. An escaped brace is
+     *  the character. Up to 7.31.29 they were compiled
+     */
+    const char *braces[] = {"(la){2}", "^la-[{]", "^la-\\\\{2}", "((la){2}){2}", 0};
+    for(int i=0; braces[i]; i++) {
+        kw = client_kw(gobj_name(client));
+        json_object_set_new(kw, "hostname", json_string(braces[i]));
+        ret += check_response(gobj, gobj_command(priv->cc, i%2? "list-nodes" : "list-agents", kw, client),
+            -1, "hostname: a bounded repetition ({n,m}) is refused", braces[i]);
+    }
+    if(count_listed(gobj, client, "list-agents",
+            json_pack("{s:s}", "hostname", "^la-\\{"),
+            "list-agents with an escaped brace") != 0) {
+        ret += fail(gobj, "an escaped brace matches a hostname", "");
     }
 
     /*

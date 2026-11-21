@@ -359,6 +359,7 @@ PRIVATE BOOL node_filters_match(
 PRIVATE void free_node_filters(node_filter_t filters[NODE_FILTERS]);
 PRIVATE BOOL same_address(const char *a, const char *b);
 PRIVATE hgobj agent_channel_of_uuid(hgobj gobj, const char *uuid);
+PRIVATE json_t *agent_channels_by_uuid(hgobj gobj);
 PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id, BOOL *ambiguous);
 PRIVATE json_t *cmd_scenarios(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_save_scenario(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -634,7 +635,7 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
 SDATACM (DTP_SCHEMA,    "logout-user",      0,                  pm_logout_user, cmd_logout_user,"Logout user"),
-SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given"),
+SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents, those whose uuid, version, hostname or os match the regular expressions given (POSIX extended; no back-reference, no {n,m}, 256 bytes at most)"),
 
 SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              pm_command_agent,cmd_command_agent,"Command to agent (agent id = UUID or HOSTNAME)"),
 
@@ -643,7 +644,7 @@ SDATACM2 (DTP_SCHEMA,   "info-machine",     0,                  0,              
 
 SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              pm_drop_agent,cmd_drop_agent,"Drop connection to agent (agent id = UUID or HOSTNAME)"),
 
-SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused; filtered by state, and by uuid, version, hostname or os (regular expressions)"),
+SDATACM2 (DTP_SCHEMA,   "list-nodes",       0,                  0,              pm_list_nodes,  cmd_list_nodes, "The nodes and the keys of their agents: pending, accepted, refused; filtered by state, and by uuid, version, hostname or os (regular expressions, as in list-agents)"),
 SDATACM2 (DTP_SCHEMA,   "accept-node",      0,                  0,              pm_accept_node, cmd_accept_node,"Accept a node: pin its uuid to the key given (spki_sha256, read on the node), or to the one it presented that starts as compared (presented=<start>)"),
 SDATACM2 (DTP_SCHEMA,   "refuse-node",      0,                  0,              pm_refuse_node, cmd_refuse_node,"Refuse a node: its agent is dropped, and refused while enforce_node_keys"),
 SDATACM2 (DTP_SCHEMA,   "delete-node",      0,                  0,              pm_delete_node, cmd_delete_node,"Delete the record of a node refused or pending, not connected: its agent, if it comes back, is a node never seen"),
@@ -1574,21 +1575,20 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 card_str(card, "id"), card_str(card, "yuno_version"), card_host(card), card_os(card))) {
             continue;
         }
-        json_t *jn_attrs = json_deep_copy(card);
-        json_object_del(jn_attrs, "jwt");
         if(expand) {
+            json_t *jn_attrs = json_deep_copy(card);
+            json_object_del(jn_attrs, "jwt");
             json_array_append_new(jn_data, jn_attrs);
         } else {
             json_array_append_new(jn_data,
                 json_sprintf("UUID:%s (%s,%s),  HOSTNAME:'%s',  OS:'%s'",
-                    card_str(jn_attrs, "id"),
-                    card_str(jn_attrs, "yuno_role"),
-                    card_str(jn_attrs, "yuno_version"),
-                    card_host(jn_attrs),
-                    card_os(jn_attrs)
+                    card_str(card, "id"),
+                    card_str(card, "yuno_role"),
+                    card_str(card, "yuno_version"),
+                    card_host(card),
+                    card_os(card)
                 )
             );
-            json_decref(jn_attrs);
         }
     }
     gobj_free_iter(dl_children);
@@ -2064,11 +2064,12 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         gobj
     );
 
+    json_t *channels = agent_channels_by_uuid(gobj);
     json_t *jn_data = json_array();
     size_t idx; json_t *jn_node;
     json_array_foreach(jn_nodes, idx, jn_node) {
         const char *uuid = kw_get_str(gobj, jn_node, "id", "", 0);
-        hgobj agent = agent_channel_of_uuid(gobj, uuid);
+        hgobj agent = (hgobj)(size_t)json_integer_value(json_object_get(channels, uuid));
         json_t *card = agent? gobj_read_json_attr(agent, "identity_card") : NULL;
         const char *version = card? card_str(card, "yuno_version") : "";
         const char *os = card? card_os(card) : "";
@@ -2084,6 +2085,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             accepted? "spki_sha256" : "presented_spki", "", 0)));
         json_array_append(jn_data, jn_node);
     }
+    JSON_DECREF(channels)
     JSON_DECREF(jn_nodes)
 
     /*
@@ -4835,6 +4837,52 @@ PRIVATE hgobj find_agent_channel(hgobj gobj, const char *agent_id, BOOL *ambiguo
 }
 
 /***************************************************************************
+ *  agent_channel_of_uuid() of every uuid in session, in one pass: uuid ->
+ *  its channel (an integer), yours. For a command that answers each node
+ *  (list-nodes): a pass per node was O(nodes x gobjs). Same choice: a
+ *  refused session is skipped, and of two sessions of one uuid the one that
+ *  logged in by the node's key, else the first.
+ ***************************************************************************/
+PRIVATE json_t *agent_channels_by_uuid(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *channels = json_object();
+    json_t *by_key = json_object();     // uuid -> true: its channel logged in by the key
+
+    json_t *jn_filter = json_pack("{s:s, s:s}",
+        "__gclass_name__", C_IEVENT_SRV,
+        "__state__", ST_SESSION
+    );
+    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_children, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        if(agent_is_refused(child)) {
+            continue;
+        }
+        const char *uuid = card_str(gobj_read_json_attr(child, "identity_card"), "id");
+        if(json_object_get(by_key, uuid)) {
+            continue;
+        }
+        char key_login[NAME_MAX];
+        snprintf(key_login, sizeof(key_login), "agent:%s", uuid);
+        const char *username = gobj_read_str_attr(child, "__username__");
+        BOOL logged_by_key = strcmp(username? username : "", key_login)==0;
+        if(logged_by_key || !json_object_get(channels, uuid)) {
+            json_object_set_new(channels, uuid, json_integer((json_int_t)(size_t)child));
+        }
+        if(logged_by_key) {
+            json_object_set_new(by_key, uuid, json_true());
+        }
+    }
+    gobj_free_iter(dl_children);
+    JSON_DECREF(by_key)
+    return channels;
+}
+
+/***************************************************************************
  *  A node uuid as an agent's card says it (C_IEVENT_CLI writes
  *  node_uuid()): a string of letters, digits and '-', of 1 to NODE_ID_MAX.
  *  Not the strict 8-4-4-4-12: node_uuid() reads uuid.json as it is written.
@@ -5061,12 +5109,20 @@ PRIVATE json_t *say_why_no_agent(hgobj gobj, const char *agent_id)
 }
 
 /***************************************************************************
- *  A pattern a filter may run: NULL, or why not. glibc's ERE takes
- *  back-references (`\1`), which make a match exponential, and the control
- *  center is one thread: a pattern with one, or a pattern longer than
- *  NODE_FILTER_PATTERN_MAX, is refused. Without back-references glibc
- *  matches in polynomial time. A `\` followed by a digit is refused even
- *  inside brackets, where it is no back-reference: one rule to read.
+ *  A pattern a filter may run: NULL, or why not. The control center is one
+ *  thread, and two things of glibc's ERE can stall it:
+ *    - a back-reference (`\1`) makes a match exponential;
+ *    - a bounded repetition (`{n,m}`) is COMPILED by copying what it
+ *      repeats up to m times (RE_DUP_MAX: 32767), and nested ones
+ *      multiply: `(a{1000}){1000}`, 15 bytes, takes 200 MB and 0.16 s in
+ *      regcomp(), and `(a{32767}){32767}` grows until the memory runs out,
+ *      with libc's malloc (out of gbmem and its limits). Up to 7.31.29
+ *      both were let in.
+ *  So a `\` followed by a digit, an unescaped `{`, and a pattern longer than
+ *  NODE_FILTER_PATTERN_MAX are refused; what is left compiles to about one
+ *  node per byte, and glibc matches it in polynomial time. Both are refused
+ *  inside brackets too, where they are literal (`[{]`): one rule to read,
+ *  and `\{` is the character `{` everywhere.
  ***************************************************************************/
 PRIVATE const char *why_pattern_refused(const char *pattern)
 {
@@ -5074,6 +5130,9 @@ PRIVATE const char *why_pattern_refused(const char *pattern)
         return "a regular expression longer than 256 bytes is refused";
     }
     for(const char *p = pattern; *p; p++) {
+        if(*p == '{') {
+            return "a bounded repetition ({n,m}) is refused: write \\{ for the character {";
+        }
         if(*p != '\\') {
             continue;
         }

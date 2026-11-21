@@ -375,7 +375,9 @@ still reported and fails the test.
     `command-agent`, `list-agents` and another agent's open after it log
     nothing. A `knows_operator_assertion` that is not a boolean (`1`,
     `"yes"`) is no: `command-agent` reaches that agent with no
-    `__operator_assertion__`, and nothing logs. In 7.30.15 the first session
+    `__operator_assertion__`, and nothing logs. `list-nodes` gives the
+    version of the session that logged in by the key, not the token's
+    first one. In 7.30.15 the first session
     got it, the bad card was let in, with an ERROR from each of those, and
     the non-boolean gave an ERROR with a stack at each command.
 35. A scenario ("amb") with a yuno on a name that two nodes without a key
@@ -587,6 +589,14 @@ still reported and fails the test.
     mirror is recorded. Up to 7.30.26 every name was kept, refused ones
     too, with no bound, until the agent's channel closed. A reading went
     with the node the agent wrote. And a link got any stream.
+
+The filters of `list-agents` and `list-nodes` (regular expressions of
+`uuid`, `version`, `hostname`, `os`) are checked after case 34. A node must
+match all of them. The control center refuses a pattern that does not
+compile, a back-reference, a pattern longer than 256 bytes, and a `{` that is
+not escaped (`(la){2}`, `[{]`, `\\{2}`, `((la){2}){2}`). It accepts an
+escaped backslash before a digit, and an escaped brace (`\{`). Up to 7.31.29
+a `{` was compiled: `(a{32767}){32767}` takes all the memory in `regcomp()`.
 
 Case 22 also checks that `accept-node` of a node that knocked under another
 key does not take the hostname it knocked with. Its refused opens of nodes

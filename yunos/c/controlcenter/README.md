@@ -86,6 +86,7 @@ list-nodes state=pending
 list-nodes state=knocking
 list-nodes state=other-key   # accepted nodes whose agent presents another key (a node reinstalled)
 list-nodes hostname=^orangepi- version=^7.31.   # uuid, version, hostname, os: regular expressions
+list-nodes hostname='^node\{1\}'    # the character {: escape it, a bare { is refused
 accept-node node_id=<uuid> spki_sha256=<the key read on the node>
 delete-node node_id=<uuid>    # a node refused or pending, not connected: a machine that is gone
 ```
