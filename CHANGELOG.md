@@ -2,6 +2,158 @@
 
 ## Unreleased
 
+### Security
+
+- **agent22 `install-package`: the part that runs as root is a program of
+  the package**, `/usr/libexec/yuneta/install-package` (root:root 0755, in
+  the `.deb` and the `.rpm`). agent22 writes only the URL and the sha256.
+  The program checks them again, refuses links, and keeps its data, the
+  download and `result` in `/var/lib/yuneta/install-package/`, which is
+  root's. Up to 7.31.29, agent22 wrote the script that root ran into
+  `/yuneta/agent/install-package/`, a directory of `yuneta`, and root
+  downloaded and wrote its result there. On a site that grants `sudo` only
+  for this command, `yuneta` became root. A site with no `sudo` can now
+  grant exactly this program (the line is in *Files outside `/yuneta`*).
+  A node whose package has no such program is refused with a clear answer,
+  and nothing is done. The 7.31.29 agent22 installs the new package with its
+  own script, so the transition needs no manual step. (The command came in
+  7.31.27.)
+- **agent22 `install-package` installs only the `yuneta-agent` package, and
+  only curl downloads it.** After the sha256, `dpkg-deb -f` or `rpm -qp`
+  must name `yuneta-agent`. Up to 7.31.29, any `.deb` or `.rpm` with the
+  given sha256 was installed, and a node without curl fell back to wget,
+  whose `--https-only` does not apply to redirects. A node without curl is
+  now refused. The permissions `install-package` and `upgrade-agent` now say
+  that they are equivalent to root.
+- **The filters of `list-agents` and `list-nodes` refuse a `{` that is not
+  escaped**, also inside brackets. A bounded repetition makes `regcomp()`
+  copy what it repeats, and nested ones multiply: `(a{1000}){1000}` took
+  211 MB, and `(a{32767}){32767}` took all the memory of the control center.
+  Write `\{` for the character. Up to 7.31.29 (the filters came in 7.31.19),
+  any user with `list-agents` could do this.
+- **A flood of knocks no longer lets another key enroll under a real uuid.**
+  A uuid that the flood evicts from the knocking table now keeps the key
+  that it knocked with, in a bounded ring (new attribute
+  `max_evicted_knocks`, default 1024, 0 keeps none). An open enrollment
+  refuses that uuid with another key ("it knocked with another key") and
+  accepts it with its own key. A batch of nodes larger than the table still
+  enrolls, and the enrollment stays open. An evicted uuid that knocks with
+  another key is not taken back into the table: accept it with
+  `accept-node spki_sha256=<key>` or forget it with `delete-node`. The ring
+  is in memory, like the knocks. Up to 7.31.29 (the enrollment came in
+  7.31.15), the flood erased the key, and the enrollment accepted another
+  key under that uuid.
+
+### Changed
+
+- **`yuneta-node-uuid`: an interface in a bond counts with its own MAC**
+  (`bonding_slave/perm_hwaddr`). From 7.31.3 to 7.31.29 such interfaces
+  were skipped, so two servers of one batch with the same DMI uuid and
+  bonded NICs got the same node uuid. A deployed node whose NICs are all in
+  a bond gets a new uuid at the first agent start after the upgrade, with a
+  copy and a warning, and must be accepted again (`accept-node`). Before
+  you upgrade a node, look for bonds with `ls /sys/class/net/*/bonding_slave`.
+  `yuneta-node-label` lists such ports with their own MAC.
+- **MQTT broker: `max_subscriptions_per_client` is also the limit of a
+  persistent session.** The filters that the session kept from earlier
+  connections count. A new filter past the limit gets 0x80 (MQTT 3.1.1) or
+  0x97 (MQTT 5) in the SUBACK, and the broker logs one WARNING every 10 s
+  ("Mqtt: SUBSCRIBE past max_subscriptions_per_client of the session,
+  filters refused"). From 7.31.2 to 7.31.29 each reconnection could add 100
+  more filters, which the broker saved and restored at every start. A
+  session that already grew past the limit is restored as it is, and its
+  new filters are refused until it goes back under the limit.
+- **The filters of `list-agents` and `list-nodes`**: see *Security*. Their
+  help text names the limits.
+- **yunetas CLI 1.0.8: `sync-configs` and `sync` refuse `--batches-dir`
+  together with `--project`**, and exit 1: `--batches-dir` takes the
+  configs instead of the registered projects. A directory of configs that
+  is reached two times (named two times, as a repository root and as its
+  `batches/`, or by a symlink), or a project named two times, is synced one
+  time. In CLI 1.0.7 the CLI ignored the `--project` with no message and
+  synced such a directory two times.
+
+### Fixed
+
+- **agent22 `install-package`: the download has limits.** It stops at
+  1 GiB (also with a curl older than 8.4, through `ulimit -f`) and when the
+  server sends less than 1 KB/s for 2 minutes. Up to 7.31.29 there was no
+  limit: a wrong URL filled the file system as root, and a silent server
+  kept the unit, and so every later `install-package`, blocked.
+- **agent22 `install-package` runs `apt-get update` before `apt-get
+  install`.** If the update fails, the install goes on with the index that
+  the node has. Up to 7.31.29 a new dependency (as `qrencode` in 7.31.24)
+  could fail against an old index.
+- **Release packages: `SHA256SUMS` lists every package of the release.** It
+  came in 7.31.27, and up to 7.31.29 it had to hold exactly one `.deb` and
+  one `.rpm`: a repackage on the same tag failed the job, and `install.sh`
+  then refused the release.
+- **`install.sh` downloads the package to `/var/tmp`, not `/tmp`** (a tmpfs
+  on Debian 13), and removes it also when it is interrupted. Up to 7.31.29
+  the package of about 370 MB was held in RAM.
+- **C_AUTH_BFF with `issuers`: at start, the discovery of the first IdP
+  waits `idp_failover_connect_ms` (4 s) to connect, as a login does.** From
+  7.31.6 to 7.31.29 it waited `idp_connect_timeout_ms` (30 s), and a login
+  that came meanwhile waited for it. A BFF that started with its first IdP
+  down answered logins after the SPA had given up.
+- **`info-machine`: an answer that cannot be built is -1 with an ERROR.**
+  When the hostname or the `node_uuid` was not UTF-8, the answer was 0 with
+  no data and no log, after a read of memory that `json_pack()` had freed.
+  The command came in 7.31.21.
+- **The masked form of a command line is at most 64 KB, with no ERROR and
+  no piece cut.** A parameter that does not fit shows as `<...>`. Up to
+  7.31.29 a line that a peer can write (a client's `cmd2agent`) logged two
+  ERRORs with a stack for each parameter past 64 KB, and kept a cut piece.
+  `help cmd=<line>` and a `help` search word no longer log ERRORs when they
+  are long: a `cmd` whose masked line passed 4 KB logged an ERROR with a
+  stack for each `=` under its header (over 1000 for one request).
+- **MQTT broker: a SUBSCRIBE that changes nothing does not write the
+  session.** A filter that a persistent session already holds, with the
+  same QoS and options, no longer rewrites the session record. From 7.31.2
+  to 7.31.29 each such SUBSCRIBE rewrote the whole record (about 30 KB with
+  100 filters of 250 bytes): 10 000 of them added 309 MB to the store, and
+  add 68 KB now. The CONNECT and the close of a persistent session still
+  write the whole record.
+- **MQTT broker: a delivery to a share group that ends a connection inside
+  it no longer frees the group that the loop walks.** Group removal waits
+  until the loop ends. The close of a session also no longer reads the name
+  of a freed group. Both came in 7.31.2.
+- **C_PROT_MQTT2: "ACL skipped" is logged once per connection**, not once
+  per PUBLISH, in a gate without a broker and a client with a user.
+- **The control center logs a refusal of the enrollment the first time in
+  each enrollment, then once every `knocking_warning_period`.** The same
+  applies to the knocks of a refused node. Up to 7.31.29 each knock gave a
+  WARNING, and two for a refused node during an enrollment.
+
+### Performance
+
+- **MQTT broker: a PUBLISH no longer creates and frees one dict for each
+  share group**, matched or not. `perf_mqtt` with 32 share groups that do
+  not match: +7.2% (10 rounds alternated against 7.31.29). With no share
+  group, +1.0%, inside the noise. This came in 7.31.2. `perf_mqtt` has a new
+  attribute, `share_groups`:
+
+  ```sh
+  perf_mqtt '{"global": {"perf_mqtt.share_groups": 32}}'
+  ```
+
+- **C_PROT_MQTT2 asks the broker about a PUBLISH only when its `enable_acl`
+  is on.**
+- **`list-nodes` finds the agents in session in one pass**, not one pass
+  for each node, and **`list-agents` copies a card only with `expand=1`**.
+  The answers do not change.
+- **`info-machine` / `info-ifs` find each network interface by name**, not
+  by a linear scan. The answer does not change.
+- **gobj-ui 7.31.8: `fmt_date_time()` keeps one formatter for each language
+  and time zone.** Up to gobj-ui 7.31.7 each call built a new
+  `Intl.DateTimeFormat`. A header filter over a time column calls it once
+  for each row on each key: over 10 000 rows a key took 350 ms, and takes
+  16 ms now. The text is the same.
+- **gobj-ui 7.31.8: a click on an edge of the JSON graph
+  (`C_YUI_JSON_GRAPH`) draws only that edge and its two cards**, as the
+  schema graph and the treedb graph do. From gobj-ui 7.31.5 to 7.31.7 each
+  click built the whole drawing again and ran the layout again.
+
 ### Docs
 
 - **The entry of llhttp 9.4.4 (7.31.1) is corrected.** It said that the
