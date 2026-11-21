@@ -13,6 +13,11 @@
   answered in order, with one IdP or with `issuers`. The BFF now drops the
   connection when a discovery times out, as it already did for a login.
   This existed in 7.31.0.
+- **The HTTP client drops a `1xx` response** (`100 Continue`, `103 Early
+  Hints`), except `101`. Up to 7.31.29 a `1xx` from an IdP, or from a proxy
+  in front of it, was taken as the answer of the request of the BFF, and the
+  final answer went to the next request on the same connection: a login got
+  `auth_unexpected_error`, and the answers after it were one request late.
 - **agent22 `install-package`: the part that runs as root is a program of
   the package**, `/usr/libexec/yuneta/install-package` (root:root 0755, in
   the `.deb` and the `.rpm`). agent22 writes only the URL and the sha256.
@@ -73,15 +78,23 @@
   a valid token wrote one record for each new uuid, with no log and no
   limit. There is still no limit: set `allow_nodes_without_key` to false to
   refuse an agent that presents no key.
-- **C_TRANGER matches a peer's `rkey` regex within limits** (100000 steps,
-  depth 10000 and 4 MB for each key, 2 s for the whole request), in
-  `list-keys`, `open-iterator` and the one-shot `open-list`. A request that
-  reaches a limit is refused with "rkey regex too costly" (a WARNING from a
-  peer). Up to 7.31.29 it used the default limits of pcre2 (ten million
-  steps for each key, up to 100000 keys) and left out a key it could not
-  judge, as if it did not match. A live list of timeranger2 gets the same
-  limits for each match: a key that reaches one is not given to the list,
-  with one WARNING for each list.
+- **C_TRANGER and timeranger2 match an `rkey` regex within limits.** Each
+  start position of a match stops after 10000 steps, with 1 MB of heap, and
+  `list-keys`, `open-iterator` and the one-shot `open-list` have 2 s in
+  total, read before every key. A pattern longer than 4096 bytes, or one that
+  compiles to more than 64 KB, is refused, and the memory of pcre2 goes
+  through gbmem. A request that reaches a limit, or meets an error of pcre2,
+  is refused with "rkey regex too costly" (a WARNING from a peer). A live
+  list judges each key once, at the load and at the first append of that key,
+  with the same limits: a key that cannot be judged is not given to the list,
+  with one WARNING that names the list, and `get-list-data` says how many
+  keys were not judged. Up to 7.31.29 every match used the defaults of pcre2
+  (ten million steps at each position), a key that could not be judged was
+  left out as if it did not match, with no log, and a live list matched the
+  key of every append again: an append of a costly key took 10.8 ms, and
+  takes 17.5 µs now. With a cheap `rkey`, or none, an append does not change
+  (+0.3%, inside the noise). `perf_timeranger2` has a new phase, `rkey`, for
+  these appends.
 - **A flood of knocks no longer lets another key enroll under a real uuid.**
   A uuid that the flood evicts from the knocking table now keeps the key
   that it knocked with, in a bounded ring (new attribute

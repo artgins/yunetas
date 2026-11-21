@@ -373,6 +373,14 @@ application's gate (one application).
 
 ## 5. Future features and improvements
 
+- **`C_PROT_HTTP_CL` pairs each answer with its request.** Today nothing pairs
+  them: a keep-alive connection answers in order, and `C_TASK` takes the first
+  `EV_ON_MESSAGE` that comes. Two cases of this round broke that order (a
+  discovery that timed out and left its request in flight, and a `1xx`), and
+  both are fixed where they happened. Defense in depth: `C_PROT_HTTP_CL`
+  publishes the ordinal of the request each answer belongs to, and `C_TASK`
+  drops what is not its own. It changes the `C_TASK` contract for every user
+  of `C_PROT_HTTP_CL` (`C_AUTH_BFF`, `c_task_authenticate`).
 - **A read pause in `C_TCP`.** `C_PROT_HTTP_SR` cannot stop reading a peer, so it holds
   what the peer pipelines, up to `max_rx_held`, and drops a peer that passes it even if it
   reads. A pause would let TCP slow the peer and remove that limit.
