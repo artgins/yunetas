@@ -1502,14 +1502,20 @@ package ships:
 
 The package installs it from `packages/templates/copy-certs.sh`. The
 certbot deploy hook runs the same script as root. Root only reads the
-certificates of `/etc/letsencrypt/live/<name>/`. The user `yuneta` writes
-`/yuneta/store/certs/<name>.crt`, `<name>.chain` and
-`private/<name>.key` (`setpriv`). An unchanged file keeps its mtime
-(`install -C`), so the size and mtime snapshot of the sync sees no change.
+certificates of `/etc/letsencrypt/live/<name>/`. The user `yuneta`
+(`setpriv --reset-env`) compares each one with its copy in
+`/yuneta/store/certs/<name>.crt`, `<name>.chain` or `private/<name>.key`.
+It writes a file only when its content changed, in one step (a temporary
+file in the same directory, then `mv`). So an unchanged file keeps its
+mtime, and the size and mtime snapshot of the sync sees no change. The
+script says `Copied <name>` and runs `check-certs-validity.sh` only when
+something changed.
 
 To copy only some certificates, list their names in
-`/yuneta/store/certs/certs.list`, one per line. Without that file, the
-script copies every directory of `/etc/letsencrypt/live/`:
+`/yuneta/store/certs/certs.list`. The script trims the blanks around a
+line, and a line can hold several names separated by blanks. Without that
+file, or with an empty one, the script copies every directory of
+`/etc/letsencrypt/live/`:
 
 ```text
 # /yuneta/store/certs/certs.list
@@ -1517,9 +1523,13 @@ example.com
 ```
 
 The script skips a name that is not `[A-Za-z0-9._-]`, starts with a dot or
-has `..`, and a `.pem` that does not resolve under `/etc/letsencrypt/`. It
-refuses a symbolic link in place of `/yuneta/store/certs/` or `private/`.
-Each refusal is a line in its output, and the other certificates go on.
+has `..`, a `.pem` that does not resolve under `/etc/letsencrypt/`, and a
+certificate whose destination file is a symbolic link. It says each one in
+a line, and the other certificates go on. Two cases stop the script with
+exit 1 and copy nothing: a symbolic link in place of `/yuneta/store/certs/`
+or `private/`, and a `certs.list` that `yuneta` cannot read. A copy that
+fails also gives exit 1, after the other copies. The agent's sync then
+says `copy-script-failed`.
 
 Up to 7.31.29 this page told deployers to write their own script. But the
 package ships the script, and each upgrade replaces it. Put a local choice

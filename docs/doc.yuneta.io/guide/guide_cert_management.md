@@ -48,33 +48,51 @@ certbot `deploy-hook` at
 1. Run `/yuneta/store/certs/copy-certs.sh` as root. The package ships this
    script (`packages/templates/copy-certs.sh`). Root only reads the
    certificates in `/etc/letsencrypt/live/<name>/` (normally
-   `root:root 0700`). The user `yuneta` writes the copies in
-   `/yuneta/store/certs/` (`setpriv`). The script does these checks:
-    - It takes the names from `/yuneta/store/certs/certs.list`, one per
-      line, or else from the directories of `/etc/letsencrypt/live/`. A
-      name has only `[A-Za-z0-9._-]`, does not start with a dot, and has
-      no `..`. The script skips any other name with a line in
-      `/var/log/yuneta/copy-certs.log`, and copies the others.
+   `root:root 0700`). The user `yuneta` (`setpriv --reset-env`, in a
+   session of its own) compares each one with its copy in
+   `/yuneta/store/certs/`, and writes only a file that changed. The script
+   does these checks:
+    - It takes the names from `/yuneta/store/certs/certs.list`, or else
+      from the directories of `/etc/letsencrypt/live/`. The blanks around
+      a line are trimmed, and a line can hold several names. A name has
+      only `[A-Za-z0-9._-]`, does not start with a dot, and has no `..`.
+      The script skips any other name with a line, and copies the others.
+      From the hook, that line goes to `/var/log/yuneta/copy-certs.log`.
+      From the agent's sync, it goes to the journal of the agent
+      (`journalctl -u yuneta_agent`).
+    - If `yuneta` cannot read `certs.list`, the script copies nothing and
+      exits with 1. The hook then logs `copy-certs.sh FAILED`, and the
+      agent's sync says `copy-script-failed`.
     - Each `.pem` must resolve to a file under `/etc/letsencrypt/`.
       Otherwise the script skips that certificate.
     - It refuses a `/yuneta/store/certs/` or `private/` that is a
-      symbolic link, and it skips a certificate whose destination file is
-      a symbolic link.
-    - It copies with `install -C`, so an unchanged file keeps its mtime.
-      The agent's sync (layer 2) reloads the yunos only when the size or
-      the mtime of a file changes.
-    - It runs `/yuneta/bin/check-certs-validity.sh` as `yuneta`.
+      symbolic link (exit 1, nothing copied), and it skips a certificate
+      whose destination file is a symbolic link.
+    - It writes a changed file in one step: a temporary file in the same
+      directory, then `mv`. No key is written anywhere else. An unchanged
+      file is not written, so it keeps its mtime. The agent's sync
+      (layer 2) reloads the yunos only when the size or the mtime of a file
+      changes.
+    - It says `Copied <name>` and runs `/yuneta/bin/check-certs-validity.sh`
+      (as `yuneta`) only when something changed.
 2. Reload the web server (`nginx -s reload` or `openresty -s reload`), as
    root.
 3. Broadcast the yuno-level `reload-certs` command to every running
    yuno, as `yuneta`:
    ```bash
-   setpriv --reuid=yuneta --regid=yuneta --init-groups -- \
-       env HOME=/home/yuneta /yuneta/bin/ycommand \
-       -c 'command-yuno command=reload-certs service=__yuno__'
+   setsid -w setpriv --reuid=yuneta --regid=yuneta --init-groups --reset-env -- \
+       /yuneta/bin/ycommand -c 'command-yuno command=reload-certs service=__yuno__'
    ```
-   If `ycommand` fails, the hook starts `/yuneta/bin/restart-yuneta` in
-   the background, as `yuneta` too.
+   If `ycommand` fails, the hook starts `/yuneta/bin/restart-yuneta` as
+   `yuneta` in a transient unit of its own, and does not wait for it.
+   certbot runs the hook in a unit that stops when certbot ends, and a job
+   left in the background there dies with it:
+   ```bash
+   systemd-run --no-block --unit=yuneta-restart-<UTC time> --uid=yuneta --gid=yuneta \
+       /yuneta/bin/restart-yuneta
+   journalctl -u 'yuneta-restart-*'     # what it did
+   ```
+   A node without systemd starts it in the background.
 4. Touch `/var/lib/yuneta/last-deploy-hook-run` with a Unix timestamp
    so the monitor in layer 3 can detect a hook that never runs.
 

@@ -9,7 +9,8 @@
 # What it runs: copy-certs.sh as root (it reads the keys of
 # /etc/letsencrypt, which are root's, and writes nothing in /yuneta as
 # root); the reload of the web server as root (its master runs as root);
-# ycommand and restart-yuneta as the user yuneta.
+# ycommand and restart-yuneta as the user yuneta (restart-yuneta in a
+# transient unit of its own, which outlives the unit of certbot).
 #
 # THE LIMIT: copy-certs.sh and the web server are files of /yuneta, which
 # yuneta owns, and root runs them (see the page "Files outside /yuneta",
@@ -44,11 +45,38 @@ mkdir -p "$LOG_DIR"
 STATE_DIR="${ROOT}/var/lib/yuneta"
 mkdir -p "$STATE_DIR"
 
-# A command as the user yuneta: setpriv, not su (no login shell)
+# A command as the user yuneta: setpriv, not su (no login shell), with the
+# environment of yuneta and not root's (what an operator puts in the unit
+# of certbot, the AWS_* of a DNS plugin, stays out), and in a session of
+# its own (setsid: no controlling terminal of root's)
 as_yuneta() {
-    "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
-        env HOME="$(getent passwd "$OWNER" | cut -d: -f6)" \
-        PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" "$@"
+    setsid -w "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups --reset-env -- \
+        env PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" "$@"
+}
+
+# restart-yuneta as yuneta, handed to PID 1: certbot runs this hook in a
+# oneshot unit, and what the hook leaves in the background dies with that
+# unit when certbot ends -- restart-yuneta stops the yunos (yshutdown),
+# waits and then restarts the agent, so it would stop the yunos and never
+# start the agent. A transient unit of its own (systemd-run --no-block)
+# outlives the hook. Without systemd (no unit to die with), in the
+# background.
+start_restart_yuneta() {
+    local unit
+    if [ -d "${ROOT}/run/systemd/system" ] && command -v systemd-run >/dev/null 2>&1; then
+        unit="yuneta-restart-$(date -u +%Y%m%d%H%M%S)"
+        if systemd-run --no-block --unit="$unit" --uid="$OWNER" --gid="$OWNER" \
+                --description="restart-yuneta, started by the certbot deploy hook" \
+                "${ROOT}/yuneta/bin/restart-yuneta" >>"$LOG_DIR/restart-yuneta.log" 2>&1; then
+            log "restart-yuneta started as $OWNER in the unit $unit (journalctl -u $unit)"
+            return 0
+        fi
+        log "systemd-run of restart-yuneta FAILED (see restart-yuneta.log): started in the background instead"
+    fi
+    nohup setsid "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups --reset-env -- \
+        env PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" \
+        "${ROOT}/yuneta/bin/restart-yuneta" >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
+    log "restart-yuneta launched in background, as $OWNER"
 }
 
 ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
@@ -111,11 +139,7 @@ if [ -x "${ROOT}/yuneta/bin/ycommand" ]; then
         rc=$?
         log "ycommand reload-certs FAILED (rc=$rc) — falling back to restart-yuneta"
         if [ -x "${ROOT}/yuneta/bin/restart-yuneta" ]; then
-            nohup "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
-                env HOME="$(getent passwd "$OWNER" | cut -d: -f6)" \
-                PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" \
-                "${ROOT}/yuneta/bin/restart-yuneta" >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
-            log "restart-yuneta launched in background, as $OWNER"
+            start_restart_yuneta
         else
             log "restart-yuneta NOT FOUND — certs copied but yunos still using old certs"
         fi
@@ -123,16 +147,14 @@ if [ -x "${ROOT}/yuneta/bin/ycommand" ]; then
 else
     log "ycommand NOT FOUND — falling back to restart-yuneta"
     if [ -x "${ROOT}/yuneta/bin/restart-yuneta" ]; then
-        nohup "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
-            env HOME="$(getent passwd "$OWNER" | cut -d: -f6)" \
-            PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" \
-            "${ROOT}/yuneta/bin/restart-yuneta" >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
-        log "restart-yuneta launched in background, as $OWNER"
+        start_restart_yuneta
     fi
 fi
 
 # Record that the hook ran (auto-sync monitor looks at this timestamp)
-date '+%s' > "$STATE_DIR/last-deploy-hook-run" 2>/dev/null || true
+if ! date '+%s' > "$STATE_DIR/last-deploy-hook-run"; then
+    log "cannot write $STATE_DIR/last-deploy-hook-run: the auto-sync monitor will take this hook as one that never ran"
+fi
 log "deploy hook finished"
 
 exit 0

@@ -6,23 +6,30 @@
 #
 # Run as root: the certbot deploy hook runs it, and the agent's cert-sync
 # runs it every 15 minutes (cert_sync_copy_cmd, `sudo -n`). Root only
-# READS the certificates (privkey.pem is root's). Everything written in
-# /yuneta/store/certs is written by the user yuneta (setpriv), which owns
-# that tree: root never writes there.
+# READS the certificates (privkey.pem is root's): it opens each one and
+# hands it on stdin to the user yuneta (setpriv --reset-env, in a session
+# of its own: setsid), who compares it with its copy (cmp) and, only when
+# it differs, writes it atomically in the destination directory (a temp
+# file there, then mv). Root never writes in /yuneta/store/certs, no key is
+# written anywhere else, and an unchanged certificate is not written at
+# all: its mtime stays, and the agent's cert-sync reloads the yunos only
+# when the size or the mtime of a file changes.
 #
-# The names: the lines of /yuneta/store/certs/certs.list (blank lines and
-# lines starting with # are skipped), or, without that file, every
-# directory of /etc/letsencrypt/live. A name is [A-Za-z0-9._-], does not
-# start with a dot and holds no "..": any other name is skipped with a
-# line on stderr, and the others go on. Each pem must resolve to a file
-# under /etc/letsencrypt (the live/ links point into archive/).
+# The names: the lines of /yuneta/store/certs/certs.list (read by yuneta;
+# blanks around a line are trimmed, a line may hold several names
+# separated by blanks, blank lines and lines starting with # are skipped),
+# or, without that file (or with an empty one), every directory of
+# /etc/letsencrypt/live. A name is [A-Za-z0-9._-], does not start with a
+# dot and holds no "..": any other name is skipped with a line on stderr,
+# and the others go on. Each pem must resolve to a file under
+# /etc/letsencrypt (the live/ links point into archive/).
 #
-# An unchanged certificate is not written again: install -C keeps its
-# mtime, and the agent's cert-sync reloads the yunos only when the size or
-# the mtime of a file changes.
-#
-# A destination directory or file that is a symbolic link is refused, with
-# a line on stderr.
+# Exit 1, and nothing copied, when certs.list cannot be read by yuneta, or
+# when /yuneta/store/certs or private/ is a symbolic link; exit 1 too when
+# a copy failed (the others are done). A destination file that is a
+# symbolic link skips its certificate. Otherwise exit 0.
+# "Copied <name>" is said only when something of <name> changed, and
+# check-certs-validity.sh (as yuneta) runs only then.
 #
 # THE LIMIT: this script is in /yuneta, which yuneta owns, and root runs it
 # (see the page "Files outside /yuneta", the root features). Removing sudo
@@ -58,11 +65,11 @@ CERTS_FILE="${DEST_BASE}/certs.list"
 VALIDITY="${ROOT}/yuneta/bin/check-certs-validity.sh"
 
 #
-#   Run a command as the owner of /yuneta
+#   Run a command as the owner of /yuneta: its own environment (HOME, USER,
+#   PATH of its passwd entry), and no controlling terminal of root's
 #
 as_owner() {
-    "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
-        env HOME="$(getent passwd "$OWNER" | cut -d: -f6)" "$@"
+    setsid -w "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups --reset-env -- "$@"
 }
 
 valid_name() {
@@ -74,6 +81,8 @@ valid_name() {
     return 0
 }
 
+LE_REAL="$(readlink -f -- "$LE_DIR")"
+
 #
 #   The real file of a pem, under /etc/letsencrypt, or fail
 #
@@ -83,12 +92,42 @@ real_pem() {
         return 1
     fi
     case "$real" in
-        "$(readlink -f -- "$LE_DIR")"/*)
+        "$LE_REAL"/*)
             printf '%s' "$real"
             return 0
             ;;
     esac
     return 1
+}
+
+#
+#   Copy src (opened by root) to dest as the owner, with mode, only when
+#   its content differs: 0 written, 1 unchanged, 2 failed
+#
+copy_file() {    # src dest mode
+    local src="$1" dest="$2" mode="$3"
+    if as_owner cmp -s - "$dest" < "$src"; then
+        if [ "$(stat -c %a -- "$dest")" != "$mode" ]; then
+            if ! as_owner chmod "$mode" "$dest"; then
+                echo "FAILED to chmod $mode $dest" >&2
+                return 2
+            fi
+        fi
+        return 1
+    fi
+    if ! as_owner sh -c '
+            umask 077
+            t="$(mktemp "$1.XXXXXX")" || exit 1
+            if cat > "$t" && chmod "$2" "$t" && mv -f "$t" "$1"; then
+                exit 0
+            fi
+            rm -f "$t"
+            exit 1
+        ' copy-certs "$dest" "$mode" < "$src"; then
+        echo "FAILED to write $dest" >&2
+        return 2
+    fi
+    return 0
 }
 
 #
@@ -100,24 +139,31 @@ for d in "$DEST_BASE" "$DEST_PRIV"; do
         exit 1
     fi
 done
-as_owner install -d -m 0755 "$DEST_BASE"
-as_owner install -d -m 0700 "$DEST_PRIV"
+if [ ! -d "$DEST_BASE" ]; then
+    as_owner install -d -m 0755 "$DEST_BASE"
+fi
+if [ ! -d "$DEST_PRIV" ]; then
+    as_owner install -d -m 0700 "$DEST_PRIV"
+fi
 
 #
 #   The names: certs.list (read by the owner, whose file it is) or the
 #   live directories
 #
 CERT_NAMES=()
-if as_owner test -s "$CERTS_FILE"; then
+if [ -s "$CERTS_FILE" ]; then
+    if ! list="$(as_owner cat "$CERTS_FILE")"; then
+        echo "FAILED: $OWNER cannot read $CERTS_FILE: no certificate copied" >&2
+        exit 1
+    fi
     while IFS= read -r line; do
         line="${line%$'\r'}"
-        case "$line" in
-            ''|\#*)
-                continue
-                ;;
-        esac
-        CERT_NAMES+=("$line")
-    done < <(as_owner cat "$CERTS_FILE")
+        read -r -a words <<< "$line"
+        if [ "${#words[@]}" -eq 0 ] || [ "${words[0]:0:1}" = "#" ]; then
+            continue
+        fi
+        CERT_NAMES+=("${words[@]}")
+    done <<< "$list"
 elif [ -d "$LIVE_DIR" ]; then
     for d in "$LIVE_DIR"/*; do
         if [ -d "$d" ]; then
@@ -131,14 +177,8 @@ if [ "${#CERT_NAMES[@]}" -eq 0 ]; then
     exit 0
 fi
 
-#
-#   Root copies each pem to a directory of its own (the owner can enter it,
-#   not list it), owned by the owner, and the owner installs it in its tree
-#
-STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
-chmod 0711 "$STAGE"
-
+CHANGED=0
+FAILED=0
 for CERT in "${CERT_NAMES[@]}"; do
     if ! valid_name "$CERT"; then
         echo "Skip '$(printf '%s' "$CERT" | tr -c '[:graph:]' '?')': not a valid name ([A-Za-z0-9._-], no leading dot, no ..)" >&2
@@ -162,23 +202,31 @@ for CERT in "${CERT_NAMES[@]}"; do
         continue
     fi
 
-    # install -C skips the copy (and the mtime bump) when the content, the
-    # owner and the mode are the same. Its source must be a regular file:
-    # it never skips for a link (letsencrypt's live/*.pem are links into
-    # ../archive), so the stage holds real files of the owner.
-    install -o "$OWNER" -g "$(id -gn "$OWNER")" -m 0600 "$FULLCHAIN_R" "${STAGE}/${CERT}.crt"
-    install -o "$OWNER" -g "$(id -gn "$OWNER")" -m 0600 "$CHAIN_R" "${STAGE}/${CERT}.chain"
-    install -o "$OWNER" -g "$(id -gn "$OWNER")" -m 0600 "$PRIVKEY_R" "${STAGE}/${CERT}.key"
-    as_owner install -C -m 0644 "${STAGE}/${CERT}.crt" "${DEST_BASE}/${CERT}.crt"
-    as_owner install -C -m 0644 "${STAGE}/${CERT}.chain" "${DEST_BASE}/${CERT}.chain"
-    as_owner install -C -m 0600 "${STAGE}/${CERT}.key" "${DEST_PRIV}/${CERT}.key"
-    rm -f "${STAGE}/${CERT}.crt" "${STAGE}/${CERT}.chain" "${STAGE}/${CERT}.key"
-    echo "Copied ${CERT} -> ${DEST_BASE}/{${CERT}.crt, ${CERT}.chain, private/${CERT}.key}"
+    cert_changed=0
+    for spec in "${FULLCHAIN_R}|${DEST_BASE}/${CERT}.crt|644" \
+                "${CHAIN_R}|${DEST_BASE}/${CERT}.chain|644" \
+                "${PRIVKEY_R}|${DEST_PRIV}/${CERT}.key|600"; do
+        IFS='|' read -r src dest mode <<< "$spec"
+        rc=0
+        copy_file "$src" "$dest" "$mode" || rc=$?
+        if [ "$rc" -eq 0 ]; then
+            cert_changed=1
+        elif [ "$rc" -eq 2 ]; then
+            FAILED=1
+        fi
+    done
+    if [ "$cert_changed" -ne 0 ]; then
+        CHANGED=1
+        echo "Copied ${CERT} -> ${DEST_BASE}/{${CERT}.crt, ${CERT}.chain, private/${CERT}.key}"
+    fi
 done
 
-# A validity summary, as the owner
-if [ -x "$VALIDITY" ]; then
+# A validity summary, as the owner, only when something changed
+if [ "$CHANGED" -ne 0 ] && [ -x "$VALIDITY" ]; then
     as_owner "$VALIDITY" "$DEST_BASE" || true
 fi
 
+if [ "$FAILED" -ne 0 ]; then
+    exit 1
+fi
 exit 0

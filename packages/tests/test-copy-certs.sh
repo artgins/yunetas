@@ -79,8 +79,12 @@ cc() {
         "$COPY" 2>&1
 }
 
-as_me_count() {    # the setpriv calls that drop to the owner and run $1
-    grep "^setpriv --reuid=${ME} --regid=${ME} --init-groups -- env HOME=" "$LOG" | grep -c -- "$1"
+as_me_count() {    # the setpriv calls that drop to the owner, with its environment, and run $1
+    grep "^setpriv --reuid=${ME} --regid=${ME} --init-groups --reset-env -- " "$LOG" | grep -c -- "$1"
+}
+
+writes() {    # the files the owner wrote (copy_file's sh -c), since the log was emptied
+    grep "^setpriv " "$LOG" | grep -c -- "-- sh -c"
 }
 
 #
@@ -107,7 +111,10 @@ check "discover: crt 0644" "$(stat -c %a "${CERTS}/example.com.crt")" "644"
 check "discover: key 0600" "$(stat -c %a "${CERTS}/private/example.com.key")" "600"
 check "discover: private/ 0700" "$(stat -c %a "${CERTS}/private")" "700"
 check "discover: the directories made by the owner" "$(as_me_count 'install -d')" "2"
-check "discover: every file installed by the owner" "$(as_me_count 'install -C')" "6"
+check "discover: every file written by the owner" "$(writes)" "6"
+check "discover: every file compared by the owner" "$(as_me_count 'cmp -s -')" "6"
+check "discover: said for each" "$(echo "$out" | grep -c '^Copied ')" "2"
+check "discover: no temp file left" "$(find "$CERTS" -name '*.??????' | wc -l)" "0"
 check "discover: check-certs-validity run by the owner" "$(as_me_count 'check-certs-validity.sh')" "1"
 check "discover: check-certs-validity ran" "$(grep -c "^validity ${CERTS}$" "$LOG")" "1"
 
@@ -118,11 +125,24 @@ check "discover: check-certs-validity ran" "$(grep -c "^validity ${CERTS}$" "$LO
 #
 touch -d '2026-01-01 00:00:00' "${CERTS}/example.com.crt" "${CERTS}/private/example.com.key"
 before="$(stat -c %Y "${CERTS}/example.com.crt") $(stat -c %Y "${CERTS}/private/example.com.key")"
-cc >/dev/null
+: > "$LOG"
+out="$(cc)"
+check "unchanged: exit 0" "$?" "0"
 check "unchanged: mtime kept" "$(stat -c %Y "${CERTS}/example.com.crt") $(stat -c %Y "${CERTS}/private/example.com.key")" "$before"
-printf 'renewed fullchain\n' > "${LE}/archive/example.com/fullchain1.pem"
+check "unchanged: nothing written" "$(writes)" "0"
+check "unchanged: no Copied" "$(echo "$out" | grep -c '^Copied')" "0"
+check "unchanged: check-certs-validity not run" "$(grep -c '^validity' "$LOG")" "0"
+chmod 0640 "${CERTS}/example.com.crt"
 cc >/dev/null
+check "unchanged, another mode: the mode set again" "$(stat -c %a "${CERTS}/example.com.crt")" "644"
+check "unchanged, another mode: mtime kept" "$(stat -c %Y "${CERTS}/example.com.crt")" "${before%% *}"
+printf 'renewed fullchain\n' > "${LE}/archive/example.com/fullchain1.pem"
+: > "$LOG"
+out="$(cc)"
 check "changed: written" "$(cat "${CERTS}/example.com.crt")" "renewed fullchain"
+check "changed: only that file" "$(writes)" "1"
+check "changed: Copied only that certificate" "$(echo "$out" | grep '^Copied' | grep -c 'example.com')$(echo "$out" | grep -c '^Copied')" "11"
+check "changed: check-certs-validity run" "$(grep -c '^validity' "$LOG")" "1"
 check "changed: mtime moved" "$( [ "$(stat -c %Y "${CERTS}/example.com.crt")" != "${before%% *}" ] && echo moved)" "moved"
 
 #
@@ -131,13 +151,64 @@ check "changed: mtime moved" "$( [ "$(stat -c %Y "${CERTS}/example.com.crt")" !=
 reset
 add_cert example.com "first"
 mkdir -p "$CERTS"
-printf '%s\n' "# a comment" "" "../../../etc" ".hidden" "a/b" "x..y" "bad name" "example.com" > "${CERTS}/certs.list"
+add_cert b.org "bee"
+add_cert c.org "cee"
+printf '%s\n' "# a comment" "" "   # an indented comment" "../../../etc" ".hidden" "a/b" "x..y" "bad*name" \
+    "  example.com	 " "b.org c.org" > "${CERTS}/certs.list"
 out="$(cc)"
 check "certs.list: exit 0" "$?" "0"
 check "certs.list: the good name copied" "$(cat "${CERTS}/example.com.crt")" "first fullchain"
 check "certs.list: each bad name said" "$(echo "$out" | grep -c 'not a valid name')" "5"
-check "certs.list: nothing else written" "$(ls "$CERTS" | grep -vc -e '^example.com' -e '^private$' -e '^certs.list$')" "0"
+check "certs.list: a name with blanks around it" "$(echo "$out" | grep -c '^Copied example.com ')" "1"
+check "certs.list: two names on a line" "$(cat "${CERTS}/b.org.crt") $(cat "${CERTS}/c.org.crt")" "bee fullchain cee fullchain"
+check "certs.list: nothing else written" "$(ls "$CERTS" | grep -vc -e '^example.com' -e '^b.org' -e '^c.org' -e '^private$' -e '^certs.list$')" "0"
 check "certs.list: read by the owner" "$(as_me_count "cat ${CERTS}/certs.list")" "1"
+
+#
+#   A certs.list that the owner cannot read: exit 1 and nothing copied (up
+#   to the round before, the cat failed inside a process substitution and
+#   the script said nothing and exited 0)
+#
+reset
+add_cert example.com "first"
+mkdir -p "$CERTS"
+printf 'example.com\n' > "${CERTS}/certs.list"
+chmod 0000 "${CERTS}/certs.list"
+out="$(cc)"
+rc=$?
+chmod 0644 "${CERTS}/certs.list"
+check "certs.list unreadable: exit 1" "$rc" "1"
+check "certs.list unreadable: said" "$(echo "$out" | grep -c "FAILED: ${ME} cannot read ${CERTS}/certs.list")" "1"
+check "certs.list unreadable: nothing copied" "$( [ -e "${CERTS}/example.com.crt" ] && echo copied || echo no)" "no"
+
+#
+#   No key goes through TMPDIR: a TMPDIR nobody can enter changes nothing
+#
+reset
+add_cert example.com "first"
+mkdir -p "${WORK}/notmp"
+chmod 0000 "${WORK}/notmp"
+out="$(TMPDIR="${WORK}/notmp" cc)"
+rc=$?
+chmod 0755 "${WORK}/notmp"
+check "TMPDIR not enterable: exit 0" "$rc" "0"
+check "TMPDIR not enterable: copied" "$(cat "${CERTS}/private/example.com.key")" "first privkey"
+
+#
+#   A copy that fails: said, exit 1, the others done
+#
+reset
+add_cert example.com "first"
+cc >/dev/null
+printf 'renewed\n' > "${LE}/archive/example.com/fullchain1.pem"
+printf 'renewed\n' > "${LE}/archive/example.com/privkey1.pem"
+chmod 0555 "$CERTS"
+out="$(cc)"
+rc=$?
+chmod 0755 "$CERTS"
+check "a write that fails: exit 1" "$rc" "1"
+check "a write that fails: said" "$(echo "$out" | grep -c "FAILED to write ${CERTS}/example.com.crt")" "1"
+check "a write that fails: the key still written" "$(cat "${CERTS}/private/example.com.key")" "renewed"
 
 #
 #   A pem that resolves out of /etc/letsencrypt: skipped
@@ -223,6 +294,31 @@ check "hook: restart-yuneta ran" "$(grep -c '^restart-yuneta' "$LOG")" "1"
 check "hook: restart-yuneta as the owner" "$(as_me_count 'restart-yuneta')" "1"
 check "hook: copy-certs.sh not through setpriv (it reads root's keys)" "$(grep '^setpriv' "$LOG" | grep -c 'copy-certs')" "0"
 check "hook: last run stamped" "$( [ -s "${ROOT}/var/lib/yuneta/last-deploy-hook-run" ] && echo yes)" "yes"
+check "hook: copy-certs.sh OK said" "$(grep -c 'copy-certs.sh OK' "${ROOT}/var/log/yuneta/deploy-hook.log")" "1"
+
+#
+#   With systemd: restart-yuneta goes to a transient unit of its own, as
+#   the owner (the background job would die with the oneshot unit of
+#   certbot). copy-certs.sh that fails: FAILED. A stamp that cannot be
+#   written: said
+#
+printf '#!/bin/sh\necho "copy-certs.sh $*" >> "%s"\nexit 1\n' "$LOG" > "${ROOT}/yuneta/store/certs/copy-certs.sh"
+printf '#!/bin/sh\necho "systemd-run $*" >> "%s"\n' "$LOG" > "${STUBS}/systemd-run"
+chmod 0755 "${STUBS}/systemd-run"
+mkdir -p "${ROOT}/run/systemd/system"
+rm -f "${ROOT}/var/lib/yuneta/last-deploy-hook-run"
+chmod 0555 "${ROOT}/var/lib/yuneta"
+: > "$LOG"
+PATH="${STUBS}:$PATH" hook >/dev/null
+chmod 0755 "${ROOT}/var/lib/yuneta"
+HLOG="${ROOT}/var/log/yuneta/deploy-hook.log"
+check "hook, copy-certs fails: FAILED said" "$(grep -c 'copy-certs.sh FAILED (rc=1)' "$HLOG")" "1"
+check "hook, systemd: restart-yuneta in a unit, as the owner, no wait" \
+    "$(grep -cE "^systemd-run --no-block --unit=yuneta-restart-[0-9]{14} --uid=${ME} --gid=${ME} .* ${ROOT}/yuneta/bin/restart-yuneta\$" "$LOG")" "1"
+check "hook, systemd: not in the background" "$(grep -c '^restart-yuneta' "$LOG")" "0"
+check "hook, systemd: the unit said" "$(grep -c 'restart-yuneta started as .* in the unit yuneta-restart-' "$HLOG")" "1"
+check "hook: a stamp that cannot be written is said" "$(grep -c 'cannot write .*last-deploy-hook-run' "$HLOG")" "1"
+rm -rf "${ROOT}/run"
 
 if [ "$FAILED" -ne 0 ]; then
     echo "FAILED"

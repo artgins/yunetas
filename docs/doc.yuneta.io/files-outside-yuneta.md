@@ -165,14 +165,34 @@ today. The user `yuneta` owns `/yuneta` (the install scripts run
 |---|---|---|
 | `/yuneta/bin/yuneta-webserver`, and the nginx or openresty under `/yuneta/bin/nginx/` or `/yuneta/bin/openresty/` | `yuneta-webserver.service` (it has no `User=`) | At each boot, and at each start of the unit. |
 | `/yuneta/bin/nginx/sbin/nginx -s reload` (or `/yuneta/bin/openresty/bin/openresty -s reload`) | The certbot deploy hook | After each renewal of a certificate. |
-| `/yuneta/store/certs/copy-certs.sh` | The certbot deploy hook | After each renewal of a certificate. |
+| `/yuneta/store/certs/copy-certs.sh` | The certbot deploy hook, and `sudo` from the agent's cert sync | After each renewal of a certificate, and every 15 minutes. |
+| `/yuneta/bin/yuneta-webserver type` | `/etc/init.d/yuneta_agent status` | Each time root asks for the status. |
+| `/yuneta/bin/yuneta-webserver quit` and `stop` | The `postinst` (`.deb`) and the `%post` (`.rpm`) | At each install and upgrade of the package. |
+
+Root also works in two places of `yuneta` without running a file there:
+
+- logrotate rotates `/yuneta/bin/nginx/logs/*.log` and
+  `/yuneta/bin/openresty/nginx/logs/*.log` as root, with no `su`, in a
+  directory that `yuneta` owns (`/etc/logrotate.d/yuneta`). The stanza
+  keeps it that way for now: with `su yuneta yuneta`, logrotate cannot
+  give a rotated file the owner `root` of the openresty nodes, and its
+  `postrotate` signals a master that runs as root.
+- A child that `setpriv` (or `su`) starts as `yuneta` keeps the
+  controlling terminal of root when root runs the hook from a terminal.
+  Where the kernel allows `TIOCSTI`, such a child can type into that
+  terminal. The hook and `copy-certs.sh` start their children with
+  `setsid`, so they have no terminal.
 
 So `yuneta` can change a file that root runs later, and it gets the rights
-of root. This breaks rule 5 below. To find these files on a node, run:
+of root. This breaks rule 5 below. To find these places on a node, run:
 
 ```bash
 systemctl cat yuneta-webserver.service | grep -E '^(User|ExecStart)='
-grep -n '/yuneta/' /etc/letsencrypt/renewal-hooks/deploy/reload-certs
+grep -n '/yuneta/' /etc/letsencrypt/renewal-hooks/deploy/reload-certs \
+    /etc/init.d/yuneta_agent /etc/logrotate.d/yuneta
+# The install scripts of the package
+grep -n '/yuneta/bin/' /var/lib/dpkg/info/yuneta-agent.postinst   # Debian
+rpm -q --scripts yuneta-agent | grep -n '/yuneta/bin/'             # RHEL
 ```
 
 These files no longer run as root (after 7.31.29):
@@ -180,12 +200,16 @@ These files no longer run as root (after 7.31.29):
 - `/yuneta/bin/check-certs-validity.sh`. `copy-certs.sh` runs it as
   `yuneta`.
 - `/yuneta/bin/restart-yuneta` and `/yuneta/bin/ycommand`. The certbot
-  hook runs them as `yuneta`, with `setpriv`.
+  hook runs them as `yuneta`: `ycommand` with `setpriv --reset-env`, in a
+  session of its own (`setsid`), and `restart-yuneta` in a transient unit
+  of its own (`systemd-run --uid=yuneta`), so that it outlives the unit
+  of certbot.
 
-`copy-certs.sh` reads the keys of `/etc/letsencrypt/live/` as root, but
-`yuneta` writes the copies in `/yuneta/store/certs/`. The script checks the
-names of `certs.list` and the paths of the keys, and it refuses a symbolic
-link in place of a destination directory.
+`copy-certs.sh` opens the keys of `/etc/letsencrypt/live/` as root, and
+`yuneta` compares them with its copies and writes only the files that
+changed, in `/yuneta/store/certs/`. No key is written anywhere else. The
+script checks the names of `certs.list` and the paths of the keys, and it
+refuses a symbolic link in place of a destination directory.
 
 The full fix is a task for a package without `sudo`, and it is designed:
 
@@ -194,7 +218,11 @@ The full fix is a task for a package without `sudo`, and it is designed:
   as data.
 - `yuneta-webserver.service` runs the web server as `User=yuneta` with
   `AmbientCapabilities=CAP_NET_BIND_SERVICE`, and the hook reloads it with
-  `systemctl reload yuneta-webserver`.
+  `systemctl reload yuneta-webserver`. The `ssl_certificate` lines of the
+  web server must then read `/yuneta/store/certs/`, not
+  `/etc/letsencrypt/live/`, which only root can read.
+- The SysV status, the install scripts and logrotate stop running or
+  working as root in `/yuneta`.
 
 (files-outside-yuneta-runtime)=
 ## Files that the software uses at run time
