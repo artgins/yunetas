@@ -5086,6 +5086,21 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 NULL
             );
         }
+
+        /*
+         *  A discovery abandoned with its GET sent: drop the outbound, as
+         *  a task abandoned does. The connection is keep-alive and nothing
+         *  pairs an answer with its request: the late answer would go to
+         *  the next task on it, and from there each answer to the request
+         *  after its own -- a browser got the tokens of another (up to
+         *  7.31.29). start_oidc_discovery() and process_next() start the
+         *  outbound again.
+         */
+        if(discovery_result == -2 &&
+                gobj_read_bool_attr(priv->cur->gobj_idprovider, "connected") &&
+                gobj_is_running(priv->cur->gobj_idprovider)) {
+            gobj_stop(priv->cur->gobj_idprovider);
+        }
         if(priv->cur->discovery_done) {
             process_next(gobj);
             return 0;

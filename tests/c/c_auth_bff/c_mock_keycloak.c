@@ -90,6 +90,9 @@ SDATA (DTP_INTEGER,     "discoveries_seen", SDF_RD, "0",    "The /.well-known re
 SDATA (DTP_STRING,      "raw_discovery",    SDF_RD, "",     "If non-empty, a /.well-known request is answered with these bytes as they are, status line and headers included (an answer that breaks the protocol)"),
 SDATA (DTP_INTEGER,     "logouts_seen",     SDF_RD, "0",    "The /logout requests that have arrived; a test clears it before a step"),
 SDATA (DTP_STRING,      "last_form",        SDF_RD, "",     "The body of the last /token or /logout request, as it arrived (the form of the BFF); a test clears it before a step"),
+SDATA (DTP_INTEGER,     "serial_latency_ms",SDF_RD, "0",    "If > 0, every answer (the discovery too) goes IN ORDER, one at a time, this many ms after the one before it: a slow IdP on a keep-alive connection, which answers its requests in the order they came"),
+SDATA (DTP_INTEGER,     "serial_first_latency_ms",SDF_RD, "0", "With serial_latency_ms: the wait of the answer of the FIRST request this mock gets, instead (a cold IdP)"),
+SDATA (DTP_BOOLEAN,     "username_from_refresh_token", SDF_RD, "0", "If true, the username of a token is the last part (after its last '.') of the refresh_token of the request: whose session an answer is"),
 SDATA_END()
 };
 
@@ -129,6 +132,12 @@ typedef struct _PRIVATE_DATA {
     int         pending_status;
     char        pending_status_text[64];
     json_t     *pending_body;               /* owned, decref in send/cancel */
+
+    /*
+     *  The answers in order (serial_latency_ms): [{src, code, body}]
+     */
+    json_t     *serial_queue;
+    BOOL        serial_first_sent;
 } PRIVATE_DATA;
 
 
@@ -166,6 +175,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  to do anything else here: EV_ON_MESSAGE arrives naturally.
      */
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
+    priv->serial_queue = json_array();
 }
 
 /***************************************************************************
@@ -177,6 +187,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     /* If a response was deferred and never sent, drop its body. */
     JSON_DECREF(priv->pending_body)
+    JSON_DECREF(priv->serial_queue)
 }
 
 /***************************************************************************
@@ -210,6 +221,7 @@ PRIVATE int mt_stop(hgobj gobj)
         JSON_DECREF(priv->pending_body)
         priv->pending_src = NULL;
     }
+    json_array_clear(priv->serial_queue);
 
     hgobj bottom = gobj_bottom_gobj(gobj);
     if(bottom && gobj_is_running(bottom)) {
@@ -379,6 +391,30 @@ PRIVATE void mk_send_json(hgobj gobj, hgobj browser_src, int status,
 }
 
 /***************************************************************************
+ *  serial_latency_ms: queue an answer behind the ones before it. The first
+ *  of an empty queue is armed now. Takes ownership of `jn_body`.
+ ***************************************************************************/
+PRIVATE void queue_serial(hgobj gobj, hgobj browser_src, const char *code, json_t *jn_body)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_array_append_new(priv->serial_queue, json_pack("{s:I, s:s, s:o}",
+        "src",  (json_int_t)(uintptr_t)browser_src,
+        "code", code,
+        "body", jn_body
+    ));
+    if(json_array_size(priv->serial_queue) == 1) {
+        json_int_t ms = gobj_read_integer_attr(gobj, "serial_latency_ms");
+        json_int_t first_ms = gobj_read_integer_attr(gobj, "serial_first_latency_ms");
+        if(!priv->serial_first_sent && first_ms > 0) {
+            ms = first_ms;
+        }
+        priv->serial_first_sent = TRUE;     // the first request only, answered or not
+        set_timeout0(priv->timer, ms);
+    }
+}
+
+/***************************************************************************
  *  Either send the response now (latency_ms == 0) or stash it in the
  *  pending slot and arm the timer (latency_ms > 0).
  *
@@ -389,6 +425,12 @@ PRIVATE void respond_or_defer(hgobj gobj, hgobj browser_src, int status,
     const char *status_text, json_t *jn_body)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_read_integer_attr(gobj, "serial_latency_ms") > 0) {
+        priv->st_responses_sent++;
+        queue_serial(gobj, browser_src, status_text, jn_body);
+        return;
+    }
 
     int latency_ms = (int)gobj_read_integer_attr(gobj, "latency_ms");
     if(latency_ms <= 0) {
@@ -486,6 +528,23 @@ PRIVATE json_t *build_token_envelope(hgobj gobj)
 
     const char *username = gobj_read_str_attr(gobj, "username");
     const char *email    = gobj_read_str_attr(gobj, "email");
+    char rt_user[64] = "";
+    if(gobj_read_bool_attr(gobj, "username_from_refresh_token")) {
+        const char *rt = strstr(gobj_read_str_attr(gobj, "last_form"), "refresh_token=");
+        if(rt) {
+            rt += strlen("refresh_token=");
+            size_t rt_len = strcspn(rt, "&");
+            const char *dot = NULL;
+            for(size_t i = 0; i < rt_len; i++) {
+                if(rt[i] == '.') {
+                    dot = rt + i;
+                }
+            }
+            const char *from = dot? dot + 1 : rt;
+            snprintf(rt_user, sizeof(rt_user), "%.*s", (int)(rt + rt_len - from), from);
+            username = rt_user;
+        }
+    }
     int at_ttl           = (int)gobj_read_integer_attr(gobj, "access_token_ttl");
     int rt_ttl           = (int)gobj_read_integer_attr(gobj, "refresh_token_ttl");
 
@@ -802,6 +861,11 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *  assertions count token+logout responses only; discovery has
          *  its own st_discovery_requests counter.
          */
+        if(gobj_read_integer_attr(gobj, "serial_latency_ms") > 0) {
+            queue_serial(gobj, src, "200 OK", jn_body);
+            KW_DECREF(kw)
+            return 0;
+        }
         json_t *kw_resp = json_pack("{s:s, s:s, s:o}",
             "code",     "200 OK",
             "headers",  "",
@@ -921,6 +985,27 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(json_array_size(priv->serial_queue) > 0) {
+        /*
+         *  serial_latency_ms: the head of the queue, then the next one armed
+         */
+        json_t *jn_head = json_incref(json_array_get(priv->serial_queue, 0));
+        json_array_remove(priv->serial_queue, 0);
+        hgobj answer_src = (hgobj)(uintptr_t)json_integer_value(json_object_get(jn_head, "src"));
+        json_t *kw_resp = json_pack("{s:s, s:s, s:O}",
+            "code",     json_string_value(json_object_get(jn_head, "code")),
+            "headers",  "",
+            "body",     json_object_get(jn_head, "body")
+        );
+        gobj_send_event(answer_src, EV_SEND_MESSAGE, kw_resp, gobj);
+        JSON_DECREF(jn_head)
+        if(json_array_size(priv->serial_queue) > 0) {
+            set_timeout0(priv->timer, gobj_read_integer_attr(gobj, "serial_latency_ms"));
+        }
+        JSON_DECREF(kw)
+        return 0;
+    }
+
     if(!priv->pending_body || !priv->pending_src) {
         /*
          *  The pending slot was cleared while the timer was in flight
@@ -983,6 +1068,13 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         JSON_DECREF(priv->pending_body)
         priv->pending_src = NULL;
         priv->st_pending_cancelled++;
+    }
+    if(json_array_size(priv->serial_queue) > 0) {
+        /*
+         *  The answers of a closed connection are not sent
+         */
+        clear_timeout0(priv->timer);
+        json_array_clear(priv->serial_queue);
     }
 
     KW_DECREF(kw)

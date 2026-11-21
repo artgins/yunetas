@@ -90,6 +90,7 @@ SET(TESTS
     test32_idp_failover
     test33_idp_tls_names
     test34_idp_silent
+    test35_late_discovery
 )
 
 foreach(test ${TESTS})
