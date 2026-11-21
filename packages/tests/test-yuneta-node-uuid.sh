@@ -208,17 +208,56 @@ check "bond B: the lowest perm_hwaddr" "$bond_b" "$(machine 00000000-0000-0000-0
 check "bond, twin DMI: two uuids" "$( [ "$bond_a" != "$bond_b" ] && echo two)" "two"
 
 #
-#   A bonded box that stored the uuid of 7.31.29 (no MAC) takes the one of
-#   its hardware at its next start, with a copy and a warning
+#   A bonded box that stored the uuid of 7.31.29 takes the one of its
+#   hardware at its next start, with a copy and a warning that names the
+#   bond (not "OTHER hardware"). 7.31.29 is played by the same slaves
+#   without bonding_slave/ (addr_assign_type 3: skipped then and now)
+#
+make_slave() {    # name perm_hwaddr
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/$1/bonding_slave"
+    echo "$2" > "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/$1/bonding_slave/perm_hwaddr"
+}
+reset
+set_dmi "00000000-0000-0000-0000-45d44083cb04"
+add_nic eno1 "0c:c4:7a:00:00:01" 3
+add_nic eno2 "0c:c4:7a:00:00:01" 3
+run ensure
+check "all in a bond, 7.31.29: the uuid with no MAC" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 "")"
+make_slave eno1 "0c:c4:7a:00:00:01"
+make_slave eno2 "0c:c4:7a:00:00:02"
+check "all in a bond: show names the bond" "$("$SCRIPT" show 2>&1 | grep -c 'an interface in a bond')" "1"
+out="$("$SCRIPT" ensure 2>&1)"
+check "all in a bond, after the upgrade: the uuid of its hardware" "$(field uuid)" "$bond_a"
+check "all in a bond, after the upgrade: copy" "$(backups)" "1"
+check "all in a bond, after the upgrade: the warning names the bond" "$(echo "$out" | grep -c 'own MAC of an interface in a bond')" "1"
+check "all in a bond, after the upgrade: not 'OTHER hardware'" "$(echo "$out" | grep -c 'OTHER hardware')" "0"
+check "all in a bond, after the upgrade: says to accept the node again" "$(echo "$out" | grep -c 'accept-node')" "1"
+
+#
+#   A partial bond: the uuid changes as soon as a slave has the lowest MAC
+#   of the board, and stays when every slave has a higher one
 #
 reset
 set_dmi "00000000-0000-0000-0000-45d44083cb04"
-add_bond_slave eno1 "0c:c4:7a:00:00:01" "0c:c4:7a:00:00:01"
-write_file "$(machine 00000000-0000-0000-0000-45d44083cb04 "")" "machine"
+add_nic eno1 "0c:c4:7a:00:00:05" 0
+add_nic eno2 "0c:c4:7a:00:00:01" 3
+run ensure
+check "partial bond, 7.31.29: the uuid of the other interface" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:05)"
+make_slave eno2 "0c:c4:7a:00:00:01"
 out="$("$SCRIPT" ensure 2>&1)"
-check "bond, uuid of 7.31.29: the uuid of its hardware" "$(field uuid)" "$bond_a"
-check "bond, uuid of 7.31.29: copy" "$(backups)" "1"
-check "bond, uuid of 7.31.29: says to accept the node again" "$(echo "$out" | grep -c 'accept-node')" "1"
+check "partial bond, a slave with the lowest MAC: new uuid" "$(field uuid)" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:01)"
+check "partial bond, a slave with the lowest MAC: the warning names the bond" "$(echo "$out" | grep -c 'own MAC of an interface in a bond')" "1"
+reset
+set_dmi "00000000-0000-0000-0000-45d44083cb04"
+add_nic eno1 "0c:c4:7a:00:00:01" 0
+add_nic eno2 "0c:c4:7a:00:00:01" 3
+run ensure
+kept="$(field uuid)"
+make_slave eno2 "0c:c4:7a:00:00:09"
+out="$("$SCRIPT" ensure 2>&1)"
+check "partial bond, slaves with higher MACs: uuid kept" "$(field uuid)" "$kept"
+check "partial bond, slaves with higher MACs: no copy" "$(backups)" "0"
+check "partial bond, slaves with higher MACs: no warning" "$(echo "$out" | grep -c 'WARNING')" "0"
 
 #
 #   No interfaces: the DMI alone. A disk cloned to other hardware gets its

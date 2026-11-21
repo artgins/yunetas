@@ -478,10 +478,20 @@ another uuid, `ensure` replaces the stored uuid, keeps a copy of the old
 file and logs a warning: a disk in other hardware, a card added with a
 lower MAC, or a uuid made by an older release. `ensure` runs at each start
 of the agents, so a node that is already deployed gets the new uuid at the
-first start after an upgrade. For example, a server whose interfaces are
-all in a bond gets a uuid made with its MAC at the first start after the
-upgrade from 7.31.29, and its control center must accept it again
-(`accept-node`). The uuid is kept only when
+first start after an upgrade.
+
+For example, the upgrade from 7.31.29 changes the uuid of a server when an
+interface in a bond has the lowest on-board MAC of the server. This is true
+also when only some interfaces are in a bond. A server whose interfaces in
+a bond all have higher MACs than another on-board interface keeps its uuid.
+To find the servers with interfaces in a bond, run
+`ls /sys/class/net/*/bonding_slave` on each server. At the first start of
+the agents after the upgrade, the warning says that the lowest MAC is now
+that of an interface in a bond. The control center must then accept the
+node again (`accept-node`), and a label printed with the old uuid
+(`yuneta-node-label`) must be printed again.
+
+The uuid is kept only when
 something is missing at one start and nothing new is here: the chip gives
 no value, or the interface the uuid was made from is missing while the DMI
 uuid is the same and no new card is present.

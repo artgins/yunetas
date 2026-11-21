@@ -64,12 +64,19 @@
 #   hardware, a card added with a LOWER MAC (the uuid follows the hardware:
 #   the same change would give the new uuid at the next reinstall anyway),
 #   a uuid of 7.29.1-7.31.2 (from the DMI alone, a MAC alone, or random), a
-#   uuid made from a placeholder, a uuid of 7.31.3-7.31.29 made with no MAC
-#   on a box whose on-board interfaces are all bond slaves (those versions
-#   skipped a slave: the kernel marks its MAC as set by software). The
-#   stored file is not only read: `ensure` runs at each start of the
-#   agents, so a node that is already deployed takes the new uuid at its
-#   first start after the upgrade, and must be accepted again (accept-node).
+#   uuid made from a placeholder, a machine uuid of 7.31.3-7.31.29 on a box
+#   where an interface in a bond has the lowest on-board MAC. Those versions
+#   skipped every bond slave (the kernel marks its MAC as set by software),
+#   so they made the uuid with the lowest MAC of the other interfaces, or
+#   with none when all are in a bond. It changes on a partial bond too: as
+#   soon as one slave has the lowest MAC of the board. A box whose bond
+#   slaves all have higher MACs than another on-board interface keeps its
+#   uuid. `ls /sys/class/net/*/bonding_slave` tells which boxes have
+#   slaves. The stored file is not only read: `ensure` runs at each start of
+#   the agents, so a node that is already deployed takes the new uuid at its
+#   first start after the upgrade, with a warning that names the bond, and
+#   must be accepted again (accept-node); a label printed with the old uuid
+#   (yuneta-node-label) must be printed again.
 #   A value this script takes for a
 #   placeholder is no identity: every box of the model gives it (the
 #   devicetree serial-number of an Orange Pi RV2 is "0123456789ABCDEF" on
@@ -261,10 +268,11 @@ gather_file_id() {
 
 #
 #   "ethernet-mac <mac>" for every permanent MAC of an on-board wired
-#   interface, the lowest first
+#   interface, the lowest first, and "bond-slave-mac <mac>" too for the
+#   ones of an interface in a bond (only to say why a uuid changes)
 #
 gather_ethernet_macs() {
-    local ifdir dev mac
+    local ifdir dev mac kind
     for ifdir in "${SYSROOT}"/sys/class/net/*; do
         if [ ! -e "$ifdir/device" ]; then
             continue    # virtual: lo, bridges, tunnels, veth
@@ -281,10 +289,12 @@ gather_ethernet_macs() {
         if [ "$(cat "$ifdir/type" 2>/dev/null)" != "1" ]; then
             continue    # not ARPHRD_ETHER
         fi
+        kind="plain"
         if [ -r "$ifdir/bonding_slave/perm_hwaddr" ]; then
             # a bond slave: its address is the bond's (NET_ADDR_SET), its own
             # is perm_hwaddr
             mac="$(normalize < "$ifdir/bonding_slave/perm_hwaddr" 2>/dev/null)"
+            kind="bond"
         elif [ "$(cat "$ifdir/addr_assign_type" 2>/dev/null)" != "0" ]; then
             continue    # random, stolen or set by software: not the board's
         else
@@ -293,8 +303,8 @@ gather_ethernet_macs() {
         if is_placeholder "$mac"; then
             continue
         fi
-        printf '%s\n' "$mac"
-    done | sort -u | sed 's/^/ethernet-mac /'
+        printf '%s %s\n' "$mac" "$kind"
+    done | sort -u | awk '{print "ethernet-mac " $1; if ($2 == "bond") print "bond-slave-mac " $1}'
 }
 
 #
@@ -934,6 +944,26 @@ random_is_ours() {    # host_now container_now pidns_now
 }
 
 #
+#   The machine uuid stored by 7.31.3-7.31.29, which skipped the interfaces
+#   in a bond: the DMI uuid is the recorded one, and the lowest MAC now is
+#   that of a bond slave, not the recorded one
+#
+lowest_mac_is_a_new_bond_slave() {
+    local mac
+    mac="$(hw_values ethernet-mac | head -n 1)"
+    if [ -z "$mac" ] || ! hw_values bond-slave-mac | grep -qx "$mac"; then
+        return 1
+    fi
+    if [ "$(stored_field dmi_id)" != "$(dmi_id_now)" ]; then
+        return 1
+    fi
+    if [ "$(stored_field mac_id)" = "$(mac_id_now)" ]; then
+        return 1
+    fi
+    return 0
+}
+
+#
 #   Why the stored uuid is not the one this hardware gives, for a message
 #
 why_replaced() {    # stored_uuid stored_source expected_source
@@ -943,6 +973,8 @@ why_replaced() {    # stored_uuid stored_source expected_source
             "$(where_this_is "$(stored_field container)")" "$(stored_field hostname)"
     elif is_hw_source "$source" && hardware_gives "$uuid" "$source" && ! identity_gives "$uuid" "$source"; then
         printf 'it came from a placeholder %s that every box of this model gives (no identity: copies and other boxes claim it too)' "$source"
+    elif [ "$source" = "$src" ] && [ "$src" = "machine" ] && lowest_mac_is_a_new_bond_slave; then
+        printf 'the lowest on-board MAC of this machine is now the own MAC of an interface in a bond (bonding_slave/perm_hwaddr), which 7.31.3-7.31.29 did not count: the SAME hardware, and its uuid is now made with that MAC'
     elif [ "$source" = "$src" ] && [ "$src" = "machine" ]; then
         printf 'the DMI uuid or the lowest on-board network interface of this machine is another (OTHER hardware, a cloned disk, or a card with a lower MAC added; the uuid is a function of the hardware)'
     elif [ "$source" = "$src" ]; then
