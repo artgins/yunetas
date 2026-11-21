@@ -191,7 +191,9 @@ Configs kept outside a project, such as an operations repository with
 `--batches-dir` (CLI 1.0.7+) on `sync-configs` or `sync`. The tool accepts the
 directory itself, or its `batches/` or `yunos/batches/`. It matches the
 `<host>/` directories against the realms of the agent, as it does for a
-project:
+project. `--batches-dir` takes the place of the projects, so the tool refuses
+it together with `--project` (CLI 1.0.8+). A directory given two times is
+synced one time:
 
 ```bash
 yunetas sync-configs --batches-dir /path/to/ops-repo -n
