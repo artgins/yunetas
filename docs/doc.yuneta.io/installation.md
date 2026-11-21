@@ -451,14 +451,23 @@ uuid on its first start. The control center knows a node by it.
   One of them is not enough. Two Supermicro servers of one batch gave the
   same DMI uuid, `00000000-0000-0000-0000-45d44083cb04`, and up to 7.31.2
   they got the same node uuid. A cloned VM can keep its MAC, but it gets a
-  new DMI uuid.
+  new DMI uuid. A network interface in a bond counts with its own MAC
+  (`/sys/class/net/<if>/bonding_slave/perm_hwaddr`), because the kernel
+  gives each interface of a bond the MAC of the bond. Up to 7.31.29 such an
+  interface did not count, so two servers of one batch with all their
+  interfaces in a bond got the same node uuid again.
 - `random` means that no identifier was readable: the node works, but a
   reinstall gives it a new identity (`ensure` logs a warning).
 
 The stored file is only the answer written down. When the hardware gives
 another uuid, `ensure` replaces the stored uuid, keeps a copy of the old
 file and logs a warning: a disk in other hardware, a card added with a
-lower MAC, or a uuid made by an older release. The uuid is kept only when
+lower MAC, or a uuid made by an older release. `ensure` runs at each start
+of the agents, so a node that is already deployed gets the new uuid at the
+first start after an upgrade. For example, a server whose interfaces are
+all in a bond gets a uuid made with its MAC at the first start after the
+upgrade from 7.31.29, and its control center must accept it again
+(`accept-node`). The uuid is kept only when
 something is missing at one start and nothing new is here: the chip gives
 no value, or the interface the uuid was made from is missing while the DMI
 uuid is the same and no new card is present.

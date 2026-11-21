@@ -191,6 +191,23 @@ check "machine: the model from DMI" "$(out_field model)" "ACME Server 1"
 check "machine: the warning" "$(grep -c 'lower MAC changes it' "$ERR")" "1"
 
 #
+#   A machine whose ports are bond slaves: each port with its own MAC
+#   (bonding_slave/perm_hwaddr), not the bond's, as yuneta-node-uuid takes
+#   them
+#
+reset
+set_dmi "deadbeef-1234-5678-9abc-def000004e32" "ACME" "Server 1"
+for p in "eno1 aa:bb:cc:00:00:01" "eno2 aa:bb:cc:00:00:02"; do
+    add_nic ${p% *} aa:bb:cc:00:00:01 3
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/${p% *}/bonding_slave"
+    echo "${p#* }" > "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/${p% *}/bonding_slave/perm_hwaddr"
+done
+"$NODE_UUID" ensure >/dev/null 2>&1
+run_label
+check "bond: exit 0" "$?" "0"
+check "bond: each port with its own MAC" "$(out_field port)" "eno1 aa:bb:cc:00:00:01|eno2 aa:bb:cc:00:00:02"
+
+#
 #   Usage
 #
 "$LABEL" --svg >/dev/null 2>&1

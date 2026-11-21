@@ -83,6 +83,12 @@ add_nic() {    # name mac addr_assign_type [usb]
     echo "$2" > "$d/address"
 }
 
+add_bond_slave() {    # name perm_hwaddr bond_mac: a slave of a bond, its address set to the bond's
+    add_nic "$1" "$3" 3
+    mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/$1/bonding_slave"
+    echo "$2" > "${YUNETA_NODE_UUID_SYSROOT}/sys/class/net/$1/bonding_slave/perm_hwaddr"
+}
+
 set_hostname() {
     mkdir -p "${YUNETA_NODE_UUID_SYSROOT}/proc/sys/kernel"
     printf '%s\n' "$1" > "${YUNETA_NODE_UUID_SYSROOT}/proc/sys/kernel/hostname"
@@ -177,6 +183,42 @@ check "twin DMI: two uuids" "$( [ "$twin_a" != "$twin_b" ] && echo two)" "two"
 check "twin DMI, the disk of A in B: copy of A's" "$(backups)" "1"
 check "twin DMI, the disk of A in B: says other hardware" "$(echo "$out" | grep -c 'OTHER hardware')" "1"
 check "twin DMI, the disk of A in B: says to accept the node again" "$(echo "$out" | grep -c 'accept-node')" "1"
+
+#
+#   The same twin boards with their on-board NICs in a bond: the kernel sets
+#   the bond's MAC on each slave (addr_assign_type 3), so the MAC of a slave
+#   is its bonding_slave/perm_hwaddr. Up to 7.31.29 the slaves were skipped
+#   and both boards got the uuid of "dmi=<X>,mac=": the same uuid
+#
+reset
+set_dmi "00000000-0000-0000-0000-45d44083cb04"
+add_bond_slave eno1 "0c:c4:7a:00:00:01" "0c:c4:7a:00:00:01"
+add_bond_slave eno2 "0c:c4:7a:00:00:02" "0c:c4:7a:00:00:01"
+run ensure
+bond_a="$(field uuid)"
+check "bond A: the lowest perm_hwaddr" "$bond_a" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:01)"
+check "bond A: both slaves recorded" "$(ids_count)" "2"
+reset
+set_dmi "00000000-0000-0000-0000-45d44083cb04"
+add_bond_slave eno1 "0c:c4:7a:00:00:99" "0c:c4:7a:00:00:01"
+add_bond_slave eno2 "0c:c4:7a:00:00:98" "0c:c4:7a:00:00:01"
+run ensure
+bond_b="$(field uuid)"
+check "bond B: the lowest perm_hwaddr" "$bond_b" "$(machine 00000000-0000-0000-0000-45d44083cb04 0c:c4:7a:00:00:98)"
+check "bond, twin DMI: two uuids" "$( [ "$bond_a" != "$bond_b" ] && echo two)" "two"
+
+#
+#   A bonded box that stored the uuid of 7.31.29 (no MAC) takes the one of
+#   its hardware at its next start, with a copy and a warning
+#
+reset
+set_dmi "00000000-0000-0000-0000-45d44083cb04"
+add_bond_slave eno1 "0c:c4:7a:00:00:01" "0c:c4:7a:00:00:01"
+write_file "$(machine 00000000-0000-0000-0000-45d44083cb04 "")" "machine"
+out="$("$SCRIPT" ensure 2>&1)"
+check "bond, uuid of 7.31.29: the uuid of its hardware" "$(field uuid)" "$bond_a"
+check "bond, uuid of 7.31.29: copy" "$(backups)" "1"
+check "bond, uuid of 7.31.29: says to accept the node again" "$(echo "$out" | grep -c 'accept-node')" "1"
 
 #
 #   No interfaces: the DMI alone. A disk cloned to other hardware gets its

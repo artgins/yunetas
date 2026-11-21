@@ -47,7 +47,10 @@
 #                         uuid of /sys/class/dmi/id/product_uuid (x86, VMs)
 #                         and the lowest permanent MAC of an on-board wired
 #                         interface (not USB, not wireless, not a random or
-#                         set MAC), either part empty when there is none
+#                         set MAC), either part empty when there is none. A
+#                         slave of a bond counts with its own MAC
+#                         (bonding_slave/perm_hwaddr): the kernel sets the
+#                         MAC of the bond on each slave (addr_assign_type 3)
 #     random              none of the above: a reinstall changes it (warned)
 #
 #   The uuid is a version 8 uuid (RFC 9562) made from the first 122 bits of
@@ -61,7 +64,13 @@
 #   hardware, a card added with a LOWER MAC (the uuid follows the hardware:
 #   the same change would give the new uuid at the next reinstall anyway),
 #   a uuid of 7.29.1-7.31.2 (from the DMI alone, a MAC alone, or random), a
-#   uuid made from a placeholder. A value this script takes for a
+#   uuid made from a placeholder, a uuid of 7.31.3-7.31.29 made with no MAC
+#   on a box whose on-board interfaces are all bond slaves (those versions
+#   skipped a slave: the kernel marks its MAC as set by software). The
+#   stored file is not only read: `ensure` runs at each start of the
+#   agents, so a node that is already deployed takes the new uuid at its
+#   first start after the upgrade, and must be accepted again (accept-node).
+#   A value this script takes for a
 #   placeholder is no identity: every box of the model gives it (the
 #   devicetree serial-number of an Orange Pi RV2 is "0123456789ABCDEF" on
 #   every board). It is KEPT only when something is MISSING at a start and
@@ -272,10 +281,15 @@ gather_ethernet_macs() {
         if [ "$(cat "$ifdir/type" 2>/dev/null)" != "1" ]; then
             continue    # not ARPHRD_ETHER
         fi
-        if [ "$(cat "$ifdir/addr_assign_type" 2>/dev/null)" != "0" ]; then
+        if [ -r "$ifdir/bonding_slave/perm_hwaddr" ]; then
+            # a bond slave: its address is the bond's (NET_ADDR_SET), its own
+            # is perm_hwaddr
+            mac="$(normalize < "$ifdir/bonding_slave/perm_hwaddr" 2>/dev/null)"
+        elif [ "$(cat "$ifdir/addr_assign_type" 2>/dev/null)" != "0" ]; then
             continue    # random, stolen or set by software: not the board's
+        else
+            mac="$(normalize < "$ifdir/address" 2>/dev/null)"
         fi
-        mac="$(normalize < "$ifdir/address" 2>/dev/null)"
         if is_placeholder "$mac"; then
             continue
         fi

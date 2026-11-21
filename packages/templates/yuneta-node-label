@@ -168,7 +168,7 @@ fi
 #
 #   The on-board wired ports with a permanent MAC: the interfaces that
 #   yuneta-node-uuid takes MACs from (no USB, no wireless, no random or set
-#   MAC)
+#   MAC; a bond slave with its own, bonding_slave/perm_hwaddr)
 #
 ports=()
 for ifdir in "${SYSROOT}"/sys/class/net/*; do
@@ -184,6 +184,11 @@ for ifdir in "${SYSROOT}"/sys/class/net/*; do
         continue
     fi
     if [ "$(cat "$ifdir/type" 2>/dev/null)" != "1" ]; then
+        continue
+    fi
+    if [ -r "$ifdir/bonding_slave/perm_hwaddr" ]; then
+        # a bond slave: its own MAC, not the bond's
+        ports+=("$(basename "$ifdir") $(tr 'A-F' 'a-f' < "$ifdir/bonding_slave/perm_hwaddr")")
         continue
     fi
     if [ "$(cat "$ifdir/addr_assign_type" 2>/dev/null)" != "0" ]; then
