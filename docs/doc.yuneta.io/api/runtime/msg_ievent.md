@@ -355,7 +355,7 @@ json_t *msg_iev_stack_command_line(
 A new json string. The caller owns it. The function never returns `NULL`.
 
 - The function returns a line of 1 KB or less as it is.
-- It returns a longer line as a trace shows it, masked by names only ([`command_mask_secret_line()`](#command_mask_secret_line) with no command table). Each parameter value over 1 KB becomes `<N bytes>`. The command name stays first.
+- It returns a longer line as a trace shows it, masked by names only ([`command_mask_secret_line()`](#command_mask_secret_line) with no command table). Each parameter value over 1 KB becomes `<N bytes>`. The command name stays first. The line has 64 KB at most, and a parameter that does not fit is `<...>`.
 - It returns `<...>` for a line that is not valid UTF-8.
 
 `C_IEVENT_CLI` and `C_IEVENT_SRV` push this value into the stack (7.31.27+). Up to 7.31.26 they pushed the whole line. The `content64` of an `upgrade-agent` or an `install-binary` (tens of MB) then came back in each answer. A control center dropped the client (`client_max_tx_bytes`) before the answer of the agent arrived.

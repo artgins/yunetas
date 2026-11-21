@@ -1026,6 +1026,45 @@ int main(int argc, char *argv[])
     }
 
     /*
+     *  A help of a `cmd` a peer writes as long as it wants: no ERROR. Up to
+     *  7.31.29 a cmd of a command whose masked line passed 4 KB (values of
+     *  1 KB or less are shown whole) overflowed the gbuffer of its header:
+     *  an ERROR with a stack for the header and one for each '=' under it
+     *  (thousands); and a search word over 64 KB, one for its header.
+     */
+    {
+        gbuffer_t *gbuf = gbuffer_create(8*1024, 128*1024);
+        gbuffer_printf(gbuf, "typed");
+        for(int i = 0; i < 6; i++) {
+            gbuffer_printf(gbuf, " k%d=", i);
+            for(int j = 0; j < 900; j++) {
+                gbuffer_append_char(gbuf, 'v');
+            }
+        }
+        char comment[16*1024];
+        int result = run(yuno, "help",
+            json_pack("{s:s}", "cmd", gbuffer_cur_rd_pointer(gbuf)), comment, sizeof(comment));
+        check("help cmd=<a command, 5 KB masked>", "answered, its header whole, no ERROR",
+            result == 0 && g_errors == 0 && strncmp(comment, "typed k0=vvv", 12) == 0);
+        if(result != 0 || g_errors != 0) {
+            printf("     result %d, errors %d\n", result, g_errors);
+        }
+
+        gbuffer_clear(gbuf);
+        for(int j = 0; j < 70*1024; j++) {
+            gbuffer_append_char(gbuf, 'z');
+        }
+        result = run(yuno, "help",
+            json_pack("{s:s}", "cmd", gbuffer_cur_rd_pointer(gbuf)), comment, sizeof(comment));
+        check("help cmd=<a word of 70 KB>", "answered not available, no ERROR",
+            result == 0 && g_errors == 0 && strstr(comment, "command 'zzz") != NULL);
+        if(result != 0 || g_errors != 0) {
+            printf("     result %d, errors %d\n", result, g_errors);
+        }
+        gbuffer_decref(gbuf);
+    }
+
+    /*
      *  Blanks at the end of the line are no parameter. Up to 7.30.26 two
      *  or more answered "extra parameters: ' '"
      */

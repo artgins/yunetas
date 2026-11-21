@@ -126,6 +126,11 @@ child of the yuno with `level=2` (on the line, before or after `cmd`, or in the
 kw) shows its `SDF_SECRET` `content64` as `********` (the table of the yuno
 does not know it, and showed it).
 
+A `cmd` as long as a peer writes it logs no ERROR. The test asks for the help
+of `typed` with six values of 900 bytes (its header is 5 KB), and for the help
+of a search word of 70 KB. Up to 7.31.29 the first logged 1355 ERRORs with a
+stack, one for each `=` under the header, and the second logged one ERROR.
+
 Run it:
 
 ```bash

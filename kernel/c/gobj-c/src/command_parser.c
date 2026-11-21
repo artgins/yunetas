@@ -11,6 +11,8 @@
 #define _GNU_SOURCE  /* strcasestr() */
 #endif
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <float.h>
@@ -28,6 +30,13 @@
  *  trace: the content64 of an install-binary is tens of MB of base64
  */
 #define MAX_SHOWN_VALUE 1024
+
+/*
+ *  The masked line of a trace, at most (and what mask_secrets_inline() adds
+ *  to it): a piece that does not fit is " <...>", never a piece cut
+ */
+#define MAX_SHOWN_LINE  (64*1024)
+#define SHOWN_HIDDEN    " <...>"
 
 /***************************************************************
  *              Structures
@@ -84,6 +93,7 @@ PRIVATE void append_masked_parameters(
     hgobj gobj,
     BOOL help_line
 );
+PRIVATE void append_shown(gbuffer_t *gbuf, const char *format, ...) JANSSON_ATTRS((format(printf, 2, 3)));
 
 /***************************************************************
  *              Data
@@ -933,6 +943,48 @@ PRIVATE hgobj help_cmd_gobj(hgobj gobj, const char *line, const char *cmd)
 }
 
 /***************************************************************************
+ *  Append a piece of a masked line, WHOLE or not at all: a piece that would
+ *  take the line past MAX_SHOWN_LINE is " <...>" (one for a run of them).
+ *  A piece cut could be a part of a credential that mask_secrets_inline(),
+ *  run over the whole line after it is built, no longer tells as one. The
+ *  pieces come from a line a peer writes (the cmd2agent of a client), so
+ *  passing the cap is no error of ours: nothing is logged. Up to 7.31.29
+ *  the gbuffer kept the bytes that fitted, and logged two ERRORs with a
+ *  stack for each piece past 64 KB.
+ ***************************************************************************/
+PRIVATE void append_shown(gbuffer_t *gbuf, const char *format, ...)
+{
+    va_list ap;
+    va_list aq;
+
+    va_start(ap, format);
+    va_copy(aq, ap);
+    int len = vsnprintf(NULL, 0, format, aq);
+    va_end(aq);
+
+    size_t hidden_len = strlen(SHOWN_HIDDEN);
+    size_t used = gbuffer_leftbytes(gbuf);
+    if(len < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL,
+            "msg",          "%s", "vsnprintf() FAILED",
+            NULL
+        );
+    } else if(len > 0) {
+        if(used + (size_t)len + hidden_len <= MAX_SHOWN_LINE) {
+            gbuffer_vprintf(gbuf, format, ap);
+        } else {
+            const char *line = gbuffer_cur_rd_pointer(gbuf);
+            if(used < hidden_len || strcmp(line + used - hidden_len, SHOWN_HIDDEN) != 0) {
+                gbuffer_append(gbuf, (void *)SHOWN_HIDDEN, hidden_len);
+            }
+        }
+    }
+    va_end(ap);
+}
+
+/***************************************************************************
  *  Append to gbuf the key=value parameters of `line`, as a trace shows
  *  them: " key=value", the value of a secret key as "********", a value
  *  longer than MAX_SHOWN_VALUE as "<N bytes>". In a
@@ -967,7 +1019,7 @@ PRIVATE void append_masked_parameters(
     char *str = gbmem_strdup(line);
     if(!str) {
         // Error already logged
-        gbuffer_append_string(gbuf, " <...>");
+        append_shown(gbuf, " <...>");
         return;
     }
     char *p = str;
@@ -986,45 +1038,45 @@ PRIVATE void append_masked_parameters(
              *  "password= hunter2 x=1": the word after a "key=" with no
              *  value is read as part of the next key -- maybe the secret
              */
-            gbuffer_append_string(gbuf, " <...>");
+            append_shown(gbuf, " <...>");
         } else if(is_secret_parameter(cnf_cmd, key)) {
-            gbuffer_printf(gbuf, " %s=%s", key, empty_string(value)? "" : "********");
+            append_shown(gbuf, " %s=%s", key, empty_string(value)? "" : "********");
         } else if(hide_unknown && !find_ip_parameter(cnf_cmd->schema, key)) {
             /*
              *  Not an option of a command that has a secret: a word left
              *  over that ends in '=' (a password in base64) reads as a key
              */
-            gbuffer_append_string(gbuf, " <...>");
+            append_shown(gbuf, " <...>");
         } else if(!cnf_cmd && (!*key ||
                 (value[-1] != '\'' && value[-1] != '"' && (!*value || *value == '=')))) {
             /*
              *  No table: "x=", "x==", "x==y" or "=x" (value[-1] is the
              *  quote of a quoted value) -- maybe a password in base64
              */
-            gbuffer_append_string(gbuf, " <...>");
+            append_shown(gbuf, " <...>");
         } else if(strlen(value) > MAX_SHOWN_VALUE) {
-            gbuffer_printf(gbuf, " %s=<%zu bytes>", key, strlen(value));
+            append_shown(gbuf, " %s=<%zu bytes>", key, strlen(value));
         } else if(help_line && strcasecmp(key, "cmd") == 0) {
             char *shown = command_mask_secret_line(help_cmd_gobj(gobj, line, value), value);
             if(shown && strpbrk(shown, " \t")) {
-                gbuffer_printf(gbuf, " %s='%s'", key, shown);
+                append_shown(gbuf, " %s='%s'", key, shown);
             } else {
-                gbuffer_printf(gbuf, " %s=%s", key, shown? shown : "<...>");
+                append_shown(gbuf, " %s=%s", key, shown? shown : "<...>");
             }
             GBMEM_FREE(shown)
         } else if(wild && strchr(value, '=')) {
             char *shown = mask_secrets_inline(value);
-            gbuffer_printf(gbuf, " %s='%s'", key, shown? shown : value);
+            append_shown(gbuf, " %s='%s'", key, shown? shown : value);
             GBMEM_FREE(shown)
         } else {
-            gbuffer_printf(gbuf, " %s=%s", key, value);
+            append_shown(gbuf, " %s=%s", key, value);
         }
     }
     while(rest && (*rest == ' ' || *rest == '\t')) {
         rest++;
     }
     if(rest && *rest) {
-        gbuffer_append_string(gbuf, " <...>");
+        append_shown(gbuf, " <...>");
     }
     GBMEM_FREE(str)
 }
@@ -1101,7 +1153,8 @@ PUBLIC json_t *command_mask_secret_kw(
  *  quotes a whole line is one word (the parser runs no command for it):
  *  up to 7.30.26 `'login bob <pin>' note=x` was shown whole. The `cmd` of
  *  a help is a command line, shown masked the same way (see
- *  append_masked_parameters()).
+ *  append_masked_parameters()). The line has MAX_SHOWN_LINE (64 KB) at
+ *  most, each piece whole or not at all (append_shown()).
  ***************************************************************************/
 PUBLIC char *command_mask_secret_line(
     hgobj gobj,
@@ -1111,7 +1164,7 @@ PUBLIC char *command_mask_secret_line(
     if(!command) {
         return gbmem_strdup("");
     }
-    gbuffer_t *gbuf = gbuffer_create(256, 64*1024);
+    gbuffer_t *gbuf = gbuffer_create(256, MAX_SHOWN_LINE + 1);
     if(!gbuf) {
         // Error already logged
         return gbmem_strdup("");
@@ -1127,9 +1180,11 @@ PUBLIC char *command_mask_secret_line(
     }
     char *cmd = get_parameter(p, &p);
     if(cmd && strpbrk(cmd, " \t'\"\\")) {
-        gbuffer_append_string(gbuf, "<...>");   // in its quotes, a whole line is one word
+        append_shown(gbuf, "<...>");   // in its quotes, a whole line is one word
+    } else if(cmd && strlen(cmd) > MAX_SHOWN_VALUE) {
+        append_shown(gbuf, "<...>");   // no command name
     } else {
-        gbuffer_append_string(gbuf, cmd?cmd:"");
+        append_shown(gbuf, "%s", cmd?cmd:"");
     }
 
     /*
@@ -1171,13 +1226,13 @@ PUBLIC char *command_mask_secret_line(
         }
         if(!is_key_value) {
             if((ip->flag & SDF_SECRET) || is_secret_name(ip->name, strlen(ip->name))) {
-                gbuffer_append_string(gbuf, " ********");
+                append_shown(gbuf, " ********");
             } else if(hide_refused && strchr(param, '=')) {
-                gbuffer_append_string(gbuf, " <...>");  // build_cmd_kw() refuses it
+                append_shown(gbuf, " <...>");  // build_cmd_kw() refuses it
             } else if(strlen(param) > MAX_SHOWN_VALUE) {
-                gbuffer_printf(gbuf, " <%zu bytes>", strlen(param));
+                append_shown(gbuf, " <%zu bytes>", strlen(param));
             } else {
-                gbuffer_printf(gbuf, " %s", param);
+                append_shown(gbuf, " %s", param);
             }
         }
         if(p) {
@@ -2020,7 +2075,13 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         if(cnf_cmd) {
             // the caller's line as a trace shows it: a secret given without its key too
             char *cmd_shown = command_mask_secret_line(gobj_found, cmd);
-            gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
+            /*
+             *  Its header is the line (as long as a peer writes it, up to
+             *  MAX_SHOWN_LINE) and a '=' under each byte: room for both
+             */
+            size_t header_size = 2*strlen(cmd_shown? cmd_shown : cmd) +
+                strlen(gobj_short_name(gobj_found)) + 8;
+            gbuffer_t *gbuf = gbuffer_create(256, 4*1024 + header_size);
             gbuffer_printf(gbuf, "%s (%s)\n", cmd_shown? cmd_shown : cmd, gobj_short_name(gobj_found));
             int len = (int)strlen(cmd_shown? cmd_shown : cmd);
             while(len > 0) {
@@ -2051,7 +2112,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         BOOL no_name = (!first || (word && strpbrk(word, " \t'\"\\")))? TRUE : FALSE;
         char *cmd_masked = no_name? NULL : mask_secrets_inline(cmd);
         const char *search_shown = no_name? "<...>" : (cmd_masked? cmd_masked : cmd);
-        gbuffer_t *gbuf = gbuffer_create(4*1024, 64*1024);
+        gbuffer_t *gbuf = gbuffer_create(4*1024, 64*1024 + strlen(search_shown));
         gbuffer_printf(gbuf, "Commands that mention '%s'\n", search_shown);
         gbuffer_printf(gbuf, "===========================\n");
         if(list_commands(gobj, gbuf, level, cmd) > 0) {

@@ -679,6 +679,18 @@ can show (up to 7.26.5 it overflowed the 64 KB buffer of the line and logged
 *"MAXIMUM SPACE REACHED"*). The `commands` (and `machine`) trace of `gobj_command()` prints the command
 this way.
 
+The masked line has 64 KB at most. Each parameter goes into it whole or not at
+all. If a parameter does not fit, the line shows `<...>` in its place, and the
+parameters after it that do not fit go into the same `<...>`. Thus a cut never
+shows a part of a credential that the masking by names no longer finds. A line
+that a peer writes, such as the `cmd2agent` of a client, can pass 64 KB with
+values of 1 KB or less. The cap logs nothing. Up to 7.31.29 the line kept the
+bytes that fitted, and each parameter past 64 KB logged two ERRORs with a
+stack. The `cmd` of a `help` gets a header as long as its masked line, and a
+search word gets a header as long as the word. Up to 7.31.29 a `cmd` of more
+than 4 KB logged an ERROR with a stack for each `=` under the header, and a
+search word over 64 KB logged one ERROR.
+
 ```C
 char *command_mask_secret_line(
     hgobj gobj,
@@ -736,6 +748,10 @@ line = command_mask_secret_line(yuno,   // masked with the table of the gobj whe
 line = command_mask_secret_line(agent,  // a value of 46 MB of base64
     "install-binary id=emailsender content64=f0VMRgIBAQAAAA..."
 );                                      // "install-binary id=emailsender content64=<45984395 bytes>"
+
+line = command_mask_secret_line(NULL,   // 70 parameters of 1000 bytes: past 64 KB
+    "command-agent agent_id=node-1 f0=xxx... f1=xxx... ... f69=xxx..."
+);                                      // "command-agent agent_id=node-1 f0=xxx... ... f64=xxx... <...>"
 
 line = command_mask_secret_line(agent,  // command-yuno is SDF_WILD_CMD
     "command-yuno id=x command=\"set-user-pwd password=hunter2\""

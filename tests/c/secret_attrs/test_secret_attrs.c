@@ -954,6 +954,64 @@ PRIVATE void check_wild_command_trace(void)
 }
 
 /*
+ *  A line over 1 KB whose masked form passes 64 KB (a cmd2agent of a
+ *  client: values of 1 KB or less are shown whole), with a credential where
+ *  the 64 KB fall. The line ends in " <...>" at a parameter, no ERROR. Up to
+ *  7.31.29 the gbuffer of the masking logged "MAXIMUM SPACE REACHED" and
+ *  "NOT ENOUGH SPACE" (ERRORs with a stack) and kept the bytes that fitted,
+ *  so the credential, cut, reached mask_secrets_inline() without its shape.
+ */
+PRIVATE void check_stack_command_line_over_64k(void)
+{
+    const char *b64 = "dXNlcjpodW50ZXIyLXNlY3JldC1wYXNzd29yZA==";   // user:hunter2-secret-password
+    size_t cut = 64*1024 - 1;   // the bytes a 64 KB gbuffer holds
+    char filler[501];
+    memset(filler, 'x', sizeof(filler) - 1);
+    filler[sizeof(filler) - 1] = 0;
+
+    gbuffer_t *gbuf = gbuffer_create(128*1024, 128*1024);
+    gbuffer_printf(gbuf, "command-agent agent_id=node-1");
+    int k = 0;
+    while(cut - 20 - gbuffer_leftbytes(gbuf) - strlen(" pad=") > 1000) {
+        gbuffer_printf(gbuf, " f%d=%s", k++, filler);
+    }
+    size_t pad = cut - 20 - gbuffer_leftbytes(gbuf) - strlen(" pad=");
+    gbuffer_append_string(gbuf, " pad=");
+    for(size_t i = 0; i < pad; i++) {
+        gbuffer_append_char(gbuf, 'y');
+    }
+    gbuffer_printf(gbuf, " note='Basic %s'", b64);     // masked " note=Basic ...", 8 bytes of it before the cut
+    for(int i = 0; i < 20; i++) {
+        gbuffer_printf(gbuf, " g%d=%s", i, filler);
+    }
+    const char *line = gbuffer_cur_rd_pointer(gbuf);
+
+    s_watch = b64;          // the ERRORs logged meanwhile, counted
+    s_watch_msg = NULL;
+    s_watch_errors = 0;
+    s_capturing = TRUE;
+    json_t *jn = msg_iev_stack_command_line(line);
+    s_capturing = FALSE;
+    s_watch = NULL;
+
+    const char *got = json_string_value(jn);
+    size_t len = got? strlen(got) : 0;
+    check_int("a line whose masked form passes 64 KB: no ERROR", s_watch_errors, 0);
+    check_true("a line whose masked form passes 64 KB: 64 KB at most", got && len <= 64*1024);
+    check_true("a line whose masked form passes 64 KB: it ends in <...>",
+        len >= 6 && strcmp(got + len - 6, " <...>") == 0
+    );
+    check_true("a line whose masked form passes 64 KB: the parameters before the cut",
+        got && strstr(got, " pad=yyy") != NULL
+    );
+    check_true("a line whose masked form passes 64 KB: the credential at the cut hidden",
+        got && strstr(got, "dXNl") == NULL
+    );
+    JSON_DECREF(jn)
+    gbuffer_decref(gbuf);
+}
+
+/*
  *  The line a command stack carries, the stack every answer carries back
  *  (msg_iev_stack_command_line()): a short line as it is; a long one with
  *  each value over 1 KB as "<N bytes>", the name of the command first.
@@ -1013,7 +1071,10 @@ PRIVATE void check_stack_command_line(void)
     gbmem_free(answer);
     JSON_DECREF(kw_answer)
     gbuffer_decref(gbuf);
+
+    check_stack_command_line_over_64k();
 }
+
 
 /*
  *  Watch one secret, and one message that must be printed, around `what`
