@@ -162,7 +162,11 @@
   its record, and a list opened by a callback during a batch got only the
   records after its open: it now gets the whole batch. Each record costs one
   look at each memory list, and the later wake-ups of one append with
-  several disk feeds read no list.
+  several disk feeds read no list. This has a price, the check of the
+  closed lists: against 7.31.29, 1000 appends read by a follower with 100
+  memory lists take 14.9 ms instead of 12.8 (+16%), with 1000 lists 86.2 ms
+  instead of 79.2 (+9%), with 8 disk feeds of 1000 lists 48.8 ms instead of
+  44.2 (+10%), and with 10000 lists 2329 ms instead of 2635 (faster).
 - **A list or an iterator opened on a new key of a follower, while its first
   records are read, logs nothing.** Up to 7.31.29 it logged four ERRORs
   ("path NOT FOUND").
@@ -248,8 +252,9 @@
 - **`list-keys` takes exact keys, with no regex: `key`**, one key or a list of
   at most 10000, answered in the order asked, each key once, with the shape
   and paging of an `rkey` answer. It cannot be combined with `rkey`. A key
-  that reads as a number or as true/false is that key (`key=861234567890123`);
-  `key=null` is refused. A GUI that checks given keys uses it; `rkey` is for
+  that reads as an integer or as true/false is that key
+  (`key=861234567890123`), a number with decimals is written in quotes
+  (`key='"1.5"'`), and `key=null` is refused. A GUI that checks given keys uses it; `rkey` is for
   the utilities:
 
   ```
@@ -267,8 +272,9 @@
   (`list-keys key=`), not with an `rkey` alternation of the saved keys. It
   needs a backend on 7.32.0: deploy it after every backend it talks to.
   gui_treedb 1.3.8 also drops first the answer of a topic the user has left:
-  up to 1.3.7 (and in 7.31.0) a failed key count or saved-view check of such
-  a topic showed its error over the topic shown now.
+  up to 1.3.7 (since gui_treedb 1.3.6, in 7.31.29) a failed key count or
+  saved-view check of such a topic showed its error over the topic shown
+  now.
 
 ### Changed
 

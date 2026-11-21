@@ -278,3 +278,11 @@ set_tests_properties(
 #   -j8 it measured 48 us against 713 (31 s alone, 86 s in the suite)
 set_tests_properties("${current_directory_name}/test_fs_watcher_overflow"
     PROPERTIES RUN_SERIAL TRUE)
+
+#
+#   Alone under ctest -j: it asserts an absolute time (2000 lists x 300
+#   records under 400 ms; green 0.2 s, red 1 s), which a loaded machine or an
+#   ASan build can stretch
+#
+set_tests_properties("${current_directory_name}/test_rt_disk_multi_feed"
+    PROPERTIES RUN_SERIAL TRUE)

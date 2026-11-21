@@ -375,7 +375,7 @@ application's gate (one application).
 
 - **`C_PROT_HTTP_CL` pairs each answer with its request.** Today nothing pairs
   them: a keep-alive connection answers in order, and `C_TASK` takes the first
-  `EV_ON_MESSAGE` that comes. Two cases of this round broke that order (a
+  `EV_ON_MESSAGE` that comes. Two cases in 7.31.x broke that order (a
   discovery that timed out and left its request in flight, and a `1xx`), and
   both are fixed where they happened. Defense in depth: `C_PROT_HTTP_CL`
   publishes the ordinal of the request each answer belongs to, and `C_TASK`
