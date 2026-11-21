@@ -2157,11 +2157,25 @@ fi
 # The rules: ONE semanage to read the local ones and at most ONE import for
 # the missing (each semanage loads the whole policy, seconds each; up to
 # 7.31.29 it was up to 8 calls per install). An import that fails falls
-# back to one call per file, as before. One restorecon for all.
+# back to one call per file, as before. One restorecon for all. Before
+# that, ONE matchpathcon (milliseconds) asks what the policy gives the
+# files: on an upgrade with the rules in place it is bin_t for all of them,
+# and no semanage runs. Without matchpathcon, the semanage path, as before.
 #
 _yuneta_bin_t="/yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta"
 if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
-    if command -v semanage >/dev/null 2>&1; then
+    _rules_in_place=0
+    if command -v matchpathcon >/dev/null 2>&1; then
+        _want=0
+        for _exe in $_yuneta_bin_t; do
+            _want=$((_want + 1))
+        done
+        _have="$(matchpathcon -n $_yuneta_bin_t 2>/dev/null | grep -c ':bin_t:')"
+        if [ "$_have" = "$_want" ]; then
+            _rules_in_place=1
+        fi
+    fi
+    if [ "$_rules_in_place" -eq 0 ] && command -v semanage >/dev/null 2>&1; then
         _local="$(semanage fcontext -l -C 2>/dev/null)" || _local=""
         _import=""
         for _exe in $_yuneta_bin_t; do

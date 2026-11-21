@@ -665,6 +665,89 @@ for builder in deb/make-yuneta-agent-deb.sh rpm/make-yuneta-agent-rpm.sh; do
     rm -f "${STUBS}/systemctl" "${STUBS}/sudo"
 done
 
+#
+#   The SELinux part of the .rpm's %post: the rule bin_t of the four files
+#   that systemd starts (restart-yuneta among them, started by the hook).
+#   An upgrade with the rules in place asks matchpathcon (milliseconds) and
+#   runs no semanage (each semanage loads the whole policy, even to list
+#   the local rules). Without matchpathcon, or with a file that is not
+#   bin_t yet, the rules are read and the missing one imported, as before.
+#   Run with a PATH of stubs and of the few tools it needs
+#
+SEL="${WORK}/selinux"
+TOOLS="${WORK}/tools"
+mkdir -p "$SEL" "$TOOLS"
+for t in awk cut grep cat wc sh; do
+    ln -sf "$(command -v "$t")" "${TOOLS}/$t"
+done
+sel_block="$(sed -n '/^# --- SELinux: systemd cannot exec a default_t file ---$/,/^# --- hand the web server over to its own unit ---$/p' \
+    "${HERE}/../rpm/make-yuneta-agent-rpm.sh")"
+check "the .rpm's %post: the SELinux part found" "$(echo "$sel_block" | grep -c '^_yuneta_bin_t=')" "1"
+SEL_BIN_T="/yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta"
+printf '#!/bin/sh\nexit 0\n' > "${SEL}/selinuxenabled"
+cat > "${SEL}/matchpathcon" <<EOF
+#!/bin/sh
+echo "matchpathcon \$*" >> "$LOG"
+if [ "\$1" = "-n" ]; then
+    shift
+fi
+for p in "\$@"; do
+    c="system_u:object_r:default_t:s0"
+    while read -r q ctx; do
+        if [ "\$q" = "\$p" ]; then
+            c="\$ctx"
+        fi
+    done < "${WORK}/contexts"
+    echo "\$c"
+done
+EOF
+cat > "${SEL}/semanage" <<EOF
+#!/bin/sh
+echo "semanage \$*" >> "$LOG"
+if [ "\$1 \$2 \$3" = "fcontext -l -C" ]; then
+    cat "${WORK}/local-rules"
+elif [ "\$1" = "import" ]; then
+    cat >> "${WORK}/imported"
+fi
+exit 0
+EOF
+printf '#!/bin/sh\necho "restorecon $*" >> "%s"\n' "$LOG" > "${SEL}/restorecon"
+printf '#!/bin/sh\necho "chcon $*" >> "%s"\n' "$LOG" > "${SEL}/chcon"
+printf '#!/bin/sh\necho "system_u:object_r:bin_t:s0"\n' > "${SEL}/stat"
+chmod 0755 "${SEL}"/*
+sel_post() {
+    : > "$LOG"
+    : > "${WORK}/imported"
+    env -i PATH="${SEL}:${TOOLS}" "$BASH" --posix -c "set -u
+$sel_block" 2>&1
+}
+: > "${WORK}/contexts"
+: > "${WORK}/local-rules"
+for f in $SEL_BIN_T; do
+    printf '%s system_u:object_r:bin_t:s0\n' "$f" >> "${WORK}/contexts"
+    printf '%s    all files    system_u:object_r:bin_t:s0\n' "$f" >> "${WORK}/local-rules"
+done
+out="$(sel_post)"
+check ".rpm %post, SELinux, rules in place: asked to matchpathcon once" "$(grep -c '^matchpathcon -n ' "$LOG")" "1"
+check ".rpm %post, SELinux, rules in place: no semanage" "$(grep -c '^semanage' "$LOG")" "0"
+check ".rpm %post, SELinux, rules in place: restorecon still run" "$(grep -c "^restorecon -F ${SEL_BIN_T}\$" "$LOG")" "1"
+check ".rpm %post, SELinux, rules in place: no chcon, no WARNING" "$(grep -c '^chcon' "$LOG")$(echo "$out" | grep -c 'WARNING')" "00"
+grep -v restart-yuneta "${WORK}/contexts" > "${WORK}/contexts.new"
+mv "${WORK}/contexts.new" "${WORK}/contexts"
+grep -v restart-yuneta "${WORK}/local-rules" > "${WORK}/local-rules.new"
+mv "${WORK}/local-rules.new" "${WORK}/local-rules"
+out="$(sel_post)"
+check ".rpm %post, SELinux, one rule missing: the local rules read" "$(grep -c '^semanage fcontext -l -C$' "$LOG")" "1"
+check ".rpm %post, SELinux, one rule missing: only it imported" "$(cat "${WORK}/imported")" "fcontext -a -t bin_t /yuneta/bin/restart-yuneta"
+rm -f "${SEL}/matchpathcon"
+: > "${WORK}/local-rules"
+for f in $SEL_BIN_T; do
+    printf '%s    all files    system_u:object_r:bin_t:s0\n' "$f" >> "${WORK}/local-rules"
+done
+out="$(sel_post)"
+check ".rpm %post, SELinux, no matchpathcon: the local rules read (as before)" "$(grep -c '^semanage fcontext -l -C$' "$LOG")" "1"
+check ".rpm %post, SELinux, no matchpathcon, rules in place: nothing imported" "$(grep -c '^semanage import' "$LOG")" "0"
+
 if [ "$FAILED" -ne 0 ]; then
     echo "FAILED"
     exit 1

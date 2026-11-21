@@ -110,10 +110,17 @@ applies it (`restorecon`):
 - `/yuneta/bin/restart-yuneta`, started by the certbot hook in a transient
   unit (after 7.31.29).
 
+On an upgrade, the `%post` first asks `matchpathcon` for the label that
+the policy gives these four files. If it is `bin_t` for all four, the
+rules are in place, and the `%post` runs no `semanage` (each `semanage`
+loads the whole policy). It runs `restorecon` in every case.
+
 To see the rules and the labels on a node:
 
 ```bash
 semanage fcontext -l -C | grep /yuneta
+matchpathcon -n /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent \
+    /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta
 ls -Z /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent \
     /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta
 ```
