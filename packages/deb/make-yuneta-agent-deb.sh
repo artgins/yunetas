@@ -1623,7 +1623,15 @@ if [ -d /run/systemd/system ] && systemctl cat yuneta_agent.service >/dev/null 2
     exit 0
 fi
 
-# No units (a node before 7.25.22): yshutdown + agent start, as always
+# No units (a node before 7.25.22): yshutdown + agent start, as always.
+# Not inside a unit of systemd (INVOCATION_ID: the transient unit of the
+# certbot hook, any other): systemctl failed to answer there, and an agent
+# started with --start would belong to that unit and die with it when this
+# script ends (KillMode=control-group), its yunos with it.
+if [ -n "${INVOCATION_ID:-}" ]; then
+    echo "restart-yuneta: inside a systemd unit, and systemctl does not know yuneta_agent.service (no D-Bus?): not started here, where it would die with this unit. Restart the agent by hand" >&2
+    exit 1
+fi
 if [ -x /yuneta/bin/yshutdown ]; then
     /yuneta/bin/yshutdown "$@" || true
     sleep 1

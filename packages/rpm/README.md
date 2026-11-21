@@ -140,9 +140,13 @@ is outside the policy, so SELinux labels everything under it `default_t`. The
 SysV script can execute such a file, because `initrc_t` has that permission.
 systemd does not have it. `yuneta-webserver.service` then dies with `203/EXEC`
 and *"Permission denied"* on a file whose Unix mode is `rwxr-xr-x`. For this
-reason `%posttrans` labels `/yuneta/bin/yuneta-webserver` as `bin_t`, with
-`semanage fcontext` + `restorecon` and a `chcon` fallback. If a node starts
-without a web server, read `ls -Z /yuneta/bin/yuneta-webserver` first.
+reason `%post` labels `bin_t` each file of `/yuneta` that systemd starts:
+`/yuneta/bin/yuneta-webserver`, `/yuneta/agent/yuneta_agent`,
+`/yuneta/agent/yuneta_agent22`, and `/yuneta/bin/restart-yuneta` (the certbot
+hook runs it in a transient unit). It uses `semanage fcontext` +
+`restorecon`, with a `chcon` fallback, and `%postun` takes the rules out.
+If a node starts without a web server, read
+`ls -Z /yuneta/bin/yuneta-webserver` first.
 
 ### The node's web server choice
 

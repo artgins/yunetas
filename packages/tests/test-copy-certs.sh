@@ -83,8 +83,12 @@ as_me_count() {    # the setpriv calls that drop to the owner, with its environm
     grep "^setpriv --reuid=${ME} --regid=${ME} --init-groups --reset-env -- " "$LOG" | grep -c -- "$1"
 }
 
-writes() {    # the files the owner wrote (copy_file's sh -c), since the log was emptied
-    grep "^setpriv " "$LOG" | grep -c -- "-- sh -c"
+owner_parts() {    # the calls of the owner's part (one per certificate), since the log was emptied
+    grep "^setpriv " "$LOG" | grep -c -- "-- bash -c"
+}
+
+mtimes() {    # the mtimes of the three files of a certificate
+    stat -c %Y "${CERTS}/$1.crt" "${CERTS}/$1.chain" "${CERTS}/private/$1.key" | paste -sd' ' -
 }
 
 #
@@ -111,8 +115,7 @@ check "discover: crt 0644" "$(stat -c %a "${CERTS}/example.com.crt")" "644"
 check "discover: key 0600" "$(stat -c %a "${CERTS}/private/example.com.key")" "600"
 check "discover: private/ 0700" "$(stat -c %a "${CERTS}/private")" "700"
 check "discover: the directories made by the owner" "$(as_me_count 'install -d')" "2"
-check "discover: every file written by the owner" "$(writes)" "6"
-check "discover: every file compared by the owner" "$(as_me_count 'cmp -s -')" "6"
+check "discover: one call of the owner per certificate" "$(owner_parts)" "2"
 check "discover: said for each" "$(echo "$out" | grep -c '^Copied ')" "2"
 check "discover: no temp file left" "$(find "$CERTS" -name '*.??????' | wc -l)" "0"
 check "discover: check-certs-validity run by the owner" "$(as_me_count 'check-certs-validity.sh')" "1"
@@ -123,13 +126,14 @@ check "discover: check-certs-validity ran" "$(grep -c "^validity ${CERTS}$" "$LO
 #   reloads the yunos on a change of size or mtime); a changed one is
 #   written
 #
-touch -d '2026-01-01 00:00:00' "${CERTS}/example.com.crt" "${CERTS}/private/example.com.key"
+touch -d '2026-01-01 00:00:00' "${CERTS}"/*.crt "${CERTS}"/*.chain "${CERTS}"/private/*.key
+touch -d '2026-01-02 00:00:00' "${WORK}/mark"
 before="$(stat -c %Y "${CERTS}/example.com.crt") $(stat -c %Y "${CERTS}/private/example.com.key")"
 : > "$LOG"
 out="$(cc)"
 check "unchanged: exit 0" "$?" "0"
 check "unchanged: mtime kept" "$(stat -c %Y "${CERTS}/example.com.crt") $(stat -c %Y "${CERTS}/private/example.com.key")" "$before"
-check "unchanged: nothing written" "$(writes)" "0"
+check "unchanged: nothing written" "$(find "$CERTS" -newer "${WORK}/mark" -type f | wc -l)" "0"
 check "unchanged: no Copied" "$(echo "$out" | grep -c '^Copied')" "0"
 check "unchanged: check-certs-validity not run" "$(grep -c '^validity' "$LOG")" "0"
 chmod 0640 "${CERTS}/example.com.crt"
@@ -140,7 +144,7 @@ printf 'renewed fullchain\n' > "${LE}/archive/example.com/fullchain1.pem"
 : > "$LOG"
 out="$(cc)"
 check "changed: written" "$(cat "${CERTS}/example.com.crt")" "renewed fullchain"
-check "changed: only that file" "$(writes)" "1"
+check "changed: only that file" "$(find "$CERTS" -newer "${WORK}/mark" -type f | sed "s|${CERTS}/||" | paste -sd' ' -)" "example.com.crt"
 check "changed: Copied only that certificate" "$(echo "$out" | grep '^Copied' | grep -c 'example.com')$(echo "$out" | grep -c '^Copied')" "11"
 check "changed: check-certs-validity run" "$(grep -c '^validity' "$LOG")" "1"
 check "changed: mtime moved" "$( [ "$(stat -c %Y "${CERTS}/example.com.crt")" != "${before%% *}" ] && echo moved)" "moved"
@@ -195,20 +199,60 @@ check "TMPDIR not enterable: exit 0" "$rc" "0"
 check "TMPDIR not enterable: copied" "$(cat "${CERTS}/private/example.com.key")" "first privkey"
 
 #
-#   A copy that fails: said, exit 1, the others done
+#   A copy that fails: said, exit 1, and the set of that certificate stays
+#   whole (the new key is not put beside the old crt); the others done
 #
 reset
 add_cert example.com "first"
+add_cert other.org "second"
 cc >/dev/null
 printf 'renewed\n' > "${LE}/archive/example.com/fullchain1.pem"
 printf 'renewed\n' > "${LE}/archive/example.com/privkey1.pem"
+printf 'renewed\n' > "${LE}/archive/other.org/privkey1.pem"
 chmod 0555 "$CERTS"
 out="$(cc)"
 rc=$?
 chmod 0755 "$CERTS"
 check "a write that fails: exit 1" "$rc" "1"
-check "a write that fails: said" "$(echo "$out" | grep -c "FAILED to write ${CERTS}/example.com.crt")" "1"
-check "a write that fails: the key still written" "$(cat "${CERTS}/private/example.com.key")" "renewed"
+check "a write that fails: said" "$(echo "$out" | grep -c "FAILED to copy example.com (rc=2): .*${CERTS}/example.com.crt")" "1"
+check "a write that fails: the old key stays with the old crt" "$(cat "${CERTS}/private/example.com.key") / $(cat "${CERTS}/example.com.crt")" "first privkey / first fullchain"
+check "a write that fails: no temporary file left" "$(find "$CERTS" -name '*.??????' | wc -l)" "0"
+check "a write that fails: the other certificate done" "$(cat "${CERTS}/private/other.org.key")" "renewed"
+
+#
+#   The order of the moves: the key first, the crt last (the crt is what
+#   the agent's cert-sync watches)
+#
+reset
+add_cert example.com "first"
+cc >/dev/null
+for f in fullchain chain privkey; do
+    printf 'renewed %s\n' "$f" > "${LE}/archive/example.com/${f}1.pem"
+done
+touch -d '2026-01-01 00:00:00' "${CERTS}/example.com.crt" "${CERTS}/example.com.chain" "${CERTS}/private/example.com.key"
+cc >/dev/null
+k="$(stat -c %.9Z "${CERTS}/private/example.com.key")"
+c="$(stat -c %.9Z "${CERTS}/example.com.crt")"
+check "moves: the crt not before the key" "$(awk -v k="$k" -v c="$c" 'BEGIN {print (c >= k)? "yes" : "no"}')" "yes"
+check "moves: all three new" "$(cat "${CERTS}/example.com.crt") / $(cat "${CERTS}/private/example.com.key")" "renewed fullchain / renewed privkey"
+
+#
+#   What it says also goes to the journal (logger -t copy-certs): the
+#   agent's cert-sync runs it with its output on /dev/null
+#
+reset
+add_cert example.com "first"
+mkdir -p "$CERTS"
+printf '%s\n' "../x" "example.com" > "${CERTS}/certs.list"
+printf '#!/bin/sh\necho "logger $*" >> "%s"\n' "$LOG" > "${STUBS}/logger"
+chmod 0755 "${STUBS}/logger"
+YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger" cc >/dev/null
+check "journal: the Skip" "$(grep -c "^logger -t copy-certs -p user.warning -- Skip '../x'" "$LOG")" "1"
+check "journal: the Copied" "$(grep -c '^logger -t copy-certs -p user.info -- Copied example.com' "$LOG")" "1"
+chmod 0000 "${CERTS}/certs.list"
+YUNETA_COPY_CERTS_TEST_LOGGER="${STUBS}/logger" cc >/dev/null
+chmod 0644 "${CERTS}/certs.list"
+check "journal: the FAILED" "$(grep -c '^logger -t copy-certs -p user.err -- FAILED: .* cannot read' "$LOG")" "1"
 
 #
 #   A pem that resolves out of /etc/letsencrypt: skipped
@@ -313,12 +357,55 @@ PATH="${STUBS}:$PATH" hook >/dev/null
 chmod 0755 "${ROOT}/var/lib/yuneta"
 HLOG="${ROOT}/var/log/yuneta/deploy-hook.log"
 check "hook, copy-certs fails: FAILED said" "$(grep -c 'copy-certs.sh FAILED (rc=1)' "$HLOG")" "1"
-check "hook, systemd: restart-yuneta in a unit, as the owner, no wait" \
-    "$(grep -cE "^systemd-run --no-block --unit=yuneta-restart-[0-9]{14} --uid=${ME} --gid=${ME} .* ${ROOT}/yuneta/bin/restart-yuneta\$" "$LOG")" "1"
+check "hook, systemd: restart-yuneta in a unit of Type=exec, as the owner" \
+    "$(grep -cE "^systemd-run -p Type=exec --unit=yuneta-restart-[0-9]{14} --uid=${ME} --gid=${ME} .* ${ROOT}/yuneta/bin/restart-yuneta\$" "$LOG")" "1"
+check "hook, systemd: it waits for the exec (no --no-block)" "$(grep '^systemd-run' "$LOG" | grep -c -- '--no-block')" "0"
 check "hook, systemd: not in the background" "$(grep -c '^restart-yuneta' "$LOG")" "0"
 check "hook, systemd: the unit said" "$(grep -c 'restart-yuneta started as .* in the unit yuneta-restart-' "$HLOG")" "1"
 check "hook: a stamp that cannot be written is said" "$(grep -c 'cannot write .*last-deploy-hook-run' "$HLOG")" "1"
+
+#
+#   A unit that does not start (203/EXEC: SELinux on /yuneta): said, not
+#   taken for a start, and nothing in the background
+#
+printf '#!/bin/sh\necho "systemd-run $*" >> "%s"\necho "Job for x.service failed" >&2\nexit 1\n' "$LOG" > "${STUBS}/systemd-run"
+: > "$LOG"
+: > "$HLOG"
+PATH="${STUBS}:$PATH" hook >/dev/null
+sleep 0.5
+check "hook, the unit fails: said" "$(grep -c 'restart-yuneta did NOT start in the unit yuneta-restart-.*rc=1' "$HLOG")" "1"
+check "hook, the unit fails: not 'started'" "$(grep -c 'restart-yuneta started' "$HLOG")" "0"
+check "hook, the unit fails: nothing in the background" "$(grep -c '^restart-yuneta' "$LOG")" "0"
 rm -rf "${ROOT}/run"
+
+#
+#   restart-yuneta (written by both packagers): its branch for a node
+#   without the units (systemctl does not know yuneta_agent.service) is
+#   refused inside a unit of systemd, where an agent started with --start
+#   would die with the unit; out of a unit it runs as always. Its paths
+#   are moved under the test root
+#
+for builder in deb/make-yuneta-agent-deb.sh rpm/make-yuneta-agent-rpm.sh; do
+    reset
+    RY="${WORK}/restart-yuneta"
+    awk 'index($0, "yuneta/bin/restart-yuneta\" <<"){f=1; next} f && /^EOF$/{exit} f' \
+        "${HERE}/../${builder}" | sed "s|/yuneta/|${ROOT}/yuneta/|g" > "$RY"
+    chmod 0755 "$RY"
+    mkdir -p "${ROOT}/yuneta/agent"
+    printf '#!/bin/sh\necho "yshutdown $*" >> "%s"\n' "$LOG" > "${ROOT}/yuneta/bin/yshutdown"
+    printf '#!/bin/sh\necho "yuneta_agent $*" >> "%s"\n' "$LOG" > "${ROOT}/yuneta/agent/yuneta_agent"
+    printf '#!/bin/sh\nexit 1\n' > "${STUBS}/systemctl"
+    chmod 0755 "${ROOT}/yuneta/bin/yshutdown" "${ROOT}/yuneta/agent/yuneta_agent" "${STUBS}/systemctl"
+    out="$(PATH="${STUBS}:$PATH" INVOCATION_ID=0123abcd "$RY" 2>&1)"
+    rc=$?
+    check "restart-yuneta ($builder), no units, inside a unit: exit 1" "$rc" "1"
+    check "restart-yuneta ($builder), no units, inside a unit: said" "$(echo "$out" | grep -c 'inside a systemd unit')" "1"
+    check "restart-yuneta ($builder), no units, inside a unit: no yunos stopped" "$(grep -c '^yshutdown' "$LOG")" "0"
+    check "restart-yuneta ($builder), no units, inside a unit: no agent started" "$(grep -c '^yuneta_agent' "$LOG")" "0"
+    out="$(env -u INVOCATION_ID PATH="${STUBS}:$PATH" "$RY" 2>&1)"
+    check "restart-yuneta ($builder), no units, out of a unit: the agent started" "$(grep -c '^yuneta_agent --start' "$LOG")" "1"
+    rm -f "${STUBS}/systemctl"
+done
 
 if [ "$FAILED" -ne 0 ]; then
     echo "FAILED"

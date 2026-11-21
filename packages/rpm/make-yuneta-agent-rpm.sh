@@ -1413,7 +1413,15 @@ if [ -d /run/systemd/system ] && systemctl cat yuneta_agent.service >/dev/null 2
     exit 0
 fi
 
-# No units (a node before 7.25.22): yshutdown + agent start, as always
+# No units (a node before 7.25.22): yshutdown + agent start, as always.
+# Not inside a unit of systemd (INVOCATION_ID: the transient unit of the
+# certbot hook, any other): systemctl failed to answer there, and an agent
+# started with --start would belong to that unit and die with it when this
+# script ends (KillMode=control-group), its yunos with it.
+if [ -n "${INVOCATION_ID:-}" ]; then
+    echo "restart-yuneta: inside a systemd unit, and systemctl does not know yuneta_agent.service (no D-Bus?): not started here, where it would die with this unit. Restart the agent by hand" >&2
+    exit 1
+fi
 if [ -x /yuneta/bin/yshutdown ]; then
     /yuneta/bin/yshutdown "$@" || true
     sleep 1
@@ -2114,15 +2122,17 @@ fi
 # nothing at all until the label was fixed. Measured on a Rocky 9 test node
 # with 7.10.0-2, which had been up for two and a half hours with no web.
 #
-# Only the files systemd execs need it: the web server's wrapper, and the two
-# agents since they run in units of their own (7.25.22). What they exec in
+# Only the files systemd execs need it: the web server's wrapper, the two
+# agents since they run in units of their own (7.25.22), and restart-yuneta,
+# which the certbot hook runs in a transient unit (systemd-run, after
+# 7.31.29: without bin_t it died with the same 203/EXEC). What they exec in
 # turn -- nginx or openresty, the yunos -- is reached from their own domain
 # and was never the problem. 7.25.22-1 labelled only the wrapper: on
 # a Rocky 9 test node the agent's unit died the same way (203/EXEC, "avc:
 # denied { execute } ... scontext=init_t tcontext=default_t"), and %post left
 # the node with agent22 alone, outside its unit.
 if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
-    for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22; do
+    for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta; do
         if command -v semanage >/dev/null 2>&1; then
             semanage fcontext -a -t bin_t "$_exe" >/dev/null 2>&1 ||
             semanage fcontext -m -t bin_t "$_exe" >/dev/null 2>&1 || true
@@ -2327,7 +2337,7 @@ if [ "$1" = "0" ]; then
     fi
     # And the bin_t rules %post wrote into the policy
     if command -v semanage >/dev/null 2>&1; then
-        for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22; do
+        for _exe in /yuneta/bin/yuneta-webserver /yuneta/agent/yuneta_agent /yuneta/agent/yuneta_agent22 /yuneta/bin/restart-yuneta; do
             semanage fcontext -d "$_exe" >/dev/null 2>&1 || true
         done
     fi

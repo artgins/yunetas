@@ -58,20 +58,26 @@ as_yuneta() {
 # oneshot unit, and what the hook leaves in the background dies with that
 # unit when certbot ends -- restart-yuneta stops the yunos (yshutdown),
 # waits and then restarts the agent, so it would stop the yunos and never
-# start the agent. A transient unit of its own (systemd-run --no-block)
-# outlives the hook. Without systemd (no unit to die with), in the
-# background.
+# start the agent. A transient unit of its own (systemd-run) outlives the
+# hook. Type=exec, and no --no-block: systemd-run returns once the exec of
+# the script succeeded (not when the script ends), and fails when the exec
+# fails -- a 203/EXEC (SELinux: /yuneta is default_t, so the .rpm labels
+# restart-yuneta bin_t) is then said, not taken for a start. Without
+# systemd (no unit to die with), in the background.
 start_restart_yuneta() {
-    local unit
+    local unit rc
     if [ -d "${ROOT}/run/systemd/system" ] && command -v systemd-run >/dev/null 2>&1; then
         unit="yuneta-restart-$(date -u +%Y%m%d%H%M%S)"
-        if systemd-run --no-block --unit="$unit" --uid="$OWNER" --gid="$OWNER" \
+        systemd-run -p Type=exec --unit="$unit" --uid="$OWNER" --gid="$OWNER" \
                 --description="restart-yuneta, started by the certbot deploy hook" \
-                "${ROOT}/yuneta/bin/restart-yuneta" >>"$LOG_DIR/restart-yuneta.log" 2>&1; then
+                "${ROOT}/yuneta/bin/restart-yuneta" >>"$LOG_DIR/restart-yuneta.log" 2>&1
+        rc=$?
+        if [ "$rc" -eq 0 ]; then
             log "restart-yuneta started as $OWNER in the unit $unit (journalctl -u $unit)"
             return 0
         fi
-        log "systemd-run of restart-yuneta FAILED (see restart-yuneta.log): started in the background instead"
+        log "restart-yuneta did NOT start in the unit $unit (systemd-run rc=$rc, see restart-yuneta.log and journalctl -u $unit): nothing restarted. Restart the agent by hand"
+        return 1
     fi
     nohup setsid "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups --reset-env -- \
         env PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" \

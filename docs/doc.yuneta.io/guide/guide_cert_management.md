@@ -57,9 +57,14 @@ certbot `deploy-hook` at
       a line are trimmed, and a line can hold several names. A name has
       only `[A-Za-z0-9._-]`, does not start with a dot, and has no `..`.
       The script skips any other name with a line, and copies the others.
-      From the hook, that line goes to `/var/log/yuneta/copy-certs.log`.
-      From the agent's sync, it goes to the journal of the agent
-      (`journalctl -u yuneta_agent`).
+    - Each line that the script says goes to its output and to the
+      journal with the tag `copy-certs`. From the hook, its output goes to
+      `/var/log/yuneta/copy-certs.log`. From the agent's sync, its output
+      goes nowhere (the agent runs with its output on `/dev/null`), so read
+      the journal:
+      ```bash
+      journalctl -t copy-certs --since today
+      ```
     - If `yuneta` cannot read `certs.list`, the script copies nothing and
       exits with 1. The hook then logs `copy-certs.sh FAILED`, and the
       agent's sync says `copy-script-failed`.
@@ -68,11 +73,14 @@ certbot `deploy-hook` at
     - It refuses a `/yuneta/store/certs/` or `private/` that is a
       symbolic link (exit 1, nothing copied), and it skips a certificate
       whose destination file is a symbolic link.
-    - It writes a changed file in one step: a temporary file in the same
-      directory, then `mv`. No key is written anywhere else. An unchanged
-      file is not written, so it keeps its mtime. The agent's sync
-      (layer 2) reloads the yunos only when the size or the mtime of a file
-      changes.
+    - It writes the changed files of a certificate to temporary files in
+      their directories. Only when all of them are written does it move
+      them into place, the key first and the `.crt` last. So a failure
+      leaves the old set whole, never an old `.crt` with a new key, and the
+      `.crt` (which the agent's sync watches) changes last. No key is
+      written anywhere else. An unchanged file is not written, so it keeps
+      its mtime. The agent's sync (layer 2) reloads the yunos only when the
+      size or the mtime of a file changes.
     - It says `Copied <name>` and runs `/yuneta/bin/check-certs-validity.sh`
       (as `yuneta`) only when something changed.
 2. Reload the web server (`nginx -s reload` or `openresty -s reload`), as
@@ -84,15 +92,22 @@ certbot `deploy-hook` at
        /yuneta/bin/ycommand -c 'command-yuno command=reload-certs service=__yuno__'
    ```
    If `ycommand` fails, the hook starts `/yuneta/bin/restart-yuneta` as
-   `yuneta` in a transient unit of its own, and does not wait for it.
-   certbot runs the hook in a unit that stops when certbot ends, and a job
-   left in the background there dies with it:
+   `yuneta` in a transient unit of its own. certbot runs the hook in a unit
+   that stops when certbot ends, and a job left in the background there
+   dies with it. The unit is `Type=exec`, so `systemd-run` returns when the
+   script started (not when it ended), and it fails when the script cannot
+   start. The hook then logs `restart-yuneta did NOT start`:
    ```bash
-   systemd-run --no-block --unit=yuneta-restart-<UTC time> --uid=yuneta --gid=yuneta \
+   systemd-run -p Type=exec --unit=yuneta-restart-<UTC time> --uid=yuneta --gid=yuneta \
        /yuneta/bin/restart-yuneta
    journalctl -u 'yuneta-restart-*'     # what it did
    ```
-   A node without systemd starts it in the background.
+   On Red Hat with SELinux, PID 1 can start only a file labelled `bin_t`,
+   so the `.rpm` labels `/yuneta/bin/restart-yuneta` `bin_t`. To check it:
+   `ls -Z /yuneta/bin/restart-yuneta`. A node without systemd starts it in
+   the background. On a node without the units of the agents,
+   `restart-yuneta` starts the agent with `--start`. Inside a unit it
+   refuses to do that, because such an agent dies with the unit.
 4. Touch `/var/lib/yuneta/last-deploy-hook-run` with a Unix timestamp
    so the monitor in layer 3 can detect a hook that never runs.
 
