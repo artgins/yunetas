@@ -55,18 +55,21 @@
   100 frames at each start position. If it hits that limit, it runs again one
   start position at a time, with 5000 frames for each position. All the
   searches of one command share 50 ms, which start at the first search and
-  are checked before each position. The worst cases measured are 18 ms for a
-  first search and 14 ms for one position, so the filters of one command take
-  50 ms plus 18 ms in the worst case measured. These are measured figures,
+  are checked before each position. The worst cases measured (one core of
+  the dev machine, the median of 5 rounds of 8 runs) are 14 ms for a first
+  search and 10 ms for one position, so the filters of one command take
+  50 ms plus 14 ms in the worst case measured. These are measured figures,
   not a proof: the limit is in frames (100 at each of 65 positions for a
   first search, 5000 for one position). When the 50 ms are spent, the answer
   says so and names no filter. A filter is blamed only when its own search
   hits its own limit. A search one position at a time tries only the
   positions where a match can start, as one search does (`.*a.*b.*c.*d` on
-  556 rows: 2 ms). The patterns are bytes, not UTF (`PCRE2_NEVER_UTF`), with
+  556 rows: 2 ms). The patterns are bytes, not UTF or UCP
+  (`PCRE2_NEVER_UTF`, `PCRE2_NEVER_UCP`: `\w`, `\d` and `\b` read ASCII), with
   LF as the only newline, and a filter refuses, naming the form, a
-  back-reference (`\1`, `\k<name>`, `(?(1)...)`: one position took 42 ms),
-  `\G`, `(*COMMIT)`, `(*SKIP)`, `(*NOTEMPTY_ATSTART)`, `\C` and callouts:
+  back-reference (`\1`, `\k<name>`, `(?(1)...)`: one position took 23 ms),
+  `(*UCP)` (a first search took 23 ms), `\G`, `(*COMMIT)`, `(*SKIP)`,
+  `(*NOTEMPTY_ATSTART)`, `\C` and callouts:
 
   ```
   list-agents hostname='(web)-\1'
