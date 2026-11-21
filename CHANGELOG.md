@@ -69,22 +69,29 @@
   a single-thread yuno, the agent included, and `help` asks for no
   permission. It takes about 8 ms now. This existed in 7.31.0.
 - **The certbot deploy hook and `copy-certs.sh` write less as root.** Root
-  only reads the keys of `/etc/letsencrypt`, and the user `yuneta` writes
-  the copies in `/yuneta/store/certs` (an unchanged certificate keeps its
-  mtime). A name in `certs.list` that is not `[A-Za-z0-9._-]`, starts with a
-  dot or has `..` is skipped with a log line, and so is a `.pem` that
-  resolves outside `/etc/letsencrypt`. A symbolic link in place of
-  `/yuneta/store/certs` or `private/` is refused. `check-certs-validity.sh`,
-  `restart-yuneta` and `ycommand` run as `yuneta` (`setpriv`), so the
-  fallback `restart-yuneta` of the hook needs `sudo` to restart the agent.
-  Up to 7.31.29 root followed a name of `certs.list` (which `yuneta` writes)
-  anywhere under `/etc/letsencrypt/live/`, wrote as root into the tree of
-  `yuneta`, and ran these three files as root. Root still runs the web
-  server and `copy-certs.sh` from `/yuneta`: the page *Files outside
-  `/yuneta`* lists them, and says that removing `sudo` does not make
-  `yuneta` a privilege boundary while that is so. The hook and the script
-  are now one file each in `packages/templates`, for the `.deb` and the
-  `.rpm`.
+  only opens the keys of `/etc/letsencrypt`. The user `yuneta` compares each
+  one with its copy in `/yuneta/store/certs` and writes, in one step, only a
+  file that changed. No key goes through `TMPDIR`. An unchanged certificate
+  keeps its mtime, and `Copied` and `check-certs-validity.sh` come only when
+  something changed. In `certs.list`, a name that is not `[A-Za-z0-9._-]`,
+  starts with a dot or has `..` is skipped with a log line, and so is a
+  `.pem` that resolves outside `/etc/letsencrypt`. Blanks around a name are
+  trimmed, and a line can hold several names. The script exits 1 and copies
+  nothing when `yuneta` cannot read `certs.list`, or when a symbolic link
+  stands in place of `/yuneta/store/certs` or `private/`. `ycommand`,
+  `restart-yuneta` and `check-certs-validity.sh` run as `yuneta` with its
+  own environment and no terminal (`setsid`, `setpriv --reset-env`). The
+  fallback `restart-yuneta` of the hook runs in a transient unit
+  (`systemd-run --no-block --uid=yuneta`), so it is not killed when the unit
+  of certbot ends. Up to 7.31.29 root followed a name of `certs.list` (a
+  file that `yuneta` writes) to any directory on the disk through `..`,
+  wrote as root into the tree of `yuneta`, and ran these three files as
+  root. Root still runs the web server and `copy-certs.sh` from `/yuneta`:
+  the page *Files outside `/yuneta`* lists every such file, and says that
+  removing `sudo` does not make `yuneta` a privilege boundary while that is
+  so. The hook and the script are now one file each in `packages/templates`,
+  for the `.deb` and the `.rpm`.
+
 ### Changed
 
 - **`yuneta-node-uuid`: an interface in a bond counts with its own MAC**

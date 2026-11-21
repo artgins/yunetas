@@ -683,7 +683,19 @@ be weighed again, not as settled.
      `AmbientCapabilities=CAP_NET_BIND_SERVICE`. Check the nginx/openresty
      `user` directive, the pid file and the log paths. The hook reloads with
      `systemctl reload yuneta-webserver`.
-  3. Then `files-outside-yuneta.md` can say that a no-sudo site is a
+     Step 2 must also move every `ssl_certificate` / `ssl_certificate_key`
+     path of the node's and the projects' nginx configs from
+     `/etc/letsencrypt/live/...` (root, 0700) to `/yuneta/store/certs/...`,
+     or the web server does not start.
+  3. Root still runs or works in other places of `/yuneta`:
+     `/etc/init.d/yuneta_agent status` runs `/yuneta/bin/yuneta-webserver
+     type`; the `postinst` / `%post` runs `yuneta-webserver quit|stop`;
+     logrotate rotates `/yuneta/bin/nginx/logs` and
+     `/yuneta/bin/openresty/nginx/logs` as root with no `su`. A plain
+     `su yuneta yuneta` is not enough there (it cannot keep the root owner of
+     the openresty nodes, and the `postrotate` signals a root master): it
+     comes with step 2, when the master runs as `yuneta`.
+  4. Then `files-outside-yuneta.md` can say that a no-sudo site is a
      privilege boundary, with the sudoers lines to grant.
   The test is `packages/tests/test-copy-certs.sh`, extended to the program and
   the unit.

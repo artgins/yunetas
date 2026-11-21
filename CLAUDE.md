@@ -2262,7 +2262,10 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   site. The release is not done until the live site reflects it.
 - **A package uploaded to a release by hand** (a `-2` on the same tag, a
   riscv64 `.deb`) also needs its line in `SHA256SUMS`, or `install.sh` refuses
-  the release. Never re-run `release-packages.yml` plainly on a published
+  the release. Upload it WITH its `<package>.sha256` (`sha256sum <file>` run
+  in the directory of the package, so the line has no directory): without
+  it, `checksums_only` writes a `SHA256SUMS` that lacks the package and still
+  passes its checks. Never re-run `release-packages.yml` plainly on a published
   tag: it rebuilds and REPLACES the packages with other bytes, and every
   sha256 an operator copied for `install-package` stops matching. Remake only
   the sums: `gh workflow run release-packages.yml -f release_tag=<tag> -f
