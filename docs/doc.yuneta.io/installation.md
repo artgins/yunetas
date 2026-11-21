@@ -113,6 +113,10 @@ curl -fsSL https://github.com/artgins/yunetas/releases/download/7.31.27/SHA256SU
 
 The output is `yuneta-agent-7.31.27-1-amd64.deb: OK` for a good package.
 
+The package puts almost all its files in `/yuneta`. The files that it puts in
+the system directories, the system files that it changes, and the features
+that need `sudo` are in [Files outside `/yuneta`](#files-outside-yuneta).
+
 (install-on-a-build-node)=
 ### Not on a node that builds from source
 

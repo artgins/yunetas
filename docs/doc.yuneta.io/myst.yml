@@ -40,6 +40,9 @@ project:
       file: get_started.md
 
     - file: installation.md
+      children:
+        - title: Files outside /yuneta
+          file: files-outside-yuneta.md
     - file: CHANGELOG.md
     - file: performance.md
 

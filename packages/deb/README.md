@@ -262,11 +262,22 @@ one gets a default.
 
 These files are marked as `conffiles`, and an upgrade does not overwrite them:
 - `/etc/profile.d/yuneta.sh`
+- `/etc/sysctl.d/99-yuneta-core.conf` (since the release after 7.31.28)
+- `/etc/security/limits.d/99-yuneta-core.conf` (since the release after 7.31.28)
 - `/etc/sudoers.d/90-yuneta`
 - `/etc/init.d/yuneta_agent`
 - `/etc/letsencrypt/renewal-hooks/deploy/reload-certs`
+- `/etc/logrotate.d/yuneta`
+- `/etc/fail2ban/filter.d/yuneta-nginx-probe.conf`
+- `/etc/fail2ban/jail.d/yuneta-nginx.conf`
 - `/etc/yuneta/authorized_keys` (if bundled)
-- `/etc/yuneta/webserver` (if bundled)
+
+Every file that the package puts in `/etc` must be in this list. The package
+does not ship `/etc/yuneta/webserver`: `postinst` writes it once and keeps it.
+The full list of what the package puts outside `/yuneta` is the page
+[Files outside `/yuneta`](https://doc.yuneta.io/files-outside-yuneta)
+(`docs/doc.yuneta.io/files-outside-yuneta.md`). Update that page in the same
+commit when you add a file outside `/yuneta`.
 
 The web server configuration is preserved by a different mechanism, because it
 is under `/yuneta/bin/`, where `conffiles` does not apply. The `.rpm` cannot
@@ -344,11 +355,18 @@ The `.deb` installs the following tree:
 ├── sysctl.d/99-yuneta-core.conf         <- kernel tuning
 ├── security/limits.d/99-yuneta-core.conf <- resource limits
 ├── logrotate.d/yuneta                   <- rotation of the web server logs
+├── fail2ban/filter.d/yuneta-nginx-probe.conf <- fail2ban filter
+├── fail2ban/jail.d/yuneta-nginx.conf    <- fail2ban jails (disabled)
 ├── letsencrypt/renewal-hooks/deploy/
 │   └── reload-certs                     <- certbot deploy hook
 └── yuneta/
     ├── authorized_keys                  <- (optional) SSH keys for yuneta user
-    └── webserver                        <- web server selection (nginx/openresty)
+    └── webserver                        <- web server selection, written by postinst
+
+/usr/lib/systemd/system/                 <- yuneta_agent, yuneta_agent22, yuneta-webserver, yuneta-core-pattern units
+/usr/lib/tmpfiles.d/yuneta-crash.conf    <- /var/crash ownership at each boot
+/usr/libexec/yuneta/                     <- yuneta-node-uuid, yuneta-agent-cert, yuneta-node-label (run as root)
+/usr/share/doc/yuneta-agent/             <- copyright, THIRD-PARTY-NOTICES
 
 /var/crash/                              <- core dumps (group yuneta, mode 0775)
 ```

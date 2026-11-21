@@ -1270,8 +1270,16 @@ Description: Yuneta's Agent
 EOF
 
 # --- conffiles (mark config files; dpkg removes these only on purge) ---
+#
+# EVERY file the package ships under /etc is listed here, as the .rpm marks
+# each one %config(noreplace). A file left out is overwritten by every
+# upgrade without a word: sysctl.d and limits.d were, up to 7.31.28, so a
+# node's own tuning of them was lost at each upgrade. The list of what the
+# package puts outside /yuneta is docs/doc.yuneta.io/files-outside-yuneta.md.
 cat > "${WORKDIR}/DEBIAN/conffiles" <<'EOF'
 /etc/profile.d/yuneta.sh
+/etc/sysctl.d/99-yuneta-core.conf
+/etc/security/limits.d/99-yuneta-core.conf
 /etc/sudoers.d/90-yuneta
 /etc/init.d/yuneta_agent
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs

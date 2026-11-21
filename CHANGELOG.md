@@ -35,6 +35,24 @@
   `snprintf`, `338260c`). The rest is code that this tree does not compile.
   The record is in `kernel/c/libjwt/README.md`.
 
+### Fixed
+
+- **`.deb`: the two kernel-tuning files are conffiles.** `DEBIAN/conffiles`
+  now lists `/etc/sysctl.d/99-yuneta-core.conf` and
+  `/etc/security/limits.d/99-yuneta-core.conf`. Up to 7.31.28 each upgrade
+  replaced them, and a change that the operator made to them was lost. The
+  `.rpm` already marked them `%config(noreplace)`. Their content did not
+  change since 7.29.0 or before, so a node that did not edit them upgrades
+  with no question.
+
+### Docs
+
+- **New page: Files outside `/yuneta`** (`files-outside-yuneta.md`, under
+  Installation). It lists each file that the packages put outside `/yuneta`,
+  the system files that their scripts change, the features that need
+  `sudo`, and the system files that the yunos read. It is for sites that
+  install the package as root and do not let `yuneta` use `sudo`.
+
 ## v7.31.28 (2026-11-20)
 
 Lite release: `yuneta_agent22`, the release workflow and the installer. The

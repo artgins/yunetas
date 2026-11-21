@@ -22,6 +22,14 @@ package release number from `../../RELEASE`. For the details of each format
 (install actions, file layout, packaged CLI tools, system configuration), see
 [`deb/README.md`](deb/README.md) and [`rpm/README.md`](rpm/README.md).
 
+The files that the packages put outside `/yuneta`, the system files that their
+scripts change, and the features that need `sudo` are listed on the page
+[Files outside `/yuneta`](https://doc.yuneta.io/files-outside-yuneta)
+(`docs/doc.yuneta.io/files-outside-yuneta.md`). Keep that list as short as
+possible: some sites install the package as root and do not let `yuneta` use
+`sudo`. When a change adds, moves or removes a file outside `/yuneta`, update
+the page in the same commit.
+
 ## The two packagers
 
 Both packagers stage the same `/yuneta` runtime payload. The payload has the

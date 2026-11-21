@@ -1209,6 +1209,18 @@ stress/c/*            ← stress test programs
 forwarding shims left in `tools/agent/` were removed after 7.27.4; run them as
 `yunetas sync-binaries` / `sync-configs` / `set-start-priorities`.
 
+**Keep the footprint outside `/yuneta` minimal, and keep its page current.**
+Some sites install the `.deb`/`.rpm` as root and do NOT let `yuneta` use
+`sudo`. So every file the package puts outside `/yuneta`, every system file
+its scripts change, and every feature that runs `sudo` is a dependency on the
+machine's administrator. All three are listed in
+[`docs/doc.yuneta.io/files-outside-yuneta.md`](docs/doc.yuneta.io/files-outside-yuneta.md):
+put new files under `/yuneta` when possible; when one has to go outside,
+update that page in the SAME commit; every file under `/etc` is listed in
+`DEBIAN/conffiles` AND tagged `%config(noreplace)` in the `.rpm` (the `.deb`
+missed `sysctl.d`/`limits.d` up to 7.31.28 and every upgrade overwrote them);
+never let `yuneta` write a file that root runs.
+
 **`tools/` ships in the install packages; `scripts/` is repo-only.**
 Node-usable / operator-facing utilities go under `tools/` (grouped by
 subsystem, e.g. `tools/agent/`); repo-dev helpers stay in `scripts/`. Test:
