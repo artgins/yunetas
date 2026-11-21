@@ -156,7 +156,7 @@ after it logged an ERROR with a stack.
 | `enforce_node_keys` | `false` | Refuse the agents whose key is not the accepted one. Off: the keys are only recorded. |
 | `allow_nodes_without_key` | `true` | Let in a node that presents no key and has none accepted. |
 | `max_knocking_nodes` | `256` | The nodes knocking (a key not accepted, no token) kept in memory for `list-nodes`. A new one evicts the one that knocked least recently, a uuid that came with two keys last while those are half the table at most (7.31.16+, and 7.31.15 with no bound). |
-| `max_evicted_knocks` | `1024` | The uuids evicted from a full knocking table, kept in memory with the key that each one knocked with. If such a uuid knocks again with another key, the control center does not keep the knock (a WARNING, *"A uuid evicted from the knocking table knocks with another key"*), and an open enrollment refuses it. The oldest is forgotten first. `0`: none kept. |
+| `max_evicted_knocks` | `1024` | The uuids evicted from a full knocking table, kept in memory with the key that each one knocked with. If such a uuid knocks again with another key, the uuid has two keys: the control center does not keep the knock (a WARNING, *"A uuid evicted from the knocking table has two keys under it"*), and an open enrollment refuses both keys. When the table is full, a new eviction overwrites the oldest uuid. That is a flood: an open enrollment closes, and no enrollment opens for an hour (a WARNING, *"The tombstones of evicted knocks are full"*). `0`: none kept, and every eviction closes the enrollment so. |
 | `knocking_warning_period` | `600` | Seconds between the WARNINGs *"A node knocking"* of a node that goes on knocking (7.31.10+). `0`: only the first. Not one per knock: anyone who reaches the port can knock. The same pace applies to the WARNING of a refused node, and to the refusals of an enrollment. |
 
 The three are read-only at run time: set them in the `kw` of the
@@ -298,11 +298,17 @@ The enrollment does NOT accept:
   keep the enrollment shut, never slip a key in.
 - a uuid that a flood evicted from the knocking table, when it knocks again
   with another key. The evicted uuid keeps the key that it knocked with
-  (`max_evicted_knocks`, 1024 uuids). The enrollment refuses another key with
-  *"it knocked with another key"*, and accepts the uuid with its own key. Thus
-  a batch of nodes larger than the table enrolls, and the enrollment stays
-  open. Up to 7.31.29, the flood erased the key, and the enrollment accepted
-  another key under that uuid.
+  (`max_evicted_knocks`, 1024 uuids). Another key makes the uuid disputed, as
+  a uuid of two keys in the table. The enrollment then refuses both keys with
+  *"it knocked with another key"*, and the control center keeps no knock of
+  that uuid. The uuid that knocked first does not win. To accept the node,
+  give the key read on it (`accept-node node_id=<uuid> spki_sha256=<key>`),
+  or forget the uuid (`delete-node node_id=<uuid>`). An evicted uuid that
+  knocks again with its own key only is accepted. Thus a batch of nodes
+  larger than the table enrolls, and the enrollment stays open. If more than
+  `max_knocking_nodes` + `max_evicted_knocks` knocks evict a kept key, the
+  enrollment closes, and none opens for an hour. Up to 7.31.29, the flood
+  erased the key, and the enrollment accepted another key under that uuid.
 - a key that is accepted for another node (one key, one node).
 
 Each of these is a WARNING (*"Node not accepted by the enrollment"*, the reason

@@ -124,13 +124,16 @@ only.
 The table of knocking nodes holds `max_knocking_nodes` uuids (256 by default).
 When the table is full, a new knock evicts the oldest one. The evicted uuid
 keeps the key that it knocked with, in a second table of `max_evicted_knocks`
-uuids (1024 by default). If the evicted uuid knocks again with another key, the
-control center does not keep the knock, and the enrollment refuses it. If the
-uuid knocks again with its own key, the enrollment accepts it. Thus a batch of
-nodes larger than the table enrolls, and a flood of knocks cannot put another
-key under a uuid. Up to 7.31.29, the flood erased the key, and an
-enrollment accepted another key under that uuid. A restart empties both
-tables.
+uuids (1024 by default). If the evicted uuid knocks again with another key,
+the uuid has two keys. The control center keeps no knock of that uuid, and
+the enrollment refuses both keys. To accept the node, use `accept-node
+node_id=<uuid> spki_sha256=<the key read on the node>`, or forget the uuid with
+`delete-node`. If the uuid knocks again with its own key only, the enrollment
+accepts it. Thus a batch of nodes larger than the table enrolls. If the second
+table is full, a new eviction overwrites a kept key: that is a flood, and the
+enrollment closes for an hour. A flood of knocks cannot put another key under
+a uuid. Up to 7.31.29, the flood erased the key, and an enrollment accepted
+another key under that uuid. A restart empties both tables.
 
 The control center logs a refused knock the first time in each enrollment.
 After that, it logs it once every `knocking_warning_period` seconds, not at

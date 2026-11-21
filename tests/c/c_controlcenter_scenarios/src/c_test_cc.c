@@ -3513,11 +3513,15 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
 
     /*
      *  A uuid of one key evicted by a flood of knocks leaves its key behind:
-     *  another key under it is not kept, and an enrollment refuses it (said
-     *  once, not per knock); the uuid with its own key is accepted. A batch
-     *  of nodes larger than the knocking table enrolls, and the enrollment
-     *  stays open. Up to 7.31.29 the eviction wiped the key, and the
-     *  enrollment took the other one
+     *  another key under it is not kept, and makes it DISPUTED, as two keys
+     *  in the table: an enrollment refuses both (said once, not per knock).
+     *  Whoever knocked first does not win: here uuid-tu knocks with K1 (an
+     *  attacker before the box), a flood evicts it, the box knocks with K2,
+     *  and neither key is taken nor kept knocking (the operator gives the
+     *  key with accept-node spki_sha256=, or forgets it with delete-node).
+     *  A batch of nodes larger than the knocking table enrolls, and the
+     *  enrollment stays open. Up to 7.31.29 the eviction wiped the key, and
+     *  the enrollment took the other one
      */
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
     logs_in_by_key(gobj, "tu-1", "uuid-tu", KEY_T1);
@@ -3547,11 +3551,16 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
     if(logs_in_by_key(gobj, "en-4y", "uuid-en4", KEY_EN4)) {
         ret += fail(gobj, "the enrollment accepts a uuid that knocked with two keys", "");
     }
-    if(!logs_in_by_key(gobj, "tu-5", "uuid-tu", KEY_T1)) {
-        ret += fail(gobj, "the enrollment refuses a uuid evicted by a flood with its own key", "");
+    if(logs_in_by_key(gobj, "tu-5", "uuid-tu", KEY_T1)) {
+        ret += fail(gobj, "the enrollment accepts the first key of a disputed evicted uuid", "");
     }
-    ret += check_node_field(gobj, client, "uuid-tu", "spki_sha256", KEY_T1,
-        "the enrollment pins the key a uuid knocked with before it was evicted");
+    {
+        json_t *disputed = node_record(gobj, client, "uuid-tu");
+        if(disputed) {
+            ret += fail(gobj, "a disputed evicted uuid is kept knocking", "");
+        }
+        JSON_DECREF(disputed)
+    }
     const struct {
         const char *name;
         const char *uuid;
@@ -3568,7 +3577,7 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
         }
     }
     ret += check_response(gobj, enrollment_command(gobj, client, "close-enrollment", 0, 0),
-        0, "enrollment closed, 4 nodes accepted", "a batch larger than the knocking table leaves it open");
+        0, "enrollment closed, 3 nodes accepted", "a batch larger than the knocking table leaves it open");
     gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
 
     /*
@@ -3644,6 +3653,33 @@ PRIVATE int test_node_enrollment(hgobj gobj, hgobj client)
      */
     ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
         -1, "no enrollment opens for", "open-enrollment after a mark was evicted is refused");
+
+    /*
+     *  A full ring of tombstones that overwrites a live one loses what keeps
+     *  an enrollment from taking that uuid: it is a flood, as the eviction
+     *  of a uuid of two keys (one WARNING of its own, no enrollment for an
+     *  hour). uuid-tv knocks with K1, five uuids evict it and overwrite its
+     *  tombstone, and its K2 is refused. Up to 7.31.29 the tombstone did
+     *  not exist; before this, a full ring overwrote it in silence and K2
+     *  was accepted
+     */
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 2);
+    gobj_write_integer_attr(priv->cc, "max_evicted_knocks", 2);
+    logs_in_by_key(gobj, "tv-1", "uuid-tv", KEY_T1);
+    for(int i=0; i<5; i++) {
+        char name[NAME_MAX];
+        char uuid[NAME_MAX];
+        snprintf(name, sizeof(name), "tw-%d", i);
+        snprintf(uuid, sizeof(uuid), "uuid-tw%d", i);
+        logs_in_by_key(gobj, name, uuid, KEY_TB1);
+    }
+    ret += check_response(gobj, enrollment_command(gobj, client, "open-enrollment", 1, 5),
+        -1, "no enrollment opens for", "open-enrollment after a tombstone was overwritten");
+    if(logs_in_by_key(gobj, "tv-2", "uuid-tv", KEY_T2)) {
+        ret += fail(gobj, "another key is accepted under a uuid whose tombstone was overwritten", "");
+    }
+    gobj_write_integer_attr(priv->cc, "max_knocking_nodes", 256);
+    gobj_write_integer_attr(priv->cc, "max_evicted_knocks", 1024);
 
     return ret;
 }

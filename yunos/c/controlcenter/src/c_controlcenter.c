@@ -163,12 +163,15 @@
  *  of knocks) an open enrollment closes and none opens for an hour, a
  *  WARNING: a flood can keep the enrollment shut, never slip a key in. A
  *  uuid of one key that a flood evicts keeps its key in `evicted`: the
- *  enrollment refuses it with another key ("it knocked with another key")
- *  and accepts it with its own, so a batch of nodes larger than the
- *  knocking table closes nothing (up to 7.31.29 the flood wiped the key,
- *  and another key took the uuid). A refused knock is said the first time
- *  in each enrollment and then at the pace of the table, never once per
- *  knock.
+ *  enrollment refuses it with another key ("it knocked with another key"),
+ *  and from then on with either key (the tombstone is disputed, as a uuid
+ *  of two keys in the table), and accepts it with its own key alone, so a
+ *  batch of nodes larger than the knocking table closes nothing (up to
+ *  7.31.29 the flood wiped the key, and another key took the uuid). A full
+ *  ring of tombstones that overwrites a live one closes the enrollment for
+ *  an hour, as the eviction of a uuid of two keys. A refused knock is said
+ *  the first time in each enrollment and then at the pace of the table,
+ *  never once per knock.
  *  It closes when its minutes (1-60) are over, when it has accepted
  *  max_nodes (1-256), with `close-enrollment`, or when the control center
  *  pauses: it lives in memory only, a restart does not open it again. Each
@@ -331,7 +334,7 @@ PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgo
 PRIVATE json_t *cmd_close_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *enrollment_status(hgobj gobj);
 PRIVATE void close_enrollment(hgobj gobj, const char *why);
-PRIVATE void mark_evicted(hgobj gobj, const char *node_id);
+PRIVATE void mark_evicted(hgobj gobj, const char *node_id, const char *what);
 PRIVATE BOOL enroll_node(
     hgobj gobj,
     const char *node_id,
@@ -728,7 +731,7 @@ SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max
 SDATA (DTP_INTEGER,     "run_step_timeout", SDF_WR|SDF_PERSIST, "30000",    "Milliseconds a step of a scenario run may take to be answered"),
 SDATA (DTP_BOOLEAN,     "enforce_node_keys",SDF_RD,         "0",        "Set in the config (a write at run time would not survive a restart). Refuse the agent of a node whose key is not the one accepted (list-nodes, accept-node), and of a pending or refused node. Off: the keys are only recorded"),
 SDATA (DTP_INTEGER,     "max_knocking_nodes",SDF_RD,        "256",      "Nodes whose agent presents a key not accepted, with no token, kept in memory for list-nodes (state knocking); a new one evicts the one knocked least recently, one that came with two keys last while those are half the table at most"),
-SDATA (DTP_INTEGER,     "max_evicted_knocks",SDF_RD,        "1024",     "Uuids evicted from the knocking table (a full table) kept in memory with the key they knocked with: an open enrollment refuses one that comes back with another key, and accepts it with that key. The oldest is forgotten first. 0: none kept"),
+SDATA (DTP_INTEGER,     "max_evicted_knocks",SDF_RD,        "1024",     "Uuids evicted from the knocking table (a full table) kept in memory with the key they knocked with: one that knocks again with another key is disputed, and an open enrollment refuses both keys; with its key alone it is accepted. A full ring overwrites the oldest, and that closes the open enrollment and opens none for an hour (a flood). 0: none kept, and every eviction does so"),
 SDATA (DTP_INTEGER,     "knocking_warning_period",SDF_RD,   "600",      "Seconds between the WARNINGs 'A node knocking' of a node that goes on knocking; 0: said once"),
 SDATA (DTP_BOOLEAN,     "allow_nodes_without_key",SDF_RD,   "1",        "Set in the config. Let in the agent of a node that presents no key and has none accepted (an agent before 7.30.10)"),
 SDATA (DTP_STRING,      "operator_assertion_key",SDF_RD,    "",         "File of the PRIVATE key (a JWK, EC P-256) that signs the operator assertions sent to the agents (__operator_assertion__). Empty: none is sent, and an agent that verifies its operator runs every request as its service principal"),
@@ -842,7 +845,8 @@ typedef struct _PRIVATE_DATA {
     json_t *refused_knocks;         // node uuid -> {next_warning, knocks}: the knocks of a node in the store refused out of the knocking table (refused_knock_due())
     hgobj enrollment_timer;         // closes the open enrollment when its minutes are over
     json_t *enrollment;             // the open enrollment {opened_by, opened_at, until, max_nodes, accepted: [uuid]}, or NULL: in memory only
-    uint64_t mark_evicted_until;    // msectimer: a uuid of two keys was evicted from the knocking table, no enrollment opens before it (0: none)
+    uint64_t mark_evicted_until;    // msectimer: a flood evicted what keeps an enrollment from taking a uuid, no enrollment opens before it (0: none)
+    char mark_evicted_said[NAME_MAX];   // what mark_evicted() said in this quarantine
     uint64_t last_run_ms;           // the millisecond of the last run id: never twice the same
     json_t *run;                    // the run in flight, or NULL (one at a time)
     json_t *run_kw_answer;          // the request of that run, to answer it
@@ -2827,8 +2831,8 @@ PRIVATE json_t *cmd_open_enrollment(hgobj gobj, const char *cmd, json_t *kw, hgo
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("%s: a uuid that came with two keys was evicted from the knocking "
-                "table (a flood of knocks?): no enrollment opens for %llu more minutes; accept "
+            json_sprintf("%s: a flood of knocks (?) evicted what keeps an enrollment from "
+                "taking a uuid: no enrollment opens for %llu more minutes; accept "
                 "the nodes with accept-node", gobj_yuno_role_plus_name(),
                 (unsigned long long)((priv->mark_evicted_until - now_ms) / 60000 + 1)),
             0,
@@ -2966,30 +2970,35 @@ PRIVATE void close_enrollment(hgobj gobj, const char *why)
 }
 
 /***************************************************************************
- *  A uuid that came with two keys leaves the knocking table (a full table:
- *  note_knocking_node()). Its mark is what keeps an enrollment from
- *  accepting either key, and a flood of knocks can push it out, so its loss
- *  is not silent: an open enrollment closes, and none opens for
- *  MARK_EVICTED_QUARANTINE. A WARNING, once per quarantine.
+ *  What keeps an enrollment from taking a uuid is lost to a flood of
+ *  knocks (`what`, the WARNING's message): a uuid that came with two keys
+ *  evicted from the knocking table (note_knocking_node()), or the
+ *  tombstone of an evicted knock overwritten in a full ring
+ *  (remember_evicted_knock()). Its loss is not silent: an open enrollment
+ *  closes, and none opens for MARK_EVICTED_QUARANTINE. A WARNING, once per
+ *  quarantine and cause.
  ***************************************************************************/
-PRIVATE void mark_evicted(hgobj gobj, const char *node_id)
+PRIVATE void mark_evicted(hgobj gobj, const char *node_id, const char *what)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    BOOL said = priv->mark_evicted_until && !test_msectimer(priv->mark_evicted_until);
+    BOOL said = priv->mark_evicted_until && !test_msectimer(priv->mark_evicted_until) &&
+        strcmp(priv->mark_evicted_said, what)==0;
     priv->mark_evicted_until = start_msectimer(MARK_EVICTED_QUARANTINE);
+    snprintf(priv->mark_evicted_said, sizeof(priv->mark_evicted_said), "%s", what);
     if(!said) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "A uuid that came with two keys evicted from the knocking table: no enrollment opens for an hour",
+            "msg",          "%s", what,
             "node",         "%s", node_id,
             "max_knocking_nodes", "%lld", (long long)gobj_read_integer_attr(gobj, "max_knocking_nodes"),
+            "max_evicted_knocks", "%lld", (long long)gobj_read_integer_attr(gobj, "max_evicted_knocks"),
             NULL
         );
     }
     if(priv->enrollment) {
-        close_enrollment(gobj, "a uuid that came with two keys was evicted from the knocking table");
+        close_enrollment(gobj, what);
     }
 }
 
@@ -5556,19 +5565,26 @@ PRIVATE const char *note_knocking_node(
     }
 
     /*
-     *  Evicted before: back with its key, it takes its place again (below);
-     *  with another key it is not taken in
+     *  Evicted before: back with its key, it takes its place again (below).
+     *  Back with another key it is not taken in, and its tombstone is
+     *  DISPUTED: two keys under one uuid, as in the table, so no enrollment
+     *  accepts either (the first to knock does not win). A disputed
+     *  tombstone (or one of a uuid of two keys) takes no knock back: the
+     *  operator gives the key (accept-node spki_sha256=) or forgets the
+     *  uuid (delete-node)
      */
     json_t *evicted = accepted_node? NULL : json_object_get(priv->evicted, node_id);
     BOOL other_keys = FALSE;
     json_int_t first_seen = now;
     json_int_t knocks = 1;
+    json_int_t enrollment_said = 0;
     char kept_spki[80];
     snprintf(kept_spki, sizeof(kept_spki), "%s", spki);
     if(evicted) {
         other_keys = kw_get_bool(gobj, evicted, "other_keys", 0, 0);
         knocks = kw_get_int(gobj, evicted, "knocks", 0, 0) + 1;
-        if(!other_keys && strcmp(kw_get_str(gobj, evicted, "spki_sha256", "", 0), spki)!=0) {
+        if(other_keys || strcmp(kw_get_str(gobj, evicted, "spki_sha256", "", 0), spki)!=0) {
+            json_object_set_new(evicted, "other_keys", json_true());
             json_object_set_new(evicted, "knocks", json_integer(knocks));
             BOOL due = !kw_get_bool(gobj, evicted, "said", 0, 0) || (period > 0 &&
                 test_msectimer((uint64_t)kw_get_int(gobj, evicted, "next_warning", 0, 0)));
@@ -5585,7 +5601,7 @@ PRIVATE const char *note_knocking_node(
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "A uuid evicted from the knocking table knocks with another key: not kept, no enrollment accepts it",
+                    "msg",          "%s", "A uuid evicted from the knocking table has two keys under it: not kept, no enrollment accepts either (accept-node spki_sha256=, or delete-node)",
                     "node",         "%s", node_id,
                     "hostname",     "%s", hostname? hostname : "",
                     "peername",     "%s", peername? peername : "",
@@ -5598,12 +5614,14 @@ PRIVATE const char *note_knocking_node(
             return refusal;
         }
         first_seen = kw_get_int(gobj, evicted, "first_seen", now, 0);
+        enrollment_said = kw_get_int(gobj, evicted, "enrollment_said", 0, 0);
         snprintf(kept_spki, sizeof(kept_spki), "%s",
             kw_get_str(gobj, evicted, "spki_sha256", "", 0));    // its first key, as in the table
         json_object_del(priv->evicted, node_id);
     }
 
-    if(enroll_refusal) {
+    if(enroll_refusal && enrollment_said != priv->enrollments) {
+        enrollment_said = priv->enrollments;
         say_enrollment_refusal(gobj, node_id, hostname, peername, spki, enroll_refusal);
     }
     json_int_t max_knocking = gobj_read_integer_attr(gobj, "max_knocking_nodes");
@@ -5644,7 +5662,8 @@ PRIVATE const char *note_knocking_node(
         }
         json_t *oldest_knock = json_object_get(priv->knocking, oldest);
         if(knock_is_contested(gobj, oldest_knock)) {
-            mark_evicted(gobj, oldest);
+            mark_evicted(gobj, oldest, "A uuid that came with two keys evicted from the knocking "
+                "table: no enrollment opens for an hour");
         }
         if(!kw_get_bool(gobj, oldest_knock, "accepted_node", 0, 0)) {
             remember_evicted_knock(gobj, oldest, oldest_knock);
@@ -5663,7 +5682,7 @@ PRIVATE const char *note_knocking_node(
         "next_warning", (json_int_t)(period > 0? start_msectimer((uint64_t)period * 1000) : 0),
         "accepted_node", accepted_node,
         "other_keys", other_keys,
-        "enrollment_said", enroll_refusal? priv->enrollments : (json_int_t)0
+        "enrollment_said", enrollment_said
     ));
     if(in_table) {
         *in_table = TRUE;
@@ -5720,10 +5739,15 @@ PRIVATE BOOL refused_knock_due(hgobj gobj, const char *node_id, json_int_t *knoc
  *  (enroll_node()). Without it a flood of knocks between two knocks of a
  *  node that waits wiped what the node knocked with, and another key took
  *  its uuid in the next enrollment (up to 7.31.29). At most
- *  `max_evicted_knocks`, a ring: the oldest is forgotten first, so a flood
- *  costs a bounded memory, and closes no enrollment (a batch of nodes
- *  larger than the knocking table is no attack). In memory only, as the
- *  knocks: a restart forgets them both.
+ *  `max_evicted_knocks`, a ring, so a flood costs a bounded memory. A
+ *  batch of nodes larger than the knocking table is no attack and closes
+ *  nothing; but to overwrite a LIVE tombstone (the ring is full: more than
+ *  max_knocking_nodes + max_evicted_knocks evictions) loses what keeps an
+ *  enrollment from taking that uuid, so it is a flood, as the eviction of a
+ *  uuid of two keys: mark_evicted() closes the open enrollment and no
+ *  enrollment opens for an hour. With max_evicted_knocks 0 nothing is kept,
+ *  and every eviction is such a loss. In memory only, as the knocks: a
+ *  restart forgets them both.
  ***************************************************************************/
 PRIVATE void remember_evicted_knock(hgobj gobj, const char *node_id, json_t *knock)
 {
@@ -5731,6 +5755,8 @@ PRIVATE void remember_evicted_knock(hgobj gobj, const char *node_id, json_t *kno
 
     json_int_t max_evicted = gobj_read_integer_attr(gobj, "max_evicted_knocks");
     if(max_evicted <= 0) {
+        mark_evicted(gobj, node_id, "A knock evicted from the knocking table and no tombstone "
+            "kept (max_evicted_knocks 0): no enrollment opens for an hour");
         return;
     }
     json_object_del(priv->evicted, node_id);
@@ -5755,6 +5781,8 @@ PRIVATE void remember_evicted_knock(hgobj gobj, const char *node_id, json_t *kno
         const char *uuid = json_string_value(json_array_get(priv->evicted_ring, (size_t)slot));
         json_t *jn = uuid? json_object_get(priv->evicted, uuid) : NULL;
         if(jn && kw_get_int(gobj, jn, "slot", -1, 0) == slot) {
+            mark_evicted(gobj, uuid, "The tombstones of evicted knocks are full, one overwritten "
+                "(a flood of knocks?): no enrollment opens for an hour");
             json_object_del(priv->evicted, uuid);
         }
         json_array_set_new(priv->evicted_ring, (size_t)slot, json_string(node_id));

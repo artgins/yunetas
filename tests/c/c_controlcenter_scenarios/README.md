@@ -290,12 +290,18 @@ still reported and fails the test.
       refusal of a key accepted for another node is one WARNING, not two.
       Up to 7.31.29 every refused knock was a WARNING.
     - With `max_knocking_nodes` 2 and the enrollment closed, `uuid-tu`
-      knocks with one key and three other uuids evict it. Back with another
-      key, it is not kept (one WARNING for two knocks). Open: that other key
-      is refused (said once for two knocks), and its own key is accepted.
-      The three other uuids, a batch larger than the table, are accepted,
-      and the enrollment stays open (4 nodes accepted at its close). Up to
-      7.31.29 the eviction erased the key, and the other key was accepted.
+      knocks with K1 and three other uuids evict it. Back with K2, it is not
+      kept, and its tombstone is disputed (one WARNING for two knocks).
+      Open: K2 is refused (said once for two knocks), and K1 too: the first
+      to knock does not win. The three other uuids, a batch larger than the
+      table, are accepted, and the enrollment stays open (3 nodes accepted
+      at its close). Up to 7.31.29 the eviction erased the key, and the
+      other key was accepted.
+    - Last, with `max_knocking_nodes` 2 and `max_evicted_knocks` 2:
+      `uuid-tv` knocks with K1, and five uuids evict it and overwrite its
+      tombstone. That is a flood: one WARNING (*"The tombstones of evicted
+      knocks are full"*), `open-enrollment` is refused, and K2 is not
+      accepted.
 
 23. A node is reached by its uuid, and by a hostname only when one node has
     it. Nodes A and B are accepted with their keys, `enforce_node_keys` on:
