@@ -170,7 +170,8 @@ unit or its `id` between releases.
 | `ab[].previous`, `ab[].current` | `mean`, and `sd` (standard deviation) and `median` when measured. |
 | `ab[].n` | Rounds (or runs) behind each mean. |
 | `ab[].scope` | `release`: the module of each release. `release (separate runs)`: release against release, not one alternated run. `change`: one commit alone, before and after. `ctest trend`: times of `yunetas test` runs. |
-| `ab[].verdict` | `gain`, `noise` (inside the spread), `price` (slower, kept by decision), `price-until-migrated`. |
+| `ab[].verdict` | `gain`, `noise` (inside the spread), `price` (slower, kept by decision), `price-until-migrated`, `gave-up` (the run did less work, so its time is not a speed-up). `make_report.py` sets `gave-up` itself when the entry or one of its sides has `"complete": false` or `"refused": 1`, as `perf_timeranger2` prints them: `{"current": {"mean": 2.0, "refused": 1}}` is drawn grey, never as faster. |
+| `ab[].gave_up` | Optional: the words shown in place of the factor of a `gave-up` entry (`refused`, `gave up on keys` by default). |
 | `ab[].reason` | Why it moved, as the CHANGELOG states it. Every `price` has one. |
 | `ab[].commit` | For `scope: change`, the commit measured. |
 | `ab[].change_pct` | `(current - previous) / previous x 100` of the means, in the figure's own unit. |

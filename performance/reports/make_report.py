@@ -51,8 +51,26 @@ def load_reports():
         with open(p) as f:
             d = json.load(f)
         if d.get('schema', '').startswith('yuneta-perf-report/'):
+            mark_gave_up(d)
             reports[d['version']] = d
     return dict(sorted(reports.items(), key=lambda kv: vkey(kv[0])))
+
+
+def mark_gave_up(rep):
+    # A run that did less work is not a speed-up: a list that gave up on
+    # keys, a load refused. The benchmark says it in its line
+    # (perf_timeranger2: "complete": false, "refused": 1), and an A/B
+    # entry that carries it, on itself or on either side, is drawn grey
+    # with its words (verdict 'gave-up'), whether or not the tool that
+    # wrote the json set `gave_up`.
+    for e in rep.get('ab', []):
+        for side in (e, e.get('previous') or {}, e.get('current') or {}):
+            if side.get('refused'):
+                e['verdict'] = 'gave-up'
+                e.setdefault('gave_up', 'refused')
+            elif side.get('complete') is False:
+                e['verdict'] = 'gave-up'
+                e.setdefault('gave_up', 'gave up on keys')
 
 
 def fmt(v, unit=None):
