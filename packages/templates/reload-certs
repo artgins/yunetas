@@ -1,0 +1,138 @@
+#!/bin/sh
+#######################################################################
+# Triggered by certbot after successful renewal.
+# 1) Copies fresh certs to /yuneta/store/certs
+# 2) Reloads selected web server (nginx or openresty)
+# 3) Hot-reloads TLS certificates in every running yuno via ycommand
+#    (no process restart, active TLS connections are preserved).
+#
+# What it runs: copy-certs.sh as root (it reads the keys of
+# /etc/letsencrypt, which are root's, and writes nothing in /yuneta as
+# root); the reload of the web server as root (its master runs as root);
+# ycommand and restart-yuneta as the user yuneta.
+#
+# THE LIMIT: copy-certs.sh and the web server are files of /yuneta, which
+# yuneta owns, and root runs them (see the page "Files outside /yuneta",
+# the root features). Removing sudo from yuneta does not make yuneta a
+# privilege boundary while that is so.
+#
+# For tests only: run by a user that is not root, with
+# YUNETA_RELOAD_CERTS_TEST_ROOT set, every path is under that directory,
+# the user is that user, and YUNETA_RELOAD_CERTS_TEST_SETPRIV names the
+# setpriv to call. As root both are ignored.
+#
+# Copyright (c) 2024-2026, ArtGins.
+#######################################################################
+set -u    # fail on unset vars, but NOT on individual command failures
+
+if [ "$(id -u)" -eq 0 ]; then
+    ROOT=""
+    OWNER="yuneta"
+    SETPRIV="setpriv"
+elif [ -n "${YUNETA_RELOAD_CERTS_TEST_ROOT:-}" ]; then
+    ROOT="$YUNETA_RELOAD_CERTS_TEST_ROOT"
+    OWNER="$(id -un)"
+    SETPRIV="${YUNETA_RELOAD_CERTS_TEST_SETPRIV:-setpriv}"
+else
+    echo "reload-certs: run by certbot, as root" >&2
+    exit 1
+fi
+
+LOG_DIR="${ROOT}/var/log/yuneta"
+mkdir -p "$LOG_DIR"
+
+STATE_DIR="${ROOT}/var/lib/yuneta"
+mkdir -p "$STATE_DIR"
+
+# A command as the user yuneta: setpriv, not su (no login shell)
+as_yuneta() {
+    "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
+        env HOME="$(getent passwd "$OWNER" | cut -d: -f6)" \
+        PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" "$@"
+}
+
+ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
+log() { printf '[%s] %s\n' "$(ts)" "$*" >>"$LOG_DIR/deploy-hook.log"; }
+
+log "deploy hook started (RENEWED_LINEAGE=${RENEWED_LINEAGE:-?} RENEWED_DOMAINS=${RENEWED_DOMAINS:-?})"
+
+# 1) Copy fresh certs into /yuneta/store/certs (synchronous, requires root)
+if [ -x "${ROOT}/yuneta/store/certs/copy-certs.sh" ]; then
+    if "${ROOT}/yuneta/store/certs/copy-certs.sh" >>"$LOG_DIR/copy-certs.log" 2>&1; then
+        log "copy-certs.sh OK"
+    else
+        log "copy-certs.sh FAILED (rc=$?)"
+    fi
+else
+    log "copy-certs.sh NOT FOUND — skipping"
+fi
+
+# 2) Reload web server to pick updated certs
+WEBCONF="${ROOT}/etc/yuneta/webserver"
+WEBTYPE="nginx"
+if [ -r "$WEBCONF" ]; then
+    WEBTYPE="$(tr '[:upper:]' '[:lower:]' < "$WEBCONF" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+fi
+
+case "$WEBTYPE" in
+    openresty)
+        if [ -x "${ROOT}/yuneta/bin/openresty/bin/openresty" ]; then
+            if "${ROOT}/yuneta/bin/openresty/bin/openresty" -s reload >>"$LOG_DIR/deploy-hook.log" 2>&1; then
+                log "openresty reload OK"
+            else
+                log "openresty reload FAILED (rc=$?)"
+            fi
+        else
+            log "openresty binary NOT FOUND"
+        fi
+        ;;
+    nginx|*)
+        if [ -x "${ROOT}/yuneta/bin/nginx/sbin/nginx" ]; then
+            if "${ROOT}/yuneta/bin/nginx/sbin/nginx" -s reload >>"$LOG_DIR/deploy-hook.log" 2>&1; then
+                log "nginx reload OK"
+            else
+                log "nginx reload FAILED (rc=$?)"
+            fi
+        else
+            log "nginx binary NOT FOUND"
+        fi
+        ;;
+esac
+
+# 3) Hot-reload TLS certs in every running yuno via ycommand
+#    ycommand must run as the yuneta user so it can authenticate with its
+#    own token.
+if [ -x "${ROOT}/yuneta/bin/ycommand" ]; then
+    if as_yuneta "${ROOT}/yuneta/bin/ycommand" \
+            -c 'command-yuno command=reload-certs service=__yuno__' \
+            >>"$LOG_DIR/deploy-hook.log" 2>&1; then
+        log "ycommand reload-certs OK"
+    else
+        rc=$?
+        log "ycommand reload-certs FAILED (rc=$rc) — falling back to restart-yuneta"
+        if [ -x "${ROOT}/yuneta/bin/restart-yuneta" ]; then
+            nohup "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
+                env HOME="$(getent passwd "$OWNER" | cut -d: -f6)" \
+                PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" \
+                "${ROOT}/yuneta/bin/restart-yuneta" >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
+            log "restart-yuneta launched in background, as $OWNER"
+        else
+            log "restart-yuneta NOT FOUND — certs copied but yunos still using old certs"
+        fi
+    fi
+else
+    log "ycommand NOT FOUND — falling back to restart-yuneta"
+    if [ -x "${ROOT}/yuneta/bin/restart-yuneta" ]; then
+        nohup "$SETPRIV" --reuid="$OWNER" --regid="$OWNER" --init-groups -- \
+            env HOME="$(getent passwd "$OWNER" | cut -d: -f6)" \
+            PATH="/yuneta/bin:/usr/local/bin:/usr/bin:/bin" \
+            "${ROOT}/yuneta/bin/restart-yuneta" >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
+        log "restart-yuneta launched in background, as $OWNER"
+    fi
+fi
+
+# Record that the hook ran (auto-sync monitor looks at this timestamp)
+date '+%s' > "$STATE_DIR/last-deploy-hook-run" 2>/dev/null || true
+log "deploy hook finished"
+
+exit 0

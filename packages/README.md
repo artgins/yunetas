@@ -124,6 +124,24 @@ with stubs for `curl`, `systemd-run`, `systemctl`, `apt-get`, `dpkg-deb`,
 packages/tests/test-install-package.sh
 ```
 
+## The certificates of Let's Encrypt
+
+`templates/copy-certs.sh` is installed as `/yuneta/store/certs/copy-certs.sh`,
+and `templates/reload-certs` as the certbot deploy hook
+`/etc/letsencrypt/renewal-hooks/deploy/reload-certs`. Both packagers install
+the same two files. Root runs both. They read the keys of `/etc/letsencrypt`
+as root, and they run everything else as `yuneta` (`setpriv`). Their headers
+and the page
+[Files outside `/yuneta`](https://doc.yuneta.io/files-outside-yuneta) give
+the limit: root still runs files of `/yuneta`.
+
+`tests/test-copy-certs.sh` tests both as a normal user, in a fake root, with
+a stub of `setpriv` that writes down the user it runs a command as:
+
+```bash
+packages/tests/test-copy-certs.sh
+```
+
 ## The certificate of the agent
 
 `templates/yuneta-agent-cert` makes the own pair of the agent

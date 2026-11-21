@@ -153,6 +153,49 @@ data only from a directory of root. Do not grant `systemd-run`: its options
 can run any command. This grant is still equivalent to root, because the
 operator chooses the package, and the scripts of the package run as root.
 
+(files-outside-yuneta-root-run)=
+### Files of `/yuneta` that root runs
+
+Removing `sudo` from `yuneta` does not make `yuneta` a privilege boundary
+today. The user `yuneta` owns `/yuneta` (the install scripts run
+`chown -R yuneta:yuneta /yuneta`), and root runs these files of
+`/yuneta`:
+
+| File | Run as root by | When |
+|---|---|---|
+| `/yuneta/bin/yuneta-webserver`, and the nginx or openresty under `/yuneta/bin/nginx/` or `/yuneta/bin/openresty/` | `yuneta-webserver.service` (it has no `User=`) | At each boot, and at each start of the unit. |
+| `/yuneta/bin/nginx/sbin/nginx -s reload` (or `/yuneta/bin/openresty/bin/openresty -s reload`) | The certbot deploy hook | After each renewal of a certificate. |
+| `/yuneta/store/certs/copy-certs.sh` | The certbot deploy hook | After each renewal of a certificate. |
+
+So `yuneta` can change a file that root runs later, and it gets the rights
+of root. This breaks rule 5 below. To find these files on a node, run:
+
+```bash
+systemctl cat yuneta-webserver.service | grep -E '^(User|ExecStart)='
+grep -n '/yuneta/' /etc/letsencrypt/renewal-hooks/deploy/reload-certs
+```
+
+These files no longer run as root (after 7.31.29):
+
+- `/yuneta/bin/check-certs-validity.sh`. `copy-certs.sh` runs it as
+  `yuneta`.
+- `/yuneta/bin/restart-yuneta` and `/yuneta/bin/ycommand`. The certbot
+  hook runs them as `yuneta`, with `setpriv`.
+
+`copy-certs.sh` reads the keys of `/etc/letsencrypt/live/` as root, but
+`yuneta` writes the copies in `/yuneta/store/certs/`. The script checks the
+names of `certs.list` and the paths of the keys, and it refuses a symbolic
+link in place of a destination directory.
+
+The full fix is a task for a package without `sudo`, and it is designed:
+
+- `copy-certs` becomes a program of the package, owned by root, in
+  `/usr/libexec/yuneta/`, like `install-package`. It reads `certs.list`
+  as data.
+- `yuneta-webserver.service` runs the web server as `User=yuneta` with
+  `AmbientCapabilities=CAP_NET_BIND_SERVICE`, and the hook reloads it with
+  `systemctl reload yuneta-webserver`.
+
 (files-outside-yuneta-runtime)=
 ## Files that the software uses at run time
 

@@ -1362,97 +1362,8 @@ HINT
 EOF
 chmod 0755 "${STAGE}/yuneta/bin/install-certbot.sh"
 
-# --- Let's Encrypt deploy hook (verbatim from the .deb) ---
-cat > "${STAGE}/etc/letsencrypt/renewal-hooks/deploy/reload-certs" <<'EOF'
-#!/bin/sh
-#######################################################################
-# Triggered by certbot after successful renewal.
-# 1) Copies fresh certs to /yuneta/store/certs
-# 2) Reloads selected web server (nginx or openresty)
-# 3) Hot-reloads TLS certificates in every running yuno via ycommand
-#######################################################################
-set -u
-
-LOG_DIR="/var/log/yuneta"
-mkdir -p "$LOG_DIR"
-
-STATE_DIR="/var/lib/yuneta"
-mkdir -p "$STATE_DIR"
-
-ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
-log() { printf '[%s] %s\n' "$(ts)" "$*" >>"$LOG_DIR/deploy-hook.log"; }
-
-log "deploy hook started (RENEWED_LINEAGE=${RENEWED_LINEAGE:-?} RENEWED_DOMAINS=${RENEWED_DOMAINS:-?})"
-
-if [ -x /yuneta/store/certs/copy-certs.sh ]; then
-    if /yuneta/store/certs/copy-certs.sh >>"$LOG_DIR/copy-certs.log" 2>&1; then
-        log "copy-certs.sh OK"
-    else
-        log "copy-certs.sh FAILED (rc=$?)"
-    fi
-else
-    log "copy-certs.sh NOT FOUND — skipping"
-fi
-
-WEBCONF="/etc/yuneta/webserver"
-WEBTYPE="nginx"
-if [ -r "$WEBCONF" ]; then
-    WEBTYPE="$(tr '[:upper:]' '[:lower:]' < "$WEBCONF" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-fi
-
-case "$WEBTYPE" in
-    openresty)
-        if [ -x /yuneta/bin/openresty/bin/openresty ]; then
-            if /yuneta/bin/openresty/bin/openresty -s reload >>"$LOG_DIR/deploy-hook.log" 2>&1; then
-                log "openresty reload OK"
-            else
-                log "openresty reload FAILED (rc=$?)"
-            fi
-        else
-            log "openresty binary NOT FOUND"
-        fi
-        ;;
-    nginx|*)
-        if [ -x /yuneta/bin/nginx/sbin/nginx ]; then
-            if /yuneta/bin/nginx/sbin/nginx -s reload >>"$LOG_DIR/deploy-hook.log" 2>&1; then
-                log "nginx reload OK"
-            else
-                log "nginx reload FAILED (rc=$?)"
-            fi
-        else
-            log "nginx binary NOT FOUND"
-        fi
-        ;;
-esac
-
-if [ -x /yuneta/bin/ycommand ]; then
-    if sudo -u yuneta -H /yuneta/bin/ycommand \
-            -c 'command-yuno command=reload-certs service=__yuno__' \
-            >>"$LOG_DIR/deploy-hook.log" 2>&1; then
-        log "ycommand reload-certs OK"
-    else
-        rc=$?
-        log "ycommand reload-certs FAILED (rc=$rc) — falling back to restart-yuneta"
-        if [ -x /yuneta/bin/restart-yuneta ]; then
-            nohup /yuneta/bin/restart-yuneta >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
-            log "restart-yuneta launched in background"
-        else
-            log "restart-yuneta NOT FOUND — certs copied but yunos still using old certs"
-        fi
-    fi
-else
-    log "ycommand NOT FOUND — falling back to restart-yuneta"
-    if [ -x /yuneta/bin/restart-yuneta ]; then
-        nohup /yuneta/bin/restart-yuneta >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
-    fi
-fi
-
-date '+%s' > "$STATE_DIR/last-deploy-hook-run" 2>/dev/null || true
-log "deploy hook finished"
-
-exit 0
-EOF
-chmod 0755 "${STAGE}/etc/letsencrypt/renewal-hooks/deploy/reload-certs"
+# --- Let's Encrypt deploy hook (packages/templates, the same as the .deb's) ---
+install -m 0755 "${YUNETAS_BASE}/packages/templates/reload-certs" "${STAGE}/etc/letsencrypt/renewal-hooks/deploy/reload-certs"
 
 # --- Restart helper (RHEL: service / init.d) ---
 cat > "${STAGE}/yuneta/bin/restart-yuneta" <<'EOF'
@@ -1677,80 +1588,9 @@ fi
 EOF
 chmod 0755 "${STAGE}/yuneta/bin/install-yuneta-dev-deps.sh"
 
-# --- Copy-certs helper (verbatim from the .deb) ---
-cat > "${STAGE}/yuneta/store/certs/copy-certs.sh" <<'EOF'
-#!/usr/bin/env bash
-#######################################################################
-# Copy Let's Encrypt certs from /etc/letsencrypt/live/* into
-# /yuneta/store/certs (and private keys into /yuneta/store/certs/private)
-#######################################################################
-set -euo pipefail
-
-SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd -P)"
-cd "${SCRIPT_DIR}"
-
-if [ "${EUID:-$(id -u)}" -ne 0 ]; then
-    echo "This script must run as root (to read /etc/letsencrypt/live/*/privkey.pem)" >&2
-    exit 1
-fi
-
-DEST_BASE="/yuneta/store/certs"
-DEST_PRIV="${DEST_BASE}/private"
-CERTS_FILE="${DEST_BASE}/certs.list"
-
-install -d -m 0755 "${DEST_BASE}"
-install -d -m 0700 "${DEST_PRIV}"
-
-CERT_NAMES=""
-if [ -s "${CERTS_FILE}" ]; then
-    while IFS= read -r line; do
-        case "$line" in
-            ''|\#*) continue ;;
-            *) CERT_NAMES="${CERT_NAMES} ${line}" ;;
-        esac
-    done < "${CERTS_FILE}"
-else
-    if [ -d /etc/letsencrypt/live ]; then
-        for d in /etc/letsencrypt/live/*; do
-            [ -d "$d" ] || continue
-            name="$(basename "$d")"
-            CERT_NAMES="${CERT_NAMES} ${name}"
-        done
-    fi
-fi
-
-if [ -z "${CERT_NAMES}" ]; then
-    echo "No certificates to copy (certs.list empty and no live certs found)." >&2
-    exit 0
-fi
-
-for CERT in ${CERT_NAMES}; do
-    SRC_DIR="/etc/letsencrypt/live/${CERT}"
-    FULLCHAIN="${SRC_DIR}/fullchain.pem"
-    CHAIN="${SRC_DIR}/chain.pem"
-    PRIVKEY="${SRC_DIR}/privkey.pem"
-
-    if [ ! -r "${FULLCHAIN}" ] || [ ! -r "${CHAIN}" ] || [ ! -r "${PRIVKEY}" ]; then
-        echo "Skip ${CERT}: missing files under ${SRC_DIR}" >&2
-        continue
-    fi
-
-    FULLCHAIN_R="$(readlink -f "${FULLCHAIN}")"
-    CHAIN_R="$(readlink -f "${CHAIN}")"
-    PRIVKEY_R="$(readlink -f "${PRIVKEY}")"
-    install -C -o yuneta -g yuneta -m 0644 "${FULLCHAIN_R}" "${DEST_BASE}/${CERT}.crt"
-    install -C -o yuneta -g yuneta -m 0644 "${CHAIN_R}"     "${DEST_BASE}/${CERT}.chain"
-    install -C -o yuneta -g yuneta -m 0600 "${PRIVKEY_R}"   "${DEST_PRIV}/${CERT}.key"
-    echo "Copied ${CERT} -> ${DEST_BASE}/{${CERT}.crt, ${CERT}.chain, private/${CERT}.key}"
-done
-
-if [ -x /yuneta/bin/check-certs-validity.sh ]; then
-    /yuneta/bin/check-certs-validity.sh "${DEST_BASE}" || true
-fi
-
-exit 0
-EOF
-chmod 0755 "${STAGE}/yuneta/store/certs/copy-certs.sh"
+# --- Copy-certs helper (packages/templates, the same as the .deb's): root
+# reads the keys of /etc/letsencrypt, yuneta writes /yuneta/store/certs ---
+install -m 0755 "${YUNETAS_BASE}/packages/templates/copy-certs.sh" "${STAGE}/yuneta/store/certs/copy-certs.sh"
 
 # --- sudoers (NOPASSWD) ---
 cat > "${STAGE}/etc/sudoers.d/90-yuneta" <<'EOF'

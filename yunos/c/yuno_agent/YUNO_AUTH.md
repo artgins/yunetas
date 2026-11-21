@@ -1491,27 +1491,44 @@ configuration only (`SDF_RD`): the command is run with `system()`, and up to
 }
 ```
 
-### 6.3 The `copy-certs.sh` convention
+### 6.3 The `copy-certs.sh` script
 
-The default `cert_sync_copy_cmd` shells out via `sudo -n` to a script you
-control:
+The default `cert_sync_copy_cmd` runs, with `sudo -n`, the script that the
+package ships:
 
 ```
 /usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh
 ```
 
-Typical content (deployer-supplied, not shipped by yunetas):
+The package installs it from `packages/templates/copy-certs.sh`. The
+certbot deploy hook runs the same script as root. Root only reads the
+certificates of `/etc/letsencrypt/live/<name>/`. The user `yuneta` writes
+`/yuneta/store/certs/<name>.crt`, `<name>.chain` and
+`private/<name>.key` (`setpriv`). An unchanged file keeps its mtime
+(`install -C`), so the size and mtime snapshot of the sync sees no change.
 
-```bash
-#!/bin/bash
-# /yuneta/store/certs/copy-certs.sh
-set -e
-cp /etc/letsencrypt/live/example.com/fullchain.pem /yuneta/store/certs/example.com.crt
-cp /etc/letsencrypt/live/example.com/privkey.pem   /yuneta/store/certs/private/example.com.key
-chown yuneta:yuneta /yuneta/store/certs/*.crt /yuneta/store/certs/private/*
+To copy only some certificates, list their names in
+`/yuneta/store/certs/certs.list`, one per line. Without that file, the
+script copies every directory of `/etc/letsencrypt/live/`:
+
+```text
+# /yuneta/store/certs/certs.list
+example.com
 ```
 
+The script skips a name that is not `[A-Za-z0-9._-]`, starts with a dot or
+has `..`, and a `.pem` that does not resolve under `/etc/letsencrypt/`. It
+refuses a symbolic link in place of `/yuneta/store/certs/` or `private/`.
+Each refusal is a line in its output, and the other certificates go on.
+
+Up to 7.31.29 this page told deployers to write their own script. But the
+package ships the script, and each upgrade replaces it. Put a local choice
+in `certs.list`, not in the script.
+
 The `sudo -n` needs NOPASSWD in sudoers. That is a wide grant. See §8.10.
+The script is a file of `/yuneta`, which `yuneta` owns, and root runs it.
+So removing `sudo` does not make `yuneta` a privilege boundary (the page
+`files-outside-yuneta` lists the files of this kind).
 
 ### 6.4 The reload broadcast
 

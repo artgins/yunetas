@@ -45,23 +45,36 @@ The `.deb` package ([`packages/deb/make-yuneta-agent-deb.sh`](https://github.com
 certbot `deploy-hook` at
 `/etc/letsencrypt/renewal-hooks/deploy/reload-certs`:
 
-1. Run `/yuneta/store/certs/copy-certs.sh` as root. This reads
-   `/etc/letsencrypt/live/*/` (normally `root:root 0700`) and writes
-   mirrored copies into `/yuneta/store/certs/` owned by
-   `yuneta:yuneta`. The script resolves the `live/*.pem` symlinks with
-   `readlink -f` and copies with `install -C -o yuneta -g yuneta`, so the
-   `.crt` mtime only bumps when the content changes — both are
-   required: `install -C` never skips a symlink source, and a trailing
-   `chown` will leave a root/yuneta owner mismatch that re-triggers the
-   copy on every run (spurious `reload-certs` broadcast each cert-sync
-   tick).
-2. Reload the web server (`nginx -s reload` or `openresty -s reload`).
+1. Run `/yuneta/store/certs/copy-certs.sh` as root. The package ships this
+   script (`packages/templates/copy-certs.sh`). Root only reads the
+   certificates in `/etc/letsencrypt/live/<name>/` (normally
+   `root:root 0700`). The user `yuneta` writes the copies in
+   `/yuneta/store/certs/` (`setpriv`). The script does these checks:
+    - It takes the names from `/yuneta/store/certs/certs.list`, one per
+      line, or else from the directories of `/etc/letsencrypt/live/`. A
+      name has only `[A-Za-z0-9._-]`, does not start with a dot, and has
+      no `..`. The script skips any other name with a line in
+      `/var/log/yuneta/copy-certs.log`, and copies the others.
+    - Each `.pem` must resolve to a file under `/etc/letsencrypt/`.
+      Otherwise the script skips that certificate.
+    - It refuses a `/yuneta/store/certs/` or `private/` that is a
+      symbolic link, and it skips a certificate whose destination file is
+      a symbolic link.
+    - It copies with `install -C`, so an unchanged file keeps its mtime.
+      The agent's sync (layer 2) reloads the yunos only when the size or
+      the mtime of a file changes.
+    - It runs `/yuneta/bin/check-certs-validity.sh` as `yuneta`.
+2. Reload the web server (`nginx -s reload` or `openresty -s reload`), as
+   root.
 3. Broadcast the yuno-level `reload-certs` command to every running
-   yuno:
+   yuno, as `yuneta`:
    ```bash
-   sudo -u yuneta -H /yuneta/bin/ycommand \
+   setpriv --reuid=yuneta --regid=yuneta --init-groups -- \
+       env HOME=/home/yuneta /yuneta/bin/ycommand \
        -c 'command-yuno command=reload-certs service=__yuno__'
    ```
+   If `ycommand` fails, the hook starts `/yuneta/bin/restart-yuneta` in
+   the background, as `yuneta` too.
 4. Touch `/var/lib/yuneta/last-deploy-hook-run` with a Unix timestamp
    so the monitor in layer 3 can detect a hook that never runs.
 
@@ -90,7 +103,7 @@ cert sync. Every `cert_sync_interval_sec` seconds (default **900**, min
 30):
 
 1. Invoke `cert_sync_copy_cmd` (default
-   `sudo -n /yuneta/store/certs/copy-certs.sh`). The `yuneta` user
+   `/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh`). The `yuneta` user
    has `NOPASSWD:ALL` in `/etc/sudoers.d/90-yuneta` so the script can
    read `/etc/letsencrypt/live/`.
 2. Snapshot `size+mtime` of every `*.crt` under `cert_sync_store_dir`
@@ -197,14 +210,25 @@ ycommand -c 'command-yuno command=view-cert    gobj=my_tcp_server'
 | `/yuneta/store/certs/<domain>.crt` | `yuneta:yuneta` | `0644` | `copy-certs.sh` |
 | `/yuneta/store/certs/<domain>.chain` | `yuneta:yuneta` | `0644` | `copy-certs.sh` |
 | `/yuneta/store/certs/private/<domain>.key` | `yuneta:yuneta` | `0600` | `copy-certs.sh` |
-| `/yuneta/store/certs/private/` | `yuneta:yuneta` | `0700` | postinst |
+| `/yuneta/store/certs/private/` | `yuneta:yuneta` | `0700` | postinst, or `copy-certs.sh` (as `yuneta`) |
 | `/var/lib/yuneta/last-deploy-hook-run` | `root:root` | `0644` | deploy hook |
 | `/var/log/yuneta/deploy-hook.log` | `root:root` | `0644` | deploy hook |
 
 The yuno never reads `/etc/letsencrypt/`. The privileged bridge is the
-`copy-certs.sh` script, invoked via `sudo` by either the deploy hook
-(as root) or the agent timer (as `yuneta`, since `yuneta` has
-`NOPASSWD:ALL`).
+`copy-certs.sh` script, run as root by the deploy hook, and with `sudo` by
+the agent timer (`yuneta` has `NOPASSWD:ALL`). The script is in
+`/yuneta`, which `yuneta` owns. So `yuneta` can change a script that root
+runs, and removing `sudo` from `yuneta` does not make it a privilege
+boundary. [Files outside `/yuneta`](#files-outside-yuneta-root-run) lists
+these files.
+
+To copy only some certificates, list their names in `certs.list`:
+
+```text
+# /yuneta/store/certs/certs.list
+example.com
+www.example.com
+```
 
 ## How live sessions survive the swap
 
