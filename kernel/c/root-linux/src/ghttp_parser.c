@@ -730,13 +730,19 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
          *  was published.
          */
         parser->interim_dropped++;
-        gobj_log_debug(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "HTTP interim response (1xx) dropped: the final one follows",
-            "status",       "%d", (int)llhttp_get_status_code(&parser->llhttp),
-            NULL
-        );
+        if(parser->interim_dropped == 1) {
+            /*
+             *  Once per parser (a connection): a peer chooses how many it
+             *  sends, the counter has the rest
+             */
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PROTOCOL,
+                "msg",          "%s", "HTTP interim response (1xx) dropped: the final one follows (said once a connection)",
+                "status",       "%d", (int)llhttp_get_status_code(&parser->llhttp),
+                NULL
+            );
+        }
         reset_message(parser);
         return parser->stopped? -1 : 0;
     }

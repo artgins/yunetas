@@ -10,6 +10,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include <libgen.h>
 
@@ -768,6 +769,21 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 #ifdef __linux__
             if(priv->fp > 0) {
                 if(write(priv->fp, ota_write_data, data_read)<0) {
+                    int err = errno;    // the log may change errno
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM,
+                        "msg",          "%s", "write() of the OTA image FAILED, download dropped",
+                        "binary_file",  "%s", priv->binary_file,
+                        "errno",        "%d", err,
+                        "serrno",       "%s", strerror(err),
+                        NULL
+                    );
+                    close(priv->fp);
+                    priv->fp = 0;
+                    gobj_send_event(priv->gobj_http_cli_ota, EV_DROP, 0, gobj);
+                    KW_DECREF(kw)
+                    return 0;
                 }
             }
 #endif

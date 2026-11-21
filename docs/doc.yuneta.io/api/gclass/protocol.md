@@ -41,7 +41,8 @@ A negative limit is taken as its default, with an ERROR at the creation (*"A lim
 
 An interim response (`1xx`, such as `100 Continue` or `103 Early Hints`) is
 not published: the final response that follows it on the connection is the
-`EV_ON_MESSAGE` of the request. A `101 Switching Protocols` is published, as
+`EV_ON_MESSAGE` of the request. The first one of a connection is said in a DEBUG
+log, and the parser counts all of them (`interim_dropped`). A `101 Switching Protocols` is published, as
 it is the answer to an upgrade. The connection is keep-alive, and nothing
 pairs an answer with its request, so up to 7.31.29 a published `1xx` was taken
 as the answer, and each later answer went to the request after its own.
