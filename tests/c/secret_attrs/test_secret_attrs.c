@@ -1012,6 +1012,48 @@ PRIVATE void check_stack_command_line_over_64k(void)
 }
 
 /*
+ *  The masked line full: after the first piece that does not fit, nothing
+ *  more. A write-attr whose `attribute=` of a secret does not fit, and
+ *  whose `value=` would: up to 7.31.29 (R97) the line showed " <...>
+ *  value=<secret>" -- mask_secrets_inline() masks that value only next to
+ *  its attribute.
+ */
+PRIVATE void check_masked_line_full(void)
+{
+    const char *attribute = " attribute=smtp_password_of_the_mail_relay_service";
+    const char *value = " value=fill-hunter2";
+    size_t room = 40;   // the attribute and " <...>" do not fit, the value after " <...>" would
+    char filler[501];
+    memset(filler, 'x', sizeof(filler) - 1);
+    filler[sizeof(filler) - 1] = 0;
+
+    gbuffer_t *gbuf = gbuffer_create(128*1024, 128*1024);
+    gbuffer_printf(gbuf, "write-attr");
+    int k = 0;
+    while(64*1024 - room - gbuffer_leftbytes(gbuf) - strlen(" pad=") > 1000) {
+        gbuffer_printf(gbuf, " f%d=%s", k++, filler);
+    }
+    size_t pad = 64*1024 - room - gbuffer_leftbytes(gbuf) - strlen(" pad=");
+    gbuffer_append_string(gbuf, " pad=");
+    for(size_t i = 0; i < pad; i++) {
+        gbuffer_append_char(gbuf, 'y');
+    }
+    gbuffer_printf(gbuf, "%s%s", attribute, value);
+
+    char *got = command_mask_secret_line(NULL, gbuffer_cur_rd_pointer(gbuf));
+    size_t len = got? strlen(got) : 0;
+    check_true("a masked line full: the value of a secret attribute that did not fit hidden",
+        got && strstr(got, "fill-hunter2") == NULL
+    );
+    check_true("a masked line full: it ends in one <...>",
+        len >= 6 && strcmp(got + len - 6, " <...>") == 0 &&
+        (len < 12 || strcmp(got + len - 12, " <...> <...>") != 0)
+    );
+    GBMEM_FREE(got)
+    gbuffer_decref(gbuf);
+}
+
+/*
  *  The line a command stack carries, the stack every answer carries back
  *  (msg_iev_stack_command_line()): a short line as it is; a long one with
  *  each value over 1 KB as "<N bytes>", the name of the command first.
@@ -1073,6 +1115,7 @@ PRIVATE void check_stack_command_line(void)
     gbuffer_decref(gbuf);
 
     check_stack_command_line_over_64k();
+    check_masked_line_full();
 }
 
 

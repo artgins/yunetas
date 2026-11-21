@@ -90,8 +90,8 @@ PUBLIC json_t *command_parameter_from_json(
  *  itself when nothing is secret; NULL for a NULL kw): decref it.
  *  command_mask_secret_line() answers a gbmem string ("name key=value..."
  *  with the secret values masked, a value longer than 1 KB shown as
- *  "<N bytes>", 64 KB at most: a parameter that does not fit is " <...>",
- *  never cut): GBMEM_FREE it.
+ *  "<N bytes>", 64 KB at most: from the first parameter that does not
+ *  fit, the rest is one " <...>", never a parameter cut): GBMEM_FREE it.
  */
 PUBLIC json_t *command_mask_secret_kw(
     hgobj gobj,

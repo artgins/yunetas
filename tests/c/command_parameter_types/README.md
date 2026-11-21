@@ -130,6 +130,9 @@ A `cmd` as long as a peer writes it logs no ERROR. The test asks for the help
 of `typed` with six values of 900 bytes (its header is 5 KB), and for the help
 of a search word of 70 KB. Up to 7.31.29 the first logged 1355 ERRORs with a
 stack, one for each `=` under the header, and the second logged one ERROR.
+A `help` of a help line with 40000 `cmd=` must take at most 16 times the time
+of one with 5000. Up to 7.31.29 each `cmd=` read the whole line again, and it
+took 37 s.
 
 Run it:
 

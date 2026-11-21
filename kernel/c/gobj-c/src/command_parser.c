@@ -41,6 +41,14 @@
 /***************************************************************
  *              Structures
  ***************************************************************/
+/*
+ *  A masked line being built (command_mask_secret_line()): once a piece
+ *  does not fit, the line is full and the rest of it is one " <...>"
+ */
+typedef struct {
+    gbuffer_t   *gbuf;
+    BOOL        full;
+} shown_line_t;
 
 /***************************************************************
  *              Prototypes
@@ -87,13 +95,13 @@ PRIVATE json_t *refuse_parameter(
     const char *got
 );
 PRIVATE void append_masked_parameters(
-    gbuffer_t *gbuf,
+    shown_line_t *sl,
     const char *line,
     const sdata_desc_t *cnf_cmd,
     hgobj gobj,
     BOOL help_line
 );
-PRIVATE void append_shown(gbuffer_t *gbuf, const char *format, ...) JANSSON_ATTRS((format(printf, 2, 3)));
+PRIVATE void append_shown(shown_line_t *sl, const char *format, ...) JANSSON_ATTRS((format(printf, 2, 3)));
 
 /***************************************************************
  *              Data
@@ -901,21 +909,15 @@ PRIVATE BOOL secret_is_set(json_t *value)
 }
 
 /***************************************************************************
- *  The gobj whose table masks the `cmd` of a help line of `gobj`: where
- *  the help finds that command, at the `level` of the line (a command of a
- *  child with `level=2`), else at any level -- the level can come in the
- *  kw, or be the wrong one, and the line is still a command line of that
- *  gobj. NULL when there is no table (by names only). The table of `gobj`
- *  itself does not know a child's command, and a secret of it (`help
- *  cmd='create-config id=x content64=<s>' level=2`) was traced whole.
+ *  The `level` of the key=value parameters of a help line, -1 if none
  ***************************************************************************/
-PRIVATE hgobj help_cmd_gobj(hgobj gobj, const char *line, const char *cmd)
+PRIVATE int help_line_level(const char *line)
 {
-    if(!gobj) {
-        return NULL;
-    }
     int level = -1;
     char *str = gbmem_strdup(line);
+    if(!str) {
+        return -1;  // Error already logged
+    }
     char *p = str;
     while(p) {
         char *key;
@@ -928,6 +930,24 @@ PRIVATE hgobj help_cmd_gobj(hgobj gobj, const char *line, const char *cmd)
         }
     }
     GBMEM_FREE(str)
+    return level;
+}
+
+/***************************************************************************
+ *  The gobj whose table masks the `cmd` of a help line of `gobj`: where
+ *  the help finds that command, at the `level` of the line (a command of a
+ *  child with `level=2`; help_line_level()), else at any level -- the level
+ *  can come in the kw, or be the wrong one, and the line is still a command
+ *  line of that gobj. NULL when there is no table (by names only). The
+ *  table of `gobj` itself does not know a child's command, and a secret of
+ *  it (`help cmd='create-config id=x content64=<s>' level=2`) was traced
+ *  whole.
+ ***************************************************************************/
+PRIVATE hgobj help_cmd_gobj(hgobj gobj, int level, const char *cmd)
+{
+    if(!gobj) {
+        return NULL;
+    }
 
     hgobj gobj_found = NULL;
     if(level >= 0) {
@@ -943,19 +963,26 @@ PRIVATE hgobj help_cmd_gobj(hgobj gobj, const char *line, const char *cmd)
 }
 
 /***************************************************************************
- *  Append a piece of a masked line, WHOLE or not at all: a piece that would
- *  take the line past MAX_SHOWN_LINE is " <...>" (one for a run of them).
- *  A piece cut could be a part of a credential that mask_secrets_inline(),
- *  run over the whole line after it is built, no longer tells as one. The
- *  pieces come from a line a peer writes (the cmd2agent of a client), so
- *  passing the cap is no error of ours: nothing is logged. Up to 7.31.29
- *  the gbuffer kept the bytes that fitted, and logged two ERRORs with a
- *  stack for each piece past 64 KB.
+ *  Append a piece of a masked line, WHOLE or not at all: the first piece
+ *  that would take the line past MAX_SHOWN_LINE makes it full, and the
+ *  line ends in ONE " <...>" for that piece and all the rest. A piece cut
+ *  could be a part of a credential that mask_secrets_inline(), run over the
+ *  whole line after it is built, no longer tells as one; and a small piece
+ *  shown after a big one hidden could be the `value=` of a write-attr whose
+ *  `attribute=password` was hidden. The pieces come from a line a peer
+ *  writes (the cmd2agent of a client), so passing the cap is no error of
+ *  ours: nothing is logged. Up to 7.31.29 the gbuffer kept the bytes that
+ *  fitted, and logged two ERRORs with a stack for each piece past 64 KB.
  ***************************************************************************/
-PRIVATE void append_shown(gbuffer_t *gbuf, const char *format, ...)
+PRIVATE void append_shown(shown_line_t *sl, const char *format, ...)
 {
     va_list ap;
     va_list aq;
+
+    if(sl->full) {
+        return;
+    }
+    gbuffer_t *gbuf = sl->gbuf;
 
     va_start(ap, format);
     va_copy(aq, ap);
@@ -975,10 +1002,8 @@ PRIVATE void append_shown(gbuffer_t *gbuf, const char *format, ...)
         if(used + (size_t)len + hidden_len <= MAX_SHOWN_LINE) {
             gbuffer_vprintf(gbuf, format, ap);
         } else {
-            const char *line = gbuffer_cur_rd_pointer(gbuf);
-            if(used < hidden_len || strcmp(line + used - hidden_len, SHOWN_HIDDEN) != 0) {
-                gbuffer_append(gbuf, (void *)SHOWN_HIDDEN, hidden_len);
-            }
+            gbuffer_append(gbuf, (void *)SHOWN_HIDDEN, hidden_len);
+            sl->full = TRUE;
         }
     }
     va_end(ap);
@@ -1004,29 +1029,30 @@ PRIVATE void append_shown(gbuffer_t *gbuf, const char *format, ...)
  *  shown `help cmd=login bob <pin>`).
  ***************************************************************************/
 PRIVATE void append_masked_parameters(
-    gbuffer_t *gbuf,
+    shown_line_t *sl,
     const char *line,
     const sdata_desc_t *cnf_cmd,    // NULL: by names only
     hgobj gobj,                     // of the help: its `cmd` masked where found, NULL: by names only
     BOOL help_line
 )
 {
-    if(empty_string(line)) {
+    if(empty_string(line) || sl->full) {
         return;
     }
     BOOL wild = (cnf_cmd && (cnf_cmd->flag & SDF_WILD_CMD))? TRUE : FALSE;
+    int help_level = -2;    // read once, at the first `cmd`: -2 not read yet
     BOOL hide_unknown = (!wild && has_secret_parameter(cnf_cmd))? TRUE : FALSE;
     char *str = gbmem_strdup(line);
     if(!str) {
         // Error already logged
-        append_shown(gbuf, " <...>");
+        append_shown(sl, " <...>");
         return;
     }
     char *p = str;
     char *rest = p;
     char *key;
     char *value;
-    while(p) {
+    while(p && !sl->full) {
         rest = p;
         value = get_key_value_parameter(p, &key, &p);
         if(!value || !key) {
@@ -1038,45 +1064,48 @@ PRIVATE void append_masked_parameters(
              *  "password= hunter2 x=1": the word after a "key=" with no
              *  value is read as part of the next key -- maybe the secret
              */
-            append_shown(gbuf, " <...>");
+            append_shown(sl, " <...>");
         } else if(is_secret_parameter(cnf_cmd, key)) {
-            append_shown(gbuf, " %s=%s", key, empty_string(value)? "" : "********");
+            append_shown(sl, " %s=%s", key, empty_string(value)? "" : "********");
         } else if(hide_unknown && !find_ip_parameter(cnf_cmd->schema, key)) {
             /*
              *  Not an option of a command that has a secret: a word left
              *  over that ends in '=' (a password in base64) reads as a key
              */
-            append_shown(gbuf, " <...>");
+            append_shown(sl, " <...>");
         } else if(!cnf_cmd && (!*key ||
                 (value[-1] != '\'' && value[-1] != '"' && (!*value || *value == '=')))) {
             /*
              *  No table: "x=", "x==", "x==y" or "=x" (value[-1] is the
              *  quote of a quoted value) -- maybe a password in base64
              */
-            append_shown(gbuf, " <...>");
+            append_shown(sl, " <...>");
         } else if(strlen(value) > MAX_SHOWN_VALUE) {
-            append_shown(gbuf, " %s=<%zu bytes>", key, strlen(value));
+            append_shown(sl, " %s=<%zu bytes>", key, strlen(value));
         } else if(help_line && strcasecmp(key, "cmd") == 0) {
-            char *shown = command_mask_secret_line(help_cmd_gobj(gobj, line, value), value);
+            if(help_level == -2) {
+                help_level = help_line_level(line);
+            }
+            char *shown = command_mask_secret_line(help_cmd_gobj(gobj, help_level, value), value);
             if(shown && strpbrk(shown, " \t")) {
-                append_shown(gbuf, " %s='%s'", key, shown);
+                append_shown(sl, " %s='%s'", key, shown);
             } else {
-                append_shown(gbuf, " %s=%s", key, shown? shown : "<...>");
+                append_shown(sl, " %s=%s", key, shown? shown : "<...>");
             }
             GBMEM_FREE(shown)
         } else if(wild && strchr(value, '=')) {
             char *shown = mask_secrets_inline(value);
-            append_shown(gbuf, " %s='%s'", key, shown? shown : value);
+            append_shown(sl, " %s='%s'", key, shown? shown : value);
             GBMEM_FREE(shown)
         } else {
-            append_shown(gbuf, " %s=%s", key, value);
+            append_shown(sl, " %s=%s", key, value);
         }
     }
     while(rest && (*rest == ' ' || *rest == '\t')) {
         rest++;
     }
     if(rest && *rest) {
-        append_shown(gbuf, " <...>");
+        append_shown(sl, " <...>");
     }
     GBMEM_FREE(str)
 }
@@ -1169,6 +1198,8 @@ PUBLIC char *command_mask_secret_line(
         // Error already logged
         return gbmem_strdup("");
     }
+    shown_line_t shown = {gbuf, FALSE};
+    shown_line_t *sl = &shown;
     const sdata_desc_t *cnf_cmd = command_cnf(gobj, command);
 
     char *str, *p;
@@ -1180,11 +1211,11 @@ PUBLIC char *command_mask_secret_line(
     }
     char *cmd = get_parameter(p, &p);
     if(cmd && strpbrk(cmd, " \t'\"\\")) {
-        append_shown(gbuf, "<...>");   // in its quotes, a whole line is one word
+        append_shown(sl, "<...>");   // in its quotes, a whole line is one word
     } else if(cmd && strlen(cmd) > MAX_SHOWN_VALUE) {
-        append_shown(gbuf, "<...>");   // no command name
+        append_shown(sl, "<...>");   // no command name
     } else {
-        append_shown(gbuf, "%s", cmd?cmd:"");
+        append_shown(sl, "%s", cmd?cmd:"");
     }
 
     /*
@@ -1195,7 +1226,7 @@ PUBLIC char *command_mask_secret_line(
      */
     const sdata_desc_t *ip = cnf_cmd? cnf_cmd->schema : NULL;
     BOOL hide_refused = has_secret_parameter(cnf_cmd);
-    while(ip && ip->name && p) {
+    while(ip && ip->name && p && !sl->full) {
         if(ip->flag & SDF_NOTACCESS) {
             ip++;
             continue;
@@ -1226,13 +1257,13 @@ PUBLIC char *command_mask_secret_line(
         }
         if(!is_key_value) {
             if((ip->flag & SDF_SECRET) || is_secret_name(ip->name, strlen(ip->name))) {
-                append_shown(gbuf, " ********");
+                append_shown(sl, " ********");
             } else if(hide_refused && strchr(param, '=')) {
-                append_shown(gbuf, " <...>");  // build_cmd_kw() refuses it
+                append_shown(sl, " <...>");  // build_cmd_kw() refuses it
             } else if(strlen(param) > MAX_SHOWN_VALUE) {
-                append_shown(gbuf, " <%zu bytes>", strlen(param));
+                append_shown(sl, " <%zu bytes>", strlen(param));
             } else {
-                append_shown(gbuf, " %s", param);
+                append_shown(sl, " %s", param);
             }
         }
         if(p) {
@@ -1246,7 +1277,7 @@ PUBLIC char *command_mask_secret_line(
     }
 
     BOOL help_line = (cmd && strcasecmp(cnf_cmd? cnf_cmd->name : cmd, "help") == 0)? TRUE : FALSE;
-    append_masked_parameters(gbuf, p, cnf_cmd, gobj, help_line);
+    append_masked_parameters(sl, p, cnf_cmd, gobj, help_line);
     GBMEM_FREE(str)
 
     /*
@@ -2083,10 +2114,13 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                 strlen(gobj_short_name(gobj_found)) + 8;
             gbuffer_t *gbuf = gbuffer_create(256, 4*1024 + header_size);
             gbuffer_printf(gbuf, "%s (%s)\n", cmd_shown? cmd_shown : cmd, gobj_short_name(gobj_found));
-            int len = (int)strlen(cmd_shown? cmd_shown : cmd);
+            size_t len = strlen(cmd_shown? cmd_shown : cmd);
+            char underline[256];
+            memset(underline, '=', sizeof(underline));
             while(len > 0) {
-                gbuffer_printf(gbuf, "%c", '=');
-                len--;
+                size_t n = MIN(len, sizeof(underline));
+                gbuffer_append(gbuf, underline, n);
+                len -= n;
             }
             gbuffer_printf(gbuf, "\n");
             if(!empty_string(cnf_cmd->description)) {

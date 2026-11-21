@@ -680,16 +680,20 @@ can show (up to 7.26.5 it overflowed the 64 KB buffer of the line and logged
 this way.
 
 The masked line has 64 KB at most. Each parameter goes into it whole or not at
-all. If a parameter does not fit, the line shows `<...>` in its place, and the
-parameters after it that do not fit go into the same `<...>`. Thus a cut never
-shows a part of a credential that the masking by names no longer finds. A line
+all. If a parameter does not fit, the line ends in one `<...>`, for that
+parameter and for all the parameters after it. Thus a cut never shows a part
+of a credential that the masking by names no longer finds. Also, the
+`value=` of a write-attr never shows when its `attribute=` did not fit. A line
 that a peer writes, such as the `cmd2agent` of a client, can pass 64 KB with
 values of 1 KB or less. The cap logs nothing. Up to 7.31.29 the line kept the
 bytes that fitted, and each parameter past 64 KB logged two ERRORs with a
 stack. The `cmd` of a `help` gets a header as long as its masked line, and a
 search word gets a header as long as the word. Up to 7.31.29 a `cmd` of more
 than 4 KB logged an ERROR with a stack for each `=` under the header, and a
-search word over 64 KB logged one ERROR.
+search word over 64 KB logged one ERROR. The `level` of a `help` line is read
+once for the line, and the masking stops when the line is full. Up to 7.31.29
+each `cmd=` of the line read the whole line again: a `help` of a 240 KB line
+with 40000 `cmd=` took 37 s of the yuno, and now it takes 8 ms.
 
 ```C
 char *command_mask_secret_line(

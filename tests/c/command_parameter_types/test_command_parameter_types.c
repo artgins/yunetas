@@ -1065,6 +1065,35 @@ int main(int argc, char *argv[])
     }
 
     /*
+     *  A help whose `cmd` is a help line with N `cmd=`: linear in N. Up to
+     *  7.31.29 each `cmd=` copied and parsed the whole line again to read its
+     *  `level`, and the masking went on after its output was full: 37 s for
+     *  N = 40000 (a 240 KB line, a frame any peer can send: help asks for no
+     *  permission).
+     */
+    {
+        double ms[2] = {0, 0};
+        int ns[2] = {5000, 40000};
+        for(int i = 0; i < 2; i++) {
+            gbuffer_t *gbuf = gbuffer_create(8*ns[i] + 64, 8*ns[i] + 64);
+            gbuffer_printf(gbuf, "help");
+            for(int k = 0; k < ns[i]; k++) {
+                gbuffer_append_string(gbuf, " cmd=a");
+            }
+            uint64_t t0 = time_in_milliseconds_monotonic();
+            json_t *jn_doc = gobj_build_cmds_doc(yuno,
+                json_pack("{s:s}", "cmd", gbuffer_cur_rd_pointer(gbuf)));
+            ms[i] = (double)(time_in_milliseconds_monotonic() - t0);
+            JSON_DECREF(jn_doc)
+            gbuffer_decref(gbuf);
+        }
+        char what[128];
+        snprintf(what, sizeof(what), "linear: 8 times the line in %.0f ms, %.0f ms for the first",
+            ms[1], ms[0]);
+        check("help cmd=<help cmd=a x N>", what, ms[1] < 16*ms[0] + 50 && ms[1] < 2000);
+    }
+
+    /*
      *  Blanks at the end of the line are no parameter. Up to 7.30.26 two
      *  or more answered "extra parameters: ' '"
      */
