@@ -116,6 +116,10 @@ def time_change_sd(e):
 
 
 def ratio_text(e):
+    if e.get('gave_up'):
+        # A run that did less work (keys it gave up on, a load it refused):
+        # its time is not a speed-up, and the text says what it did instead
+        return e['gave_up']
     p = e['previous']['mean']
     c = e['current']['mean']
     if e['better'] == 'higher':
@@ -134,6 +138,7 @@ VERDICT = {
     'noise': ('within noise', 'v-noise'),
     'price': ('price paid on purpose', 'v-price'),
     'price-until-migrated': ('price until migrated', 'v-price'),
+    'gave-up': ('gave up or refused: not a speed-up', 'v-noise'),
 }
 
 
@@ -323,7 +328,7 @@ def diverging_chart(entries, version, prev, lo=-100.0, hi=40.0):
             out.append('<div class="grp">%s</div>' % esc(group))
         ch = time_change(e)
         sd = time_change_sd(e)
-        cls = {'gain': 'bar-gain', 'noise': 'bar-noise'}.get(e['verdict'], 'bar-price')
+        cls = {'gain': 'bar-gain', 'noise': 'bar-noise', 'gave-up': 'bar-noise'}.get(e['verdict'], 'bar-price')
         z = xpos(0, lo, hi)
         x = xpos(ch, lo, hi)
         a, b = min(z, x), max(z, x)
@@ -836,7 +841,7 @@ def svg_change_chart(rep, order):
             y += 18
         ch = time_change(e)
         sd = time_change_sd(e)
-        cls = {'gain': 'gain', 'noise': 'noise'}.get(e['verdict'], 'price')
+        cls = {'gain': 'gain', 'noise': 'noise', 'gave-up': 'noise'}.get(e['verdict'], 'price')
         a, bb = sorted([X(0), X(ch)])
         rows.append('<text class="l" x="%d" y="%d">%s</text>' % (LX, y + 14, esc(e.get('short', e['label']))))
         rows.append('<rect class="%s" x="%.1f" y="%d" width="%.1f" height="10" rx="2"><title>%s: %s</title></rect>'

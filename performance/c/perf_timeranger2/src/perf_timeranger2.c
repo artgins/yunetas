@@ -5,7 +5,7 @@
  *          of topics, the cost of a tm query, and the read path of an
  *          iterator (open, pages) as a master and as a replica.
  *
- *          Usage:  perf_timeranger2 [--small] [phase ...]
+ *          Usage:  perf_timeranger2 [--small] [--rkey=<pattern>] [phase ...]
  *
  *          Phases (all of them when none is given):
  *            open     build a topic of KEYS x FILES md2 files x RECS rows,
@@ -28,6 +28,12 @@
  *                     list (tranger2_open_list()) of RK_LOAD_KEYS keys of
  *                     36 bytes with it. The records each list got are
  *                     counted, and a case that gets a wrong count fails.
+ *                     A list that gave up on keys (not judged in their
+ *                     time) or a load refused says so in its line
+ *                     ("keys_not_judged", "refused", "complete": false):
+ *                     its time is not a speed-up. --rkey=<pattern> puts
+ *                     another pattern in place of RK_UNANCHORED (a study
+ *                     of the worst case).
  *            read     1 key x READ_FILES daily files x READ_RECS rows; then,
  *                     as a master and as a replica: the open (and close)
  *                     of an iterator, unfiltered and filtered (an index of
@@ -94,6 +100,7 @@ PRIVATE int RK_LOAD_KEYS = 3000;
  *  found for the judgement of R101 (timeranger2's rkey_judge())
  */
 #define RK_UNANCHORED "(*NO_JIT)(?:[\\s\\S]?){9}(?:~?~?~?~?~?){40}(?!)|$"
+PRIVATE const char *rk_unanchored = RK_UNANCHORED;
 
 PRIVATE char path_root[PATH_MAX];
 PRIVATE char path_database[PATH_MAX];
@@ -539,7 +546,7 @@ PRIVATE int rkey_first_appends(json_t *tranger)
         return -1;  // Error already logged
     }
     json_t *list = tranger2_open_rt_mem(
-        tranger, name, "", json_pack("{s:s}", "rkey", RK_UNANCHORED),
+        tranger, name, "", json_pack("{s:s}", "rkey", rk_unanchored),
         count_record, name, "", NULL
     );
     if(!list) {
@@ -557,11 +564,23 @@ PRIVATE int rkey_first_appends(json_t *tranger)
         }
     }
     double seconds = now_s() - t0;
+    int not_judged = (int)json_array_size(json_object_get(list, "rkey_unjudged_keys"));
     tranger2_close_rt_mem(tranger, list);
 
-    char extra[64];
-    snprintf(extra, sizeof(extra), "\"records_seen\": %d", records_seen);
+    /*
+     *  RK_UNANCHORED matches every key (|$): a list that judged them all
+     *  got them all. One that gave up on keys says so, and its time is not
+     *  a speed-up: it did less
+     */
+    char extra[128];
+    snprintf(extra, sizeof(extra), "\"records_seen\": %d, \"keys_not_judged\": %d, \"complete\": %s",
+        records_seen, not_judged, not_judged? "false" : "true");
     result_line(name, seconds, RK_NEW_KEYS, extra);
+    if(rk_unanchored == (const char *)RK_UNANCHORED && !not_judged && records_seen != RK_NEW_KEYS) {
+        printf("{\"bench\": \"%s\", \"case\": \"%s\", \"result\": \"FAILED\", \"records_seen\": %d, \"expected\": %d}\n",
+            BENCH, name, records_seen, RK_NEW_KEYS);
+        return -1;
+    }
     return 0;
 }
 
@@ -581,20 +600,28 @@ PRIVATE int rkey_load(json_t *tranger)
     json_t *list = tranger2_open_list(
         tranger, name,
         json_pack("{s:s, s:I}",
-            "rkey", RK_UNANCHORED,
+            "rkey", rk_unanchored,
             "load_record_callback", (json_int_t)(uintptr_t)count_record
         ),
         json_object(), name, FALSE, ""
     );
     double seconds = now_s() - t0;
+    int not_judged = 0;
     if(list) {
+        not_judged = (int)json_array_size(json_object_get(list, "rkey_unjudged_keys"));
         tranger2_close_list(tranger, list);
     }
 
-    char extra[96];
-    snprintf(extra, sizeof(extra), "\"keys\": %d, \"refused\": %d, \"records_seen\": %d",
-        RK_LOAD_KEYS, list? 0 : 1, records_seen);
+    char extra[160];
+    snprintf(extra, sizeof(extra),
+        "\"keys\": %d, \"refused\": %d, \"keys_not_judged\": %d, \"records_seen\": %d, \"complete\": %s",
+        RK_LOAD_KEYS, list? 0 : 1, not_judged, records_seen, (list && !not_judged)? "true" : "false");
     result_line(name, seconds, 1, extra);
+    if(rk_unanchored == (const char *)RK_UNANCHORED && list && !not_judged && records_seen != RK_LOAD_KEYS) {
+        printf("{\"bench\": \"%s\", \"case\": \"%s\", \"result\": \"FAILED\", \"records_seen\": %d, \"expected\": %d}\n",
+            BENCH, name, records_seen, RK_LOAD_KEYS);
+        return -1;
+    }
     return 0;
 }
 
@@ -657,8 +684,10 @@ int main(int argc, char *argv[])
         } else if(strcmp(argv[i], "rkey") == 0) {
             do_rkey = TRUE;
             any = TRUE;
+        } else if(strncmp(argv[i], "--rkey=", 7) == 0) {
+            rk_unanchored = argv[i] + 7;
         } else {
-            printf("Usage: %s [--small] [open] [create] [tm] [read] [rkey]\n", argv[0]);
+            printf("Usage: %s [--small] [--rkey=<pattern>] [open] [create] [tm] [read] [rkey]\n", argv[0]);
             gobj_end();
             return -1;
         }
@@ -672,6 +701,10 @@ int main(int argc, char *argv[])
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
     rmrdir(path_database);
 
+    json_t *jn_pattern = json_string(rk_unanchored);
+    char *rk_pattern_json = json_dumps(jn_pattern, JSON_ENCODE_ANY);
+    JSON_DECREF(jn_pattern)
+
 #ifdef CONFIG_DEBUG_TRACK_MEMORY
     int track_memory = 1;
 #else
@@ -682,12 +715,16 @@ int main(int argc, char *argv[])
         "\"tm_files\": %d, \"tm_recs\": %d, "
         "\"read_files\": %d, \"read_recs\": %d, \"read_ops\": %d, "
         "\"rk_recs\": %d, \"rk_keys\": %d, \"rk_costly_recs\": %d, \"rk_costly_keys\": %d, "
-        "\"rk_new_keys\": %d, \"rk_load_keys\": %d}\n",
+        "\"rk_new_keys\": %d, \"rk_load_keys\": %d, \"rk_unanchored\": %s}\n",
         BENCH, YUNETA_VERSION, track_memory,
         KEYS, FILES, RECS, REOPEN, TM_FILES, TM_RECS,
         READ_FILES, READ_RECS, READ_OPS,
-        RK_RECS, RK_KEYS, RK_COSTLY_RECS, RK_COSTLY_KEYS, RK_NEW_KEYS, RK_LOAD_KEYS
+        RK_RECS, RK_KEYS, RK_COSTLY_RECS, RK_COSTLY_KEYS, RK_NEW_KEYS, RK_LOAD_KEYS,
+        rk_pattern_json? rk_pattern_json : "null"
     );
+    if(rk_pattern_json) {
+        gbmem_free(rk_pattern_json);
+    }
 
     int ret = 0;
     if(do_open && ret == 0) {
