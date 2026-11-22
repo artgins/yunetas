@@ -78,100 +78,16 @@ then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
 The standalone repo carries **two maintained lines**, and they are consumed in
 **two different ways** (since 2026-06-16):
 
-- **`main` branch** (the v2 line, tag `2.0.0`+, npm `7.31.6`) — **active
-  development**: the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the
-  legacy stack `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`).
-  Every npm-published release is git-tagged (backfilled 2026-07-17); `4.0.0`
-  carries five BREAKING contract changes, and `5.0.0` is a **dependency-only
-  major** (no API moved) that raises the peer floors — gobj-js `>= 7.8.7`,
-  `maplibre-gl ^6.0.0` (ESM-only), i18next `^26.3.6`, tom-select `^2.6.2`,
-  vanilla-jsoneditor `^3.13.0`. `6.0.0` is another dependency-only major (peer
-  floor gobj-js `^7.13.2`, for the qualified pkey); `6.1.x` added
-  `C_YUI_SCHEMA_EDITOR`, the schema editor the agent console's Schemas
-  workspace lands on, and made the schema view's node click opt-in
-  (`with_node_click`) after 6.1.1 published it under hosts that never asked;
-  `6.2.x` lets a `C_YUI_NODE` tree remember where each child was left
-  (`remember_position`), so a strip of children stops behaving like a row of
-  tabs that forgets; `6.3.0` gives `C_YUI_TREEDB_TOPICS` a `source_url` it
-  prints in its toolbar, because a tab labelled with a treedb name does not
-  say which BACKEND that treedb is on; `6.3.x` stops the schema diagram
-  rescaling itself the moment it appears and turns its arrowheads round to
-  land on the parent's hook, where the `.c` literal and the `↖` of the fkey
-  mark put them. `7.0.0` is a third dependency-only major, raising the
-  `maplibre-gl` floor to `^6.4.1` — where `DOM.sanitize` stops skipping the
-  attribute after each one it removes. `7.1.x`–`7.10.x` is the treedb GUI
-  round: the topic table gets per-column filters, a column chooser, a CSV
-  export and in-place editing of a writable scalar; the graph gets a find box,
-  a topic-colour legend and a minimap, and opens a treedb nobody has arranged
-  in `dagre` instead of a diagonal pile; a topic can be pulled a PAGE at a
-  time (`with_remote_paging`, needs the SDK's paged `nodes`); and a delete
-  finally says what it takes with it, which with `force` is every child
-  UNLINKED. `7.11.x`-`7.14.x` adds the shared row-selection facility
-  (`yui_table_select.js`: a tri-state parent checkbox, a selection bar, and
-  bulk removal, taken by the treedb topic table behind `with_selection_bar`),
-  gives a schema column drag an Undo, and sizes the schema editor's controls
-  like controls instead of `is-small`. `7.15.x`-`7.19.x` is the graph round
-  (multi-selection, `1:1` in place of a house, the camera saying its zoom) and
-  the URL-as-position round. `7.20.x`-`7.23.x` is the JSON viewer: it reads
-  the same document three ways — the lazy tree, the raw text, and a graph —
-  and the three graphs of the library (`C_G6_NODES_TREE`,
-  `C_YUI_JSON_GRAPH`, `C_YUI_GOBJ_TREE_JS`) end it speaking ONE toolbar
-  vocabulary, built in `yui_graph_camera.js`. `7.23.9` makes those same three
-  graphs OPERABLE on a touch screen — pinch, a long press that opens the
-  context menu, touch-sized targets behind `(pointer: coarse)`, and the two
-  floating toolbars folded behind one button on a narrow container — which
-  cost two facts about G6 that its documentation does not carry: **it never
-  reads the DOM's `contextmenu` event** (it synthesises the event from
-  `pointerdown` with `button === 2`, so a long press reaches the plugin on no
-  platform), and **`@antv/g` re-issues pointer ids mid-gesture**, so a
-  two-finger gesture tracked by `pointerId` — which is how G6's own
-  `PinchHandler` tracks it — loses a finger halfway. Read `event.touches`.
-  `7.23.10` is the treedb graph's edition mode, and its lesson is one line:
-  **a G6 behavior's `enable` REPLACES the default, it does not add to it** —
-  the edition `drag-canvas` was given one so it would stand aside for Shift,
-  which silently dropped G6's `targetType === 'canvas'` test, so every drag of
-  a card panned the canvas as well as moving the card. Two more in the same
-  place: the history plugin was tied to a MOMENT of the load rather than to
-  the mode (so Undo was dead whenever edition was entered from the mode
-  selector, while Save still lit), and G6's `brush-select` keeps the
-  `selected` state itself — rewriting every element's state on every canvas
-  click, behind the gclass that owns the selection. `7.23.11` gives that
-  graph's multi-selection a way in for a finger: both its gestures hang off
-  Shift, so Shift becomes a **mode** in the edit toolbar (a tap picks, a
-  canvas drag is the band, panning stands aside while it is on) — a button
-  rather than a heuristic, because a gesture cannot be two things and the
-  toolbar has to say which one the graph is listening for. New consumer i18n
-  key `selection mode`, added in the five locale dirs. `7.23.12` makes that
-  toggle look PRESSED instead of wearing one of the toolbar's palette colours
-  (new `set_pressed_state()`): each of those names a KIND of action, so a
-  STATE painted with one of them put undo/redo's violet on the button next to
-  undo. `7.23.13` makes that graph's two SELECTS speak the app's language:
-  they rendered their raw names (`reading`, `edition`, `dagre`) in every
-  language because neither went through `t()` at all — and translating an
-  `<option>` means setting its `value` explicitly, or the FSM is told to enter
-  a mode called *"Edición"*. `7.23.14` is the one that lets a FINGER move a
-  node at all, and both halves are worth knowing: G6 puts `touch-action:
-  none` on its canvas and **nothing** on its HTML nodes, so a drag that began
-  on a card was a page scroll (two `pointermove`s, then `pointercancel`, the
-  node stopped ~20px in); and a long press fired on a TIMER cannot arbitrate
-  a gesture, because when it fires the gesture is not over — the press is
-  decided at the RELEASE now (moved → drag, still and quick → the element's
-  action, still and held → the menu), with the same 10px slop G6 gives its
-  own `dragstartDistanceThreshold`. A third thing hid behind those two:
-  `click` is not taken from the DOM either — `@antv/g`'s `onPointerUp`
-  synthesises one — so swallowing the DOM click never stopped the element's
-  own action. `7.23.15` gives that press its only feedback: a 15ms haptic
-  tick at the 500ms mark, a NOTICE rather than the decision — a finger that
-  buzzes and then carries the node away still gets its drag. `7.23.16` is a
-  one-line CSS fix with a lesson worth keeping: **a `yui_toolbar()` alone in
-  its row cannot show this class of bug.** Nothing competes for the width, so
-  nothing shrinks — and the moment a pinned control shares the row, the
-  toolbar's `min-width: auto` (its CONTENT minimum, because its sections are
-  `flex-shrink: 0`) makes it refuse to shrink, so it is pushed out of the row
-  and the arrow at its right edge lands outside whatever clips the view. Test
-  a shared row, not a bare one.
+- **`main` branch** (the v2 line, tag `2.0.0`+) — **active development**:
+  the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the legacy stack
+  `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`). Every
+  npm-published release is git-tagged. What each version range brought, and
+  the lessons it left (G6's synthesised `contextmenu` and `click`, pointer ids
+  re-issued mid-gesture, a behavior's `enable` replacing the default, a
+  toolbar tested alone in its row), is in gobj-ui's own `CLAUDE.md` (*The v2
+  line, version by version*) and its `CHANGELOG.md`.
 
-  Three framework contracts came out of that round and are worth knowing
+  Four framework contracts came out of the 7.23.x round and are worth knowing
   before writing any gclass that hosts a child:
 
   - **`gobj_destroy()` destroys the children BEFORE calling `mt_destroy()`.**
@@ -191,6 +107,7 @@ The standalone repo carries **two maintained lines**, and they are consumed in
     7.26.43) -- its own click can be what makes the host leave it, and
     gobj-js 7.26.22 reports a child destroyed under its own publication as an
     ERROR, as the C kernel does.
+
   **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
   **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, and the
   applications built on it — all pull it from the **npm registry**, and all import it by package
