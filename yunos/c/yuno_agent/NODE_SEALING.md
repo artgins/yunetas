@@ -346,6 +346,15 @@ here is a candidate for promotion to Tier 1:
   `wss://` channel was not affected. Relaxing `LoginGraceTime` and `MaxStartups`
   brought the drops to zero, but only the seal removes the exposure. A
   `write-file`, or a vhost-aware command, can promote it to Tier 1.
+- **Removing what a service leaves on a node after it moves to another
+  node** (2026-11-22). The two controlcenters and a treedb SPA moved to
+  another node. The old node kept its realm directories (logs), the SPA
+  vhosts under `/yuneta/gui/`, and the certificates and keys of the
+  controlcenter under `/yuneta/store/certs/`. `delete-realm` and
+  `delete-yuno` remove the records of the agent, not these files. The agent
+  has `read-file` and the `dir-*` family, but no command that deletes a
+  file or a directory. So an `rm` goes through SSH or the PTY. A
+  `delete-file`, limited to `/yuneta`, can promote it to Tier 1.
 - OS administration: `systemctl`, `nftables`, `sysctl`, `tmpfiles.d`,
   `core_pattern`/apport, certbot renewals, nginx/openresty reload, the node's
   time zone (`timedatectl set-timezone`, and the restart of `rsyslog`/`crond`
