@@ -1,5 +1,15 @@
 # **Changelog**
 
+## Unreleased
+
+### Changed
+
+- **`yunos/js`: `gui_agent` 1.4.9 and `gui_treedb` 1.3.9**, on gobj-ui
+  `^7.31.8`. gui_treedb 1.3.9 is the first version on the site with the fix of
+  1.3.8. It went out after every backend that it talks to ran SDK 7.32.0. The
+  `gui/` of the project templates is on gobj-ui `^7.31.8`, gobj-js `^7.31.0`,
+  i18next `^27.2.3` and maplibre-gl `^6.19.0`.
+
 ## v7.32.0 (2026-11-22)
 
 The work since 7.31.0, reviewed: the fixes of eight review rounds over
