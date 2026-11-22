@@ -395,8 +395,7 @@ Corollaries:
   are read in. `flat_diff()` / `flat_apply()` work on the flat form, where an
   id addresses one value. **The two grammars must stay identical**: a flat json
   is written by one side and read by the other. The old `json_flatten_dict()` /
-  `json_unflatten_dict()` are deprecated aliases — their first implementation
-  turned a dict keyed by a yuno id N into an array of N+1 elements.
+  `json_unflatten_dict()` are deprecated aliases.
 
 - **`kw_get_dict()` / `kw_get_list()` TAKE OWNERSHIP of `default_value`.** They
   `JSON_DECREF(default_value)` on the path where they **find** the key — the
@@ -407,14 +406,10 @@ Corollaries:
   present, so it survives every test that exercises the missing-key path. Ask
   without a default and choose afterwards:
   `json_t *v = kw_get_dict(gobj, kw, key, 0, 0); if(!v) { v = fallback; }`.
-  Real bug: a gate handing its own compiled-in model config as the fallback for
-  a per-device one, one bad decref per frame received.
   **With `KW_CREATE` the answer is what the kw holds, or NULL** (7.26.9+): a
   write that fails (an empty path or segment, a scalar on the path), a path
   that holds another type, or a NULL kw is logged, spends the default and
-  returns NULL. The readers (`kw_get_dict/list/dict_value`,
-  `kw_get_subdict_value`) used to hand back the FREED default, or an orphan
-  nobody freed. Check the answer of a create whose path comes from data --
+  returns NULL. Check the answer of a create whose path comes from data --
   and a name that comes from data is a KEY: `json_object_get/set`, not a path
   reader (a backtick in it splits it).
 
@@ -422,14 +417,11 @@ Corollaries:
   and writers split their path at the delimiter (`` ` ``), so an id, a pkey or
   pkey2 value, a message key, a client id, a topic filter, a username -- any
   value a user or a peer chooses -- read as a path addresses the wrong place
-  the day it holds a backtick: a treedb id ``k`b`` put its instances INSIDE
-  the index entry of `k`, an MQTT unsubscribe of ``a`b`` left the client
-  subscribed. Such a value goes to `json_object_get/set(_new)/del`. A kw path
+  the day it holds a backtick (a treedb id ``k`b`` put its instances INSIDE
+  the index entry of `k`). Such a value goes to `json_object_get/set(_new)/del`. A kw path
   is for a literal, a schema/attribute name defined in code, or a path the
   code assembles on purpose; when a variable path is a path on purpose, say so
-  in a comment. Real bugs found in one sweep (2026-10-11): `tr_msg`,
-  `tr_treedb` (pkey2 index, `delete_node`), `tr_msg2db`, `c_prot_mqtt`,
-  `logcenter`.
+  in a comment.
 
 - **An absent `DTP_JSON` is `json_null()`, not C NULL — so `if(!jn)` is dead
   code.** `set_default()` materialises a `DTP_JSON` with an empty default as
@@ -453,16 +445,12 @@ Corollaries:
   not-found. **In `gobj-js` there is no trap** — a null default is
   javascript `null`, falsy — so a port across the two runtimes gets this
   wrong in both directions; `empty_json()`/`json_size()` exist there with the
-  same truth table (`json_absent()`'s twin is `is_null()`). Real bugs: the
-  cert-reload guard of `c_tcp_s`/`c_udp_s`, `ycli`'s shortkeys dict (whose
-  dead guard was masking a double free of a borrowed attr), and a first shot
-  per device answered for a subscription that carried no filter.
+  same truth table (`json_absent()`'s twin is `is_null()`).
   **And the rule that prevents the next one: if you mean a dict, declare
   `DTP_DICT`; if you mean a list, `DTP_LIST`.** `DTP_JSON` means *any* json,
   null included, and `json2item()` proves the difference — it refuses a
   non-object for a `DTP_DICT` **with a log**, while it accepts anything at
-  all for a `DTP_JSON`. A type that lies is what makes the guard necessary;
-  `crypto` was `DTP_JSON` in seven gclasses and is a dict in all seven.
+  all for a `DTP_JSON`. A type that lies is what makes the guard necessary.
 
 - **A json from outside carries no binary keys.** `"gbuffer"` is the name of
   the binary field of a kw (registered by `gobj_start_up()` with
@@ -482,8 +470,7 @@ Corollaries:
   `gbuffer` (`parse_schema_cols()` refuses it). **Copy a kw with
   `kw_duplicate()` or `kw_twin()`, never `json_deep_copy()`**, when the copy is
   released with `KW_DECREF`: the json copy holds the integer without its
-  reference (`json_deep_copy(kw_)`, `KW_DECREF(kw_)`, then the copy handed to
-  `gobj_command()` was a remote double free in the control center and the
+  reference (it was a remote double free in the control center and the
   agent). A new binary type must be dropped at that frontier too
   (`drop_binary_keys` in `gbuffer.c`). An application that builds a kw from
   a peer's json (an MQTT payload) puts it as a VALUE under a key of its own,
@@ -493,9 +480,8 @@ Corollaries:
   `channel_gobj`, a POINTER of this process that its readers dereference).
   `iev_create_from_gbuffer()` deletes a peer's from every inter-event it
   decodes, and `iev_create_to_gbuffer()` leaves it out of every frame it
-  writes (from a twin when the kw is shared), both silently (7.30.27+). Up to
-  7.30.26 a frame with `"__temp__": [1094795585]` killed the agent and the
-  control center with SIGSEGV. A gclass that builds a kw from a peer's json
+  writes (from a twin when the kw is shared), both silently (7.30.27+; before,
+  a peer's `__temp__` was a remote SIGSEGV). A gclass that builds a kw from a peer's json
   by any other road (a queue record, an HTTP body) must not let the peer's
   json be the top level of a kw that reaches a `__temp__` reader.
 
@@ -514,9 +500,8 @@ Corollaries:
   `46f62d8be`): a non-NULL return is the claims of a token that passed every
   check, and it is YOURS to `json_decref`; on any failure it returns `NULL`
   with the cause in `jwt_checker_error(checker)` /
-  `jwt_checker_error_msg()`. (It used to return the claims of a failed token
-  too, with the verdict only in the checker -- a caller that looked at the
-  payload accepted forged tokens.) Canonical consumer: `c_authz.c`.
+  `jwt_checker_error_msg()`. (Before, a caller that looked at the payload of
+  a failed token accepted forged tokens.) Canonical consumer: `c_authz.c`.
 - **`kw["gbuffer"]` is auto-decref'd** by gobj's serializer table when the kw
   is decref'd. Reading the pointer with `extract=FALSE` and then calling
   `GBUFFER_DECREF` before `KW_DECREF` is a double-free (*"BAD gbuf_decref()"*).
@@ -533,9 +518,7 @@ Corollaries:
   downstream decrefs a gbuffer that was never increfed — a double free
   (*"BAD gbuf_decref()"*). It bites only once the kw actually carries a gbuffer,
   so the wrong call sits there looking fine for years: write `kw_incref` even
-  when today's kw is plain JSON. Two real bugs from this: `c_task`'s lmethod
-  forward, and `c_iogate`'s `send_all()` (fine with one open channel, double
-  free from the second on).
+  when today's kw is plain JSON.
   **Fix the pair, never one half.** `json_incref(kw)` + `JSON_DECREF(kw)` in the
   same function is two errors that cancel out; correcting only the incref turns
   a wrong-but-balanced ledger into a gbuffer **leak**, and correcting only the
@@ -1985,16 +1968,14 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   unit (`--stop`/`--start` on a node without the units), one
   agent at a time and a `*.bak-pre-<version>` of the running one first; the
   controlcenter as a new release of 1996/1997 on the company server. No rebuild of every
-  yuno, no `sync-binaries` round over the nodes. **Why:** 7.25.13 changed only
-  `yuno_agent` and `controlcenter`, and the full procedure (suite on two
-  machines, packages, every yuno of every node rebuilt and upgraded) cost
-  hours for two standalone binaries. The full procedure comes back when the
+  yuno, no `sync-binaries` round over the nodes. **Why:** the full procedure
+  cost hours for two standalone binaries (7.25.13). The full procedure comes back when the
   cycle is CLOSED, or when it is strictly necessary -- a kernel change that
   every yuno links is the typical case.
 - **The release suite runs on the dev machine only**: `yunetas test` under
-  `ulimit -Sn 1024`, before the tag. The second run on a **staging node**
-  was dropped by the user on 2026-10-23 (it had been the rule since 2026-09-25).
-  What it used to catch is now nobody's: the dev machine differs from the
+  `ulimit -Sn 1024`, before the tag. There is no second run on a **staging
+  node** (dropped 2026-10-23), so what only a node shows is nobody's: the dev
+  machine differs from the
   nodes in `CONFIG_DEBUG_TRACK_MEMORY` (on locally, off on the nodes), the
   kernel (7.0 has fine-grained ctime and never reuses a removed directory's
   inode and birth time; Debian's 6.12 does), and the DNS (a local stub that
@@ -2003,12 +1984,9 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
 - **Bumping `YUNETA_VERSION` means resetting `RELEASE` to `1`.** The two files
   are independent and nothing links them: `RELEASE` is the packaging revision
   (`yuneta-agent-<VERSION>-<RELEASE>`), it is bumped alone for a repackage, and
-  it does **not** reset itself. Every release before 7.12.0 shipped its first
-  package as `-1` because somebody remembered; 7.12.0 shipped as **`-3`**
-  because this line was not here. Nothing breaks — the package manager compares
-  the version first — but the number claims two earlier revisions that never
-  existed, and the next repackage of that version has to keep climbing from the
-  wrong floor.
+  it does **not** reset itself. Nothing breaks if forgotten (the version is
+  compared first), but the number claims revisions that never existed (7.12.0
+  shipped as `-3`).
 - **Pre-tag audit** (also on any "save" / "save and quit" request), checked
   against `git log <last-tag>..HEAD`:
   1. `CHANGELOG.md ## Unreleased` lists every non-docs/test change.
@@ -2039,15 +2017,12 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   release in a separate `git worktree` with its own outputs, run both binaries ALTERNATED
   (8+ rounds), report mean and spread. A real loss is either the price of a named
   correctness fix, said in the CHANGELOG with its figure, or it is fixed before
-  the tag. Why: the correctness fixes of 7.25.5 were made in many passes and
-  nobody measured speed; `test_topic_pkey_integer` had drifted from 1.94 s to
-  2.03-2.25 s on the fastest node before anybody looked.
+  the tag. Why: `test_topic_pkey_integer` drifted from 1.94 s to 2.03-2.25 s
+  over the unmeasured passes of 7.25.5 before anybody looked.
 - **A study is always against the last release that HAS a study** (rule of
   2026-10-22) -- the newest `performance/reports/<version>.json` -- never
-  against the tag just before when that tag has none. The releases in between
-  were not measured, so a study against the one before leaves them a hole
-  nobody looked at: 7.27.5 was compared with 7.27.4 while the last study was
-  7.27.0, and 7.26.9 with 7.26.8 while the last was 7.26.0. The `previous` of
+  against the tag just before when that tag has none: that leaves the
+  unmeasured releases in between a hole nobody looked at. The `previous` of
   a report's json names that studied release.
 - **Every release that changes `.c` files carries a study, and a loss is
   located by release** (rule of 2026-10-22). The A/B against the previous
@@ -2061,13 +2036,10 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   build the releases in between, measure only that figure on each,
   alternated, until the release where it appears is named -- then the commit
   when cheap -- and the report says it ("appeared in 7.27.3, commit ...").
-  Why: the user, 2026-10-22: with several releases in between, nobody can
-  say in which one a loss appeared.
 - **A release with a large change in the `.c` files ships a performance
-  report: an `.html` with charts that SELLS the release** (rule of 2026-09-23,
-  narrowed 2026-09-25 for the `.html`: a release of small fixes ships no
-  `.html` -- since 2026-10-22 it still carries its study and its row when it
-  changes `.c` files, see above). When such a version is generated,
+  report: an `.html` with charts that SELLS the release** (rule of
+  2026-09-23; a release of small fixes ships no `.html`, only its study and
+  its row, see above). When such a version is generated,
   collect the performance figures (the A/B against the last studied release, the
   timing tests of `build/*.txt`, the benchmarks under `performance/c/` —
   appends/s, TLS round-trips, message rates, binary sizes) and build a
@@ -2104,8 +2076,7 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   function of the checked headers has its page entry, with an example), and
   `python3 scripts/api_index.py --check` passes -- the appendix
   `api/appendix_api_index.md` is WRITTEN by `scripts/api_index.py` from the
-  headers, never edited by hand (by hand it had drifted 26 functions and two
-  whole headers). A gap found is fixed in the same pass, not listed as
+  headers, never edited by hand. A gap found is fixed in the same pass, not listed as
   pending: the docs are always current and published.
 - **Every release includes the live docs:** repin the `blob/<old>/` /
   `tree/<old>/` deep links across `docs/doc.yuneta.io/**` and
@@ -2114,8 +2085,8 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   `sed` over the URL segment. The tag swap is the easy half: the script also
   **recomputes every `#L<line>` symbol anchor to the symbol's current def
   line**, and those drift silently whenever code is inserted above a documented
-  function (at 7.8.0 a `sed`-only repin left **210 anchors** across 20 files
-  pointing at the wrong line — the tag looked right, so nothing flagged it).
+  function (a `sed`-only repin once left 210 wrong anchors, and the right tag
+  hid them).
   Run it with no flag first as a guard (exits non-zero if a ref points past
   EOF), and leave "since X" prose alone. Then clear the myst cache (a repin is
   a bulk edit); run `docs/doc.yuneta.io/deploy.sh` and curl-verify the live
@@ -2134,8 +2105,8 @@ ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace leve
   <tag> --clobber SHA256SUMS`).
 - **GitHub release body from the CHANGELOG:** the section goes in as it is.
   Its bullets are at column 0 and its sub-bullets at 4 spaces, and GitHub nests
-  them; stripping 4 spaces from every line (the old recipe) flattened every
-  sub-bullet of 7.26.9 into a bullet of the first level. Strip ONE level only
+  them; stripping 4 spaces from every line flattens every sub-bullet into
+  the first level. Strip ONE level only
   from an old section whose first-level bullets are indented (otherwise GitHub
   renders it as one code block). When backfilling an older release, restore
   `gh release edit <newest-tag> --latest` afterwards.
