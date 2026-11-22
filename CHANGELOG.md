@@ -10,6 +10,19 @@
   `gui/` of the project templates is on gobj-ui `^7.31.8`, gobj-js `^7.31.0`,
   i18next `^27.2.3` and maplibre-gl `^6.19.0`.
 
+### Fixed
+
+- **Packaging: the nightly log rotation reopens the logs of an openresty
+  node.** The `postrotate` of `/etc/logrotate.d/yuneta` sends USR1 only to a
+  master whose `/proc/<pid>/comm` is `nginx`. That name is the executable's,
+  and on an openresty node it is `openresty`. So since 7.21.0 the rotation
+  renamed `access.log` and never told the server: the server wrote to
+  `access.log.1` until its next reload, and `access.log` stayed empty. The
+  webstats yuno reported the stalled rotation, and fail2ban, which watches
+  `access.log`, banned nobody. The check now accepts `nginx` and `openresty`.
+  A node that builds from source takes the fixed drop-in by hand (it is a
+  conffile).
+
 ## v7.32.0 (2026-11-22)
 
 The work since 7.31.0, reviewed: the fixes of eight review rounds over

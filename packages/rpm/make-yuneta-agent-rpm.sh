@@ -549,14 +549,24 @@ cat > "${STAGE}/etc/logrotate.d/yuneta" <<'EOF'
                 #   `if kill -0 ... 2>/dev/null`, therefore skipped the
                 #   signal EVERY night without a word, and nginx went on
                 #   writing to the rotated file until its next restart.
-                #   Measured on a Rocky 9 test node, 2026-09-12. The master
-                #   of both trees (nginx and openresty) is named `nginx`.
+                #   Measured on a Rocky 9 test node, 2026-09-12.
                 #
-                if [ "$(cat /proc/"$pid"/comm 2>/dev/null)" = "nginx" ]; then
-                    kill -USR1 "$pid"
-                else
-                    echo "yuneta logrotate: $pidfile names no live nginx master ($pid), logs not reopened" >&2
-                fi
+                #   /proc/<pid>/comm is the name of the EXECUTABLE, so it is
+                #   `nginx` for the nginx tree and `openresty` for the
+                #   openresty one. What `ps` shows ("nginx: master process")
+                #   is the command line the master rewrites, and comm does
+                #   not follow it. Matching `nginx` alone never reopened the
+                #   logs of an openresty node, and its access.log stayed
+                #   empty while the server wrote to access.log.1.
+                #
+                case "$(cat /proc/"$pid"/comm 2>/dev/null)" in
+                    nginx|openresty)
+                        kill -USR1 "$pid"
+                        ;;
+                    *)
+                        echo "yuneta logrotate: $pidfile names no live nginx master ($pid), logs not reopened" >&2
+                        ;;
+                esac
             fi
         done
     endscript
