@@ -52,7 +52,9 @@
  *        batch only after it), and a new key's empty cache logs nothing.
  *
  *      - many mem lists on a follower: a batch costs one look at each
- *        list a record, not one search of the topic's lists (timed).
+ *        list a record, not one search of the topic's lists. Timed as a
+ *        scale (twice the lists, under 2.7 times the time), so it
+ *        holds on a slow board as on the dev machine.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -78,7 +80,8 @@
 #define KEY_A       "0000000000000000001"
 #define KEY_B       "0000000000000000002"
 #define BASE_T      946684800   // 2000-01-01T00:00:00+0000
-#define MANY_LISTS      2000    /*  mem lists of the follower, timed  */
+#define FEW_LISTS       1000    /*  mem lists of the follower, timed  */
+#define MANY_LISTS      2000    /*  twice as many: the time must not quadruple  */
 #define MANY_RECORDS    300     /*  records of their batch            */
 
 /***************************************************************
@@ -326,6 +329,59 @@ PRIVATE void drain(int expected_a, int expected_b, int expected_all)
     for(int i = 0; i < 10; i++) {
         yev_loop_run_once(yev_loop);
     }
+}
+
+/*
+ *  The time a batch of MANY_RECORDS records (key 6, from t0) takes to reach
+ *  n_lists mem lists of the follower `tf`, in us. Returns -1 when the
+ *  trigger feed rtT was not given every record.
+ */
+PRIVATE int time_mem_lists(json_t *tm, json_t *tf, int n_lists, uint64_t t0, uint64_t *us)
+{
+    int ret = 0;
+    *us = 0;
+    json_t **lists = GBMEM_MALLOC(sizeof(json_t *) * (size_t)n_lists);
+    if(!lists) {
+        printf("%sERROR%s --> no memory for %d mem lists\n", On_Red BWhite, Color_Off, n_lists);
+        return -1;
+    }
+    for(int n = 0; n < n_lists; n++) {
+        char id[NAME_MAX];
+        snprintf(id, sizeof(id), "memMany%d", n);
+        lists[n] = tranger2_open_rt_mem(
+            tf, TOPIC_NAME, "", json_pack("{s:b}", "only_md", 1),
+            empty_callback, id, "", NULL
+        );
+    }
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    count_trigger = 0;
+    for(int r = 0; r < MANY_RECORDS; r++) {
+        if(append_one(tm, 6, t0 + (uint64_t)r)<0) {
+            ret = -1;
+        }
+    }
+    uint64_t t_start = time_in_microseconds_monotonic();
+    for(int i = 0; i < 500 && count_trigger < MANY_RECORDS; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    *us = time_in_microseconds_monotonic() - t_start;
+    if(count_trigger != MANY_RECORDS) {
+        printf("%sERROR%s --> %d mem lists: %d records delivered (%d)\n",
+            On_Red BWhite, Color_Off, n_lists, count_trigger, MANY_RECORDS);
+        ret = -1;
+    }
+    for(int n = 0; n < n_lists; n++) {
+        if(lists[n]) {
+            tranger2_close_rt_mem(tf, lists[n]);
+        }
+    }
+    GBMEM_FREE(lists);
+    for(int i = 0; i < 10; i++) {
+        yev_loop_run_once(yev_loop);
+    }
+    return ret;
 }
 
 /***************************************************************************
@@ -827,45 +883,41 @@ PRIVATE int do_test(void)
 
     /*
      *  Many mem lists on a follower: each record costs one look at each
-     *  list, O(L). A search of the topic's lists for each list, O(L^2),
-     *  takes over a second here.
+     *  list, O(L). A search of the topic's lists for each list was O(L^2).
+     *  The test asserts the SCALE, not a time: twice the lists must take
+     *  less than 2.7 times as long, on any machine. Measured: linear 2.1
+     *  (dev machine) and 2.0 (a RISC-V board, 35 times slower), the O(L^2)
+     *  code 3.9 and 3.3. Two alternated rounds, the best of each size.
      */
     set_expected_results("multi_feed: many mem lists on a follower", NULL, NULL, NULL, 1);
-    json_t **many = GBMEM_MALLOC(sizeof(json_t *) * MANY_LISTS);
-    for(int n = 0; many && n < MANY_LISTS; n++) {
-        char id[NAME_MAX];
-        snprintf(id, sizeof(id), "memMany%d", n);
-        many[n] = tranger2_open_rt_mem(
-            tf, TOPIC_NAME, "", json_pack("{s:b}", "only_md", 1),
-            empty_callback, id, "", NULL
-        );
-    }
-    for(int i = 0; i < 10; i++) {
-        yev_loop_run_once(yev_loop);
-    }
-    count_trigger = 0;
-    for(int r = 0; r < MANY_RECORDS; r++) {
-        if(append_one(tm, 6, BASE_T + 400 + (uint64_t)r)<0) {
+    uint64_t us_few = 0;
+    uint64_t us_many = 0;
+    uint64_t t_next = BASE_T + 400;
+    for(int round = 0; round < 2; round++) {
+        uint64_t us;
+        if(time_mem_lists(tm, tf, FEW_LISTS, t_next, &us)<0) {
             result += -1;
         }
-    }
-    uint64_t t_many = time_in_milliseconds_monotonic();
-    for(int i = 0; i < 500 && count_trigger < MANY_RECORDS; i++) {
-        yev_loop_run_once(yev_loop);
-    }
-    uint64_t ms_many = time_in_milliseconds_monotonic() - t_many;
-    if(count_trigger != MANY_RECORDS || ms_many > 400) {
-        printf("%sERROR%s --> %d mem lists, %d records: %d delivered (%d), %u ms (under 400)\n",
-            On_Red BWhite, Color_Off, MANY_LISTS, MANY_RECORDS, count_trigger, MANY_RECORDS,
-            (unsigned)ms_many);
-        result += -1;
-    }
-    for(int n = 0; many && n < MANY_LISTS; n++) {
-        if(many[n]) {
-            tranger2_close_rt_mem(tf, many[n]);
+        t_next += MANY_RECORDS;
+        if(round == 0 || us < us_few) {
+            us_few = us;
+        }
+        if(time_mem_lists(tm, tf, MANY_LISTS, t_next, &us)<0) {
+            result += -1;
+        }
+        t_next += MANY_RECORDS;
+        if(round == 0 || us < us_many) {
+            us_many = us;
         }
     }
-    GBMEM_FREE(many);
+    if(us_many * 10 > us_few * 27) {
+        printf("%sERROR%s --> %d records: %d mem lists %u us, %d mem lists %u us"
+            " (ratio %.2f, linear ~2, under 2.7)\n",
+            On_Red BWhite, Color_Off, MANY_RECORDS,
+            FEW_LISTS, (unsigned)us_few, MANY_LISTS, (unsigned)us_many,
+            us_few? (double)us_many/(double)us_few : 0.0);
+        result += -1;
+    }
     if(rt_t) {
         tranger2_close_rt_disk(tf, rt_t);
     }
