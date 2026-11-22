@@ -43,149 +43,92 @@ repositories** and is embedded here as **git submodules** (the same model as
   active-changing JS layer, so it evolves on its own line with its own
   `CHANGELOG.md`.
 
-**JS versions never get ahead of C, except in the third number** (rule of
-2026-08-28). The first two numbers of an SDK JS package are those of
-`YUNETA_VERSION`; the third is the package's own life between SDK releases. A
-number that does not say which SDK the package goes with is of no use to
-anybody: `gobj-js` was at 7.13.x while C was at 7.16.2, and it jumped to
-**7.16.0** to say it again -- the number does not count releases, it names the
-SDK the package belongs to.
-
-**`gobj-ui` is back in line since SDK 7.23.0.** From 7.16.2 to 7.22.0 it was
-ahead of C (its 7.23.x line was already published, and a lower number would
-not have become `latest` on npm). SDK 7.23.0 reached its line, so the rule
-holds again for `gobj-ui` too. **And it follows the SDK up, not only down:**
-gobj-ui stayed on 7.23.x through SDK 7.24 and 7.25, a number that again said
-nothing about its SDK, until it jumped to **7.25.0** (2026-09-22, no code
-change over 7.23.197). When the SDK's minor moves, the next gobj-ui release
-takes it.
+**A JS package number names the SDK it belongs to** (rule of 2026-08-28). The
+first two numbers of `gobj-js` and `gobj-ui` are those of `YUNETA_VERSION`.
+The third is the package's own life between SDK releases. A package never gets
+ahead of C except in the third number, and it follows the SDK up too: when the
+SDK's minor moves, the next release of the package takes it, skipping minors
+if needed (the number does not count releases). A gobj-js-only fix can ship
+before the SDK release that carries it, in the third number.
 
 Clone yunetas with `--recurse-submodules` (or run `git submodule update --init`).
+
 **Every SPA consumes `@yuneta/gobj-js` / `@yuneta/gobj-ui` from the npm
-registry** — since 2026-08-03 there are no `file:` consumers left (the
-first application moved on 2026-07-25, the in-repo `yunos/js/*` yunos
-followed). So library work
-reaches an app only once published, and each SPA builds standalone. **Every
-app commits its `package-lock.json`** (since 2026-10-22; until then all of
-them ignored it, so one commit could build two bundles): a fresh checkout
-installs with `npm ci`, and a range raised by hand or by the deploy round is
-an `npm install` whose rewritten lockfile goes into the same commit as the
-`package.json`. The one exception is gobj-ui's demo (`test-app/`): its
-`file:` dependencies are working trees a lockfile cannot pin. To edit a
-JS yuno: work in `yunos/js` directly, commit on `main` in the `yunos-js` repo,
-then **bump this submodule pointer in yunetas** (same flow as gobj-js/gobj-ui).
-
-The standalone repo carries **two maintained lines**, and they are consumed in
-**two different ways** (since 2026-06-16):
-
-- **`main` branch** (the v2 line, tag `2.0.0`+) — **active development**:
-  the declarative shell (`C_YUI_SHELL/NAV/PAGER/WIZARD`; the legacy stack
-  `C_YUI_MAIN/TABS/ROUTING` was removed from this line in `3.0.0`). Every
-  npm-published release is git-tagged. What each version range brought, and
-  the lessons it left (G6's synthesised `contextmenu` and `click`, pointer ids
-  re-issued mid-gesture, a behavior's `enable` replacing the default, a
-  toolbar tested alone in its row), is in gobj-ui's own `CLAUDE.md` (*The v2
-  line, version by version*) and its `CHANGELOG.md`.
-
-  Four framework contracts came out of the 7.23.x round and are worth knowing
-  before writing any gclass that hosts a child:
-
-  - **`gobj_destroy()` destroys the children BEFORE calling `mt_destroy()`.**
-    A child torn down in `mt_destroy` is torn down after the framework already
-    destroyed it — while it was still running. Retire a hosted child in
-    **`mt_stop`**.
-  - **`C_YUI_WINDOW.close_window()` calls `on_close` and THEN destroys
-    itself.** A host that also destroys the window destroys it twice. On the
-    ✕ path the host drops its reference and keeps its hands off.
-  - **Adding an output event to a gclass that is hosted as a CHILD is a
-    BREAKING change.** The child subscribes its host to everything it
-    publishes, so a new output event is a new mandatory declaration in every
-    host's FSM — or every host answers *"Event NOT DEFINED in state"*.
-  - **A host takes down a child that may be publishing to it in two steps**:
-    off the page now, destroyed on the next turn from an event posted to
-    itself (`C_YUI_SCHEMA_EDITOR`'s drawing, `C_YUI_NODE`'s navs, gobj-ui
-    7.26.43) -- its own click can be what makes the host leave it, and
-    gobj-js 7.26.22 reports a child destroyed under its own publication as an
-    ERROR, as the C kernel does.
-
-  **This submodule tracks `main`/v2.** Its consumers — the in-repo yunos
-  **`yunos/js/gui_agent`** and **`yunos/js/gui_treedb`**, and the
-  applications built on it — all pull it from the **npm registry**, and all import it by package
-  specifier (`@yuneta/gobj-ui/src/*.js`, resolved by v2's exports map
-  `"./src/*"`; the source lives under `src/` mirroring v1, with `index.js` and
-  the vite plugin at the package root, and the published tarball ships all of
-  it). **All new gobj-ui work lands on `main`/v2**: edit `kernel/js/gobj-ui`
-  directly, commit on `main` in the standalone repo, `npm publish`, then bump
-  this submodule pointer in yunetas **and the range in each consumer**.
-- **`v1` branch** (latest tag `1.0.4`, npm dist-tag `legacy`) — the **frozen**
-  legacy GClass GUI stack (`C_YUI_MAIN/WINDOW/TABS/ROUTING` + TreeDB editors +
-  charts/maps). `v1` is **maintenance-only** — do not land feature work here.
-  **It has no consumer left**: the last two applications left it for v2 on
-  2026-10-13 and 2026-10-15, each with its migration plan in its own repo.
-  Each keeps its v1 in a `gui-v1-final` tag. The local
-  `kernel/js/gobj-ui` checkout is **no longer `v1`** — do not point a
-  dependency at it for a v1 consumer. (The in-repo
-  `yunos/js/gui_treedb` was migrated to **v2** — it is **not** a v1 consumer.)
-
-**A local edit under `kernel/js/**` reaches no app until it is published.**
-That is the whole point of the registry model, and it is the thing to remember
+registry** (no `file:` consumer is left). **So a local edit under
+`kernel/js/**` reaches no app until it is published** — the thing to remember
 when a change "does not show up": publish the library, then raise the range in
-the consumer. Dropping the `file:` symlinks also let every consumer drop
-`resolve.preserveSymlinks`, which had been suppressing tree-shaking of the
-`index.js` barrel (in one application it pulled all of `maplibre-gl` into the
-bundle for an app with no map — 1.5 MB).
+the consumer. Each SPA builds standalone. **Every app commits its
+`package-lock.json`**: a fresh checkout installs with `npm ci`, and a range
+raised by hand or by the deploy round is an `npm install` whose rewritten
+lockfile goes into the same commit as the `package.json`. The one exception is
+gobj-ui's demo (`test-app/`): its `file:` dependencies are working trees a
+lockfile cannot pin. To edit a JS yuno: work in `yunos/js` directly, commit on
+`main` in the `yunos-js` repo, then **bump this submodule pointer in yunetas**
+(same flow as gobj-js/gobj-ui).
 
-`@yuneta/gobj-js` now lives in its **own repository** `github.com/artgins/gobj-js`
-(public, snapshot start — history not preserved; single line on `main`, symmetric
-with gobj-ui) and is embedded here as the `kernel/js/gobj-js` submodule. It is
-versioned to track `YUNETA_VERSION` (SDK `7.32.0`, package **`7.31.0`** on npm since 2026-11-16)
-and **published to npm**. It had drifted to 7.13.x while the SDK was at 7.16.2
-— a number that told a consumer nothing about which SDK it was built against —
-and jumped to `7.16.0` on 2026-08-28 to say it again; 7.14 and 7.15 were skipped
-deliberately, because the number does not count releases of the package, it
-names the SDK the package belongs to. What moved it along the way: 7.10.0 for
-the `gobj_post_event()` alignment; 7.12.0 where `gclass_find_by_name()` /
-`gobj_find_service()` stopped answering `undefined` for a lookup that finds
-nothing — a `=== null` guard against them was always false; 7.13.3-7.13.5 for
-the boolean/int trap, where a JS boolean was read with the C runtime's `=== 0`
-guard (a subscription filter that never filtered, plus four more sites of the
-same shape); and **7.16.1**, where an inter-event **addressed to a service that
-no longer exists** stopped being published to every subscriber of the transport
-and started being dropped with a warning. That last one matters to any SPA: a
-destroyed view's in-flight frames were landing on the application gobj's
-catch-all subscription and raising *"Event NOT DEFINED in state"* once per
-frame. **The C side followed in 7.27.0**: it drops an event whose
-`dst_service` is no service, or a service that does not have it as public, with
-a WARNING (it published both; a week of logs on every node showed nobody
-relied on it). Only an EMPTY `dst_service` is still published, on both sides.
-To ship a new version: edit `kernel/js/gobj-js` directly, bump its `package.json`
-in lockstep with `YUNETA_VERSION`, commit on `main` in the standalone repo +
-`npm publish`, then **bump this submodule pointer in yunetas**. (A gobj-js-only
-patch may move ahead of `YUNETA_VERSION` between SDK releases — e.g. `7.6.7`'s
-`EV_ON_CLOSE`-on-deliberate-stop fix shipped on gobj-js first; the SDK then
-caught up at the `7.6.7` release.) **Every** consumer takes it from the
-registry — the applications and the in-repo `yunos/js/*` yunos — but they do
-**not** all declare the same floor, and assuming they do has been wrong since
-the in-repo yunos moved ahead: all of them were on `^7.28.0` on 2026-10-25.
-Check the consumer's own
-`package.json` rather than this line. Note gobj-js publishes **only `dist/`** (`files: ["dist/"]`),
-unlike gobj-ui — so a consumer resolves it to the bundle and cannot import its
-`src/`.
+**gobj-ui** has two lines:
+
+- **`main` branch** (the v2 line, tag `2.0.0`+) — **active development, and
+  the line this submodule tracks**: the declarative shell
+  (`C_YUI_SHELL/NAV/PAGER/WIZARD`). Every npm release is git-tagged. Consumers
+  — the in-repo `yunos/js/gui_agent` and `yunos/js/gui_treedb`, and the
+  applications — import it by package specifier (`@yuneta/gobj-ui/src/*.js`,
+  resolved by the exports map `"./src/*"`. The tarball ships `src/`,
+  `index.js` and the vite plugin). To ship: edit `kernel/js/gobj-ui`, commit
+  on `main` in the standalone repo, `npm publish`, then bump this submodule
+  pointer **and the range in each consumer**. Its own lessons (G6, touch
+  gestures, toolbars) are in gobj-ui's `CLAUDE.md`.
+- **`v1` branch** (latest tag `1.0.4`, npm dist-tag `legacy`) — the
+  **frozen** legacy stack (`C_YUI_MAIN/WINDOW/TABS/ROUTING`), maintenance
+  only, with **no consumer left** (each former consumer keeps its v1 in a
+  `gui-v1-final` tag). To release v1, cut it from a v1 checkout of the
+  standalone repo. This submodule stays on `main`.
+
+Four framework contracts to know before writing any gclass that hosts a
+child:
+
+- **`gobj_destroy()` destroys the children BEFORE calling `mt_destroy()`.**
+  A child torn down in `mt_destroy` is torn down after the framework already
+  destroyed it — while it was still running. Retire a hosted child in
+  **`mt_stop`**.
+- **`C_YUI_WINDOW.close_window()` calls `on_close` and THEN destroys
+  itself.** A host that also destroys the window destroys it twice. On the ✕
+  path the host drops its reference and keeps its hands off.
+- **Adding an output event to a gclass that is hosted as a CHILD is a
+  BREAKING change.** The child subscribes its host to everything it
+  publishes, so a new output event is a new mandatory declaration in every
+  host's FSM — or every host answers *"Event NOT DEFINED in state"*.
+- **A host takes down a child that can be publishing to it in two steps**:
+  off the page now, destroyed on the next turn from an event posted to itself
+  (`C_YUI_SCHEMA_EDITOR`'s drawing, `C_YUI_NODE`'s navs). Its own click can be
+  what makes the host leave it, and gobj-js reports a child destroyed under
+  its own publication as an ERROR, as the C kernel does.
+
+**gobj-js** (`github.com/artgins/gobj-js`, one line on `main`) publishes
+**only `dist/`** (`files: ["dist/"]`), unlike gobj-ui — a consumer resolves it
+to the bundle and cannot import its `src/`. To ship: edit `kernel/js/gobj-js`,
+bump its `package.json` by the numbering rule above, commit on `main` in the
+standalone repo + `npm publish`, then bump this submodule pointer. Consumers do
+**not** all declare the same floor: check the consumer's own `package.json`.
+Behavior it shares with the C runtime:
+
+- `gclass_find_by_name()` / `gobj_find_service()` answer `null` when the
+  lookup finds nothing, never `undefined`.
+- A JS boolean is not the C `0`: never test one with `=== 0` (a subscription
+  filter that never filtered, and four more sites of the same shape).
+- An inter-event addressed to a `dst_service` that is no service, or a service
+  that does not have it as public, is dropped with a WARNING, on both sides.
+  Only an EMPTY `dst_service` is still published. (Before, a destroyed view's
+  in-flight frames landed on the app gobj's catch-all subscription as *"Event
+  NOT DEFINED in state"*, once per frame.)
 
 The JS GUI scaffold (declarative-shell yuno template) is the `gui/` of the
 `project` templates of `yuno-skeleton` (see the JS GUI scaffold note below).
 
 Operational notes:
-- The vitest suite + active source live here now (v2/`main`):
-  `cd kernel/js/gobj-ui && npm install && npm test` (and `npm run build`). Run
-  this when touching `kernel/js/gobj-ui/**`.
-- `dist/` is no longer on any consumer's critical path: the v2 consumers import
-  source files by specifier (`src/` ships in the published tarball too, so
-  an application does the same from the registry). Still run `npm run build` to
-  validate, and before publishing.
-- A **v1** release would be cut from a **v1** checkout of the standalone repo
-  (`npm run build` + `npm publish`; this local submodule stays on `main`), but
-  no app consumes v1 since 2026-10-15.
+- Run gobj-ui's vitest suite when touching `kernel/js/gobj-ui/**`:
+  `cd kernel/js/gobj-ui && npm install && npm test`, and `npm run build` to
+  validate and before publishing (`dist/` is on no consumer's critical path).
 - gobj-ui installs its own copies of shared third-party libs (i18next,
   @antv/g6, maplibre-gl, tabulator-tables, tom-select, uplot,
   vanilla-jsoneditor). Any consumer that also depends on one of them must add
@@ -193,9 +136,9 @@ Operational notes:
   reference v2 application's) — otherwise components importing a
   module-level singleton (e.g. i18next's `t`) bind an uninitialized second
   copy and render blank.
-- Preserve backwards compatibility for existing consumers (the
-  applications and the in-repo yunos, all on published v2) and update the repo's `README.md` when the
-  contract changes.
+- Preserve backwards compatibility for existing consumers (the applications
+  and the in-repo yunos, all on published v2) and update the repo's
+  `README.md` when the contract changes.
 
 ### `jansson` is Yuneta's own JSON library (`github.com/artgins/jansson`)
 
