@@ -373,6 +373,15 @@ application's gate (one application).
 
 ## 5. Future features and improvements
 
+- **`ycommand` takes a secret only on its command line.** A command that
+  sets a secret (`set-kc-config kc_admin_client_secret=`, `set-user` of a
+  client link, `set-email-user`) puts it in the argv of `ycommand` for the
+  time of one call. Every account of the node can read it in `/proc` when
+  `/proc` has no `hidepid`. The `^^(file)` substitution is no way round,
+  because it sends the file in base64 and these commands want the secret
+  as it is. Proposed: `ycommand -c -` reads the command from stdin, or a
+  `^^raw(file)` substitution sends the content of the file as it is. Found
+  2026-11-23 by a security review of the provisioner script of yunetadeploy.
 - **`C_PROT_HTTP_CL` pairs each answer with its request.** Today nothing pairs
   them: a keep-alive connection answers in order, and `C_TASK` takes the first
   `EV_ON_MESSAGE` that comes. Two cases in 7.31.x broke that order (a
