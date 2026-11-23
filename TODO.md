@@ -26,6 +26,22 @@ Severity in parentheses where one was assigned.
 
 ## 1. Defects to fix
 
+- **`C_IDP_KEYCLOAK` starts its `C_TCP` while the last connection closes.**
+  Each request opens a connection and closes it after the answer. When the
+  next request comes at once (a SPA reloads the list after an action), the
+  start reaches the `C_TCP` in `ST_WAIT_STOPPED`. It logs the error *"Initial
+  wrong tcp state"* and the warning *"tcp data sent while the connection
+  closes, dropped"*. About 0.5 s later a new connection carries the request,
+  so nothing is lost, but every such pair is an error in the logcenter. Seen
+  2026-11-23 in yunetadeploy, against both artgins IdPs. The same class of
+  defect was fixed for `emailsender` in 7.25.21.
+- **`send-idp-user-actions` answers `kc_unavailable` when the email fails.**
+  Keycloak answers 500 to `execute-actions-email` when its SMTP server
+  refuses the message, and every 5xx maps to `kc_unavailable` ("Keycloak is
+  not available"). The account and Keycloak are fine. `register-idp-user`
+  already reports the same failure as the warning `email_send_failed`, so
+  this command can answer the error code `email_send_failed`. Seen
+  2026-11-23 with a test address in example.org.
 - **`C_TCP` writes `ssl_server_name` into a `crypto` dict it may share with
   its creator** (`c_tcp.c`, the TLS set-up of a client connect). A dict
   attr is held by reference, so a gclass that gives the same `crypto` json
