@@ -536,9 +536,12 @@ install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-agent-cert" \
     "${WORKDIR}/usr/libexec/yuneta/yuneta-agent-cert"
 # The label of the node (its uuid as a QR code), run by hand when a box is
 # installed: beside yuneta-node-uuid, whose `show` it reads. Its QR needs
-# qrencode (Recommends).
+# qrencode (Recommends). yuneta-label-print sends it to a Brother QL label
+# printer (--print), which needs rsvg-convert and python3 (Recommends).
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-label" \
     "${WORKDIR}/usr/libexec/yuneta/yuneta-node-label"
+install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-label-print" \
+    "${WORKDIR}/usr/libexec/yuneta/yuneta-label-print"
 # The root half of install-package of yuneta_agent22: it downloads, checks
 # and installs a yuneta-agent package in a transient unit (sudo -n). Here and
 # not written by agent22 into /yuneta, where yuneta could change what root
@@ -1278,7 +1281,7 @@ Architecture: ${ARCHITECTURE}
 Homepage: https://yuneta.io
 Maintainer: ArtGins S.L. <support@artgins.com>
 Depends: adduser, lsb-base, rsync, locales, rsyslog, init-system-helpers, gdb, logrotate
-Recommends: curl, vim, sudo, tree, pipx, fail2ban, net-tools, locate, qrencode
+Recommends: curl, vim, sudo, tree, pipx, fail2ban, net-tools, locate, qrencode, librsvg2-bin, python3
 Suggests: git, mercurial, make, cmake, ninja-build, gcc, clang, g++, python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv, libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, snapd, gh
 Description: Yuneta's Agent
  Yuneta Agent binaries, runtime directories, systemd units (and a SysV script

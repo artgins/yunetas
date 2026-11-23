@@ -701,7 +701,6 @@ both agent units, as a drop-in) and only what differs, so a second run says
 *"Nothing changed"* with the same uuid: that is also how to check any node,
 with the package or without it.
 
-(agent-own-certificate)=
 ### The label of a box
 
 Run this on the box, as root, after the package is installed:
@@ -717,13 +716,22 @@ sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER
 # port:   end1 02:00:00:00:50:95
 # qr:     5F3E8A21-0C4B-8D17-9E2A-6B1C0D4E7F90
 
-# The printable label, from another machine
+# Print the label on the Brother QL label printer that is on a USB port of the box
+sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER --print
+
+# Or get the printable label as an SVG, from another machine
 ssh <box> 'sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER --svg -' > label.svg
 ```
 
-Print `label.svg` from a browser, or give the text fields to the software
-of a label printer. The SVG needs `qrencode` on the box. The package
-recommends it, so `apt` installs it by default.
+The SVG needs `qrencode` on the box. `--print` also needs `rsvg-convert`
+and `python3`. The package recommends the three, so `apt` installs them by
+default. Print `label.svg` from a browser when the box has no printer.
+
+Before the first print on a Brother QL-700, set it to printer mode: hold its
+Editor Lite button until the green LED goes off. In Editor Lite mode the
+printer is a USB disk and it does not print. Load a 62 mm roll: continuous
+tape (DK-22205), or die-cut labels of 62 x 100 mm. The label of a box is
+taller than the die-cut labels of 62 x 29 mm.
 
 A field box is known by its node uuid. A central declares the box with it,
 and an installer finds the box with it in a list of pending boxes. The uuid
@@ -760,6 +768,54 @@ The SVG is 62 mm wide, a common size of label roll. Its height grows with
 the number of ports. Nothing on the label is a secret: the uuid identifies
 the box, but it does not authenticate it.
 
+#### How the label gets to the printer
+
+`--print` renders the SVG as a PNG 696 dots wide with `rsvg-convert`. That
+is the width that a Brother QL prints on 62 mm tape at 300 dpi. Then it
+gives the PNG to `/usr/libexec/yuneta/yuneta-label-print`, which sends the
+PNG to the printer. Use `--printer <printer>` instead of `--print` to name
+the printer.
+
+`yuneta-label-print` needs no printer driver. It sends the raster protocol
+of the printer itself, from the Brother document "Raster Command Reference"
+for the QL series. It reaches the printer through `/dev/bus/usb` (usbfs).
+Every Linux kernel with USB has usbfs. The kernel of the Orange Pi RV2 has
+no `usblp`, the usual driver of USB printers. No vendor gives a printer
+driver for riscv64.
+
+The tool asks the printer for its status first. It refuses to print, and
+says why, in these cases:
+
+- The printer reports an error, for example no media or a cover that is
+  open.
+- The roll is not 62 mm wide.
+- The label is longer than the die-cut label in the printer.
+- The printer is not a Brother QL with 720 pins (the QL-700 is the one
+  that is tested).
+
+Then it sends the label and waits until the printer says "printing
+completed". The printer cuts the label.
+
+The `yuneta-label-print` command line:
+
+```bash
+# The status of the printer
+sudo /usr/libexec/yuneta/yuneta-label-print --status
+# model:  QL-700
+# media:  continuous 62 mm
+# errors: none
+
+# Print any PNG 696 dots wide or narrower (a narrower one is centered)
+sudo /usr/libexec/yuneta/yuneta-label-print label.png
+
+# Name the printer: /dev/usb/lpN (usblp), /dev/bus/usb/BBB/DDD (usbfs)
+sudo /usr/libexec/yuneta/yuneta-label-print --printer /dev/bus/usb/001/007 label.png
+
+# Keep the bytes for the printer in a file, without a printer
+/usr/libexec/yuneta/yuneta-label-print --printer file:label.bin --media continuous-62 label.png
+```
+
+(agent-own-certificate)=
 ### The agent's own certificate
 
 The agent serves `/yuneta/agent/certs/yuneta_agent.{crt,key}` on its secure

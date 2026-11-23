@@ -55,6 +55,7 @@ license text.
 | `/usr/libexec/yuneta/yuneta-node-uuid` | file | file | Script, run as root. It makes the node uuid from the hardware. |
 | `/usr/libexec/yuneta/yuneta-agent-cert` | file | file | Script, run as root. It makes the certificate of the agent. |
 | `/usr/libexec/yuneta/yuneta-node-label` | file | file | Script, run by hand. It prints the label of the box. |
+| `/usr/libexec/yuneta/yuneta-label-print` | file | file | Script, run by `yuneta-node-label --print`. It sends a label to a Brother QL label printer through `/dev/bus/usb`. |
 | `/usr/libexec/yuneta/install-package` | file | file | Script, run as root by `install-package` of `yuneta_agent22`. It downloads, checks and installs a `yuneta-agent` package. |
 | `/usr/share/doc/yuneta-agent/copyright` | file | no | The license. The `.rpm` puts it in `/usr/share/licenses/yuneta-agent/LICENSE.txt`. |
 | `/usr/share/doc/yuneta-agent/THIRD-PARTY-NOTICES` | file | no | The licenses of the third-party code. The `.rpm` puts it in `/usr/share/licenses/yuneta-agent/`. |

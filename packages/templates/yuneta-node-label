@@ -14,6 +14,10 @@
 #       yuneta-node-label [--title <text>]              the label as text
 #       yuneta-node-label [--title <text>] --svg <file> also the printable
 #                                                       label (- = stdout)
+#       yuneta-node-label [--title <text>] --print      also print it on the
+#                                                       Brother QL on the USB
+#       yuneta-node-label [--title <text>] --printer <p>  ... on printer <p>
+#                                                       (see yuneta-label-print)
 #
 #   Run it as root on a machine whose identifiers only root can read (an x86
 #   board: DMI). From another machine:
@@ -50,11 +54,20 @@
 #   the ports. It needs qrencode (a Recommends of the package); without it
 #   the text label is still given.
 #
+#   --print renders the SVG as a PNG 696 dots wide (the printable width of
+#   62 mm tape at 300 dpi) with rsvg-convert, and gives it to
+#   yuneta-label-print, which sends it to a Brother QL label printer
+#   (tested: QL-700) with 62 mm tape. It needs qrencode, rsvg-convert
+#   (librsvg2-bin) and python3; the three are Recommends of the package.
+#   Run it as root: the printer is opened through /dev/bus/usb.
+#
 #   Nothing on the label is a secret: the uuid identifies the box, it does
 #   not authenticate it.
 #
 #   Environment, for tests: YUNETA_NODE_UUID_TOOL (the yuneta-node-uuid to
-#   ask, default /usr/libexec/yuneta/yuneta-node-uuid) and
+#   ask, default /usr/libexec/yuneta/yuneta-node-uuid),
+#   YUNETA_LABEL_PRINT_TOOL (the yuneta-label-print to give the PNG to,
+#   default /usr/libexec/yuneta/yuneta-label-print) and
 #   YUNETA_NODE_UUID_SYSROOT (a prefix of /sys, which yuneta-node-uuid reads
 #   too).
 #
@@ -65,12 +78,13 @@
 set -u
 
 NODE_UUID_TOOL="${YUNETA_NODE_UUID_TOOL:-/usr/libexec/yuneta/yuneta-node-uuid}"
+LABEL_PRINT_TOOL="${YUNETA_LABEL_PRINT_TOOL:-/usr/libexec/yuneta/yuneta-label-print}"
 SYSROOT="${YUNETA_NODE_UUID_SYSROOT:-}"
 GOOD_STATUS="the stored uuid is the one this hardware gives"
 UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
 usage() {
-    echo "usage: $0 [--title <text>] [--svg <file>|-]"
+    echo "usage: $0 [--title <text>] [--svg <file>|-] [--print | --printer <printer>]"
 }
 
 #
@@ -78,19 +92,26 @@ usage() {
 #
 SVG_OUT=""
 TITLE=""
+PRINTER=""
 while [ $# -gt 0 ]; do
     case "$1" in
-        --svg|--title)
-            if [ $# -lt 2 ]; then
+        --svg|--title|--printer)
+            if [ $# -lt 2 ] || [ -z "$2" ]; then
                 usage >&2
                 exit 2
             fi
             if [ "$1" = "--svg" ]; then
                 SVG_OUT="$2"
+            elif [ "$1" = "--printer" ]; then
+                PRINTER="$2"
             else
                 TITLE="$2"
             fi
             shift 2
+            ;;
+        --print)
+            PRINTER="auto"
+            shift
             ;;
         -h|--help)
             usage
@@ -107,9 +128,23 @@ if [ ! -x "$NODE_UUID_TOOL" ]; then
     echo "[-] $NODE_UUID_TOOL not found" >&2
     exit 1
 fi
-if [ -n "$SVG_OUT" ] && ! command -v qrencode >/dev/null 2>&1; then
-    echo "[-] qrencode not found: install it, or run without --svg" >&2
+if { [ -n "$SVG_OUT" ] || [ -n "$PRINTER" ]; } && ! command -v qrencode >/dev/null 2>&1; then
+    echo "[-] qrencode not found: install it, or run without --svg and --print" >&2
     exit 1
+fi
+if [ -n "$PRINTER" ]; then
+    if ! command -v rsvg-convert >/dev/null 2>&1; then
+        echo "[-] rsvg-convert not found: install librsvg2-bin, or run without --print" >&2
+        exit 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[-] python3 not found: install it, or run without --print" >&2
+        exit 1
+    fi
+    if [ ! -x "$LABEL_PRINT_TOOL" ]; then
+        echo "[-] $LABEL_PRINT_TOOL not found" >&2
+        exit 1
+    fi
 fi
 
 #
@@ -223,7 +258,7 @@ if [ ${#ports[@]} -eq 0 ]; then
     echo "[!] no on-board wired port with a permanent MAC" >&2
 fi
 
-if [ -z "$SVG_OUT" ]; then
+if [ -z "$SVG_OUT" ] && [ -z "$PRINTER" ]; then
     exit 0
 fi
 
@@ -273,10 +308,37 @@ svg="$(
 
 if [ "$SVG_OUT" = "-" ]; then
     printf '%s\n' "$svg"
-else
+elif [ -n "$SVG_OUT" ]; then
     if ! printf '%s\n' "$svg" > "$SVG_OUT"; then
         echo "[-] cannot write $SVG_OUT" >&2
         exit 1
     fi
     echo "svg:    $SVG_OUT" >&3
 fi
+
+if [ -z "$PRINTER" ]; then
+    exit 0
+fi
+
+#
+#   The label on the printer: the SVG as a PNG 696 dots wide, to
+#   yuneta-label-print
+#
+if ! PRINT_DIR="$(mktemp -d)" || [ -z "$PRINT_DIR" ] || [ ! -d "$PRINT_DIR" ]; then
+    echo "[-] cannot create a work directory" >&2
+    exit 1
+fi
+trap 'rm -rf "$PRINT_DIR"' EXIT
+if ! printf '%s\n' "$svg" > "${PRINT_DIR}/label.svg"; then
+    echo "[-] cannot write ${PRINT_DIR}/label.svg" >&2
+    exit 1
+fi
+if ! rsvg-convert -w 696 -o "${PRINT_DIR}/label.png" "${PRINT_DIR}/label.svg"; then
+    echo "[-] rsvg-convert could not render the label" >&2
+    exit 1
+fi
+if ! "$LABEL_PRINT_TOOL" --printer "$PRINTER" "${PRINT_DIR}/label.png"; then
+    echo "[-] the label was not printed" >&2
+    exit 1
+fi
+echo "print:  $PRINTER" >&3

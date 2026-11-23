@@ -145,6 +145,65 @@ else
 fi
 
 #
+#   The label on a printer: rsvg-convert and yuneta-label-print are stubs
+#   that write down what they get (yuneta-label-print has its own test)
+#
+if command -v qrencode >/dev/null 2>&1; then
+    STUBS="${WORK}/stubs"
+    mkdir -p "$STUBS"
+    cat > "${STUBS}/rsvg-convert" <<'STUBEOF'
+#!/bin/bash
+echo "$*" > "${STUB_LOG}/rsvg.args"
+while [ $# -gt 0 ]; do
+    if [ "$1" = "-o" ]; then
+        printf 'png' > "$2"
+        shift
+    else
+        cp "$1" "${STUB_LOG}/rendered.svg" 2>/dev/null
+    fi
+    shift
+done
+STUBEOF
+    cat > "${STUBS}/label-print" <<'STUBEOF'
+#!/bin/bash
+echo "$1 $2" > "${STUB_LOG}/print.args"
+cp "$3" "${STUB_LOG}/printed.png"
+exit "${STUB_PRINT_EXIT:-0}"
+STUBEOF
+    chmod 755 "${STUBS}/rsvg-convert" "${STUBS}/label-print"
+    export STUB_LOG="${WORK}/stublog"
+    mkdir -p "$STUB_LOG"
+
+    PATH="${STUBS}:${PATH}" YUNETA_LABEL_PRINT_TOOL="${STUBS}/label-print" \
+        run_label --title CONTROLLER --print
+    check "print: exit 0" "$?" "0"
+    check "print: the text on stdout" "$(out_field uuid)" "$uuid"
+    check "print: the printer said" "$(out_field print)" "auto"
+    check "print: rendered 696 dots wide" "$(cut -d' ' -f1-2 "${STUB_LOG}/rsvg.args")" "-w 696"
+    check "print: the SVG rendered is the label" "$(grep -c ">${uuid%%-*}<" "${STUB_LOG}/rendered.svg")" "1"
+    check "print: the PNG given to yuneta-label-print" "$(cat "${STUB_LOG}/printed.png")" "png"
+    check "print: on printer auto" "$(cat "${STUB_LOG}/print.args")" "--printer auto"
+
+    PATH="${STUBS}:${PATH}" YUNETA_LABEL_PRINT_TOOL="${STUBS}/label-print" \
+        run_label --printer file:/tmp/x.bin --svg "$SVG"
+    check "printer: exit 0" "$?" "0"
+    check "printer: on the printer given" "$(cat "${STUB_LOG}/print.args")" "--printer file:/tmp/x.bin"
+    check "printer: the SVG written too" "$(grep -c ">${uuid%%-*}<" "$SVG")" "1"
+
+    PATH="${STUBS}:${PATH}" YUNETA_LABEL_PRINT_TOOL="${STUBS}/label-print" STUB_PRINT_EXIT=1 \
+        run_label --print
+    check "print failed: exit 1" "$?" "1"
+    check "print failed: it says so" "$(grep -c 'the label was not printed' "$ERR")" "1"
+
+    YUNETA_LABEL_PRINT_TOOL="${WORK}/none" PATH="${STUBS}:${PATH}" run_label --print
+    check "no yuneta-label-print: exit 1" "$?" "1"
+    check "no yuneta-label-print: nothing on stdout" "$(wc -c < "$OUT")" "0"
+    unset STUB_LOG
+else
+    echo "skip - the print: qrencode is not installed"
+fi
+
+#
 #   A stored uuid that this hardware does not give: no label
 #
 reset
@@ -214,6 +273,8 @@ check "bond: each port with its own MAC" "$(out_field port)" "eno1 aa:bb:cc:00:0
 check "usage: --svg without a file" "$?" "2"
 "$LABEL" --bogus >/dev/null 2>&1
 check "usage: an unknown option" "$?" "2"
+"$LABEL" --printer >/dev/null 2>&1
+check "usage: --printer without a printer" "$?" "2"
 
 if [ "$FAILED" -ne 0 ]; then
     echo "FAILED"

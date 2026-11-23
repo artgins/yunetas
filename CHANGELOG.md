@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Added
+
+- **Packaging: `yuneta-node-label --print` prints the label of a box on a
+  Brother QL label printer.** The printer is on a USB port of the box, with
+  a 62 mm roll. The tool renders the SVG of the label as a PNG with
+  `rsvg-convert`, and the new `/usr/libexec/yuneta/yuneta-label-print`
+  sends the PNG to the printer. `yuneta-label-print` uses the raster protocol
+  of the Brother "Raster Command Reference" for the QL series. It reaches the
+  printer through usbfs (`/dev/bus/usb`), so it needs no driver and no
+  `usblp`. The Orange Pi RV2 kernel has no `usblp`, and no vendor gives a
+  driver for riscv64. It asks the printer for its status first, and refuses
+  to print on an error, on a roll that is not 62 mm wide, or on a die-cut
+  label that is too short. `librsvg2-bin` (`librsvg2-tools` in the `.rpm`)
+  and `python3` are new `Recommends`. `packages/tests/test-yuneta-label-print.sh`
+  compares the bytes with the reference and needs no printer.
+
 ### Changed
 
 - **`yunos/js`: `gui_agent` 1.4.9 and `gui_treedb` 1.3.9**, on gobj-ui
@@ -22,6 +38,9 @@
   `access.log`, banned nobody. The check now accepts `nginx` and `openresty`.
   A node that builds from source takes the fixed drop-in by hand (it is a
   conffile).
+- **Docs: the link "the agent's own certificate" in `installation.md` goes
+  to that section again.** Since the label section was added, its anchor was
+  above the label section.
 
 ## v7.32.0 (2026-11-22)
 

@@ -104,6 +104,12 @@ hardware does not give. The units do not run it. On a node that builds from
 source, run it from the tree. `tests/test-yuneta-node-label.sh` tests it
 against a fake `/sys`.
 
+`templates/yuneta-label-print` sends a label image (a PNG) to a Brother QL
+label printer, through usbfs and without a driver (see its header).
+`yuneta-node-label --print` uses it. `tests/test-yuneta-label-print.sh`
+compares the bytes that it sends with the bytes of the Brother raster
+reference, and gives it fake printer statuses. It needs no printer.
+
 ## install-package
 
 `templates/install-package` is the root part of `install-package` of

@@ -1,0 +1,728 @@
+#!/usr/bin/python3
+#
+#   yuneta-label-print -- print a label image on a Brother QL label printer
+#
+#   yuneta-node-label --print makes the label of a box as an SVG, renders it
+#   as a PNG 696 dots wide with rsvg-convert, and gives the PNG to this tool.
+#   The tool can also print any PNG of that width or narrower.
+#
+#   Usage:
+#       yuneta-label-print [--printer <printer>] [--media <media>] <png>
+#       yuneta-label-print [--printer <printer>] --status
+#
+#   <printer>:
+#       auto                    the one Brother QL on the USB bus (default)
+#       /dev/usb/lpN            a printer that the kernel driver usblp holds
+#       /dev/bus/usb/BBB/DDD    a printer reached through usbfs
+#       file:<path>             write the bytes to a file: no printer, no
+#                               status. The media is --media.
+#
+#   <media> (only with file:): continuous-62 (default), die-cut-62x29,
+#   die-cut-62x100. With a printer, the media is what its status says.
+#
+#   Why no driver: the boxes are riscv64, and no vendor ships a driver for
+#   it. The kernel of some boxes is built without usblp
+#   (CONFIG_USB_PRINTER), so there is no /dev/usb/lp0 either. The tool
+#   speaks the raster protocol of the printer itself, and reaches the
+#   printer through usbfs, which every Linux kernel with USB has. It must
+#   run as root to open /dev/bus/usb (yuneta-node-label runs as root).
+#   The usbfs ioctl numbers are those of the generic Linux encoding (x86,
+#   arm, riscv); powerpc, mips and sparc encode them otherwise.
+#
+#   The protocol is Brother's "Raster Command Reference" for the
+#   QL-500/550/560/570/580N/650TD/700/1050/1060N (cv_qlseries_eng_raster).
+#   The printers of that list with a head of 720 pins are accepted; the
+#   QL-700 is the one tested. The steps:
+#
+#     1. 200 bytes of 0x00 (clear a job left by an error), ESC @.
+#     2. ESC i S: the status, 32 bytes. It says the model, the errors and
+#        the media. The tool refuses a printer with an error, a media that
+#        is not 62 mm wide, or a die-cut label shorter than the image.
+#     3. The job: ESC i z (media and number of lines, quality first),
+#        ESC i M (auto cut), ESC i A 1 (cut every label), ESC i K (cut at
+#        end), ESC i d (35 dots of feed for continuous tape, 0 for die-cut).
+#     4. One raster line per line of the image: 67 00 5A and 90 bytes. The
+#        QL-700 has no compression. Bit 1 is a black dot, the first bit is
+#        the MSB, and the line is MIRRORED: its first byte is the right
+#        side of the label (as brother_ql, verified on a QL-700, does).
+#     5. 1A (print with feeding), then the statuses until "printing
+#        completed" or an error.
+#
+#   The 62 mm tape has 696 printable dots at 300 dpi: 12 pins of margin on
+#   each side of the 720. An image narrower than 696 dots is centered. A
+#   dot is black when its luminance (alpha composed over white) is below
+#   128.
+#
+#   The QL-700 starts as a USB disk (P-touch Editor Lite, green LED). In
+#   that mode its product id is 0x2049 and it does not print: hold its
+#   Editor Lite button until the green LED goes off.
+#
+#   Environment, for tests: YUNETA_LABEL_PRINT_SYSFS (the root of the USB
+#   devices, default /sys/bus/usb/devices) and YUNETA_LABEL_PRINT_FAKE_STATUS
+#   (with file:, the replies of the printer: 32-byte statuses in hex,
+#   separated by commas; the first one answers ESC i S).
+#
+#   Exit: 0 printed, 1 refused or failed, 2 usage.
+#
+#   Copyright (c) 2026, ArtGins.
+#
+import ctypes
+import errno
+import fcntl
+import os
+import select
+import struct
+import sys
+import time
+import zlib
+
+EXIT_FAILED = 1
+EXIT_USAGE = 2
+
+BROTHER_VENDOR = 0x04F9
+QL700_PRINTER = 0x2042
+QL700_DISK = 0x2049
+
+HEAD_PINS = 720
+LINE_BYTES = 90
+PRINTABLE_DOTS = 696
+LEFT_PINS = 12
+CONTINUOUS_FEED_DOTS = 35
+
+MEDIA_CONTINUOUS = 0x0A
+MEDIA_DIE_CUT = 0x0B
+
+# (type, width mm, length mm) -> printable lines; 0 = no limit
+MEDIAS = {
+    "continuous-62": (MEDIA_CONTINUOUS, 62, 0, 0),
+    "die-cut-62x29": (MEDIA_DIE_CUT, 62, 29, 271),
+    "die-cut-62x100": (MEDIA_DIE_CUT, 62, 100, 1109),
+}
+
+# Byte 4 of the status of the models with a head of 720 pins
+MODELS = {
+    0x4F: "QL-500/550",
+    0x31: "QL-560",
+    0x32: "QL-570",
+    0x33: "QL-580N",
+    0x51: "QL-650TD",
+    0x35: "QL-700",
+}
+
+ERRORS_1 = {
+    0x01: "no media",
+    0x02: "end of media",
+    0x04: "cutter jam",
+    0x10: "main unit in use",
+    0x80: "fan does not work",
+}
+ERRORS_2 = {
+    0x04: "transmission error",
+    0x10: "cover opened while printing",
+    0x40: "cannot feed",
+    0x80: "system error",
+}
+
+STATUS_REPLY = 0x00
+STATUS_COMPLETED = 0x01
+STATUS_ERROR = 0x02
+STATUS_NOTIFICATION = 0x05
+STATUS_PHASE = 0x06
+
+STATUS_TIMEOUT_S = 5
+PRINT_TIMEOUT_S = 60
+WRITE_CHUNK = 16384
+
+
+class LabelError(Exception):
+    pass
+
+
+def say(text):
+    print(text, file=sys.stderr)
+
+
+#
+#   The image: a PNG, 8 bits per channel, not interlaced
+#
+def read_png(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError as e:
+        raise LabelError("cannot read %s: %s" % (path, e.strerror))
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise LabelError("%s is not a PNG" % path)
+
+    pos = 8
+    ihdr = None
+    plte = b""
+    trns = b""
+    idat = []
+    while pos + 8 <= len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        chunk = data[pos + 8:pos + 8 + length]
+        if len(chunk) != length:
+            raise LabelError("%s: truncated PNG" % path)
+        pos += 12 + length
+        if kind == b"IHDR":
+            ihdr = chunk
+        elif kind == b"PLTE":
+            plte = chunk
+        elif kind == b"tRNS":
+            trns = chunk
+        elif kind == b"IDAT":
+            idat.append(chunk)
+        elif kind == b"IEND":
+            break
+    if ihdr is None or len(ihdr) != 13 or not idat:
+        raise LabelError("%s: a PNG without IHDR or IDAT" % path)
+
+    width, height, depth, color, _comp, _filt, interlace = struct.unpack(">IIBBBBB", ihdr)
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color)
+    if channels is None or depth != 8:
+        raise LabelError("%s: only 8-bit PNGs are read (this one: color type %d, depth %d)"
+                         % (path, color, depth))
+    if interlace != 0:
+        raise LabelError("%s: an interlaced PNG is not read" % path)
+    if color == 3 and not plte:
+        raise LabelError("%s: a palette PNG without its palette" % path)
+    if width == 0 or height == 0:
+        raise LabelError("%s: an empty image" % path)
+
+    try:
+        raw = zlib.decompress(b"".join(idat))
+    except zlib.error as e:
+        raise LabelError("%s: bad PNG data: %s" % (path, e))
+    stride = width * channels
+    if len(raw) < height * (stride + 1):
+        raise LabelError("%s: the PNG data is shorter than the image" % path)
+
+    rows = []
+    prev = bytes(stride)
+    pos = 0
+    for _y in range(height):
+        kind = raw[pos]
+        line = bytearray(raw[pos + 1:pos + 1 + stride])
+        pos += stride + 1
+        unfilter(line, prev, kind, channels, path)
+        rows.append(dark_dots(line, width, color, channels, plte, trns))
+        prev = bytes(line)
+    return width, rows
+
+
+def unfilter(line, prev, kind, bpp, path):
+    n = len(line)
+    if kind == 0:
+        return
+    if kind == 1:
+        for i in range(bpp, n):
+            line[i] = (line[i] + line[i - bpp]) & 0xFF
+    elif kind == 2:
+        for i in range(n):
+            line[i] = (line[i] + prev[i]) & 0xFF
+    elif kind == 3:
+        for i in range(n):
+            left = line[i - bpp] if i >= bpp else 0
+            line[i] = (line[i] + ((left + prev[i]) >> 1)) & 0xFF
+    elif kind == 4:
+        for i in range(n):
+            if i >= bpp:
+                a = line[i - bpp]
+                c = prev[i - bpp]
+            else:
+                a = 0
+                c = 0
+            b = prev[i]
+            p = a + b - c
+            pa = abs(p - a)
+            pb = abs(p - b)
+            pc = abs(p - c)
+            if pa <= pb and pa <= pc:
+                pred = a
+            elif pb <= pc:
+                pred = b
+            else:
+                pred = c
+            line[i] = (line[i] + pred) & 0xFF
+    else:
+        raise LabelError("%s: unknown PNG filter %d" % (path, kind))
+
+
+def dark_dots(line, width, color, channels, plte, trns):
+    dots = bytearray(width)
+    for x in range(width):
+        i = x * channels
+        alpha = 255
+        if color == 0:
+            lum = line[i]
+        elif color == 2:
+            lum = (line[i] * 299 + line[i + 1] * 587 + line[i + 2] * 114) // 1000
+        elif color == 3:
+            k = line[i]
+            if 3 * k + 2 >= len(plte):
+                lum = 255
+            else:
+                lum = (plte[3 * k] * 299 + plte[3 * k + 1] * 587 + plte[3 * k + 2] * 114) // 1000
+            if k < len(trns):
+                alpha = trns[k]
+        elif color == 4:
+            lum = line[i]
+            alpha = line[i + 1]
+        else:
+            lum = (line[i] * 299 + line[i + 1] * 587 + line[i + 2] * 114) // 1000
+            alpha = line[i + 3]
+        if alpha != 255:
+            lum = (lum * alpha + 255 * (255 - alpha)) // 255
+        if lum < 128:
+            dots[x] = 1
+    return dots
+
+
+#
+#   The raster protocol
+#
+def raster_line(dots, width):
+    left = LEFT_PINS + (PRINTABLE_DOTS - width) // 2
+    pins = bytearray(HEAD_PINS)
+    pins[left:left + width] = dots
+    pins.reverse()
+    out = bytearray(LINE_BYTES)
+    for i in range(LINE_BYTES):
+        b = 0
+        for bit in pins[i * 8:i * 8 + 8]:
+            b = (b << 1) | bit
+        out[i] = b
+    return b"\x67\x00" + bytes([LINE_BYTES]) + bytes(out)
+
+
+def job_bytes(width, rows, media):
+    kind, mwidth, mlength, _max_lines = media
+    nlines = len(rows)
+    out = bytearray()
+    # ESC i z: kind, width, length, quality first, recover; starting page
+    out += b"\x1b\x69\x7a" + bytes([0x02 | 0x04 | 0x08 | 0x40 | 0x80, kind, mwidth, mlength])
+    out += struct.pack("<I", nlines) + b"\x00\x00"
+    out += b"\x1b\x69\x4d\x40"       # ESC i M: auto cut
+    out += b"\x1b\x69\x41\x01"       # ESC i A: cut every label
+    out += b"\x1b\x69\x4b\x08"       # ESC i K: cut at end
+    feed = CONTINUOUS_FEED_DOTS if kind == MEDIA_CONTINUOUS else 0
+    out += b"\x1b\x69\x64" + struct.pack("<H", feed)
+    for dots in rows:
+        out += raster_line(dots, width)
+    out += b"\x1a"
+    return bytes(out)
+
+
+def preamble_bytes():
+    return b"\x00" * 200 + b"\x1b\x40"
+
+
+def status_request_bytes():
+    return b"\x1b\x69\x53"
+
+
+#
+#   The status
+#
+def decode_status(st):
+    if len(st) != 32 or st[0] != 0x80 or st[1] != 0x20:
+        raise LabelError("not a status of a Brother QL: %s" % st.hex())
+    errors = [name for mask, name in ERRORS_1.items() if st[8] & mask]
+    errors += [name for mask, name in ERRORS_2.items() if st[9] & mask]
+    return {
+        "model": MODELS.get(st[4]),
+        "model_code": st[4],
+        "errors": errors,
+        "media_width": st[10],
+        "media_type": st[11],
+        "media_length": st[17],
+        "type": st[18],
+        "phase": st[19],
+        "notification": st[22],
+    }
+
+
+def describe_media(s):
+    if s["media_type"] == MEDIA_CONTINUOUS:
+        return "continuous %d mm" % s["media_width"]
+    if s["media_type"] == MEDIA_DIE_CUT:
+        return "die-cut %dx%d mm" % (s["media_width"], s["media_length"])
+    return "no media"
+
+
+def describe_status(s):
+    lines = [
+        "model:  %s" % (s["model"] or "unknown (0x%02x)" % s["model_code"]),
+        "media:  %s" % describe_media(s),
+        "errors: %s" % (", ".join(s["errors"]) or "none"),
+    ]
+    return "\n".join(lines)
+
+
+def media_of_status(s, nlines):
+    if s["model"] is None:
+        raise LabelError("not a Brother QL with a head of 720 pins (model code 0x%02x)"
+                         % s["model_code"])
+    if s["errors"]:
+        raise LabelError("the printer reports: %s" % ", ".join(s["errors"]))
+    for media in MEDIAS.values():
+        kind, mwidth, mlength, max_lines = media
+        if s["media_type"] != kind or s["media_width"] != mwidth:
+            continue
+        if kind == MEDIA_DIE_CUT and s["media_length"] != mlength:
+            continue
+        if max_lines and nlines > max_lines:
+            raise LabelError("the image has %d lines and the die-cut label %d: use continuous 62 mm tape"
+                             % (nlines, max_lines))
+        return media
+    raise LabelError("the printer has %s: load a 62 mm roll" % describe_media(s))
+
+
+#
+#   The printers: a usbfs device, a usblp device, a file
+#
+class UsbBulk(ctypes.Structure):
+    _fields_ = [
+        ("ep", ctypes.c_uint),
+        ("len", ctypes.c_uint),
+        ("timeout", ctypes.c_uint),
+        ("data", ctypes.c_void_p),
+    ]
+
+
+def ioc(direction, nr, size):
+    return (direction << 30) | (size << 16) | (ord("U") << 8) | nr
+
+
+USBDEVFS_BULK = ioc(3, 2, ctypes.sizeof(UsbBulk))
+USBDEVFS_CLAIMINTERFACE = ioc(2, 15, 4)
+USBDEVFS_RELEASEINTERFACE = ioc(2, 16, 4)
+
+
+class UsbfsPrinter:
+    replies_end = False
+
+    def __init__(self, path, ep_out, ep_in, interface):
+        self.path = path
+        self.ep_out = ep_out
+        self.ep_in = ep_in
+        self.interface = interface
+        try:
+            self.fd = os.open(path, os.O_RDWR)
+        except OSError as e:
+            raise LabelError("cannot open %s: %s (run it as root)" % (path, e.strerror))
+        try:
+            fcntl.ioctl(self.fd, USBDEVFS_CLAIMINTERFACE, struct.pack("I", interface))
+        except OSError as e:
+            os.close(self.fd)
+            if e.errno == errno.EBUSY:
+                raise LabelError("%s: a kernel driver holds the printer: give its /dev/usb/lpN"
+                                 % path)
+            raise LabelError("%s: cannot claim the interface: %s" % (path, e.strerror))
+
+    def bulk(self, ep, buf, length, timeout_ms):
+        req = UsbBulk(ep, length, timeout_ms, ctypes.addressof(buf))
+        return fcntl.ioctl(self.fd, USBDEVFS_BULK, req)
+
+    def write(self, data):
+        for start in range(0, len(data), WRITE_CHUNK):
+            chunk = data[start:start + WRITE_CHUNK]
+            buf = ctypes.create_string_buffer(chunk, len(chunk))
+            try:
+                done = self.bulk(self.ep_out, buf, len(chunk), 10000)
+            except OSError as e:
+                raise LabelError("%s: write failed: %s" % (self.path, e.strerror))
+            if done != len(chunk):
+                raise LabelError("%s: wrote %d bytes of %d" % (self.path, done, len(chunk)))
+
+    def read(self, timeout_s):
+        buf = ctypes.create_string_buffer(64)
+        try:
+            n = self.bulk(self.ep_in, buf, 64, max(1, int(timeout_s * 1000)))
+        except OSError as e:
+            if e.errno == errno.ETIMEDOUT:
+                return b""
+            raise LabelError("%s: read failed: %s" % (self.path, e.strerror))
+        return buf.raw[:n]
+
+    def close(self):
+        try:
+            fcntl.ioctl(self.fd, USBDEVFS_RELEASEINTERFACE, struct.pack("I", self.interface))
+        except OSError:
+            pass  # closing the fd releases it as well
+        os.close(self.fd)
+
+
+class LpPrinter:
+    replies_end = False
+
+    def __init__(self, path):
+        self.path = path
+        try:
+            self.fd = os.open(path, os.O_RDWR)
+        except OSError as e:
+            raise LabelError("cannot open %s: %s (run it as root)" % (path, e.strerror))
+
+    def write(self, data):
+        view = memoryview(data)
+        while view:
+            try:
+                n = os.write(self.fd, view)
+            except OSError as e:
+                raise LabelError("%s: write failed: %s" % (self.path, e.strerror))
+            view = view[n:]
+
+    def read(self, timeout_s):
+        ready, _w, _x = select.select([self.fd], [], [], timeout_s)
+        if not ready:
+            return b""
+        try:
+            return os.read(self.fd, 64)
+        except OSError as e:
+            raise LabelError("%s: read failed: %s" % (self.path, e.strerror))
+
+    def close(self):
+        os.close(self.fd)
+
+
+class FilePrinter:
+    replies_end = True   # what read() does not return now, it never will
+
+    def __init__(self, path, replies):
+        self.path = path
+        self.replies = list(replies)
+        try:
+            self.f = open(path, "wb")
+        except OSError as e:
+            raise LabelError("cannot write %s: %s" % (path, e.strerror))
+
+    def write(self, data):
+        self.f.write(data)
+
+    def read(self, timeout_s):
+        if not self.replies:
+            return b""
+        return self.replies.pop(0)
+
+    def close(self):
+        self.f.close()
+
+
+def sysfs_read(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def find_usb_printers(sysfs):
+    found = []
+    try:
+        names = sorted(os.listdir(sysfs))
+    except OSError:
+        return found
+    for name in names:
+        dev = os.path.join(sysfs, name)
+        vendor = sysfs_read(os.path.join(dev, "idVendor"))
+        if not vendor or int(vendor, 16) != BROTHER_VENDOR:
+            continue
+        product = int(sysfs_read(os.path.join(dev, "idProduct")) or "0", 16)
+        found.append((name, dev, product))
+    return found
+
+
+def usb_printer(sysfs, name, dev):
+    busnum = sysfs_read(os.path.join(dev, "busnum"))
+    devnum = sysfs_read(os.path.join(dev, "devnum"))
+    iface = os.path.join(sysfs, name + ":1.0")
+    lp = ""
+    usbmisc = os.path.join(iface, "usbmisc")
+    if os.path.isdir(usbmisc):
+        for entry in sorted(os.listdir(usbmisc)):
+            if entry.startswith("lp"):
+                lp = "/dev/usb/" + entry
+    if lp:
+        return LpPrinter(lp)
+    ep_out = ep_in = None
+    try:
+        entries = sorted(os.listdir(iface))
+    except OSError:
+        raise LabelError("%s: no interface 0 in sysfs" % name)
+    for entry in entries:
+        if not entry.startswith("ep_"):
+            continue
+        ep = os.path.join(iface, entry)
+        if sysfs_read(os.path.join(ep, "type")) != "Bulk":
+            continue
+        address = int(sysfs_read(os.path.join(ep, "bEndpointAddress")) or entry[3:], 16)
+        if sysfs_read(os.path.join(ep, "direction")) == "in":
+            ep_in = address
+        else:
+            ep_out = address
+    if ep_out is None or ep_in is None:
+        raise LabelError("%s: no bulk endpoints in and out" % name)
+    path = "/dev/bus/usb/%03d/%03d" % (int(busnum), int(devnum))
+    return UsbfsPrinter(path, ep_out, ep_in, 0)
+
+
+def open_printer(spec, sysfs):
+    if spec.startswith("file:"):
+        replies = []
+        fake = os.environ.get("YUNETA_LABEL_PRINT_FAKE_STATUS", "")
+        for item in fake.split(","):
+            if item.strip():
+                replies.append(bytes.fromhex(item.strip()))
+        return FilePrinter(spec[5:], replies), bool(fake)
+    if spec.startswith("/dev/usb/lp"):
+        return LpPrinter(spec), True
+    if spec.startswith("/dev/bus/usb/"):
+        for name, dev, _product in find_usb_printers(sysfs):
+            busnum = sysfs_read(os.path.join(dev, "busnum"))
+            devnum = sysfs_read(os.path.join(dev, "devnum"))
+            if busnum and devnum and spec == "/dev/bus/usb/%03d/%03d" % (int(busnum), int(devnum)):
+                return usb_printer(sysfs, name, dev), True
+        raise LabelError("%s is not a Brother printer on the USB bus" % spec)
+    if spec != "auto":
+        raise LabelError("unknown printer '%s'" % spec)
+
+    found = find_usb_printers(sysfs)
+    disks = [f for f in found if f[2] == QL700_DISK]
+    printers = [f for f in found if f[2] != QL700_DISK]
+    if not printers and disks:
+        raise LabelError("the QL-700 is in Editor Lite mode (a USB disk): hold its Editor Lite"
+                         " button until the green LED goes off")
+    if not printers:
+        raise LabelError("no Brother printer on the USB bus")
+    if len(printers) > 1:
+        raise LabelError("%d Brother printers on the USB bus: give one with --printer"
+                         % len(printers))
+    name, dev, _product = printers[0]
+    return usb_printer(sysfs, name, dev), True
+
+
+#
+#   The conversation with the printer
+#
+def read_status(printer, timeout_s):
+    deadline = time.monotonic() + timeout_s
+    got = b""
+    while len(got) < 32:
+        left = deadline - time.monotonic()
+        chunk = b""
+        if left > 0:
+            chunk = printer.read(min(left, 0.5))
+        if chunk:
+            got += chunk
+            continue
+        if left > 0 and not printer.replies_end:
+            time.sleep(0.05)
+            continue
+        if got:
+            raise LabelError("the printer sent %d bytes of a status" % len(got))
+        return None
+    return decode_status(got[:32])
+
+
+def ask_status(printer):
+    printer.write(preamble_bytes() + status_request_bytes())
+    s = read_status(printer, STATUS_TIMEOUT_S)
+    if s is None:
+        raise LabelError("the printer does not answer the status request")
+    return s
+
+
+def wait_printed(printer):
+    deadline = time.monotonic() + PRINT_TIMEOUT_S
+    while True:
+        s = read_status(printer, max(0.1, deadline - time.monotonic()))
+        if s is None:
+            raise LabelError("no 'printing completed' from the printer in %d s" % PRINT_TIMEOUT_S)
+        if s["type"] == STATUS_COMPLETED:
+            return
+        if s["type"] == STATUS_ERROR or s["errors"]:
+            raise LabelError("the printer reports: %s" % (", ".join(s["errors"]) or "an error"))
+        if s["type"] == STATUS_NOTIFICATION and s["notification"] == 0x03:
+            say("[!] the printer is cooling down")
+            deadline = time.monotonic() + PRINT_TIMEOUT_S
+
+
+def usage(out):
+    print("usage: yuneta-label-print [--printer <printer>] [--media <media>] <png>\n"
+          "       yuneta-label-print [--printer <printer>] --status\n"
+          "  <printer>: auto, /dev/usb/lpN, /dev/bus/usb/BBB/DDD, file:<path>\n"
+          "  <media>:   %s (only with file:)" % ", ".join(MEDIAS), file=out)
+
+
+def main(argv):
+    spec = "auto"
+    media_name = None
+    want_status = False
+    png = None
+    args = list(argv)
+    while args:
+        a = args.pop(0)
+        if a in ("--printer", "--media"):
+            if not args:
+                usage(sys.stderr)
+                return EXIT_USAGE
+            if a == "--printer":
+                spec = args.pop(0)
+            else:
+                media_name = args.pop(0)
+        elif a == "--status":
+            want_status = True
+        elif a in ("-h", "--help"):
+            usage(sys.stdout)
+            return 0
+        elif a.startswith("-") or png is not None:
+            usage(sys.stderr)
+            return EXIT_USAGE
+        else:
+            png = a
+    if want_status == (png is not None):
+        usage(sys.stderr)
+        return EXIT_USAGE
+    if media_name is not None and media_name not in MEDIAS:
+        say("[-] unknown media '%s': %s" % (media_name, ", ".join(MEDIAS)))
+        return EXIT_USAGE
+
+    sysfs = os.environ.get("YUNETA_LABEL_PRINT_SYSFS", "/sys/bus/usb/devices")
+    try:
+        width = rows = None
+        if png is not None:
+            width, rows = read_png(png)
+            if width > PRINTABLE_DOTS:
+                raise LabelError("the image is %d dots wide; the 62 mm tape prints %d"
+                                 % (width, PRINTABLE_DOTS))
+        printer, talks = open_printer(spec, sysfs)
+        try:
+            if want_status:
+                if not talks:
+                    raise LabelError("a file: printer has no status")
+                print(describe_status(ask_status(printer)))
+                return 0
+            if talks:
+                media = media_of_status(ask_status(printer), len(rows))
+            else:
+                media = MEDIAS[media_name or "continuous-62"]
+                if media[3] and len(rows) > media[3]:
+                    raise LabelError("the image has %d lines and the die-cut label %d"
+                                     % (len(rows), media[3]))
+                printer.write(preamble_bytes())
+            if media_name is not None and talks and media != MEDIAS[media_name]:
+                raise LabelError("--media %s, but the printer has another media" % media_name)
+            printer.write(job_bytes(width, rows, media))
+            if talks:
+                wait_printed(printer)
+        finally:
+            printer.close()
+    except LabelError as e:
+        say("[-] %s" % e)
+        return EXIT_FAILED
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
