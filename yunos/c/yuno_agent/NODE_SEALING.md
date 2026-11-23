@@ -388,6 +388,14 @@ here is a candidate for promotion to Tier 1:
   of the node over the channel to grep it elsewhere. A `search-logs` agent
   command (a pattern, an optional realm/yuno, a cap on the lines answered)
   is the Tier-1 answer.
+- **Reading the log of a service that is not a yuno** (2026-11-23). The
+  Keycloak admin API refused the token of a provisioner client, and Keycloak
+  gave the reason only in its own log. An operator read two logs on the IdP
+  node over ssh: the journal of the Keycloak unit, and the access log of the
+  reverse proxy. `read-file` reads one text file, so it can read the access
+  log. The journal is a binary store that only `journalctl` reads. A
+  `read-journal` agent command (a unit, a time window, a pattern, a cap on
+  the lines answered) is the Tier-1 answer, next to `search-logs`.
 - **Putting a yuno's `data/` (and its queues) in a tmpfs** (2026-10-25). The
   generator fleets of a load test (several `sim_load` yunos on one node)
   cannot run their queues on a node's
