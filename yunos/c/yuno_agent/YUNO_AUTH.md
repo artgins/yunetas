@@ -1777,6 +1777,18 @@ The admin client needs a service account. That service account needs the
 `manage-users` role of the `realm-management` client of the same realm. Without
 this role, Keycloak refuses the call that creates the user.
 
+The tokens of the admin client also need the admin API of the realm in their
+audience, that is `<kc_base_url>/admin/realms/<realm>` in the claim `aud`. On
+Keycloak 26.8.2 the client scope `kc-admin-api` adds it. Give that scope to the
+admin client as a default scope, because a `client_credentials` token carries
+only the default scopes. Without it, the admin API answers 401 to every call
+and Keycloak writes nothing in its log. The command then answers
+`kc_token_refused`, as for a wrong secret.
+
+NOTE: Do not use token introspection to find this cause. Keycloak 26.8 answers
+`active: false` when the client that asks is not in the audience of the token,
+also for a good token. Decode the payload of the token and read `aud` instead.
+
 CAUTION: Give this client only to a consumer that you trust with the realm. The
 `manage-users` role is realm-wide. The service account can create, change and
 delete every user of the realm, and not the users of one application only. In
@@ -1861,7 +1873,7 @@ with permission `*` on service `*` passes all three.
 | `nothing_to_update`   | `update-idp-user` was called with no field to change                               |
 | `unknown_role`        | The `role` of `register-idp-user` is not in `treedb_authzs`                        |
 | `kc_unavailable`      | No configuration, or Keycloak is unreachable, or Keycloak answered 5xx             |
-| `kc_token_refused`    | Keycloak refused the client credentials (401 or 403): wrong secret, or no `manage-users` role |
+| `kc_token_refused`    | Keycloak refused the client credentials (401 or 403): wrong secret, no `manage-users` role, or no admin API in the token audience (`kc-admin-api`) |
 | `user_not_found`      | Keycloak answered 404: no account with that `user_id`                              |
 | `user_already_exists` | Keycloak answered 409                                                              |
 | `kc_validation_error` | Keycloak refused the data (4xx). The comment carries the Keycloak `errorMessage`   |
