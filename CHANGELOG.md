@@ -20,11 +20,16 @@
 
 ### Changed
 
-- **`yunos/js`: `gui_agent` 1.4.9 and `gui_treedb` 1.3.9**, on gobj-ui
-  `^7.31.8`. gui_treedb 1.3.9 is the first version on the site with the fix of
-  1.3.8. It went out after every backend that it talks to ran SDK 7.32.0. The
-  `gui/` of the project templates is on gobj-ui `^7.31.8`, gobj-js `^7.31.0`,
-  i18next `^27.2.3` and maplibre-gl `^6.19.0`.
+- **gobj-ui 7.32.0: the treedb topics view (`C_YUI_TREEDB_TOPICS`) shows the
+  topics in alphabetical order**: the cards, the tabs and the site map. The
+  system topics (`__*__`) come first. Up to 7.31.8 it used the order of the
+  `descs` answer, which changes from one load to the next.
+- **`yunos/js`: `gui_agent` 1.4.10 and `gui_treedb` 1.3.10**, on gobj-ui
+  `^7.32.0`. The Topics workspace of gui_treedb shows every topic, the system
+  topics too. gui_treedb 1.3.9 was the first version on the site with the fix
+  of 1.3.8, and it went out after every backend that it talks to ran SDK
+  7.32.0. The `gui/` of the project templates is on gobj-ui `^7.32.0`, gobj-js
+  `^7.31.0`, i18next `^27.2.3` and maplibre-gl `^6.19.0`.
 
 ### Fixed
 
