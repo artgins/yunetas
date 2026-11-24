@@ -1780,10 +1780,12 @@ this role, Keycloak refuses the call that creates the user.
 The tokens of the admin client also need the admin API of the realm in their
 audience, that is `<kc_base_url>/admin/realms/<realm>` in the claim `aud`. On
 Keycloak 26.8.2 the client scope `kc-admin-api` adds it. Give that scope to the
-admin client as a default scope, because a `client_credentials` token carries
-only the default scopes. Without it, the admin API answers 401 to every call
-and Keycloak writes nothing in its log. The command then answers
-`kc_token_refused`, as for a wrong secret.
+admin client as a default scope. `C_IDP_KEYCLOAK` asks for its token with no
+`scope` parameter, so the token carries only the default scopes of the client.
+Without the scope, the admin API answers 401 to every call and Keycloak writes
+nothing in its log. The command then answers `kc_token_refused`, as for a wrong
+secret. The `kcadm.sh` command that adds the scope is in the page of
+[`C_IDP_KEYCLOAK`](../../../docs/doc.yuneta.io/api/gclass/auth.md).
 
 NOTE: Do not use token introspection to find this cause. Keycloak 26.8 answers
 `active: false` when the client that asks is not in the audience of the token,

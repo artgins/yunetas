@@ -393,7 +393,9 @@ here is a candidate for promotion to Tier 1:
   gave the reason only in its own log. An operator read two logs on the IdP
   node over ssh: the journal of the Keycloak unit, and the access log of the
   reverse proxy. `read-file` reads one text file, so it can read the access
-  log. The journal is a binary store that only `journalctl` reads. A
+  log, with two limits: the file must be under `/yuneta` (the logs of the
+  nginx and openresty of the package are), and it must fit in one memory
+  block of the agent (a log that logrotate rotates daily does). The journal is a binary store that only `journalctl` reads. A
   `read-journal` agent command (a unit, a time window, a pattern, a cap on
   the lines answered) is the Tier-1 answer, next to `search-logs`.
 - **Putting a yuno's `data/` (and its queues) in a tmpfs** (2026-10-25). The

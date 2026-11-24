@@ -33,8 +33,10 @@ Severity in parentheses where one was assigned.
   wrong tcp state"* and the warning *"tcp data sent while the connection
   closes, dropped"*. About 0.5 s later a new connection carries the request,
   so nothing is lost, but every such pair is an error in the logcenter. Seen
-  2026-11-23 in yunetadeploy, against both artgins IdPs. The same class of
-  defect was fixed for `emailsender` in 7.25.21.
+  2026-11-23 in the accounts view of an application, against both artgins
+  IdPs. The same class of defect was fixed for `emailsender` in 7.25.21: the
+  connect is posted to the gobj itself (`gobj_post_event`) and runs after the
+  close ends.
 - **`send-idp-user-actions` answers `kc_unavailable` when the email fails.**
   Keycloak answers 500 to `execute-actions-email` when its SMTP server
   refuses the message, and every 5xx maps to `kc_unavailable` ("Keycloak is
@@ -397,7 +399,8 @@ application's gate (one application).
   because it sends the file in base64 and these commands want the secret
   as it is. Proposed: `ycommand -c -` reads the command from stdin, or a
   `^^raw(file)` substitution sends the content of the file as it is. Found
-  2026-11-23 by a security review of the provisioner script of yunetadeploy.
+  2026-11-23 by a security review of the provisioner script of an
+  application.
 - **`C_PROT_HTTP_CL` pairs each answer with its request.** Today nothing pairs
   them: a keep-alive connection answers in order, and `C_TASK` takes the first
   `EV_ON_MESSAGE` that comes. Two cases in 7.31.x broke that order (a
