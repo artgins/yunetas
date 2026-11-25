@@ -326,6 +326,19 @@ PRIVATE int ac_test_run(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_set_bottom_gobj(channel, 0);
     gobj_send_event(channel, EV_ON_CLOSE, 0, gobj);
 
+    /*
+     *  Each open of a channel is a connection of its own: the channels of a
+     *  gate are a pool, and an answer that comes later is for the
+     *  connection that asked (C_IDP_KEYCLOAK)
+     */
+    json_int_t first = gobj_read_integer_attr(channel, "connection");
+    gobj_send_event(channel, EV_ON_OPEN, 0, gobj);
+    json_int_t second = gobj_read_integer_attr(channel, "connection");
+    gobj_send_event(channel, EV_ON_CLOSE, 0, gobj);
+    if(first <= 0 || second <= first) {
+        fail(gobj, "each open of a channel gives it a new connection", "");
+    }
+
     for(int i=0; i<N_DROPS; i++) {
         gobj_send_event(priv->iogate, EV_DROP,
             json_pack("{s:{s:s}}", "__temp__", "channel", "nobody"), gobj);

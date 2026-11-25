@@ -568,6 +568,20 @@ ends in `kc_unavailable` too, with a WARNING, not in a queue held for ever. A
 token longer than the 8191 bytes the gclass keeps is `kc_unavailable` with a
 WARNING, not a token cut. Tests: `c_task_authenticate/test18_idp_keycloak`.
 
+**The answer goes to the connection that asked, or to nobody** (7.32.3+).
+Each command answers later, to the channel named in the iev stack of its
+request. The channels of a gate are a pool. A client that leaves before the
+answer, for example a page that reloads, leaves its channel closed, and the
+next client that comes takes the channel and its name. So the request keeps
+the number of the connection that the channel held (the `connection`
+attribute of `C_CHANNEL`). The answer is dropped when the channel is closed
+or holds another connection, with the WARNING *"Requester is gone, answer
+dropped"* and the reason in `detail`. Up to 7.32.2 the answer went to the
+channel by its name: to a closed channel, with the ERROR *"Event NOT
+DEFINED in state"*, or to the client that took the channel after, with the
+accounts of the IdP. Tests: `c_task_authenticate/test18_idp_keycloak`,
+steps 15 and 16.
+
 | Property | Value |
 |----------|-------|
 | **Service** | `idp` |

@@ -31,6 +31,19 @@
  *               whose "expires_in" is negative, one too big for a date, and
  *               one of 0: they live 60 seconds too, so the next command asks
  *               for none.
+ *          15. the client leaves before its answer: the channel is closed
+ *               when the answer comes, and the answer is dropped with a
+ *               WARNING (it used to be sent to the closed channel);
+ *          16. another client takes the channel before the answer (the
+ *               channels of a gate are a pool): the answer of the first is
+ *               dropped with a WARNING (it used to go to the second), and
+ *               the second gets its own.
+ *
+ *          The answer of a request that must be dropped is never awaited:
+ *          C_IDP_KEYCLOAK serves one request at a time, so the answer of
+ *          the request queued after it (marked "sync") says that it is
+ *          over. Each request carries its mark in its iev stack, and the
+ *          answer brings it back: an answer marked "gone" is the bug.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -47,6 +60,12 @@
 #define TEST_NAME       "test18_idp_keycloak"
 #define SEARCH_LEN      600
 #define CHANNEL_NAME    "channel"
+#define CHANNEL2_NAME   "channel2"
+
+/*  What happens to the channel of the request before its answer  */
+#define GONE_NONE       0
+#define GONE_CLOSED     1   /* the client leaves: the channel is closed */
+#define GONE_TAKEN      2   /* another client takes the channel */
 
 /***************************************************************************
  *              Structures
@@ -62,6 +81,7 @@ typedef struct {
     int         admin_seen;         /* /admin/ requests that must arrive */
     const char *token_body;         /* json of the /token answer, NULL: one that lives 1 s */
     BOOL        forget_token;       /* set-kc-config before the command */
+    int         gone;               /* GONE_*: the answer of the command must be dropped */
 } step_t;
 
 /***************************************************************************
@@ -70,31 +90,34 @@ typedef struct {
 #define SHORT_TOKEN "{\"access_token\": \"AT\", \"expires_in\": 1}"
 PRIVATE const step_t steps[] = {
     /* 1 */
-    {"get-idp-user", 8192, 0, 0, -1, "kc_unavailable", 1, 0, "{}", FALSE},
+    {"get-idp-user", 8192, 0, 0, -1, "kc_unavailable", 1, 0, "{}", FALSE, GONE_NONE},
     /* 2 */
-    {"get-idp-user", 0, 1, 0, 0, NULL, 2, 1, NULL, FALSE},
+    {"get-idp-user", 0, 1, 0, 0, NULL, 2, 1, NULL, FALSE, GONE_NONE},
     /* 3 */
-    {"get-idp-user", 0, 9, 0, -1, "kc_unavailable", 3, 0, NULL, FALSE},
+    {"get-idp-user", 0, 9, 0, -1, "kc_unavailable", 3, 0, NULL, FALSE, GONE_NONE},
     /* 4 */
-    {"get-idp-user", 0, 0, 1, 0, NULL, 1, 2, NULL, FALSE},
+    {"get-idp-user", 0, 0, 1, 0, NULL, 1, 2, NULL, FALSE, GONE_NONE},
     /* 5 */
-    {"get-idp-user", 0, 0, 9, -1, "kc_unavailable", 1, 3, NULL, FALSE},
+    {"get-idp-user", 0, 0, 9, -1, "kc_unavailable", 1, 3, NULL, FALSE, GONE_NONE},
     /* 6 */
-    {"delete-idp-user", 0, 0, 1, -1, "kc_unavailable", 1, 1, NULL, FALSE},
+    {"delete-idp-user", 0, 0, 1, -1, "kc_unavailable", 1, 1, NULL, FALSE, GONE_NONE},
     /* 7 */
-    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": \"1\"}", FALSE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": \"1\"}", FALSE, GONE_NONE},
     /* 8 */
-    {"list-idp-users", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
+    {"list-idp-users", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE, GONE_NONE},
     /* 9-10 */
-    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": -5}", TRUE},
-    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": -5}", TRUE, GONE_NONE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE, GONE_NONE},
     /* 11-12 */
     {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1,
-        "{\"access_token\": \"AT\", \"expires_in\": 9223372036854775807}", TRUE},
-    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
+        "{\"access_token\": \"AT\", \"expires_in\": 9223372036854775807}", TRUE, GONE_NONE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE, GONE_NONE},
     /* 13-14 */
-    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": 0}", TRUE},
-    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 1, 1, "{\"access_token\": \"AT\", \"expires_in\": 0}", TRUE, GONE_NONE},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 1, NULL, FALSE, GONE_NONE},
+    /* 15-16: two GETs each, the one dropped and the "sync" one  */
+    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 2, NULL, FALSE, GONE_CLOSED},
+    {"get-idp-user", 0, 0, 0, 0, NULL, 0, 2, NULL, FALSE, GONE_TAKEN},
 };
 #define NSTEPS ((int)(sizeof(steps)/sizeof(steps[0])))
 
@@ -125,6 +148,8 @@ typedef struct _PRIVATE_DATA {
     hgobj   timer;
     hgobj   gobj_idp;
     hgobj   gobj_mock;
+    hgobj   gobj_channel;   /* the channel of the requests */
+    hgobj   gobj_channel2;  /* another one, for the "sync" request of GONE_CLOSED */
     BOOL    dying;          /* TRUE once a death-timer is armed */
     int     step;           /* step whose answer is awaited; -1 before the first */
 } PRIVATE_DATA;
@@ -151,7 +176,8 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);  // C_TIMER counts in seconds
-    gobj_create_pure_child(CHANNEL_NAME, C_IDP_CHANNEL, 0, gobj);
+    priv->gobj_channel = gobj_create_pure_child(CHANNEL_NAME, C_IDP_CHANNEL, 0, gobj);
+    priv->gobj_channel2 = gobj_create_pure_child(CHANNEL2_NAME, C_IDP_CHANNEL, 0, gobj);
     priv->step = -1;
 }
 
@@ -211,9 +237,10 @@ PRIVATE int mt_pause(hgobj gobj)
 
 /***************************************************************************
  *  The kw of a command, with the iev stack of a request that came through
- *  the channel of this driver
+ *  `channel`, a child of this driver. `mark` goes in the stack, and comes
+ *  back in the answer.
  ***************************************************************************/
-PRIVATE json_t *build_command_kw(hgobj gobj)
+PRIVATE json_t *build_command_kw(hgobj gobj, const char *channel, const char *mark)
 {
     json_t *kw = json_pack("{s:s}", "user_id", "abc");
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -224,9 +251,10 @@ PRIVATE json_t *build_command_kw(hgobj gobj)
         json_object_set_new(kw, "search", json_string(search));
     }
     msg_iev_push_stack(gobj, kw, IEVENT_STACK_ID, json_pack(
-        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+        "test_request",     mark,
         "input_service",    gobj_name(gobj),
-        "input_channel",    CHANNEL_NAME,
+        "input_channel",    channel,
         "src_yuno",         "",
         "src_role",         "test",
         "src_service",      gobj_name(gobj),
@@ -246,7 +274,7 @@ PRIVATE void check_dot_user_id(hgobj gobj, const char *user_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *kw = build_command_kw(gobj);
+    json_t *kw = build_command_kw(gobj, CHANNEL_NAME, "step");
     json_object_set_new(kw, "user_id", json_string(user_id));
     json_t *jn_resp = gobj_command(priv->gobj_idp, "delete-idp-user", kw, gobj);
     const char *error_code = json_string_value(
@@ -261,6 +289,54 @@ PRIVATE void check_dot_user_id(hgobj gobj, const char *user_id)
         );
     }
     JSON_DECREF(jn_resp)
+}
+
+/***************************************************************************
+ *  A command through `channel`, marked `mark`: it must answer later
+ ***************************************************************************/
+PRIVATE void post_command(hgobj gobj, const char *channel, const char *mark)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_resp = gobj_command(priv->gobj_idp, steps[priv->step].command,
+        build_command_kw(gobj, channel, mark), gobj);
+    if(jn_resp) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_APP,
+            "msg",      "%s", TEST_NAME ": a command answered at once",
+            "step",     "%d", priv->step + 1,
+            "mark",     "%s", mark,
+            NULL
+        );
+        JSON_DECREF(jn_resp)
+    }
+}
+
+/***************************************************************************
+ *  A step whose request loses its client before the answer: the request
+ *  marked "gone", what happens to its channel, and the "sync" request
+ *  whose answer ends the step.
+ ***************************************************************************/
+PRIVATE void post_gone_step(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj channel = priv->gobj_channel;
+    json_int_t connection = gobj_read_integer_attr(channel, "connection");
+
+    gobj_write_bool_attr(channel, "opened", TRUE);
+    post_command(gobj, CHANNEL_NAME, "gone");
+
+    if(steps[priv->step].gone == GONE_CLOSED) {
+        /*  The client leaves, and nobody takes the channel  */
+        gobj_write_bool_attr(channel, "opened", FALSE);
+        post_command(gobj, CHANNEL2_NAME, "sync");
+    } else {
+        /*  The client leaves, and another one takes the channel: it is
+         *  open again, with the next connection, and asks too  */
+        gobj_write_integer_attr(channel, "connection", connection + 1);
+        post_command(gobj, CHANNEL_NAME, "sync");
+    }
 }
 
 /***************************************************************************
@@ -294,7 +370,13 @@ PRIVATE void post_step(hgobj gobj)
         JSON_DECREF(jn_set)
     }
 
-    json_t *jn_resp = gobj_command(priv->gobj_idp, st->command, build_command_kw(gobj), gobj);
+    if(st->gone != GONE_NONE) {
+        post_gone_step(gobj);
+        return;
+    }
+
+    json_t *jn_resp = gobj_command(priv->gobj_idp, st->command,
+        build_command_kw(gobj, CHANNEL_NAME, "step"), gobj);
     if(jn_resp) {
         char *dump = json2uglystr(jn_resp);
         gobj_log_error(gobj, 0,
@@ -402,6 +484,23 @@ PRIVATE int ac_idp_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    json_t *jn_stack = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, FALSE);
+    const char *mark = json_string_value(json_object_get(jn_stack, "test_request"));
+    if(!mark || strcmp(mark, "gone") == 0) {
+        /*  The answer of a client that left: it must not come  */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP,
+            "msg",          "%s", TEST_NAME ": the answer of a client that left was sent",
+            "step",         "%d", priv->step + 1,
+            "channel",      "%s", gobj_name(src),
+            "mark",         "%s", mark? mark : "",
+            NULL
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+
     check_step(gobj, kw);
 
     priv->step++;
@@ -478,7 +577,10 @@ PUBLIC int register_c_idp_driver(void)
         {EV_SEND_IEV,       0},
         {0, 0}
     };
+    /*  The two attributes of a C_CHANNEL that C_IDP_KEYCLOAK reads  */
     PRIVATE sdata_desc_t attrs_table_channel[] = {
+        SDATA (DTP_BOOLEAN, "opened",       SDF_RD, "1",    "the channel is open"),
+        SDATA (DTP_INTEGER, "connection",   SDF_RD, "1",    "the connection it holds"),
         SDATA_END()
     };
     if(!gclass_create(C_IDP_CHANNEL, event_types_channel, states_channel,

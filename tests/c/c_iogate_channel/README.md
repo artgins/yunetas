@@ -42,7 +42,10 @@ sends the gate its messages as a channel does.
    1001st, `repeated` 999). The gate's stop ends that run, with an INFO of
    its own, *"Drops of a channel not found ended"*: 1201, 200. Up to 7.30.26
    both said every one, the send to all with a stack, and nothing said the
-   end of a run.
+   end of a run. The channel opens a second time: each open gives it a new
+   `connection` number, greater than the one before (7.32.3+). The channels
+   of a gate are a pool, and an answer that comes later is for the
+   connection that asked (`C_IDP_KEYCLOAK`).
 5. `stats` of the gate: `txMsgsNoChannel` 4001 (2500 + 1 + 1500, because a drop is
    not a message), `txMsgs` 3. After `stats __reset__`, `txMsgsNoChannel` 0.
 
@@ -54,6 +57,7 @@ Mutants killed:
 - A drop counted in the run of the sends.
 - `txMsgsNoChannel` not reset by `__reset__`.
 - A send to all that finds a channel and does not end the run.
+- A channel that does not give a new `connection` number at each open.
 
 ```
 ERROR: {"msg": "__temp__ of a message is not a dict, replaced", "event": "EV_ON_MESSAGE", ...}

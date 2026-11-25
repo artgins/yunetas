@@ -36,6 +36,18 @@
  *          bounded: a caller beyond IDP_MAX_PENDING is refused, it is
  *          never made to wait without an answer.
  *
+ *          THE ANSWER GOES TO THE CONNECTION THAT ASKED, OR TO NOBODY.
+ *          It is sent later, to the channel named in the iev stack of the
+ *          request. The channels of a gate are a pool: a client that
+ *          leaves before the answer (a page reloaded) leaves its channel
+ *          closed, and the next client to come takes it, name included.
+ *          So the request keeps the number of the connection the channel
+ *          held (C_CHANNEL's "connection"), and the answer is dropped,
+ *          said with a WARNING, when the channel is closed or holds another
+ *          connection. Up to 7.32.2 it went to the channel by name: to a
+ *          closed one ("Event NOT DEFINED in state"), or to the client
+ *          that took it after, with the accounts of the IdP.
+ *
  *          The deploy-specific values are configured at run time with
  *          set-kc-config (persistent attrs), never in code or in
  *          committed configuration.
@@ -104,6 +116,7 @@ typedef struct _IDP_PENDING {
     char    user_id[128];       /* IdP user id: given by the caller, or read from a 201 */
     char    req_service[80];    /* input gate service of the requester */
     char    req_channel[80];    /* requester channel name */
+    json_int_t req_connection;  /* its "connection" when it asked, 0: it had none */
     json_t *kw_request;         /* original request kw (incref), for answer metadata */
     json_t *result_data;        /* payload of the answer (owned), for the read operations */
     BOOL    authz_ok;           /* every plane recorded the created user */
@@ -118,6 +131,8 @@ PRIVATE BOOL ensure_kc_client(hgobj gobj);
 PRIVATE void process_next_kc(hgobj gobj);
 PRIVATE void kc_answer(hgobj gobj, IDP_PENDING *p, int result,
     json_t *jn_comment, json_t *jn_data, const char *warning);
+PRIVATE hgobj find_requester_channel(IDP_PENDING *p);
+PRIVATE const char *why_requester_gone(hgobj requester, IDP_PENDING *p);
 PRIVATE json_t *queue_request(hgobj gobj, const char *op, const char *user_id,
     json_t *params, json_t *kw, hgobj src);
 PRIVATE void free_pending(IDP_PENDING *p);
@@ -925,6 +940,10 @@ PRIVATE json_t *queue_request(hgobj gobj, const char *op, const char *user_id,
         iev_stack? kw_get_str(gobj, iev_stack, "input_service", "", 0) : "");
     snprintf(p->req_channel, sizeof(p->req_channel), "%s",
         iev_stack? kw_get_str(gobj, iev_stack, "input_channel", "", 0) : "");
+    hgobj requester = find_requester_channel(p);
+    if(requester && gobj_has_attr(requester, "connection")) {
+        p->req_connection = gobj_read_integer_attr(requester, "connection");
+    }
 
     p->kw_request = json_incref(kw);
     dl_add(&priv->dl_pending, p);
@@ -1003,9 +1022,45 @@ PRIVATE json_t *kc_config_snapshot(hgobj gobj)
 }
 
 /***************************************************************************
- *  Deliver the deferred answer of a command.  The requester channel is
- *  re-resolved by name so a client that disconnected mid-flight is never
- *  dereferenced (mirrors the agent's async answers).
+ *  The channel a request came through, found again by its name under the
+ *  service of its iev stack (never kept as a pointer: it can be gone).
+ *  NULL when there is none of that name.
+ ***************************************************************************/
+PRIVATE hgobj find_requester_channel(IDP_PENDING *p)
+{
+    if(empty_string(p->req_service) || empty_string(p->req_channel)) {
+        return NULL;
+    }
+    hgobj gate = gobj_find_service(p->req_service, FALSE);
+    return gate? gobj_child_by_name(gate, p->req_channel) : NULL;
+}
+
+/***************************************************************************
+ *  Why the answer of `p` cannot go to `requester`, or NULL when it can.
+ *
+ *  A C_CHANNEL says whether it is open ("opened") and which connection it
+ *  holds ("connection"). A requester without those attributes is taken
+ *  as it is: what kc_answer() did before.
+ ***************************************************************************/
+PRIVATE const char *why_requester_gone(hgobj requester, IDP_PENDING *p)
+{
+    if(!requester) {
+        return gobj_find_service(p->req_service, FALSE)?
+            "no channel of that name in its service" : "no service of that name";
+    }
+    if(gobj_has_attr(requester, "opened") && !gobj_read_bool_attr(requester, "opened")) {
+        return "its channel is closed";
+    }
+    if(p->req_connection && gobj_has_attr(requester, "connection") &&
+            gobj_read_integer_attr(requester, "connection") != p->req_connection) {
+        return "its channel holds another connection now";
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Deliver the deferred answer of a command, to the connection that asked
+ *  it (see THE ANSWER GOES TO THE CONNECTION THAT ASKED in the header).
  ***************************************************************************/
 PRIVATE void kc_answer(hgobj gobj, IDP_PENDING *p, int result,
     json_t *jn_comment, json_t *jn_data, const char *warning)
@@ -1024,9 +1079,9 @@ PRIVATE void kc_answer(hgobj gobj, IDP_PENDING *p, int result,
         json_object_set_new(jn_data, "warning", json_string(warning));
     }
 
-    hgobj gate = gobj_find_service(p->req_service, FALSE);
-    hgobj requester = gate? gobj_child_by_name(gate, p->req_channel) : NULL;
-    if(!requester) {
+    hgobj requester = find_requester_channel(p);
+    const char *gone = why_requester_gone(requester, p);
+    if(gone) {
         /*  The work was done and the caller will never hear about it, so
          *  say so: silence here is indistinguishable from a request that
          *  never arrived, and that ambiguity has already cost a debugging
@@ -1036,10 +1091,11 @@ PRIVATE void kc_answer(hgobj gobj, IDP_PENDING *p, int result,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SERVICE,
             "msg",          "%s", "Requester is gone, answer dropped",
+            "detail",       "%s", gone,
             "op",           "%s", p->op,
             "req_service",  "%s", p->req_service,
             "req_channel",  "%s", p->req_channel,
-            "gate_found",   "%d", gate? 1 : 0,
+            "req_connection", "%" JSON_INTEGER_FORMAT, p->req_connection,
             NULL
         );
         JSON_DECREF(jn_comment)

@@ -38,6 +38,7 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             0,          "Channel opened (opened is higher level than connected"),
+SDATA (DTP_INTEGER,     "connection",       SDF_RD,             "0",        "Number of the connection the channel holds now: a new one at each open, never repeated in the yuno. 0 before the first open. The channels of a gate are a pool, so a name names whoever holds the channel now: an answer that comes later is for the connection that asked, if it is still this number"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
@@ -74,6 +75,12 @@ typedef struct _PRIVATE_DATA {
     uint64_t last_ms;
 
 } PRIVATE_DATA;
+
+/*
+ *  The number of the last connection given to a channel, in the whole
+ *  yuno (attribute "connection").
+ */
+PRIVATE json_int_t last_connection = 0;
 
 
 
@@ -302,6 +309,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
     gobj_write_bool_attr(gobj, "opened", TRUE);
+    gobj_write_integer_attr(gobj, "connection", ++last_connection);
 
     return gobj_publish_event(gobj, event, kw);  // reuse kw
 }

@@ -5,7 +5,8 @@
  *          goes again when a connection is cut, what does not, and what it
  *          takes from the answers. The driver (c_idp_driver.c) says what
  *          each step must get. The logs, in order: a WARNING for the token
- *          too long, and for each request given up. No ERROR.
+ *          too long, for each request given up, and for each answer whose
+ *          client left before it (steps 15 and 16). No ERROR.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -186,6 +187,11 @@ static int register_yuno_and_more(void)
     /*  9, 11, 13: the set-kc-config of the test, with no store  */
     for(int i = 0; i < 3; i++) {
         EXPECT_MSG("No path for the persistent attrs file: not saved");
+    }
+    /*  15, 16: the answer of a client that left: its channel closed, its
+     *  channel taken by another connection  */
+    for(int i = 0; i < 2; i++) {
+        EXPECT_MSG("Requester is gone, answer dropped");
     }
     set_expected_results(
         APP_NAME,

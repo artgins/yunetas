@@ -24,6 +24,7 @@ single open/closed abstraction with message-rate statistics.
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `opened` | `bool` | Channel state (read-only). |
+| `connection` | `integer` | The number of the connection that the channel holds now (read-only, 7.32.3+). Each open gives a new number, never repeated in the yuno. `0`: the channel never opened. |
 | `subscriber` | `pointer` | Gobj receiving output events. |
 | `txMsgsec` / `rxMsgsec` | `integer` | Current message rate per second (stats). |
 | `maxtxMsgsec` / `maxrxMsgsec` | `integer` | Peak message rates (stats). |
@@ -56,6 +57,32 @@ control center keeps (its `timeout` attr).
 
 A `C_CHANNEL` read by its parent (a gate) answers its BARE counters, which
 the gate merges into its own stats.
+
+### An answer that comes later (`connection`)
+
+The channels of a gate are a pool. When a client leaves, its channel
+closes, and the next client that connects takes it, name included. So the
+name of a channel says who holds it NOW, not who asked. A gclass that
+answers later keeps the `connection` of the channel when the request comes
+in. Before it answers, it makes sure that the channel is open and holds the
+same connection. Else the client that asked is gone, and the answer goes to
+nobody. `C_IDP_KEYCLOAK` does this (7.32.3+):
+
+```c
+/*  When the request comes in  */
+json_int_t asked = gobj_read_integer_attr(channel, "connection");
+
+/*  When the answer is ready: the same connection, still open  */
+if(gobj_read_bool_attr(channel, "opened") &&
+        gobj_read_integer_attr(channel, "connection") == asked) {
+    gobj_send_event(channel, EV_SEND_IEV, iev, gobj);
+} else {
+    KW_DECREF(iev)      // and say it: the work was done, the answer is lost
+}
+```
+
+The agent (`__session__`) and the control center (`cc_connection`) keep a
+number of their own in the user data of their channels, for the same reason.
 
 ---
 

@@ -1,5 +1,51 @@
 # **Changelog**
 
+## v7.32.3 (2026-11-25)
+
+A fix in the kernel (`root-linux`): the answer of an account command of
+`C_IDP_KEYCLOAK` went to whoever held the channel of the request when the
+answer came, and to a closed channel. `C_CHANNEL` gives a number to each
+connection that it holds, and the answer goes to the connection that asked,
+or to nobody.
+
+- **Security, first:** when a page reloaded while a `list-idp-users` (or
+  another account command) was in flight, its answer, the accounts of the
+  IdP, went to the next client of the yuno that took the same channel. Deploy the yunos that run `C_IDP_KEYCLOAK`: `deploycenter`
+  (yunetadeploy), `db_history_wz` (wattyzer), `db_history_co` and
+  `db_history_ce` (yunovatios).
+- **Deploy notes:** no other yuno uses the fix. The other yunos take the new
+  attribute of `C_CHANNEL` with their next build.
+
+### Fixed
+
+- **`C_IDP_KEYCLOAK`: the answer goes to the connection that asked, or to
+  nobody.** A command of the IdP answers later, to the channel named in the
+  iev stack of its request, found again by its name. The channels of a gate
+  are a pool: a client that leaves before its answer leaves the channel
+  closed, and the next client that comes takes it, name included. Up to
+  7.32.2 the answer went to the channel by its name. A closed channel logged
+  the ERROR *"Event NOT DEFINED in state"* (an `EV_SEND_IEV` in
+  `ST_CLOSED`), and a channel taken by another client gave that client the
+  answer. Now the request keeps the `connection` number of its channel. The
+  answer is dropped when the channel is closed or holds another connection,
+  with the WARNING *"Requester is gone, answer dropped"* and the reason in
+  `detail`. Found by the session that moves the yunetadeploy GUI to the table
+  rule: a reload of the page during `list-idp-users`. Test:
+  `c_task_authenticate/test18_idp_keycloak`, steps 15 (the channel closes)
+  and 16 (another connection takes it). The test fails without each of the
+  two checks.
+
+### Added
+
+- **`C_CHANNEL`: the attribute `connection`** (read-only), the number of the
+  connection that the channel holds now. Each open gives a new number, never
+  repeated in the yuno, and `0` means that the channel never opened. A
+  gclass that answers later compares it with the number that the request
+  kept (see the docs of `C_CHANNEL`, *An answer that comes later*). The agent
+  (`__session__`) and the control center (`cc_connection`) keep a number of
+  their own in the user data of their channels, for the same reason. Test:
+  `c_iogate_channel`.
+
 ## v7.32.2 (2026-11-25)
 
 Lite release: one packaging change, the short command `ylabel`. No C
