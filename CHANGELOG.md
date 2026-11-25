@@ -1,6 +1,12 @@
 # **Changelog**
 
-## Unreleased
+## v7.32.2 (2026-11-25)
+
+Lite release: one packaging change, the short command `ylabel`. No C
+change. The packaging tests ran on the dev machine. There is no full suite
+and no performance study, because no library changed. Deployed only on
+orangepi-em235, which prints the label of its box, and linked from the tree
+on orangepi-bfm2.
 
 ### Added
 

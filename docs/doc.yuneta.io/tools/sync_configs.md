@@ -36,8 +36,8 @@ A config in the agent is keyed by `(id, version)`:
   `gate_sensor.7201`, …).
 - **`version`** is *not* a parameter: the agent reads it from the `__version__`
   field **inside the file content**. `__description__` is read the same way.
-  (See [`cmd_create_config`](https://github.com/artgins/yunetas/blob/7.32.1/yunos/c/yuno_agent/src/c_agent.c#L4801) / [`cmd_update_config`](https://github.com/artgins/yunetas/blob/7.32.1/yunos/c/yuno_agent/src/c_agent.c#L4977) in
-  [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.32.1/yunos/c/yuno_agent/src/c_agent.c).)
+  (See [`cmd_create_config`](https://github.com/artgins/yunetas/blob/7.32.2/yunos/c/yuno_agent/src/c_agent.c#L4801) / [`cmd_update_config`](https://github.com/artgins/yunetas/blob/7.32.2/yunos/c/yuno_agent/src/c_agent.c#L4977) in
+  [`c_agent.c`](https://github.com/artgins/yunetas/blob/7.32.2/yunos/c/yuno_agent/src/c_agent.c).)
 
 So for every `*.json` in the directory (skipping `_*.json` batch/deploy helpers
 such as `_deploy_*.json` / `_update-configs.json`), the script derives the id
@@ -147,4 +147,4 @@ yunetas sync-configs -n --node prod        # a registered node
   deploy guide (this script is its push engine for configs).
 - [`sync-binaries`](sync_binaries.md) — the binary-side sibling.
 - [Tools](../tools.md) — overview of `tools/` (build infrastructure + agent scripts).
-- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.32.1/tools/README.md).
+- [`tools/README.md`](https://github.com/artgins/yunetas/blob/7.32.2/tools/README.md).
