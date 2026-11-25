@@ -1422,8 +1422,10 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   has a header filter, the footer shows the paginator also when all the rows
   fit in one page, the table holds every row in the browser (local
   pagination), and each toolbar above it is a `yui_toolbar()`: one row that
-  scrolls sideways on a phone, never two. The admin views are the treedb
-  editor of each app, the accounts views, `gui_treedb` and `gui_agent`. The
+  scrolls sideways on a phone, never two. On a phone the paginator itself is
+  one line of icons (`tabulator.css`, gobj-ui 7.32.6). The admin views are
+  the treedb editor of each app, the accounts views, `gui_treedb` and
+  `gui_agent`. The
   one exception is the records of a timeranger2 topic, which page from the
   backend. The rule in full, and the helpers of `yui_table_standard.js`
   (`yui_table_paging`, `yui_table_filters`, `yui_text_filter` for a cell that
@@ -1468,7 +1470,12 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   undefined `yi-*` class renders as a solid black square. Grep the real set
   before using an icon
   (`grep -oE '^\.yi-[a-z0-9-]+::before' src/yui_icons.css`); a missing glyph
-  is added as a deliberate mask rule, never referenced on hope.
+  is added as a deliberate mask rule, never referenced on hope. **Every icon
+  is 1em TALL** (gobj-ui 7.32.6): a glyph wider than tall goes into the
+  width list of `yui_icons.css` (1.125em for a 576 viewBox, 1.25em for 640),
+  and `yui_icons.test.js` names one that is missing. A glyph of a toolbar
+  goes through `yui_toolbar_icon()`, the one size of every toolbar (1.25rem),
+  in buttons of one height (no `is-small` beside a normal button).
 - **One icon shape per meaning — never reuse a glyph because it is there.**
   The shape says what the control does:
 
