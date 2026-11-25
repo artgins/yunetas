@@ -1417,6 +1417,19 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   compared per language (7.26.26+). It also scans the gobj-ui modules the app mounts, because **the
   library translates through the APP's i18next**. Details: gobj-ui's README
   ("Conventions → i18n").
+- **A table of an admin view: a filter on every column, the paginator
+  always, the toolbar in one row** (rule of 2026-11-25). Each column of data
+  has a header filter, the footer shows the paginator also when all the rows
+  fit in one page, the table holds every row in the browser (local
+  pagination), and each toolbar above it is a `yui_toolbar()`: one row that
+  scrolls sideways on a phone, never two. The admin views are the treedb
+  editor of each app, the accounts views, `gui_treedb` and `gui_agent`. The
+  one exception is the records of a timeranger2 topic, which page from the
+  backend. The rule in full, and the helpers of `yui_table_standard.js`
+  (`yui_table_paging`, `yui_table_filters`, `yui_text_filter` for a cell that
+  shows something else than its value, `yui_tree_filter` for a `dataTree`,
+  `yui_table_wire`), are in gobj-ui's README ("Conventions" -> *A table: a
+  filter on every column, the paginator always, the toolbar in one row*).
 - **Indentation is always FOUR spaces.** Anywhere structure is shown as
   indentation — a rendered tree (site map, JSON viewer), a `<pre>` dump, any
   `JSON.stringify` that reaches the screen — one level is four characters:
