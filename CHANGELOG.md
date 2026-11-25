@@ -15,6 +15,23 @@ or to nobody.
   `db_history_ce` (yunovatios).
 - **Deploy notes:** no other yuno uses the fix. The other yunos take the new
   attribute of `C_CHANNEL` with their next build.
+- **Performance**, against 7.32.0 (the last release with a study): all 69
+  figures inside their noise, no price. `c_channel.c.o` and `c_idp_keycloak.c.o`
+  are the only objects with other machine code. The two figures that left
+  their noise in the first 10 rounds, both faster (the secrets mask, on code
+  that did not change), are inside it measured again. The three appends of
+  the `rkey` phase of `perf_timeranger2` have their first A/B, inside their
+  noise
+  ([performance](https://doc.yuneta.io/performance),
+  [raw figures](performance/reports/7.32.3.json)).
+- **Test suite**, on the dev machine only (`ulimit -Sn 1024`): after a clean
+  SDK rebuild, 474 of 474.
+- **External libraries**: every one of `linux-ext-libs` checked against its
+  upstream before the release. nginx 1.31.10 (2026-11-23) is out and is not
+  in this release: its CVE (CVE-2026-132779) needs `ssl_early_data`, and its
+  other fix needs TLS connections to the backends. No configuration of ours
+  uses either, and no yuno links nginx. The others have no newer version
+  (OpenSSL on 3.6).
 
 ### Fixed
 

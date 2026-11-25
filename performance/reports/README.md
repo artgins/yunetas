@@ -49,6 +49,7 @@ its raw figures in `<version>.json`, a section and a column on
 
 | Release | Against | Raw figures |
 |---------|---------|-------------|
+| 7.32.3 | 7.32.0 | [7.32.3.json](7.32.3.json) |
 | 7.31.1 | 7.31.0 | [7.31.1.json](7.31.1.json) |
 | 7.29.3 | 7.29.2 | [7.29.3.json](7.29.3.json) |
 | 7.29.2 | 7.29.0 | [7.29.2.json](7.29.2.json) |
