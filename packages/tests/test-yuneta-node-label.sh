@@ -198,6 +198,31 @@ STUBEOF
     YUNETA_LABEL_PRINT_TOOL="${WORK}/none" PATH="${STUBS}:${PATH}" run_label --print
     check "no yuneta-label-print: exit 1" "$?" "1"
     check "no yuneta-label-print: nothing on stdout" "$(wc -c < "$OUT")" "0"
+
+    # Without YUNETA_LABEL_PRINT_TOOL: the yuneta-label-print beside the
+    # script, as in /usr/libexec/yuneta and in packages/templates of a tree,
+    # also when the script is reached through a symlink
+    BESIDE="${WORK}/beside"
+    mkdir -p "$BESIDE" "${WORK}/links"
+    cp "$LABEL" "${BESIDE}/yuneta-node-label"
+    cp "${STUBS}/label-print" "${BESIDE}/yuneta-label-print"
+    ln -s "${BESIDE}/yuneta-node-label" "${WORK}/links/yuneta-node-label"
+    rm -f "${STUB_LOG}/print.args"
+    (unset YUNETA_LABEL_PRINT_TOOL; PATH="${STUBS}:${PATH}" \
+        "${BESIDE}/yuneta-node-label" --print >"$OUT" 2>"$ERR")
+    check "beside: exit 0" "$?" "0"
+    check "beside: the yuneta-label-print beside it printed" "$(cat "${STUB_LOG}/print.args")" "--printer auto"
+    rm -f "${STUB_LOG}/print.args"
+    (unset YUNETA_LABEL_PRINT_TOOL; PATH="${STUBS}:${PATH}" \
+        "${WORK}/links/yuneta-node-label" --print >"$OUT" 2>"$ERR")
+    check "beside, through a symlink: exit 0" "$?" "0"
+    check "beside, through a symlink: the one beside the target printed" "$(cat "${STUB_LOG}/print.args")" "--printer auto"
+    rm -f "${BESIDE}/yuneta-label-print"
+    (unset YUNETA_LABEL_PRINT_TOOL; PATH="${STUBS}:${PATH}" \
+        "${BESIDE}/yuneta-node-label" --print >"$OUT" 2>"$ERR")
+    check "nothing beside: exit 1" "$?" "1"
+    check "nothing beside: it names where it looked" \
+        "$(grep -c "${BESIDE}/yuneta-label-print not found" "$ERR")" "1"
     unset STUB_LOG
 else
     echo "skip - the print: qrencode is not installed"

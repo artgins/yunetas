@@ -723,6 +723,15 @@ sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER --print
 ssh <box> 'sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER --svg -' > label.svg
 ```
 
+A node that builds from source does not have the package. On such a node,
+run the tool from the tree, in the directory of the checkout. It uses the
+`yuneta-label-print` in its own directory:
+
+```bash
+cd /yuneta/development/yunetas
+sudo packages/templates/yuneta-node-label --title CONTROLLER --print
+```
+
 The SVG needs `qrencode` on the box. `--print` also needs `rsvg-convert`
 and `python3`. The package recommends the three, so `apt` installs them by
 default. Print `label.svg` from a browser when the box has no printer.

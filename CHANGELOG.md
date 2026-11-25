@@ -17,6 +17,10 @@
   label that is too short. `librsvg2-bin` (`librsvg2-tools` in the `.rpm`)
   and `python3` are new `Recommends`. `packages/tests/test-yuneta-label-print.sh`
   compares the bytes with the reference and needs no printer.
+  `yuneta-node-label` uses the `yuneta-label-print` in its own directory. So
+  on a node that builds from source, `sudo packages/templates/yuneta-node-label --print`
+  works from the tree. The first label was printed on a QL-700 on
+  2026-11-25.
 
 ### Changed
 

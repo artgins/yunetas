@@ -101,8 +101,10 @@ changes nothing). To make sure that a node is correct, run it again.
 QR code, the model and the MAC of each wired port, as text or as an SVG (see
 its header). It reads `yuneta-node-uuid show` and refuses a uuid that the
 hardware does not give. The units do not run it. On a node that builds from
-source, run it from the tree. `tests/test-yuneta-node-label.sh` tests it
-against a fake `/sys`.
+source, run it from the tree: `sudo packages/templates/yuneta-node-label`.
+It uses the `yuneta-label-print` in its own directory, so `--print` also
+works from the tree. `tests/test-yuneta-node-label.sh` tests it against a
+fake `/sys`.
 
 `templates/yuneta-label-print` sends a label image (a PNG) to a Brother QL
 label printer, through usbfs and without a driver (see its header).

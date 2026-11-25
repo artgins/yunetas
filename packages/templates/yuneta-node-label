@@ -61,13 +61,18 @@
 #   (librsvg2-bin) and python3; the three are Recommends of the package.
 #   Run it as root: the printer is opened through /dev/bus/usb.
 #
+#   The yuneta-label-print it uses is the one beside this script: the
+#   package installs both in /usr/libexec/yuneta, and a node that builds
+#   from source runs both from packages/templates of its tree, with no
+#   variable to set.
+#
 #   Nothing on the label is a secret: the uuid identifies the box, it does
 #   not authenticate it.
 #
 #   Environment, for tests: YUNETA_NODE_UUID_TOOL (the yuneta-node-uuid to
 #   ask, default /usr/libexec/yuneta/yuneta-node-uuid),
 #   YUNETA_LABEL_PRINT_TOOL (the yuneta-label-print to give the PNG to,
-#   default /usr/libexec/yuneta/yuneta-label-print) and
+#   default the one beside this script) and
 #   YUNETA_NODE_UUID_SYSROOT (a prefix of /sys, which yuneta-node-uuid reads
 #   too).
 #
@@ -77,8 +82,10 @@
 #
 set -u
 
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+
 NODE_UUID_TOOL="${YUNETA_NODE_UUID_TOOL:-/usr/libexec/yuneta/yuneta-node-uuid}"
-LABEL_PRINT_TOOL="${YUNETA_LABEL_PRINT_TOOL:-/usr/libexec/yuneta/yuneta-label-print}"
+LABEL_PRINT_TOOL="${YUNETA_LABEL_PRINT_TOOL:-${SELF_DIR}/yuneta-label-print}"
 SYSROOT="${YUNETA_NODE_UUID_SYSROOT:-}"
 GOOD_STATUS="the stored uuid is the one this hardware gives"
 UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
