@@ -1,5 +1,21 @@
 # **Changelog**
 
+## Unreleased
+
+### Added
+
+- **Packaging: `ylabel`, the short command that prints the label of a
+  box.** `ylabel` prints the label with the title `CONTROLLER`, and
+  `ylabel <title>` with another title. It is in `/yuneta/bin`, on the PATH
+  of the operator, and it runs
+  `sudo /usr/libexec/yuneta/yuneta-node-label --title <title> --print`.
+  The operator does not type `sudo`: root runs only the root-owned tool,
+  never `ylabel`, which the user `yuneta` can change. When
+  `/usr/libexec/yuneta` has no label tool (a node that builds from
+  source), it uses the `yuneta-node-label` in its own directory. On such a
+  node, link it once from the tree. `packages/tests/test-ylabel.sh` tests
+  it with stubs.
+
 ## v7.32.1 (2026-11-25)
 
 Lite release: packaging and the JavaScript layer. No library and no yuno

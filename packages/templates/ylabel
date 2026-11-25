@@ -1,0 +1,85 @@
+#!/bin/sh
+#
+#   ylabel -- print the label of this box on its label printer
+#
+#   Usage:
+#       ylabel              the label, with the title CONTROLLER
+#       ylabel <title>      the label, with another title
+#
+#   The printer is a Brother QL on a USB port of the box, with a 62 mm roll.
+#   ylabel runs, with sudo:
+#
+#       yuneta-node-label --title <title> --print
+#
+#   and that tool says what the label holds and when it refuses one. On an
+#   x86 board, only root can read the hardware identifier (DMI) that the
+#   tool compares with the stored node uuid. That is why ylabel asks sudo.
+#
+#   Run ylabel as the yuneta user, WITHOUT sudo. ylabel is in /yuneta/bin,
+#   which the yuneta user can change. It asks sudo only for the label tool,
+#   which is root's file in /usr/libexec/yuneta, so root never runs a file
+#   that yuneta can change.
+#
+#   The label tool: /usr/libexec/yuneta/yuneta-node-label (the package), or,
+#   when that does not exist, the yuneta-node-label beside this script
+#   (symlinks resolved). On a node that builds from source, link it once:
+#
+#       ln -s /yuneta/development/yunetas/packages/templates/ylabel /yuneta/bin/ylabel
+#
+#   Environment, for tests: YUNETA_NODE_LABEL_TOOL (the label tool, default
+#   /usr/libexec/yuneta/yuneta-node-label) and YUNETA_SUDO (the command
+#   that runs it as root, default sudo; not used when ylabel runs as root).
+#
+#   Exit: that of yuneta-node-label, 1 no label tool, 2 usage.
+#
+#   Copyright (c) 2026, ArtGins.
+#
+set -u
+
+DEFAULT_TITLE="CONTROLLER"
+LIBEXEC_TOOL="${YUNETA_NODE_LABEL_TOOL:-/usr/libexec/yuneta/yuneta-node-label}"
+SUDO="${YUNETA_SUDO:-sudo}"
+
+usage() {
+    echo "usage: ylabel [<title>]     print the label of this box (title: ${DEFAULT_TITLE})"
+}
+
+TITLE="$DEFAULT_TITLE"
+case $# in
+    0)
+        ;;
+    1)
+        case "$1" in
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            -*|"")
+                usage >&2
+                exit 2
+                ;;
+            *)
+                TITLE="$1"
+                ;;
+        esac
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
+
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+if [ -x "$LIBEXEC_TOOL" ]; then
+    TOOL="$LIBEXEC_TOOL"
+elif [ -x "${SELF_DIR}/yuneta-node-label" ]; then
+    TOOL="${SELF_DIR}/yuneta-node-label"
+else
+    echo "[-] no label tool: neither $LIBEXEC_TOOL nor ${SELF_DIR}/yuneta-node-label" >&2
+    exit 1
+fi
+
+if [ "$(id -u)" = "0" ]; then
+    exec "$TOOL" --title "$TITLE" --print
+fi
+exec $SUDO "$TOOL" --title "$TITLE" --print

@@ -156,6 +156,7 @@ rest of Yuneta works.
 | `install-package-status` of `yuneta_agent22` | `sudo -n /usr/libexec/yuneta/install-package journal <lines>` | The answer shows the error of `sudo` in place of the journal. |
 | `upgrade-agent` of `yuneta_agent22` (source nodes only) | `sudo -n systemctl restart yuneta_agent.service` | The new binary is on disk, but the agent does not restart. |
 | `restart-yuneta`, and the restart action of `logcenter` | `sudo -n systemctl restart yuneta_agent.service` | The script refuses and says so. |
+| `ylabel`, the label of the box, run by hand | `sudo /usr/libexec/yuneta/yuneta-node-label --title <title> --print` | `sudo` asks for a password or refuses. Root runs `/usr/libexec/yuneta/yuneta-node-label --print`. |
 
 The package gives `sudo` to `yuneta` with the file `/etc/sudoers.d/90-yuneta`
 (`NOPASSWD: ALL`). The package also puts `yuneta` in the group `sudo` (or

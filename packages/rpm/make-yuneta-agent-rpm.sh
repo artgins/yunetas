@@ -1089,6 +1089,11 @@ install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-node-label" \
     "${STAGE}/usr/libexec/yuneta/yuneta-node-label"
 install -m 0755 "${YUNETAS_BASE}/packages/templates/yuneta-label-print" \
     "${STAGE}/usr/libexec/yuneta/yuneta-label-print"
+# The short command of the operator: ylabel = sudo yuneta-node-label
+# --title CONTROLLER --print. In /yuneta/bin (on the PATH), run as yuneta:
+# it asks sudo for the root-owned tool alone.
+install -m 0755 "${YUNETAS_BASE}/packages/templates/ylabel" \
+    "${STAGE}/yuneta/bin/ylabel"
 # The root half of install-package of yuneta_agent22: it downloads, checks
 # and installs a yuneta-agent package in a transient unit (sudo -n). Here and
 # not written by agent22 into /yuneta, where yuneta could change what root

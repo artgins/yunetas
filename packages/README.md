@@ -106,6 +106,16 @@ It uses the `yuneta-label-print` in its own directory, so `--print` also
 works from the tree. `tests/test-yuneta-node-label.sh` tests it against a
 fake `/sys`.
 
+`templates/ylabel` is the short command of the operator, in `/yuneta/bin`:
+`ylabel` prints the label of the box with the title `CONTROLLER`, and
+`ylabel <title>` with another title. It runs `yuneta-node-label --title
+<title> --print` with `sudo`, so the operator runs it without `sudo`. It
+takes `/usr/libexec/yuneta/yuneta-node-label`, or the `yuneta-node-label`
+in its own directory when that file does not exist. On a node that builds
+from source, link it once from the tree:
+`ln -s /yuneta/development/yunetas/packages/templates/ylabel /yuneta/bin/ylabel`.
+`tests/test-ylabel.sh` tests it with stubs.
+
 `templates/yuneta-label-print` sends a label image (a PNG) to a Brother QL
 label printer, through usbfs and without a driver (see its header).
 `yuneta-node-label --print` uses it. `tests/test-yuneta-label-print.sh`

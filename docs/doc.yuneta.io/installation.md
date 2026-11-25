@@ -703,7 +703,22 @@ with the package or without it.
 
 ### The label of a box
 
-Run this on the box, as root, after the package is installed:
+To print the label of a box, connect a Brother QL label printer to a USB
+port of the box. Then run this on the box, as the user `yuneta`, after the
+package is installed:
+
+```bash
+ylabel                # the label, with the title CONTROLLER
+ylabel CONTROLADOR    # the label, with another title
+```
+
+`ylabel` runs `yuneta-node-label --title <title> --print` with `sudo`. Do
+not type `sudo` before `ylabel`. `ylabel` is in `/yuneta/bin`, which the
+user `yuneta` can change, and it asks `sudo` only for the tool in
+`/usr/libexec/yuneta`, which is root's file.
+
+The tool itself gives the label as text, as an SVG, or on the printer. Run
+it as root:
 
 ```bash
 sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER
@@ -724,12 +739,13 @@ ssh <box> 'sudo /usr/libexec/yuneta/yuneta-node-label --title CONTROLLER --svg -
 ```
 
 A node that builds from source does not have the package. On such a node,
-run the tool from the tree, in the directory of the checkout. It uses the
-`yuneta-label-print` in its own directory:
+link `ylabel` once from the tree. `ylabel` then uses the
+`yuneta-node-label` of the tree, which uses the `yuneta-label-print` of the
+tree:
 
 ```bash
-cd /yuneta/development/yunetas
-sudo packages/templates/yuneta-node-label --title CONTROLLER --print
+ln -s /yuneta/development/yunetas/packages/templates/ylabel /yuneta/bin/ylabel
+ylabel
 ```
 
 The SVG needs `qrencode` on the box. `--print` also needs `rsvg-convert`
@@ -746,7 +762,7 @@ A field box is known by its node uuid. A central declares the box with it,
 and an installer finds the box with it in a list of pending boxes. The uuid
 is a hash of the hardware, so it exists only after the box starts with the
 package. The label of the maker does not give it. Thus the box makes its own
-label, at the time it is installed.
+label, when it is prepared, before it goes to its site.
 
 The tool refuses to make a label in two cases:
 
