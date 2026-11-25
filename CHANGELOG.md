@@ -1,6 +1,17 @@
 # **Changelog**
 
-## Unreleased
+## v7.32.1 (2026-11-25)
+
+Lite release: packaging and the JavaScript layer. No library and no yuno
+changes. The one C change is in a test. The packaging tests ran on the dev
+machine, and the label test with `qrencode` ran on orangepi-bfm2
+(riscv64). There is no full suite and no performance study, because no
+library changed. Deployed only on orangepi-em235, which prints the label of
+its box.
+
+- **Deploy notes:** an openresty node that builds from source takes the
+  new `/etc/logrotate.d/yuneta` by hand (see Fixed). A package node gets it
+  with the package.
 
 ### Added
 

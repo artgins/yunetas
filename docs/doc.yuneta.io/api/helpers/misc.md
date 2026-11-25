@@ -4,11 +4,11 @@ Miscellaneous helpers that do not fit anywhere else: byte-order conversion, base
 
 Source code:
 
-- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.h)
-- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c)
+- [`helpers.h`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.h)
+- [`helpers.c`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c)
 
 (get_hostname)=
-## [`get_hostname()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L10491)
+## [`get_hostname()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L10491)
 
 Retrieves the hostname of the current system. On Linux, it reads from `/etc/hostname`, while on ESP32, it returns a default value.
 
@@ -33,7 +33,7 @@ The returned string is statically allocated and must not be modified or freed by
 ---
 
 (get_os_info)=
-## [`get_os_info()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L10565)
+## [`get_os_info()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L10565)
 
 The operating system of this machine (7.31.21+): what [os-release(5)](https://www.freedesktop.org/software/systemd/man/latest/os-release.html) says of the distribution, and what `uname(2)` says of the kernel. The agent puts it in the card it presents to its control center, so `list-agents` and `list-nodes` show it, and `info-os` and `info-machine` answer it.
 
@@ -79,7 +79,7 @@ A value between quotes in os-release loses them, and the `\` before an escaped `
 ---
 
 (node_uuid)=
-## [`node_uuid()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L10752)
+## [`node_uuid()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L10752)
 
 The `node_uuid()` function retrieves a unique identifier for the current machine. On Linux, it reads or generates a UUID stored in `/yuneta/store/agent/uuid/uuid.json`. On ESP32, it derives the UUID from the device's MAC address.
 
@@ -148,7 +148,7 @@ eventually makes an unrelated daemon fail to watch anything.
 ---
 
 (check_open_fds)=
-## [`check_open_fds()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12166)
+## [`check_open_fds()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12166)
 
 Returns the number of currently open file descriptors in the process. On Linux, reads from `/proc/self/fd`. On other systems, returns 0.
 
@@ -169,7 +169,7 @@ The number of open file descriptors in the calling process. Returns 0 on non-Lin
 ---
 
 (cpu_usage)=
-## [`cpu_usage()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L9857)
+## [`cpu_usage()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L9857)
 
 Returns the accumulated CPU time of the current process in jiffies (scheduler clock ticks). On Linux, reads from `/proc/self/stat`. On other systems, returns 0.
 
@@ -190,7 +190,7 @@ The sum of user time (utime) and system time (stime) in jiffies. Returns 0 on no
 ---
 
 (cpu_usage_percent)=
-## [`cpu_usage_percent()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L9893)
+## [`cpu_usage_percent()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L9893)
 
 Calculates the CPU usage percentage of the current process over an elapsed time interval. Must be called repeatedly to track CPU usage over time.
 
@@ -215,7 +215,7 @@ CPU usage percentage as a double ranging from 0.0 to 100.0+. Returns 0.0 on the 
 ---
 
 (create_random_uuid)=
-## [`create_random_uuid()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L10627)
+## [`create_random_uuid()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L10627)
 
 Generates a cryptographically secure random UUID (version 4) and formats it as a string.
 
@@ -240,7 +240,7 @@ Returns 0 on success. Returns -1 if the buffer is too small or if random number 
 ---
 
 (free_ram_in_kb)=
-## [`free_ram_in_kb()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L11648)
+## [`free_ram_in_kb()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L11648)
 
 Returns the amount of free RAM available in the system in kilobytes. On Linux, reads from `/proc/meminfo`. On other systems, returns 0.
 
@@ -261,7 +261,7 @@ The amount of free RAM in kilobytes.
 ---
 
 (get_name_from_nn_table)=
-## [`get_name_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12862)
+## [`get_name_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12862)
 
 Looks up a name string in a number-to-name lookup table by matching a numeric value.
 
@@ -286,7 +286,7 @@ A pointer to the name string corresponding to the given number, or NULL if not f
 ---
 
 (get_number_from_nn_table)=
-## [`get_number_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12841)
+## [`get_number_from_nn_table()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12841)
 
 Looks up a numeric value in a number-to-name lookup table by matching a name string.
 
@@ -311,7 +311,7 @@ The numeric value corresponding to the given name, or -1 if not found.
 ---
 
 (get_yunetas_base)=
-## [`get_yunetas_base()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12700)
+## [`get_yunetas_base()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12700)
 
 Resolves the Yunetas base directory path. The environment variable `YUNETAS_BASE` takes priority, followed by standard paths.
 
@@ -332,7 +332,7 @@ A pointer to a static string containing the Yunetas base directory path.
 ---
 
 (is_yuneta_user)=
-## [`is_yuneta_user()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12632)
+## [`is_yuneta_user()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12632)
 
 Checks whether a given username belongs to the "yuneta" group or is exactly the "yuneta" user.
 
@@ -355,7 +355,7 @@ Returns TRUE if the user is "yuneta" or belongs to the "yuneta" group. Returns F
 ---
 
 (print_open_fds)=
-## [`print_open_fds()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12202)
+## [`print_open_fds()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12202)
 
 Logs information about all currently open file descriptors in the process using a formatted prefix string.
 
@@ -380,7 +380,7 @@ The number of open file descriptors found and logged.
 ---
 
 (sha256_digest)=
-## [`sha256_digest()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L13296)
+## [`sha256_digest()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L13296)
 
 Computes the SHA-256 (FIPS 180-4) of a buffer. Standalone: no TLS backend is involved, so it works in any yuno, whatever `.config` selects.
 
@@ -417,7 +417,7 @@ sha256_digest("abc", 3, digest);
 ---
 
 (sha256_hex)=
-## [`sha256_hex()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L13338)
+## [`sha256_hex()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L13338)
 
 The SHA-256 of a buffer as 64 lowercase hex characters plus the terminating nul — the form a content address or a checksum field stores. It is [`sha256_digest()`](#sha256_digest), written out.
 
@@ -457,7 +457,7 @@ if(sha256_hex("abc", 3, hex, sizeof(hex)) == 0) {
 ---
 
 (sha256_init)=
-## [`sha256_init()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L13219)
+## [`sha256_init()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L13219)
 
 Starts the SHA-256 of bytes that come in parts: a file read a chunk at a time, data that arrives in frames. Give each part to [`sha256_update()`](#sha256_update) and end with [`sha256_final()`](#sha256_final) or [`sha256_final_hex()`](#sha256_final_hex): the digest is the one of [`sha256_digest()`](#sha256_digest) over all the parts joined. The context holds no memory, so there is nothing to free. It can be a local variable, or live in a struct for as long as the parts keep coming.
 
@@ -503,7 +503,7 @@ sha256_final_hex(&ctx, hex, sizeof(hex));
 ---
 
 (sha256_update)=
-## [`sha256_update()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L13233)
+## [`sha256_update()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L13233)
 
 Adds one part of the bytes to a SHA-256 started with [`sha256_init()`](#sha256_init). The parts can have any size, `0` included. How the bytes are cut does not change the digest.
 
@@ -544,7 +544,7 @@ sha256_final_hex(&ctx, hex, sizeof(hex));
 ---
 
 (sha256_final)=
-## [`sha256_final()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L13267)
+## [`sha256_final()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L13267)
 
 Ends a SHA-256 started with [`sha256_init()`](#sha256_init) and writes the 32 raw bytes of the digest. After it the context is spent: init it again to hash something else.
 
@@ -581,7 +581,7 @@ sha256_final(&ctx, digest);
 ---
 
 (sha256_final_hex)=
-## [`sha256_final_hex()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L13352)
+## [`sha256_final_hex()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L13352)
 
 [`sha256_final()`](#sha256_final), written out as [`sha256_hex()`](#sha256_hex) writes it: 64 lowercase hex characters and the terminating nul.
 
@@ -621,7 +621,7 @@ if(sha256_final_hex(&ctx, hex, sizeof(hex)) == 0) {
 ---
 
 (source2base64_for_yunetas)=
-## [`source2base64_for_yunetas()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12733)
+## [`source2base64_for_yunetas()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12733)
 
 Converts a file to base64-encoded format, finding the file in either the current path or relative to the Yunetas base directory.
 
@@ -648,7 +648,7 @@ A `gbuffer_t` pointer containing the base64-encoded file content, or NULL if the
 ---
 
 (total_ram_in_kb)=
-## [`total_ram_in_kb()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L11695)
+## [`total_ram_in_kb()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L11695)
 
 Returns the total amount of RAM installed in the system in kilobytes. On Linux, reads from `/proc/meminfo`.
 
@@ -669,7 +669,7 @@ The total RAM in kilobytes.
 ---
 
 (yuneta_getgrnam)=
-## [`yuneta_getgrnam()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12606)
+## [`yuneta_getgrnam()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12606)
 
 Portable wrapper around `getgrnam()` that looks up group information by name. Uses static implementations when `CONFIG_FULLY_STATIC` is defined.
 
@@ -692,7 +692,7 @@ A pointer to a `struct group`, or NULL if the group is not found.
 ---
 
 (yuneta_getgrouplist)=
-## [`yuneta_getgrouplist()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12615)
+## [`yuneta_getgrouplist()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12615)
 
 Portable wrapper around `getgrouplist()` that retrieves all groups a user belongs to.
 
@@ -721,7 +721,7 @@ The number of groups on success. Returns -1 if the array is too small.
 ---
 
 (yuneta_getpwnam)=
-## [`yuneta_getpwnam()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12597)
+## [`yuneta_getpwnam()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12597)
 
 Portable wrapper around `getpwnam()` that looks up user information by username.
 
@@ -744,7 +744,7 @@ A pointer to a `struct passwd`, or NULL if the username is not found.
 ---
 
 (yuneta_getpwuid)=
-## [`yuneta_getpwuid()`](https://github.com/artgins/yunetas/blob/7.32.0/kernel/c/gobj-c/src/helpers.c#L12588)
+## [`yuneta_getpwuid()`](https://github.com/artgins/yunetas/blob/7.32.1/kernel/c/gobj-c/src/helpers.c#L12588)
 
 Portable wrapper around `getpwuid()` that looks up user information by user ID.
 
