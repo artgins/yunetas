@@ -1,5 +1,36 @@
 # **Changelog**
 
+## Unreleased
+
+### Changed
+
+- **gobj-ui 7.32.7 to 7.32.12: one icon size in a row of controls.** The
+  icons of the tabs, of the menu entries, of a window's title bar
+  (`C_YUI_WINDOW`: the title icon, minimize, maximize, close) and of a dialog's
+  header (back, close) are `YUI_TOOLBAR_ICON_SIZE` (1.25rem), the size of the
+  toolbar icons. The helper is in `yui_toolbar_icon.js`, a module with no i18n
+  key (7.32.8): in 7.32.7 the nav imported it from `yui_toolbar.js`, and two
+  apps failed their build on the keys of the toolbar's scroll arrows.
+- **gobj-ui 7.32.10: the json viewer folds its tree one level at a time**
+  (`C_YUI_JSON`, `EV_EXPAND_LEVEL` / `EV_COLLAPSE_LEVEL`), beside "expand
+  loaded" and "collapse all".
+- **gobj-ui 7.32.11 and 7.32.12: a Preferences page in every app.**
+  `C_YUI_PREFERENCES` and the parts of `yui_preferences.js` draw Theme,
+  Language and Navigation. The app registers its theme and its language with
+  `yui_preferences_setup()`. The navigation mode is the reader's, for the whole
+  app: `yui_shell_nav_mode()` and `yui_shell_set_nav_mode()`. A `C_YUI_NODE`
+  tree with no `nav_mode` of its own follows it (the default of the attr is
+  now `""`). The page marks a theme chosen on the toolbar (7.32.12).
+- **`yunos/js`: `gui_treedb` 1.4.6 and `gui_agent` 1.5.3**, on gobj-ui
+  `^7.32.12`. Both draw the Preferences page with the parts. gui_treedb's
+  Connections table takes the height left under its toolbar, the dot of a
+  connection follows it live, and a reload of Connections or of the TreeDBs
+  picker keeps the scroll and the page. Both versions have one digit per
+  segment again: 1.4.0 and 1.5.0 came after 1.3.15 and 1.4.15.
+- **The `gui/` of the project templates is on gobj-ui `^7.32.12`.** Its
+  `/account/preferences` is `C_YUI_PREFERENCES`, and the app keeps its theme
+  (`data-theme`) and registers it.
+
 ## v7.32.3 (2026-11-25)
 
 A fix in the kernel (`root-linux`): the answer of an account command of
