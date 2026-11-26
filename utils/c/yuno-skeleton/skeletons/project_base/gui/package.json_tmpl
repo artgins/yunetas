@@ -15,7 +15,7 @@
     "dependencies": {
         "@antv/g6": "^5.1.1",
         "@yuneta/gobj-js": "^7.31.0",
-        "@yuneta/gobj-ui": "^7.32.10",
+        "@yuneta/gobj-ui": "^7.32.11",
         "bulma": "^1.0.4",
         "i18next": "^27.2.3",
         "maplibre-gl": "^6.19.0",

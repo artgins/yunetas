@@ -20,8 +20,11 @@ import {
     gclass_create, log_error,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
+    kw_get_local_storage_value,
+    kw_set_local_storage_value,
 } from "@yuneta/gobj-js";
 import {yui_shell_language_changed} from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {yui_preferences_setup} from "@yuneta/gobj-ui/src/yui_preferences.js";
 
 import {switch_locale, current_locale} from "./locales/locales.js";
 
@@ -79,6 +82,19 @@ function mt_create(gobj)
         return;
     }
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
+
+    /*
+     *  The Preferences page (C_YUI_PREFERENCES, at /account/preferences):
+     *  how this app reads and changes its theme and its language.
+     */
+    set_theme(current_theme());
+    yui_preferences_setup({
+        current_theme:    current_theme,
+        set_theme:        set_theme,
+        languages:        [{value: "en", text: "English"}, {value: "es", text: "Español"}],
+        current_language: current_locale,
+        set_language:     switch_locale,
+    });
 }
 
 /***************************************************************
@@ -111,6 +127,23 @@ function mt_destroy(gobj)
 
 
 
+
+/***************************************************************
+ *  The theme: Bulma's data-theme on <html>, kept in this browser.
+ ***************************************************************/
+const THEME_KEY = "theme";
+
+function current_theme()
+{
+    return (kw_get_local_storage_value(THEME_KEY, "light", false) === "dark") ? "dark" : "light";
+}
+
+function set_theme(theme)
+{
+    const value = (theme === "dark") ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", value);
+    kw_set_local_storage_value(THEME_KEY, value);
+}
 
 /***************************************************************
  *

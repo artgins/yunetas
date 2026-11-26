@@ -1417,6 +1417,17 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   compared per language (7.26.26+). It also scans the gobj-ui modules the app mounts, because **the
   library translates through the APP's i18next**. Details: gobj-ui's README
   ("Conventions → i18n").
+- **Every SPA has a Preferences page at `/preferences`, with at least
+  Theme, Language and Navigation** (rule of 2026-11-26). It is gobj-ui's
+  page: `C_YUI_PREFERENCES` as the route's gclass, or its parts
+  (`yui_pref_*`) in the app's own view when the app adds fields with
+  actions of their own (gui_agent, gui_treedb). The app registers how it
+  reads and changes its theme and its language once, with
+  `yui_preferences_setup()`. The navigation is ONE for the app and the
+  shell keeps it (`yui_shell_nav_mode`); every `C_YUI_NODE` tree follows
+  it unless it declares a `nav_mode` of its own. A page and not a dialog:
+  linkable, it survives an F5. The rule in full is in gobj-ui's README
+  ("Preferences").
 - **A table of an admin view: a filter on every column, the paginator
   always, the toolbar in one row** (rule of 2026-11-25). Each column of data
   has a header filter, the footer shows the paginator also when all the rows

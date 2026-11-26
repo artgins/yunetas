@@ -38,6 +38,7 @@ import {register_c_yui_shell, yui_shell_set_translator}
     from "@yuneta/gobj-ui/src/c_yui_shell.js";
 import {register_c_yui_nav}   from "@yuneta/gobj-ui/src/c_yui_nav.js";
 import {register_c_yui_update_watch} from "@yuneta/gobj-ui/src/c_yui_update_watch.js";
+import {register_c_yui_preferences} from "@yuneta/gobj-ui/src/c_yui_preferences.js";
 
 import {register_c_{{project}}_view} from "./c_{{project}}_view.js";
 import {register_c_{{project}}_app}  from "./c_{{project}}_app.js";
@@ -83,6 +84,7 @@ function main()
     register_c_yui_shell();
     register_c_yui_nav();
     register_c_yui_update_watch();
+    register_c_yui_preferences();
 
     /*  App-level views  */
     register_c_{{project}}_view();

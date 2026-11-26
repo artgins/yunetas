@@ -209,12 +209,12 @@
                             {
                                 "id": "preferences",
                                 "name": "preferences",
-                                "icon": "yi-gear",
+                                "icon": "yi-sliders",
                                 "route": "/account/preferences",
                                 "target": {
                                     "stage": "main",
-                                    "gclass": "C_{{PROJECT}}_VIEW",
-                                    "kw": { "title": "preferences", "subtitle": "theme, language, notifications", "color": "#5B6B7E" }
+                                    "gclass": "C_YUI_PREFERENCES",
+                                    "lifecycle": "lazy_destroy"
                                 }
                             }
                         ]
