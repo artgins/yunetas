@@ -1475,7 +1475,12 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   width list of `yui_icons.css` (1.125em for a 576 viewBox, 1.25em for 640),
   and `yui_icons.test.js` names one that is missing. A glyph of a toolbar
   goes through `yui_toolbar_icon()`, the one size of every toolbar (1.25rem),
-  in buttons of one height (no `is-small` beside a normal button).
+  in buttons of one height (no `is-small` beside a normal button). **A tab
+  and a menu entry take the same size** (gobj-ui 7.32.7; before, their 16px
+  glyphs looked smaller right under a toolbar): `['span', {class: 'icon'},
+  [yui_toolbar_icon(icon)]]`, never an `icon is-small` with a bare `<i>`.
+  The app bar, the icon bar and the cards are other bands, with their own
+  sizes.
 - **One icon shape per meaning — never reuse a glyph because it is there.**
   The shape says what the control does:
 
