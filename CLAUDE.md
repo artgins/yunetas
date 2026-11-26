@@ -1479,8 +1479,12 @@ Canonical example: `yunos/js/gui_agent/src/c_agent_console.js` (the full
   and a menu entry take the same size** (gobj-ui 7.32.7; before, their 16px
   glyphs looked smaller right under a toolbar): `['span', {class: 'icon'},
   [yui_toolbar_icon(icon)]]`, never an `icon is-small` with a bare `<i>`.
-  The app bar, the icon bar and the cards are other bands, with their own
-  sizes.
+  So does the title bar of a `C_YUI_WINDOW` (its icon, and the minimize /
+  maximize / close SVGs in a box of that size) and the header of a shell
+  dialog (back, close), gobj-ui 7.32.9. Import the helper from
+  `yui_toolbar_icon.js` where no toolbar is drawn: `yui_toolbar.js` brings
+  the keys of its scroll arrows to every app. The app bar, the icon bar, the
+  cards and the dock of windows are other bands, with their own sizes.
 - **One icon shape per meaning — never reuse a glyph because it is there.**
   The shape says what the control does:
 
