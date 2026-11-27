@@ -2,8 +2,43 @@
 
 ## Unreleased
 
+## v7.32.4 (2026-11-27)
+
+Lite release: the web servers, and the JavaScript layer since 7.32.3. nginx
+and openresty are separate binaries linked against the system's libraries, so
+no yuno is rebuilt and no agent is restarted. Every node that builds from
+source runs `./extrae.sh && ./configure-libs.sh` again (`linux-ext-libs`
+1.32) and restarts its web server. The package nodes take the `.deb` or the
+`.rpm` of this tag.
+
+### Security
+
+- **openresty `1.31.8.1` -> `1.31.9.1`** (`linux-ext-libs` 1.32). Its nginx
+  core goes from 1.31.8 to 1.31.9. So a node that serves with openresty gets
+  the fixes of the four CVEs that 7.31.17 fixed in the standalone nginx.
+  Two are rated major and are reachable without authentication:
+  CVE-2026-123007 (memory corruption in HTTP/2 flow control) and
+  CVE-2026-118899 (infinite loop that reads a request body over TLS 1.3).
+  The other two are CVE-2026-123633 (use-after-free in HTTP/2) and
+  CVE-2026-123634 (use-after-free in the resolver). From 7.31.17 to 7.32.3, a node that served with openresty was
+  exposed to them.
+- **nginx `release-1.31.9` -> `release-1.31.10`.** CVE-2026-132779
+  (excessive CPU use with `ssl_early_data`) and a CPU hog with SSL
+  connections to backends. No configuration of the nodes uses
+  `ssl_early_data` or `proxy_pass https`, so neither can be reached there.
+- `THIRD-PARTY-NOTICES` names nginx 1.31.10 and OpenResty 1.31.9.1, with the
+  versions of the bundled modules. It still named nginx 1.31.8 and OpenResty
+  1.31.1.1. One bundled module is new, `lua-resty-openssl-aux-module` 0.3.0
+  (BSD-2-Clause). The license texts did not change.
+
 ### Changed
 
+- **maplibre-gl 6.20.0.** The `gui/` of the project templates is on
+  `^6.20.0`, with vite `^8.4.0` and i18next `^27.2.10`. The lockfile of
+  gobj-ui is on 6.20.0 (the peer floor stays `^6.18.0`), and `gui_treedb`
+  1.4.7 raises it with its other dependencies. No breaking change: the same
+  files in `dist/`, the same worker loading, the same keys for the texts of
+  the map controls.
 - **gobj-ui 7.32.7 to 7.32.12: one icon size in a row of controls.** The
   icons of the tabs, of the menu entries, of a window's title bar
   (`C_YUI_WINDOW`: the title icon, minimize, maximize, close) and of a dialog's

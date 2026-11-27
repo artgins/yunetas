@@ -36,7 +36,7 @@ The modified `kw` with `__iev_event__` added, or `NULL` on error.
 ---
 
 (iev_create2)=
-## [`iev_create2()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L90)
+## [`iev_create2()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L90)
 
 Creates an inter-event object and copies the `__temp__` metadata from a
 request `kw`.
@@ -66,7 +66,7 @@ The modified `kw`, or `NULL` on error.
 ---
 
 (iev_create_to_gbuffer)=
-## [`iev_create_to_gbuffer()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L122)
+## [`iev_create_to_gbuffer()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L122)
 
 Serializes an inter-event message into a `gbuffer_t` for sending to the
 outside world.
@@ -109,7 +109,7 @@ With the drop of [`iev_create_from_gbuffer()`](#iev_create_from_gbuffer),
 ---
 
 (iev_create_from_gbuffer)=
-## [`iev_create_from_gbuffer()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L251)
+## [`iev_create_from_gbuffer()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L251)
 
 Deserializes an inter-event message received from the outside world.
 
@@ -295,7 +295,7 @@ if(jn_ievent_id) {
 ---
 
 (msg_iev_pop_stack)=
-## [`msg_iev_pop_stack()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L587)
+## [`msg_iev_pop_stack()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L587)
 
 Pops and returns the top record from an inter-event stack.
 
@@ -333,7 +333,7 @@ JSON_DECREF(jn_ievent_id)
 ---
 
 (msg_iev_stack_command_line)=
-## [`msg_iev_stack_command_line()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L637)
+## [`msg_iev_stack_command_line()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L637)
 
 Returns the line of a command in the form that the `command_stack` of `__md_iev__` keeps.
 Each answer carries back the stack of its request, so a long line must not go there whole.
@@ -385,7 +385,7 @@ command-agent agent_id=deploycenter cmd2agent=<48646516 bytes>
 ---
 
 (msg_iev_set_back_metadata)=
-## [`msg_iev_set_back_metadata()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L686)
+## [`msg_iev_set_back_metadata()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L686)
 
 Copies inter-event metadata from a request into a response.
 Optionally reverses `src`/`dst` in the `ievent_gate_stack`.
@@ -415,7 +415,7 @@ The `kw_response` with metadata set.
 ---
 
 (msg_iev_build_response)=
-## [`msg_iev_build_response()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L727)
+## [`msg_iev_build_response()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L727)
 
 Builds a complete command/stats response with result code, comment,
 schema, and data fields. Sets metadata with reversed `src`/`dst`.
@@ -449,7 +449,7 @@ Complete response kw ready to send.
 ---
 
 (msg_iev_build_response_without_reverse_dst)=
-## [`msg_iev_build_response_without_reverse_dst()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L743)
+## [`msg_iev_build_response_without_reverse_dst()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L743)
 
 Same as [`msg_iev_build_response()`](#msg_iev_build_response) but does
 **not** reverse `src`/`dst` in the metadata.
@@ -476,7 +476,7 @@ Complete response kw with metadata set but `src`/`dst` not reversed.
 ---
 
 (msg_iev_clean_metadata)=
-## [`msg_iev_clean_metadata()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L764)
+## [`msg_iev_clean_metadata()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L764)
 
 Removes all inter-event metadata from `kw`: `__md_iev__`, `__temp__`,
 `__md_tranger__`, and `__md_yuno__`.
@@ -622,7 +622,7 @@ was traced with `<s>` in clear, in the request and in its answer.
 ---
 
 (trace_inter_event2)=
-## [`trace_inter_event2()`](https://github.com/artgins/yunetas/blob/7.32.3/kernel/c/root-linux/src/msg_ievent.c#L930)
+## [`trace_inter_event2()`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/msg_ievent.c#L930)
 
 Traces an inter-event with the **full** kw content.
 
