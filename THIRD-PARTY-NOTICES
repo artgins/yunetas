@@ -620,9 +620,9 @@ authorization.
 ==============================================================================
 
 ------------------------------------------------------------------------------
-nginx 1.31.8
+nginx 1.31.10
 ------------------------------------------------------------------------------
-https://github.com/nginx/nginx, tag release-1.31.8; shipped as
+https://github.com/nginx/nginx, tag release-1.31.10; shipped as
 /yuneta/bin/nginx
 License: BSD-2-Clause
 
@@ -652,9 +652,9 @@ OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-OpenResty 1.31.1.1
+OpenResty 1.31.9.1
 ------------------------------------------------------------------------------
-https://openresty.org/download/openresty-1.31.1.1.tar.gz; shipped as
+https://openresty.org/download/openresty-1.31.9.1.tar.gz; shipped as
 /yuneta/bin/openresty. Its COPYRIGHT file, which gathers the licenses of
 the components it bundles, follows; then the license files of the
 bundled components that carry their own
@@ -1175,7 +1175,7 @@ If you redistribute modified sources, we would appreciate that you include in
 the file ChangeLog history information documenting your changes.  Please read
 the FAQ for more information on the distribution of modified source versions.
 
---- OpenResty bundle: LuaJIT-2.1-20260415 ---
+--- OpenResty bundle: LuaJIT-2.1-20261117 ---
 
 ===============================================================================
 LuaJIT -- a Just-In-Time Compiler for Lua. https://luajit.org/
@@ -1238,7 +1238,7 @@ https://creativecommons.org/licenses/publicdomain
 
 ===============================================================================
 
---- OpenResty bundle: lua-cjson-2.1.0.17 ---
+--- OpenResty bundle: lua-cjson-2.1.0.20 ---
 
 Copyright (c) 2010-2012  Mark Pulford <mark@kyne.com.au>
 
@@ -1261,7 +1261,7 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
---- OpenResty bundle: lua-resty-openssl-1.7.1 ---
+--- OpenResty bundle: lua-resty-openssl-1.10.0 ---
 
 BSD 2-Clause License
 
@@ -1314,7 +1314,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
---- OpenResty bundle: ngx_stream_lua-0.0.19rc4 ---
+--- OpenResty bundle: ngx_stream_lua-0.0.20rc4 ---
 
 BSD 2-Clause License
 
@@ -1341,7 +1341,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
---- OpenResty bundle: ngx_postgres-1.0 ---
+--- OpenResty bundle: ngx_postgres-1.2 ---
 
 Copyright (c) 2010, FRiCKLE Piotr Sikora <info@frickle.com>
 Copyright (c) 2009-2010, Xiaozhe Wang <chaoslawful@gmail.com>
@@ -1423,7 +1423,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * SUCH DAMAGE.
  */
 
---- OpenResty bundle: ngx_devel_kit-0.3.4 ---
+--- OpenResty bundle: ngx_devel_kit-0.3.6 ---
 
 Copyright (c) 2010-2018, Marcus Clyne
 
@@ -1439,7 +1439,7 @@ Redistribution and use in source and binary forms, with or without modification,
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
---- OpenResty bundle: headers-more-nginx-module-0.39 ---
+--- OpenResty bundle: headers-more-nginx-module-0.42 ---
 
 This module is licensed under the terms of the BSD license.
 
@@ -1462,7 +1462,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
---- OpenResty bundle: echo-nginx-module-0.64 ---
+--- OpenResty bundle: echo-nginx-module-0.66 ---
 
 Copyright (C) 2009-2014, Yichun "agentzh" Zhang <agentzh@gmail.com>.
 All rights reserved.
@@ -1489,6 +1489,34 @@ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--- OpenResty bundle: lua-resty-openssl-aux-module-0.3.0 ---
+
+BSD 2-Clause License
+
+Copyright (c) 2020, Wangchong Zhou
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ==============================================================================
 4. The C library: glibc, linked statically

@@ -344,7 +344,23 @@
 #       node that builds from source must run
 #       `./extrae.sh && ./configure-libs.sh` again.
 
-VERSION="1.31"
+#   version 1.32
+#       upgrade to openresty 1.31.9.1 (was 1.31.8.1): its nginx core goes
+#       from 1.31.8 to 1.31.9, so the openresty binary gets the fixes of
+#       the four CVEs of version 1.31 that the nodes can reach
+#       (CVE-2026-123007, CVE-2026-118899, CVE-2026-123633,
+#       CVE-2026-123634). Bundled modules move too (LuaJIT 2.1-20261117,
+#       ngx_stream_lua 0.0.20rc4, lua-resty-openssl 1.10.0, and others;
+#       new: lua-resty-openssl-aux-module 0.3.0, BSD-2-Clause).
+#       upgrade to nginx release-1.31.10 (was release-1.31.9):
+#       CVE-2026-132779 (excessive CPU with `ssl_early_data`) and a CPU hog
+#       with SSL connections to backends. No configuration of the nodes
+#       uses `ssl_early_data` or `proxy_pass https`. Both are separate
+#       binaries linked against the system's libs: no yuno needs a relink.
+#       Every node that builds from source must run
+#       `./extrae.sh && ./configure-libs.sh` again.
+
+VERSION="1.32"
 
 
 source ./repos2clone.sh

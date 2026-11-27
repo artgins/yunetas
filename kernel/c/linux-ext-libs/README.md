@@ -180,8 +180,20 @@ openresty stays `1.31.1.1` (no newer release, checked 2026-10-22).
   proxy or `ssl_preread` (not built), client certificates in `stream`, PROXY
   protocol v2, or `alias` with `try_files` (not used).
 
-⚠️ **openresty is NOT covered**: `1.31.8.1` (nginx 1.31.8 core) is still the
-latest release (checked 2026-11-18). Track upstream openresty.
+openresty got the same fixes in `1.31.9.1` (configure-libs.sh v1.32, below).
+Up to v1.31 it stayed `1.31.8.1` (nginx 1.31.8 core) and was exposed.
+
+### openresty 1.31.9.1 and nginx 1.31.10 (configure-libs.sh v1.32)
+
+- **openresty** `1.31.8.1` -> `1.31.9.1` (2026-11-25). Its nginx core is
+  1.31.9, so a node that serves with openresty gets the fixes of the four
+  CVEs above. Bundled modules move too, and one is new:
+  `lua-resty-openssl-aux-module` 0.3.0 (BSD-2-Clause), added to
+  `THIRD-PARTY-NOTICES`.
+- **nginx** `release-1.31.9` -> `release-1.31.10` (2026-11-23).
+  CVE-2026-132779 (excessive CPU use with `ssl_early_data`) and a CPU hog
+  with SSL connections to backends. No configuration of the nodes uses
+  `ssl_early_data` or `proxy_pass https`, so neither can be reached there.
 
 ### jansson: Yuneta's own, `artgins/jansson` (configure-libs.sh v1.26, v1.30)
 
