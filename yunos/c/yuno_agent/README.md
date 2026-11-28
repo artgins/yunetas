@@ -29,17 +29,17 @@ build flow (`yunetas init`, `yunetas build`), see the top-level
 | File                                                | What it is                                               |
 |-----------------------------------------------------|----------------------------------------------------------|
 | [`src/c_agent.c`](src/c_agent.c)                    | The agent gclass (commands, FSM, child yuno spawning)    |
-| [`src/c_agent.h`](src/c_agent.h)                    | Public interface ([`register_c_agent`](https://github.com/artgins/yunetas/blob/7.32.4/yunos/c/yuno_agent/src/c_agent.c#L17046), `GOBJ_DECLARE_GCLASS`) |
+| [`src/c_agent.h`](src/c_agent.h)                    | Public interface ([`register_c_agent`](https://github.com/artgins/yunetas/blob/7.32.5/yunos/c/yuno_agent/src/c_agent.c#L17084), `GOBJ_DECLARE_GCLASS`) |
 | [`src/treedb_schema_yuneta_agent.c`](src/treedb_schema_yuneta_agent.c) | Schema of the persistent topics (`binaries`, `configurations`, `yunos`, …) |
 | [`src/main.c`](src/main.c)                          | yuno entry point. It registers gclasses and builds the fixed/variable configuration. |
-| [`ENTRY_POINT.md`](ENTRY_POINT.md)                  | Minute 0: what the `main()` of every yuno does. [`yuneta_entry_point()`](#yuneta_entry_point) step by step (argp, gbmem-setup + json allocator switch, configuration merge, log handlers, gclass registration). The [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/ydaemon.c) double-fork supervisor (the watcher that makes a yuno survive without an agent). Signals inside the child. How `kill-yuno` interacts with the watcher. The `/var/crash/core.%e` forensics that the `.deb` wires. |
+| [`ENTRY_POINT.md`](ENTRY_POINT.md)                  | Minute 0: what the `main()` of every yuno does. [`yuneta_entry_point()`](#yuneta_entry_point) step by step (argp, gbmem-setup + json allocator switch, configuration merge, log handlers, gclass registration). The [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.32.5/kernel/c/root-linux/src/ydaemon.c) double-fork supervisor (the watcher that makes a yuno survive without an agent). Signals inside the child. How `kill-yuno` interacts with the watcher. The `/var/crash/core.%e` forensics that the `.deb` wires. |
 | [`YUNO_LIFECYCLE.md`](YUNO_LIFECYCLE.md)                      | The real lifecycle of a yuno under this agent. Start here if you are new to the agent. |
 | [`DEBUGGING.md`](DEBUGGING.md)                      | How to debug a running yuno. Trace levels (global / gclass / gobj), log infrastructure (files + UDP + logcenter), end-to-end message tracing, SPA dev panel. |
 | [`IPC.md`](IPC.md)                                  | How yunos talk to each other. Event model (states/actions, EVF_* flags, kw ownership), intra-yuno dispatch (send/publish/subscribe, CHILD vs SERVICE), inter-yuno ievents (C_IEVENT_SRV/CLI, `__md_iev__`), gates (TCP/HTTP/WS/MQTT layering, TLS), the SPA case, and the canonical recipes. |
 | [`REALMS.md`](REALMS.md)                            | Realms, the multi-tenancy unit. Data model, on-disk layout, CRUD (create/update/delete-realm), what is and is not realm-scoped (ports and certs are not), the hierarchical `parent_realm_id`, sharp edges, recipes. |
 | [`SCAFFOLDING.md`](SCAFFOLDING.md)                  | `yuno-skeleton`: which template for what, the templating engine (`{{var}}` content, `+var+` filenames, `_tmpl` suffix, derived `rootname`/`Rootname`/`ROOTNAME`/`__year__`), `yuno_citizen` vs `yuno_standalone`, the verbatim SERVICE vs CHILD `mt_create` blocks, the mandatory banner convention, post-scaffold checklist, recipes. |
 | [`YUNO_AUTH.md`](YUNO_AUTH.md)                                | Auth + TLS. `auth_bff` OIDC flow (PKCE, HttpOnly cookies, the `issuer` configuration), JWT validation via `libjwt`, the [`C_AUTHZ`](#gclass-c-authz) service + `authzs` treedb (users/roles), the `pm_*` schemas. The per-command authz gate is re-armed but gated off by default (`enable_command_authz`, see §4.5). Also cert auto-sync (`cert_sync_*` attrs, `reload-certs` broadcast), per-project Keycloak realms, secrets-in-cleartext risk. |
-| [`GOBJ.md`](GOBJ.md)                                | The gobj framework in 30 minutes. gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`, `mt_start`, `mt_stop`, `mt_destroy`, `mt_writing` and `mt_reading`), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavor, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/c_timer.c) (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
+| [`GOBJ.md`](GOBJ.md)                                | The gobj framework in 30 minutes. gclass vs gobj, banner layout, the `GMETHODS` table (`mt_create`, `mt_start`, `mt_stop`, `mt_destroy`, `mt_writing` and `mt_reading`), full lifecycle (create→start→play↔pause→stop→destroy), every `gobj_create*` flavor, SData (`DTP_*` types + `SDF_*` flags + persistence), the runtime tree + service registry, a worked walkthrough of [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.32.5/kernel/c/root-linux/src/c_timer.c) (the canonical minimal gclass), 12 sharp edges, 5 recipes. |
 | [`YUNO_TREEDB.md`](YUNO_TREEDB.md)                            | timeranger2 + treedb in 30 minutes. The append-only log layer (per-key dirs, `.json`+`.md2` partitioning, `g_rowid`/`i_rowid`, `__t__`/`__tm__`, master/non-master lock, no `fsync`, no per-record delete since v7), the graph layer on top (topic schemas, `cols`/`hook`/`fkey`, `__md_treedb__` metadata, CRUD APIs), the link-saves-the-child-only rule and the `topic_version` versioning trap, snapshots, cross-yuno `rt_by_disk` pattern, 12 sharp edges, 6 recipes. |
 | [`NODE_SEALING.md`](NODE_SEALING.md)                | DESIGN (not yet implemented). The black-box node: inbound SSH is closed, and the host is reachable only inward-out via the controlcenter PTY. The OS-enforced seal, the self-proving + self-validating `seal-node` gate, the agent22↔agent heartbeat, the provider-console break-glass. The document stays marked as design until each piece lands. |
 | [`create-certs-self-signed/`](create-certs-self-signed/) | Helper to mint self-signed TLS certs for the agent's HTTPS endpoint |
@@ -60,7 +60,7 @@ build flow (`yunetas init`, `yunetas build`), see the top-level
   switch that every test allocator rule depends on. It also includes the
   `fixed + variable + --config-file +
   positional` configuration merge that `view-config` shows, the log handlers,
-  and the gclass-registration callback. Then it explains [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/ydaemon.c):
+  and the gclass-registration callback. Then it explains [`ydaemon.c`](https://github.com/artgins/yunetas/blob/7.32.5/kernel/c/root-linux/src/ydaemon.c):
   the double-fork pattern and the per-yuno watcher. The watcher relaunches
   the child on any abnormal exit. This is what makes a yuno survive
   `kill -9 yuneta_agent`. The document also gives the `waitpid` decision
@@ -111,7 +111,7 @@ build flow (`yunetas init`, `yunetas build`), see the top-level
   with its `authzs` treedb (users / roles / users_accesses,
   `parent_role_id` inheritance, the `yuneta` super-user bypass) and the
   `pm_*` schemas. It gives the critical finding that the per-command
-  [`gobj_user_has_authz`](#gobj_user_has_authz) check at [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/gobj-c/src/command_parser.c) is re-armed
+  [`gobj_user_has_authz`](#gobj_user_has_authz) check at [`command_parser.c`](https://github.com/artgins/yunetas/blob/7.32.5/kernel/c/gobj-c/src/command_parser.c) is re-armed
   but off by default (`enable_command_authz`). It also covers the `cert_sync_*` machinery on the agent,
   the `reload-certs` broadcast, the per-project Keycloak realm convention,
   and the secrets-in-cleartext risk (`client_secret`, SMTP password).
@@ -121,7 +121,7 @@ build flow (`yunetas init`, `yunetas build`), see the top-level
   / `gobj_destroy`), every `mt_*` method, and SData attributes (types,
   flags, persistence). It also explains the runtime tree and the service
   registry, and walks through
-  [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.32.4/kernel/c/root-linux/src/c_timer.c) as the minimal canonical example.
+  [`c_timer.c`](https://github.com/artgins/yunetas/blob/7.32.5/kernel/c/root-linux/src/c_timer.c) as the minimal canonical example.
 - timeranger2 + treedb in 30 minutes: [`YUNO_TREEDB.md`](YUNO_TREEDB.md) covers
   the append-only log layer (per-key directories, `.json`+`.md2`
   partitioning, the `g_rowid`/`i_rowid` rule, master/non-master locking,

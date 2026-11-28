@@ -2,6 +2,85 @@
 
 ## Unreleased
 
+## v7.32.5 (2026-11-28)
+
+Lite release: `yuneta_agent`, `yuneta_agent22` and the control center. No
+library changes, so no other yuno is rebuilt. Deploy in this order:
+
+1. The control center, both instances (1996 and 1997).
+2. The agents, one at a time: `yuneta_agent`, then `yuneta_agent22`.
+3. The json file of each agent that links a user to the new roles.
+
+An agent of 7.32.5 under an older control center refuses every key typed in
+a console (see *Security*). A json file that links a user to a role that the
+running agent does not have gives an ERROR at every start.
+
+The tests that the change affects ran on the dev machine: the 14 tests of
+the agent, `agent22`, the control center and the operator assertions. No
+performance study: the C that changed is in three yunos, and no figure of
+the study runs their code. The next study, against 7.32.3, covers this
+release.
+
+### Security
+
+- **`write-tty` asks the permission `open-console`**, in `yuneta_agent` and
+  in `yuneta_agent22`. Up to 7.32.4 it asked no permission. A user with any
+  role of the service typed in a console that an operator with `root` had
+  open, if the user knew the name of the console:
+
+    ```
+    command-agent agent_id=<node> cmd2agent="write-tty name=<console> content64=..."
+    ```
+
+    Now the agent refuses that key. It logs one WARNING (*"write-tty
+    refused: no permission to open-console"*, with the `username`) and
+    answers `EV_TTY_CLOSE` with the name of the console. The console goes on
+    for its other routes. Test: `tests/c/c_agent22_write_tty`, with an
+    operator whose only role is `agent22-install-package`, asserted as a
+    control center asserts it.
+- **The control center sends the operator assertion with `write-tty`**, as
+  it does with every other command for an agent. Up to 7.32.4 it sent none,
+  and the agent took the key as of its principal `controlcenter`. That
+  principal is no user of a node, so an agent of 7.32.5 under an older
+  control center refuses every key. Deploy the control center first.
+
+### Added
+
+- **Two roles for `agent22`, seeded by the agent**:
+  `agent22-install-package` (the commands `install-package` and
+  `install-package-status`) and `agent22-upgrade-agent` (`upgrade-agent`).
+  Each one grants one permission of `agent22` and nothing else, for the
+  account that deploys the nodes. `agent22` opens the authz store of the
+  main agent as a read-only replica, so the roles are in the `main.c` of the
+  agent. A role grants nothing until a user is linked to it, and the json
+  file of the node names that user:
+
+    ```json
+    "Authz.initial_load": {
+        "users": [
+            {
+                "id": "deployer@example.com",
+                "roles": [
+                    "roles^agent22-install-package^users",
+                    "roles^agent22-upgrade-agent^users"
+                ]
+            }
+        ]
+    }
+    ```
+
+    The `id` is the verified email of the login of that user at the control
+    center. On the control center, the user also needs `list-agents` and
+    `command-agent`.
+
+### Documentation
+
+- `yuneta_agent22`: a new section *Permissions* gives the permission of each
+  command, the two roles, and what the control center needs. The page said
+  that the role `root` of the configuration of `agent22` gives the
+  permissions. `agent22` reads the store of the main agent and has no roles
+  of its own.
+
 ## v7.32.4 (2026-11-27)
 
 Lite release: the web servers, and the JavaScript layer since 7.32.3. nginx
