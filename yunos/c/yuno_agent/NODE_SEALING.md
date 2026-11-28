@@ -362,6 +362,18 @@ here is a candidate for promotion to Tier 1:
   2026-10-27).
 - Installing or upgrading the **`.deb`/`.rpm` package itself** (SDK + agent
   binaries). `upgrade-node` does not do this.
+- **Changing the configuration of the agents themselves** (2026-11-28).
+  `/yuneta/agent/yuneta_agent.json` and `yuneta_agent22.json` are files of
+  the node: no command writes them, and an agent applies its
+  `Authz.initial_load` only when it starts. The deploy script of the ops
+  repos (`deploy_agent_configs.sh`) copies them with `scp` and restarts each
+  agent with `sudo systemctl restart`, over SSH. On 2026-11-28 it was the
+  only way to give the deploy account its two roles of `agent22` on agents
+  before 7.32.5: those roles come with the agent that the account installs.
+  A command that writes the json of the other agent and restarts it (one
+  agent does it for the other) can promote it to Tier 1. Until then, a role
+  that every node needs also goes in the `main.c` of the agent, so a package
+  upgrade brings it.
 - **Setting a user's password in the IdP** (2026-09-08). `C_IDP_KEYCLOAK` can
   create an account (`register-idp-user`) and mail it an invitation, but no
   agent or yuno command sets a password: a test identity with a KNOWN password
