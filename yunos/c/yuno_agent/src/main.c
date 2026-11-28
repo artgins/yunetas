@@ -127,6 +127,12 @@ PRIVATE char fixed_config[]= "\
  *  a node of packages), so both roles can be linked on every node. Link a
  *  user only once the agent that runs has these roles: a seed that names a
  *  role the store has not is an ERROR at every start.
+ *
+ *  The file must write the key as here, `Authz.initial_load`. A service
+ *  name matches a key in any case, so `authz.initial_load` reaches the same
+ *  service, but it is another key of the json: it is not merged with this
+ *  one, and the service takes the file's whole. Then these roles are not
+ *  seeded (`--print-config` shows the two keys).
  */
 PRIVATE char variable_config[]= "\
 {                                                                   \n\

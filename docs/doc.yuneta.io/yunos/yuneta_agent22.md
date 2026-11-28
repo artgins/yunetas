@@ -400,6 +400,17 @@ node, so the json file of the main agent names it:
 Link the user only when the agent that runs has the two roles. A seed that
 names a role that the store does not have is an ERROR at every start.
 
+Write the key as `Authz.initial_load`, with the case of the `main.c`. A
+service name matches a key in any case, so `authz.initial_load` reaches the
+same service, but it is another key of the json. It does not join the
+`main.c`: the service gets one of the two keys whole, the one of the file.
+Then the two roles are not seeded. Make sure that the merge gives one key:
+
+```bash
+yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --print-config | grep -i '"authz.initial_load"'
+#   one line: "Authz.initial_load": {
+```
+
 The lists of the json file are added to the lists of the `main.c`, as a
 set, so the file does not repeat the two roles. A seed is immutable: nobody
 can delete these roles or change their permission by command. Each command
