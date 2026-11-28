@@ -97,6 +97,36 @@ PRIVATE char fixed_config[]= "\
  *  drifts (no NTP) must still take its controlcenter's commands; what binds
  *  an assertion is its audience. To take the controlcenter's word again:
  *  `"global": {"controlcenter.verify_operator": false}` in the json file.
+ *
+ *  The users and roles of this agent are agent22's too: agent22 opens this
+ *  store as a read-only replica (`Authz.master` false, `authz_service`
+ *  agent) and seeds nothing of its own. So a role for a service of
+ *  agent22 is seeded HERE. Two are (7.32.5+), each granting one command of
+ *  agent22 and nothing else, for the account that deploys the nodes:
+ *  `agent22-install-package` (install-package and install-package-status)
+ *  and `agent22-upgrade-agent`. They grant nothing until a user is linked
+ *  to them, and that is the node's: its json file names the user, the
+ *  operator that the controlcenter asserts (the verified email of its
+ *  login):
+ *
+ *      "Authz.initial_load": {
+ *          "users": [
+ *              {
+ *                  "id": "deployer@example.com",
+ *                  "roles": [
+ *                      "roles^agent22-install-package^users",
+ *                      "roles^agent22-upgrade-agent^users"
+ *                  ]
+ *              }
+ *          ]
+ *      }
+ *
+ *  The lists of the file are added to the lists here (as a set: an item
+ *  equal to one here is not repeated). Each command refuses the node it is
+ *  not for (install-package a node that builds from source, upgrade-agent
+ *  a node of packages), so both roles can be linked on every node. Link a
+ *  user only once the agent that runs has these roles: a seed that names a
+ *  role the store has not is an ERROR at every start.
  */
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
@@ -175,6 +205,24 @@ PRIVATE char variable_config[]= "\
                     'parent_role_id': '',                           \n\
                     'service': '*',                                 \n\
                     'permission': '*'                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'id': 'agent22-install-package',                \n\
+                    'disabled': false,                              \n\
+                    'description': 'install-package of agent22, nothing else', \n\
+                    'realm_id': '*',                                \n\
+                    'parent_role_id': '',                           \n\
+                    'service': 'agent22',                           \n\
+                    'permission': 'install-package'                 \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'id': 'agent22-upgrade-agent',                  \n\
+                    'disabled': false,                              \n\
+                    'description': 'upgrade-agent of agent22, nothing else', \n\
+                    'realm_id': '*',                                \n\
+                    'parent_role_id': '',                           \n\
+                    'service': 'agent22',                           \n\
+                    'permission': 'upgrade-agent'                   \n\
                 }                                                   \n\
             ],                                                      \n\
             'users': [                                              \n\

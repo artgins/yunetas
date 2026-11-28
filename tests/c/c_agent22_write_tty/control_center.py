@@ -13,7 +13,11 @@
 #   A line "SH <command>" runs <command> with sh, in the sandbox, between
 #   two commands (c_agent22_install_package changes the node with it). After
 #   each answer to a command, a line "COMMENT <line>: <comment>" prints its
-#   comment.
+#   comment. The line "ASSERTION_KEY <pem>" gives the EC P-256 key that
+#   signs the lines "AS <user> <command>": the command goes with the
+#   operator assertion of <user> for agent22's node, as a control center
+#   sends it (ES256, iss and kid `test-controlcenter`, aud = the id of the
+#   identity card), signed with the openssl command.
 #
 #   Usage: control_center.py <cert> <key> <port> <line>...
 #   Exit 0 when the link lived through every line, 2 when the agent closed
@@ -28,6 +32,9 @@ import ssl
 import struct
 import sys
 import time
+
+ASSERTION_KEY = ""  # the line ASSERTION_KEY <pem>: the key that signs the lines AS <user> <command>
+NODE = ""           # the id of agent22's identity card: the aud of an operator assertion
 
 
 def send(s, event, kw):
@@ -68,6 +75,42 @@ def command(line):
             "command_stack": [{"command": line, "kw": {}}],
         },
     }
+
+
+def b64url(b):
+    import base64
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def der_to_raw(der):
+    """An ECDSA signature as openssl writes it (DER: a SEQUENCE of the
+    INTEGERs r and s) as a JWS takes it: r and s, 32 bytes each"""
+    def integer(i):
+        if der[i] != 0x02:
+            raise ValueError("not a DER INTEGER")
+        n = der[i + 1]
+        return int.from_bytes(der[i + 2:i + 2 + n], "big"), i + 2 + n
+    if der[0] != 0x30 or der[1] >= 0x80:
+        raise ValueError("not the DER SEQUENCE of a P-256 signature")
+    r, i = integer(2)
+    s, i = integer(i)
+    return r.to_bytes(32, "big") + s.to_bytes(32, "big")
+
+
+def assertion(user):
+    """The operator assertion of `user` for agent22's node, signed as a
+    control center signs it"""
+    import subprocess
+    now = int(time.time())
+    head = b64url(json.dumps({"alg": "ES256", "typ": "JWT", "kid": "test-controlcenter"}).encode())
+    body = b64url(json.dumps({
+        "iss": "test-controlcenter", "sub": user, "aud": NODE, "iat": now, "exp": now + 60,
+    }).encode())
+    der = subprocess.run(
+        ["openssl", "dgst", "-sha256", "-sign", ASSERTION_KEY],
+        input=("%s.%s" % (head, body)).encode(), capture_output=True, check=True,
+    ).stdout
+    return "%s.%s.%s" % (head, body, b64url(der_to_raw(der)))
 
 
 def agent_pid():
@@ -231,6 +274,7 @@ def flood_pad(s, where):
 
 
 def main():
+    global ASSERTION_KEY, NODE
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(sys.argv[1], sys.argv[2])
     ls = socket.socket()
@@ -242,6 +286,7 @@ def main():
 
     card = recv(s, 10)
     print("got", card["event"])
+    NODE = card["kw"].get("id", "")
     hop = card["kw"]["__md_iev__"]["ievent_gate_stack"][0]
     send(s, "EV_IDENTITY_CARD_ACK", {
         "result": 0,
@@ -267,7 +312,16 @@ def main():
             rc = subprocess.call(["sh", "-c", line[3:]])
             print("SH %r: exit %d" % (line[3:], rc))
             continue
-        send(s, "EV_MT_COMMAND", command(line))
+        if line.startswith("ASSERTION_KEY "):
+            ASSERTION_KEY = line.split(" ", 1)[1]
+            continue
+        if line.startswith("AS "):
+            user, cmd = line.split(" ", 2)[1:]
+            kw = command(cmd)
+            kw["__operator_assertion__"] = assertion(user)
+        else:
+            kw = command(line)
+        send(s, "EV_MT_COMMAND", kw)
         got = []
         end = time.time() + 2
         try:

@@ -174,6 +174,11 @@ See [`C_IEVENT_CLI`](#gclass-c-ievent-cli) and
 [`C_AUTHZ`](#gclass-c-authz). See [`controlcenter`](controlcenter.md) for the
 signing side.
 
+The users and roles of the agent are also those of `agent22`: `agent22`
+reads the store of the agent. The two roles that the agent seeds for
+`agent22`, and how a node links a user to them, are in [`yuneta_agent22`:
+Permissions](#agent22-permissions).
+
 ## Audit files
 
 The agent writes every command that it runs to a daily audit file in
@@ -580,6 +585,20 @@ ycommand -c 'open-console name=c1'                            # another session 
 ycommand -c 'write-tty name=c1 content64=bHMK'                # both get the output of `ls`
 ycommand -c 'close-console name=c1'                           # both get EV_TTY_CLOSE
 ```
+
+A `write-tty` asks its operator for the permission `open-console`
+(7.32.5+): who can open a console can type in one. A key that is refused
+logs one WARNING (*"write-tty refused: no permission to open-console"*, with
+the `username`) and answers `EV_TTY_CLOSE` with that `name`. The console goes
+on for its other routes. Up to 7.32.4 `write-tty` asked no permission: a
+user with any role of the agent typed in the console of an operator with
+`root` if the user knew the name of the console.
+
+Deploy the control center before the agents. Through the control center,
+the operator of a `write-tty` is the `sub` of its operator assertion, and a
+control center of 7.32.5 or later sends one with `write-tty`. An older one
+sends none. Then the agent takes the key as of the principal
+`controlcenter`, which is no user of the node, and refuses every key.
 
 The agent sends them as it sends its answers: an inter-event, with
 `EV_SEND_IEV`, to the channel of the session or to the link, while it is

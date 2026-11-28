@@ -184,8 +184,10 @@ center signs for that node. Its `aud` is the node uuid, its `sub` is the
 operator, and it lives 60 s. The agent verifies it with the public key in its
 `main.c`, and believes the `sub`, not the `__username__`. The control center
 adds an assertion only for an agent whose identity card says
-`knows_operator_assertion`. The key is a private JWK of EC P-256 on the
-machine of the control center. In production:
+`knows_operator_assertion`. A `write-tty` carries one too (7.32.5+): the
+agents ask its operator for the permission `open-console`, so deploy the
+control center before the agents. The key is a private JWK of EC P-256 on
+the machine of the control center. In production:
 
 ```json
 "operator_assertion_key": "/yuneta/store/certs/private/controlcenter-assertion.jwk"
@@ -207,7 +209,7 @@ The commands are in the `command_table` of `src/c_controlcenter.c`:
 | `stats-agent`    | Get stats from a specific node.                                               |
 | `info-machine`   | Show the machine of a node: os, cpu, memory, disks, network interfaces, uptime (`info-machine agent_id=<uuid or hostname>`, permission `list-agents`). Give `ycommand` a `-w`. |
 | `drop-agent`     | Drop every session of a node (`agent_id` as for `command-agent`, empty for every agent). |
-| `write-tty`      | Write bytes to the PTY console of one node (the `yuno_agent22` backdoor). `agent_id` is required. |
+| `write-tty`      | Write bytes to the PTY console of one node (the `yuno_agent22` backdoor). `agent_id` is required. The agent asks the operator for `open-console` (7.32.5+). |
 | `scenarios`      | List the scenarios, or one (`scenario_id=`).                                  |
 | `save-scenario`  | Create or replace a whole scenario (`scenario={...}`), after validation. With `revision=` (the `__md_treedb__.g_rowid` it was read at), the command refuses the save when somebody saved the scenario after that revision. |
 | `delete-scenario`| Delete a scenario and its runs (`scenario_id=`).                              |

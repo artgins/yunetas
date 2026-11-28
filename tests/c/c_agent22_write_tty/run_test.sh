@@ -34,6 +34,13 @@
 #   not in the frames of output (before the fix: +150 MB or more, and every
 #   chunk carried the padding).
 #
+#   And an operator whose only role is agent22-install-package, asserted as
+#   a control center asserts it: its keys for a console that root opened
+#   are refused (EV_TTY_CLOSE, a WARNING) and the console goes on for root;
+#   open-console and upgrade-agent answer "No permission", and
+#   install-package-status does not. Up to 7.32.4 write-tty asked no
+#   permission, and the keys of such an operator reached the console.
+#
 #   Usage: run_test.sh <yuneta_agent22 binary>
 #   Exit 77 (skipped) when this machine cannot run it, saying why.
 #
@@ -84,6 +91,17 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=yuneta_agent.yuneta
     -keyout "$WORK/cc.key" -out "$WORK/cc.crt" 2>/dev/null || skip "openssl cannot make a certificate"
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=agent" \
     -keyout "$WORK/agent.key" -out "$WORK/agent.crt" 2>/dev/null || skip "openssl cannot make a certificate"
+#   The key of the operator assertions (control_center.py signs them), and
+#   its public half as a JWK: x and y are the last 64 bytes of the DER
+openssl ecparam -name prime256v1 -genkey -noout -out "$WORK/as.key" 2>/dev/null \
+    || skip "openssl cannot make an EC P-256 key"
+AS_XY=$(openssl ec -in "$WORK/as.key" -pubout -outform DER 2>/dev/null | tail -c 64 | python3 -I -c '
+import base64, sys
+b = sys.stdin.buffer.read()
+print(base64.urlsafe_b64encode(b[:32]).rstrip(b"=").decode(), base64.urlsafe_b64encode(b[32:]).rstrip(b"=").decode())
+')
+read -r AS_X AS_Y <<< "$AS_XY"
+[ -n "$AS_Y" ] || skip "openssl cannot write the public half of the EC key"
 cat > "$WORK/yuneta_agent22.json" <<'EOF'
 {
     "global": {
@@ -92,6 +110,17 @@ cat > "$WORK/yuneta_agent22.json" <<'EOF'
         },
         "authz.master": true,
         "authz.authz_service": "agent",
+        "Authz.assertion_jwks": [
+            {
+                "kid": "test-controlcenter",
+                "kty": "EC",
+                "crv": "P-256",
+                "alg": "ES256",
+                "use": "sig",
+                "x": "__AS_X__",
+                "y": "__AS_Y__"
+            }
+        ],
         "authz.initial_load": {
             "roles": [
                 {
@@ -102,6 +131,15 @@ cat > "$WORK/yuneta_agent22.json" <<'EOF'
                     "parent_role_id": "",
                     "service": "*",
                     "permission": "*"
+                },
+                {
+                    "id": "agent22-install-package",
+                    "disabled": false,
+                    "description": "install-package of agent22, nothing else",
+                    "realm_id": "*",
+                    "parent_role_id": "",
+                    "service": "agent22",
+                    "permission": "install-package"
                 }
             ],
             "users": [
@@ -109,6 +147,12 @@ cat > "$WORK/yuneta_agent22.json" <<'EOF'
                     "id": "controlcenter",
                     "roles": [
                         "roles^root^users"
+                    ]
+                },
+                {
+                    "id": "deployer@sandbox.test",
+                    "roles": [
+                        "roles^agent22-install-package^users"
                     ]
                 }
             ]
@@ -119,6 +163,7 @@ cat > "$WORK/yuneta_agent22.json" <<'EOF'
     }
 }
 EOF
+sed -i -e "s|__AS_X__|$AS_X|" -e "s|__AS_Y__|$AS_Y|" "$WORK/yuneta_agent22.json"
 
 timeout 200 unshare -rmn --pid --fork --mount-proc bash -c "
     ip link set lo up || exit 1
@@ -140,6 +185,14 @@ timeout 200 unshare -rmn --pid --fork --mount-proc bash -c "
         'write-tty name=agent22 content64=YQ==' \
         'write-tty name=nosuch' \
         'help' \
+        'ASSERTION_KEY $WORK/as.key' \
+        'open-console name=c1 process=cat cwd=/yuneta' \
+        'AS deployer@sandbox.test write-tty name=c1 content64=YQ==' \
+        'write-tty name=c1 content64=Ygo=' \
+        'AS deployer@sandbox.test open-console name=c2 process=cat cwd=/yuneta' \
+        'AS deployer@sandbox.test upgrade-agent content64=YQ==' \
+        'AS deployer@sandbox.test install-package-status' \
+        'close-console name=c1' \
         'FLOOD' \
         'FLOODPAD md' \
         'FLOODPAD hop' \
@@ -182,6 +235,36 @@ if ! grep -q "^LINE 'help': \[\[\"EV_MT_COMMAND_ANSWER\", 0, null\]\]$" "$WORK/c
     echo "TEST FAILED: the help after them was not answered"
     failed=1
 fi
+#   An operator whose only role is agent22-install-package: its keys for a
+#   console of root are refused and the console goes on for root; its
+#   open-console and upgrade-agent have no permission, its
+#   install-package-status has
+D="deployer@sandbox.test"
+if ! grep -q "^LINE 'open-console name=c1 process=cat cwd=/yuneta': .*\"EV_MT_COMMAND_ANSWER\", 0," "$WORK/cc.out"; then
+    echo "TEST FAILED: root could not open the console c1"
+    failed=1
+fi
+if ! grep -q "^LINE 'AS $D write-tty name=c1 content64=YQ==': \[\[\"EV_TTY_CLOSE\", 0, \"c1\"\]\]$" "$WORK/cc.out"; then
+    echo "TEST FAILED: the keys of $D for the console of root were not refused with EV_TTY_CLOSE"
+    failed=1
+fi
+if ! grep "^LINE 'write-tty name=c1 content64=Ygo=': " "$WORK/cc.out" | grep -q '"EV_TTY_DATA"' ||
+        grep "^LINE 'write-tty name=c1 content64=Ygo=': " "$WORK/cc.out" | grep -q '"EV_TTY_CLOSE"'; then
+    echo "TEST FAILED: after the keys of $D were refused, the console did not go on for root"
+    failed=1
+fi
+for cmd in "open-console name=c2 process=cat cwd=/yuneta" "upgrade-agent content64=YQ=="; do
+    perm=${cmd%% *}
+    if ! grep -q "^COMMENT 'AS $D $cmd': .*No permission to '$perm'" "$WORK/cc.out"; then
+        echo "TEST FAILED: $perm of $D was not refused for its permission"
+        failed=1
+    fi
+done
+if ! grep -q "^COMMENT 'AS $D install-package-status': " "$WORK/cc.out" ||
+        grep -q "^COMMENT 'AS $D install-package-status': .*No permission" "$WORK/cc.out"; then
+    echo "TEST FAILED: install-package-status of $D did not run (its role grants it)"
+    failed=1
+fi
 #   A console that floods while the control center does not read its link:
 #   agent22's memory bounded, the console paused and then going on
 if ! grep -q "^FLOOD OK$" "$WORK/cc.out"; then
@@ -207,9 +290,10 @@ fi
 nf=$(grep -a '"function": "ac_write_tty"' "$WORK/agent.log" | grep -a "WARNING" | grep -ac '"msg": "console not found"')
 nc=$(grep -a '"function": "ac_write_tty"' "$WORK/agent.log" | grep -a "WARNING" | grep -ac '"msg": "not a console"')
 nr=$(grep -a '"function": "ac_write_tty"' "$WORK/agent.log" | grep -a "WARNING" | grep -ac '"msg": "content64 required"')
+np=$(grep -a '"function": "ac_write_tty"' "$WORK/agent.log" | grep -a "WARNING" | grep -a "\"username\": \"$D\"" | grep -ac '"msg": "write-tty refused: no permission to open-console"')
 ne=$(grep -aE 'ac_write_tty|Event NOT DEFINED in state' "$WORK/agent.log" | grep -ac "ERROR")
-if [ "$nf" != "1" ] || [ "$nc" != "2" ] || [ "$nr" != "1" ] || [ "$ne" != "0" ]; then
-    echo "TEST FAILED: write-tty logged $nf/$nc/$nr WARNING(s) (console not found / not a console / content64 required) and $ne ERROR(s), expected 1/2/1 and none"
+if [ "$nf" != "1" ] || [ "$nc" != "2" ] || [ "$nr" != "1" ] || [ "$np" != "1" ] || [ "$ne" != "0" ]; then
+    echo "TEST FAILED: write-tty logged $nf/$nc/$nr/$np WARNING(s) (console not found / not a console / content64 required / refused to $D) and $ne ERROR(s), expected 1/2/1/1 and none"
     failed=1
 fi
 if [ $failed -ne 0 ]; then
@@ -217,5 +301,5 @@ if [ $failed -ne 0 ]; then
     grep -aE "ERROR|WARNING" "$WORK/agent.log" | cut -c1-600 | tail -40
     exit 1
 fi
-echo "TEST PASSED: a write-tty to no console, or without content64, was refused with a WARNING and the link to the control center stayed; a console that floods while the link is not read kept agent22's memory bounded"
+echo "TEST PASSED: a write-tty to no console, or without content64, was refused with a WARNING and the link to the control center stayed; the keys of an operator with only agent22-install-package were refused and the console went on for root; a console that floods while the link is not read kept agent22's memory bounded"
 exit 0

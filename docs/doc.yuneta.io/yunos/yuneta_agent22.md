@@ -51,6 +51,11 @@ center stays up:
   `EV_TTY_CLOSE` with that `name`, so its terminal can close.
 - A `write-tty` without `content64` logs one WARNING (*"content64 required"*)
   and is dropped.
+- A `write-tty` of an operator without the permission `open-console`
+  (7.32.5+) logs one WARNING (*"write-tty refused: no permission to
+  open-console"*, with the `username`). The requester gets `EV_TTY_CLOSE`
+  with that `name`, and the console goes on for its other routes. See
+  [Permissions](#agent22-permissions).
 
 ```text
 write-tty name=nosuch content64=YQ==      -> EV_TTY_CLOSE {"name": "nosuch"}
@@ -192,8 +197,9 @@ preinst of the package: `/yuneta/development/yunetas` has `kernel/` and
 `.git`. On a package node, the agent comes in the package. Then the package
 database tells the truth about the node.
 
-The permission is `upgrade-agent`. The role `root` of the configuration of
-`agent22` has every permission.
+The permission is `upgrade-agent`. The role `root` has every permission,
+and the role `agent22-upgrade-agent` has only this one (see
+[Permissions](#agent22-permissions)).
 
 Before 7.31.27, the answer to a large `content64` did not arrive. Each
 answer carried the whole command line back, and the control center dropped
@@ -344,6 +350,77 @@ The permission of both commands is `install-package`. It is equivalent to
 root: the package is the one of the URL and the sha256 that the operator
 gives, and the scripts of the package run as root. The permission
 `upgrade-agent` is equivalent to root too, where `yuneta` has `sudo`.
+
+(agent22-permissions)=
+## Permissions
+
+`agent22` has no users or roles of its own. It opens the store of the main
+agent as a read-only replica (`Authz.master` false, `authz_service`
+`agent`), and its own `Authz.initial_load` is not applied. So a permission
+of `agent22` goes in the configuration of the main agent: its json file
+(`yuneta_agent.json`), or its `main.c`.
+
+| Command | Permission |
+|---------|------------|
+| `open-console`, `write-tty` | `open-console` |
+| `close-console` | `close-console` |
+| `list-consoles` | `list-consoles` |
+| `install-package`, `install-package-status` | `install-package` |
+| `upgrade-agent` | `upgrade-agent` |
+| `help` | none |
+
+The `main.c` of the main agent seeds two roles (7.32.5+). Each role grants
+one permission of `agent22` and nothing else. They are for the account that
+deploys the nodes:
+
+| Role | Permission |
+|------|------------|
+| `agent22-install-package` | `install-package` (also `install-package-status`) |
+| `agent22-upgrade-agent` | `upgrade-agent` |
+
+A role grants nothing until a user is linked to it. The user belongs to the
+node, so the json file of the main agent names it:
+
+```json
+"global": {
+    "Authz.initial_load": {
+        "users": [
+            {
+                "id": "deployer@example.com",
+                "roles": [
+                    "roles^agent22-install-package^users",
+                    "roles^agent22-upgrade-agent^users"
+                ]
+            }
+        ]
+    }
+}
+```
+
+Link the user only when the agent that runs has the two roles. A seed that
+names a role that the store does not have is an ERROR at every start.
+
+The lists of the json file are added to the lists of the `main.c`, as a
+set, so the file does not repeat the two roles. A seed is immutable: nobody
+can delete these roles or change their permission by command. Each command
+refuses the node that it is not for: `install-package` refuses a node that
+builds from source, and `upgrade-agent` refuses a node of packages. So you
+can link both roles on every node.
+
+The `id` is the operator that the control center asserts: the `sub` of the
+operator assertion (see [`controlcenter`](controlcenter.md)), which is the
+verified email of the login of that user at the control center. A token with
+no email is refused there, for example the token of a client credentials
+grant.
+
+On the control center that `agent22` connects to (see *Control-center link*
+above), the user also needs the permissions
+`list-agents` and `command-agent` of the service `controlcenter`.
+`command-agent` has no parameters that restrict it: the user can send any
+command to every `agent22` of that control center. The roles above decide
+which commands of `agent22` run. The commands of `__yuno__` ask the
+per-command authorization of the yuno (`enable_command_authz`), which is off
+by default, so they run for that user too.
 
 ## Variant
 

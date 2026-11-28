@@ -194,7 +194,9 @@
  *  is a run of this yuno, `<role>^<name>`, its comment naming who started
  *  the scenario), `aud` = the node uuid of
  *  that agent (its identity card),
- *  living `operator_assertion_lifetime` seconds. The agent verifies it
+ *  living `operator_assertion_lifetime` seconds. write-tty carries one
+ *  too (7.32.5+): the agents ask the operator for open-console before a
+ *  key reaches a console. The agent verifies it
  *  with the public key in its C_AUTHZ `assertion_jwks`. The operator's
  *  login token never leaves this yuno: an assertion is good on one node,
  *  for a minute, and never at a login. A request with no user gets none,
@@ -9317,10 +9319,15 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     BOOL ambiguous = FALSE;
     hgobj child = find_agent_channel(gobj, agent_id, &ambiguous);
     if(child) {
+        /*
+         *  With the operator assertion of who types, as every command for
+         *  an agent: the agent asks that operator for open-console. Up to
+         *  7.32.4 it went with none, as a request of this yuno's own.
+         */
         json_t *webix = gobj_command(
             child,
             "write-tty",
-            kw_duplicate(gobj, kw),     // a kw copy: the agent's gate serializes what it is given
+            kw_to_agent(gobj, kw, src, child),  // a kw copy: the agent's gate serializes what it is given
             src
         );
         if(webix) {

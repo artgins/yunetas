@@ -34,6 +34,35 @@ help
 - At the end the agent is stopped in order (SIGINT). It must end with 0, and
   its log must have no *"system memory not free"*.
 
+Then an operator whose only role is `agent22-install-package`
+(`deployer@sandbox.test`). The control center signs its operator
+assertions as a real one does: ES256, with a key that the test makes, whose
+public half is in `Authz.assertion_jwks` of the agent22's json with the
+`kid` `test-controlcenter`. `control_center.py` signs with the `openssl`
+command, so the test needs no python package. The principal of the link
+opens a console (`open-console name=c1 process=cat`), and then:
+
+```
+AS deployer@sandbox.test write-tty name=c1 content64=YQ==
+write-tty name=c1 content64=Ygo=
+AS deployer@sandbox.test open-console name=c2 process=cat cwd=/yuneta
+AS deployer@sandbox.test upgrade-agent content64=YQ==
+AS deployer@sandbox.test install-package-status
+close-console name=c1
+```
+
+- The key of the operator must be answered with `EV_TTY_CLOSE` naming `c1`,
+  and log one WARNING *"write-tty refused: no permission to open-console"*
+  with its `username`.
+- The console must go on for the principal: the console echoes its key in
+  `EV_TTY_DATA`.
+- `open-console` and `upgrade-agent` of the operator must be refused with
+  *"No permission to '<permission>'"*, and its `install-package-status` must
+  run: its role grants it.
+
+Up to 7.32.4 `write-tty` asked no permission, and the key of that operator
+reached the console.
+
 Then the control center opens a console that floods (`open-console name=f1
 process=yes`, and the principal of the link, `controlcenter`, is given the role
 `root` in the agent22's json) and does not read its link for 8 s:

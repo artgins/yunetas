@@ -73,6 +73,7 @@ PRIVATE int is_yuneta_agent22(pid_t pid);
 PRIVATE void remove_pid_file(void);
 PRIVATE hgobj console_route_gate(hgobj gobj, json_t *jn_route);
 PRIVATE void console_release_pauses_of(hgobj gobj, hgobj transport);
+PRIVATE void send_tty_close_to_requester(hgobj gobj, const char *name, json_t *kw, hgobj src);
 
 GOBJ_DECLARE_EVENT(EV_CLOSE_CONSOLE);
 PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src);
@@ -164,7 +165,7 @@ PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD2--type-----------name----------------flag----------------alias---------------items-----------json_fn---------description---------- */
 SDATACM2 (DTP_SCHEMA,   "help",             0,                  a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,        pm_write_tty,   0,              "Write data to tty"),
+SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,        pm_write_tty,   0,              "Write data to tty (permission open-console)"),
 // HACK DANGER backdoor, use Yuneta only in private networks, or public but encrypted and assured connections.
 SDATACM2 (DTP_SCHEMA,    "list-consoles",   0,                  0,                  0,              cmd_list_consoles, "List consoles"),
 SDATACM2 (DTP_SCHEMA,    "open-console",    0,                  0,                  pm_open_console,cmd_open_console, "Open console"),
@@ -210,7 +211,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
-SDATAAUTHZ (DTP_SCHEMA, "open-console",     0,      0,      0,      "Permission to open console"),
+SDATAAUTHZ (DTP_SCHEMA, "open-console",     0,      0,      0,      "Permission to open a console, and to type in one (write-tty)"),
 SDATAAUTHZ (DTP_SCHEMA, "close-console",    0,      0,      0,      "Permission to close console"),
 SDATAAUTHZ (DTP_SCHEMA, "list-consoles",    0,      0,      0,      "Permission to list consoles"),
 SDATAAUTHZ (DTP_SCHEMA, "install-package",  0,      0,      0,      "Permission to install a yuneta-agent package, and to see how it went. Equivalent to root: the package is the one of the url and sha256 given, and its scripts run as root"),
@@ -2087,6 +2088,27 @@ PRIVATE void console_release_pauses_of(hgobj gobj, hgobj transport)
 }
 
 /***************************************************************************
+ *  Tell the requester of a write-tty (kw not owned) that the console
+ *  `name` is closed for it: src is the gate the write-tty came through, and
+ *  the answer echoes its __md_iev__ back.
+ ***************************************************************************/
+PRIVATE void send_tty_close_to_requester(hgobj gobj, const char *name, json_t *kw, hgobj src)
+{
+    gobj_send_event(
+        src,
+        EV_TTY_CLOSE,
+        msg_iev_build_response(gobj,
+            0,  // result
+            0,  // comment
+            0,  // schema
+            json_pack("{s:s}", "name", name?name:""),   // owned
+            kw_incref(kw)  // owned, echoes __md_iev__ back
+        ),
+        gobj
+    );
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int delete_console(hgobj gobj, const char *name)
@@ -2481,6 +2503,33 @@ PRIVATE int ac_close_console(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *name= kw_get_str(gobj, kw, "name", 0, 0);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    /*
+     *  Who may open a console may type in one, and nobody else. Up to
+     *  7.32.4 write-tty asked no permission: a user with a role of this
+     *  service that grants only install-package could type in a console
+     *  that an operator with root had open. A key refused closes the
+     *  console of the requester (EV_TTY_CLOSE), and the console goes on
+     *  for its other routes.
+     */
+    const char *permission = "open-console";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "write-tty refused: no permission to open-console",
+            "username",     "%s", kw_get_str(gobj, kw, "__username__", "", 0),
+            "name",         "%s", name,
+            NULL
+        );
+        send_tty_close_to_requester(gobj, name, kw, src);
+        KW_DECREF(kw);
+        return -1;
+    }
+
     const char *content64 = kw_get_str(gobj, kw, "content64", 0, 0);
     if(empty_string(content64)) {
         /*
@@ -2516,18 +2565,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(
-            src,
-            EV_TTY_CLOSE,
-            msg_iev_build_response(gobj,
-                0,  // result
-                0,  // comment
-                0,  // schema
-                json_pack("{s:s}", "name", name?name:""),   // owned
-                kw_incref(kw)  // owned, echoes __md_iev__ back
-            ),
-            gobj
-        );
+        send_tty_close_to_requester(gobj, name, kw, src);
         KW_DECREF(kw);
         return gobj_console? -1 : 0;
     }

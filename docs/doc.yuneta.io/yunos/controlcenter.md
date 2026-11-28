@@ -453,10 +453,15 @@ assertion**. The agent verifies the assertion and believes it, not the
 | `aud` | the node uuid of that agent (the `id` of its identity card) |
 | `iat`, `exp` | now, and now + `operator_assertion_lifetime` (60 s) |
 
-The control center adds an assertion to `command-agent`, `stats-agent` and
-every step of a scenario run. It adds one only for an agent whose identity
+The control center adds an assertion to `command-agent`, `stats-agent`,
+`write-tty` (7.32.5+) and every step of a scenario run. It adds one only for an agent whose identity
 card says `knows_operator_assertion` (7.30.9+). If it gets one, an older agent hands the
 unknown key to its command. A request with no user gets no assertion.
+
+Up to 7.32.4 `write-tty` went with no assertion, and the agents ran it as
+of their principal `controlcenter`. An agent of 7.32.5 asks the operator of
+a `write-tty` for the permission `open-console`, so it refuses every key of
+an older control center. Deploy the control center before the agents.
 
 The operator's login token never leaves the control center. An assertion is
 good on one node only, for a minute, and never at a login. A node that is
